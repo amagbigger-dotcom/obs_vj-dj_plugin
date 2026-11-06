@@ -1,0 +1,85 @@
+uniform float4x4 ViewProj;
+
+uniform texture2d image_a;
+uniform texture2d image_b;
+
+uniform float transition;
+uniform float transition_mode;
+
+uniform float3 tint_a;
+uniform float3 tint_b;
+uniform float saturation_a;
+uniform float saturation_b;
+
+sampler_state image_a_sampler {
+    Filter   = Linear;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
+sampler_state image_b_sampler {
+    Filter   = Linear;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
+struct VertData {
+    float4 pos : POSITION;
+    float2 uv  : TEXCOORD0;
+};
+
+VertData VSDefault(VertData v_in)
+{
+    VertData v_out;
+    v_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+    v_out.uv  = v_in.uv;
+    return v_out;
+}
+
+float4 apply_color_grade(float4 color, float3 tint, float saturation)
+{
+    // HI/MID/LOW hozzárendelése az RGB csatornák szorzóihoz (0.0 - 2.0)
+    color.rgb *= tint;
+
+    // Szaturáció (Rec.709 luma): 0.0 = fekete-fehér, 1.0 = normál, 2.0 = túlszaturált
+    float luminance = dot(color.rgb, float3(0.2126, 0.7152, 0.0722));
+    float3 gray = float3(luminance, luminance, luminance);
+    color.rgb = lerp(gray, color.rgb, saturation);
+
+    return color;
+}
+
+float4 PSBlend(VertData v_in) : TARGET
+{
+    float4 a = image_a.Sample(image_a_sampler, v_in.uv);
+    float4 b = image_b.Sample(image_b_sampler, v_in.uv);
+
+    a = apply_color_grade(a, tint_a, saturation_a);
+    b = apply_color_grade(b, tint_b, saturation_b);
+
+    float t = saturate(transition);
+
+    // Mode 0: Linear Fade
+    if (transition_mode < 0.5)
+        return lerp(a, b, t);
+
+    // Mode 1: Horizontal Wipe
+    if (transition_mode < 1.5) {
+        float edge = smoothstep(t - 0.005, t + 0.005, v_in.uv.x);
+        return lerp(b, a, edge);
+    }
+
+    // Mode 2: Additive
+    if (transition_mode < 2.5)
+        return float4(saturate(a.rgb + b.rgb * t), lerp(a.a, b.a, t));
+
+    // Mode 3: Hard Cut
+    return t < 0.5 ? a : b;
+}
+
+technique Draw {
+    pass {
+        vertex_shader = VSDefault(v_in);
+        pixel_shader  = PSBlend(v_in);
+    }
+}
