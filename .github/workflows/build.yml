@@ -35,17 +35,19 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$sdkRoot/lib" | Out-Null
           New-Item -ItemType Directory -Force -Path "$sdkRoot/bin/64bit" | Out-Null
 
-          # 1. OBS 30.0.2 Windows binárisok letöltése (DLL-ekhez)
+          # 1. OBS 30.0.2 binárisok letöltése (a helyes fájlnév OBS-Studio-30.0.2.zip)
           Write-Host "Downloading OBS Studio release..."
-          Invoke-WebRequest -Uri "https://github.com/obsproject/obs-studio/releases/download/30.0.2/OBS-Studio-30.0.2-Windows.zip" -OutFile "$env:RUNNER_TEMP/obs-rel.zip"
-          Expand-Archive -Path "$env:RUNNER_TEMP/obs-rel.zip" -DestinationPath "$env:RUNNER_TEMP/obs-rel" -Force
+          $obsZip = "$env:RUNNER_TEMP/obs-rel.zip"
+          curl.exe -fL "https://github.com/obsproject/obs-studio/releases/download/30.0.2/OBS-Studio-30.0.2.zip" -o $obsZip
+          Expand-Archive -Path $obsZip -DestinationPath "$env:RUNNER_TEMP/obs-rel" -Force
           Copy-Item "$env:RUNNER_TEMP/obs-rel/bin/64bit/obs.dll" -Destination "$sdkRoot/bin/64bit/"
           Copy-Item "$env:RUNNER_TEMP/obs-rel/bin/64bit/obs-frontend-api.dll" -Destination "$sdkRoot/bin/64bit/"
 
           # 2. OBS fejlécek letöltése
           Write-Host "Downloading OBS headers..."
-          Invoke-WebRequest -Uri "https://github.com/obsproject/obs-studio/archive/refs/tags/30.0.2.zip" -OutFile "$env:RUNNER_TEMP/obs-src.zip"
-          Expand-Archive -Path "$env:RUNNER_TEMP/obs-src.zip" -DestinationPath "$env:RUNNER_TEMP/obs-src" -Force
+          $srcZip = "$env:RUNNER_TEMP/obs-src.zip"
+          curl.exe -fL "https://github.com/obsproject/obs-studio/archive/refs/tags/30.0.2.zip" -o $srcZip
+          Expand-Archive -Path $srcZip -DestinationPath "$env:RUNNER_TEMP/obs-src" -Force
           Copy-Item -Recurse "$env:RUNNER_TEMP/obs-src/obs-studio-30.0.2/libobs/*" -Destination "$sdkRoot/include/"
           Copy-Item "$env:RUNNER_TEMP/obs-src/obs-studio-30.0.2/UI/obs-frontend-api/obs-frontend-api.h" -Destination "$sdkRoot/include/"
 
@@ -53,9 +55,16 @@ jobs:
           Write-Host "Generating import libraries (.lib)..."
           function Make-Lib ($dll, $name) {
               $exp = dumpbin /EXPORTS "$sdkRoot/bin/64bit/$dll" | Select-String -Pattern "^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+(\S+)"
-              $def = "EXPORTS`r`n" + (($exp | ForEach-Object { $_.Matches[0].Groups[1].Value } | Where-Object { -not $_.StartsWith("[") }) -join "`r`n")
-              Set-Content -Path "$name.def" -Value $def
-              lib /def:"$name.def" /machine:x64 /out:"$sdkRoot/lib/$name.lib" | Out-Null
+              $defLines = @("EXPORTS")
+              foreach ($m in $exp) {
+                  $sym = $m.Matches[0].Groups[1].Value
+                  if (-not $sym.StartsWith("[")) {
+                      $defLines += $sym
+                  }
+              }
+              $defPath = "$env:RUNNER_TEMP/$name.def"
+              $defLines | Set-Content -Path $defPath
+              lib /def:"$defPath" /machine:x64 /out:"$sdkRoot/lib/$name.lib" | Out-Null
           }
           Make-Lib "obs.dll" "obs"
           Make-Lib "obs-frontend-api.dll" "obs-frontend-api"
