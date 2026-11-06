@@ -43,7 +43,7 @@ jobs:
           Copy-Item "$env:RUNNER_TEMP/obs-rel/bin/64bit/obs.dll" -Destination "$sdkRoot/bin/64bit/"
           Copy-Item "$env:RUNNER_TEMP/obs-rel/bin/64bit/obs-frontend-api.dll" -Destination "$sdkRoot/bin/64bit/"
 
-          # 2. OBS 33.0.1 fejlécek letöltése és kicsomagolása
+          # 2. OBS 33.0.1 fejlécek letöltése és másolása
           Write-Host "Downloading OBS Studio 33.0.1 headers..."
           $srcZip = "$env:RUNNER_TEMP/obs-src.zip"
           curl.exe -fL "https://github.com/obsproject/obs-studio/archive/refs/tags/33.0.1.zip" -o $srcZip
@@ -63,7 +63,7 @@ jobs:
               throw "obs-frontend-api.h not found in source archive!"
           }
 
-          # 3. Hiányzó obsconfig.h létrehozása YAML-biztos tömbként
+          # 3. Hiányzó obsconfig.h létrehozása
           Write-Host "Generating obsconfig.h stub..."
           $configStub = @(
               '#pragma once',
@@ -96,6 +96,31 @@ jobs:
 
       - name: Configure Release x64
         shell: pwsh
+        run: cmake -S . -B build -A x64 -DCMAKE_BUILD_TYPE=Release -DOBS_ROOT="$env:OBS_ROOT"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Stage Artifacts (OBS 33 layout)
+        shell: pwsh
         run: |
-          cmake -S . -B build -A x64 `
-            -DCMAKE_BUILD
+          New-Item -ItemType Directory -Force -Path "package/plugins/obs-vj-mixer/bin/64bit" | Out-Null
+          New-Item -ItemType Directory -Force -Path "package/plugins/obs-vj-mixer/data/shaders" | Out-Null
+
+          New-Item -ItemType Directory -Force -Path "package/obs-plugins/64bit" | Out-Null
+          New-Item -ItemType Directory -Force -Path "package/data/obs-plugins/obs-vj-mixer/shaders" | Out-Null
+
+          $dllSource = if (Test-Path "build/bin/Release/obs-vj-mixer.dll") { "build/bin/Release/obs-vj-mixer.dll" } else { "build/bin/obs-vj-mixer.dll" }
+
+          Copy-Item $dllSource -Destination "package/plugins/obs-vj-mixer/bin/64bit/obs-vj-mixer.dll"
+          Copy-Item "src/shaders/crossfade.effect" -Destination "package/plugins/obs-vj-mixer/data/shaders/"
+
+          Copy-Item $dllSource -Destination "package/obs-plugins/64bit/"
+          Copy-Item "src/shaders/crossfade.effect" -Destination "package/data/obs-plugins/obs-vj-mixer/shaders/"
+
+      - name: Upload plugin package
+        uses: actions/upload-artifact@v4
+        with:
+          name: obs-vj-mixer-windows-x64
+          path: package/
+          if-no-files-found: error
