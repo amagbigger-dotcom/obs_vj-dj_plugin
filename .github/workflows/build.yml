@@ -21,7 +21,7 @@ jobs:
       - name: Install Qt 6 (MSVC 2022)
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.*'
+          version: '6.8.3'
           host: windows
           target: desktop
           arch: win64_msvc2022_64
@@ -35,10 +35,10 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$sdkRoot/lib" | Out-Null
           New-Item -ItemType Directory -Force -Path "$sdkRoot/bin/64bit" | Out-Null
 
-          # 1. Hivatalos OBS 33.0.1 binárisok letöltése
+          # 1. Hivatalos OBS 33.0.1 Windows x64 binárisok letöltése
           Write-Host "Downloading OBS Studio 33.0.1 release..."
           $obsZip = "$env:RUNNER_TEMP/obs-rel.zip"
-          curl.exe -fL "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1.zip" -o $obsZip
+          curl.exe -fL "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip" -o $obsZip
           Expand-Archive -Path $obsZip -DestinationPath "$env:RUNNER_TEMP/obs-rel" -Force
           Copy-Item "$env:RUNNER_TEMP/obs-rel/bin/64bit/obs.dll" -Destination "$sdkRoot/bin/64bit/"
           Copy-Item "$env:RUNNER_TEMP/obs-rel/bin/64bit/obs-frontend-api.dll" -Destination "$sdkRoot/bin/64bit/"
@@ -51,7 +51,7 @@ jobs:
           Copy-Item -Recurse "$env:RUNNER_TEMP/obs-src/obs-studio-33.0.1/libobs/*" -Destination "$sdkRoot/include/"
           Copy-Item "$env:RUNNER_TEMP/obs-src/obs-studio-33.0.1/UI/obs-frontend-api/obs-frontend-api.h" -Destination "$sdkRoot/include/"
 
-          # 3. .lib import könyvtárak generálása
+          # 3. .lib import könyvtárak legenerálása az MSVC lib eszközzel
           Write-Host "Generating import libraries (.lib)..."
           function Make-Lib ($dll, $name) {
               $exp = dumpbin /EXPORTS "$sdkRoot/bin/64bit/$dll" | Select-String -Pattern "^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+(\S+)"
@@ -84,16 +84,16 @@ jobs:
       - name: Stage Artifacts (OBS 33 layout)
         shell: pwsh
         run: |
-          # 1. Új OBS 33-as formátum (ProgramData / plugins mappa)
+          # 1. OBS 33+ szerkezet (%ProgramData%\obs-studio\plugins\obs-vj-mixer)
           New-Item -ItemType Directory -Force -Path "package/plugins/obs-vj-mixer/bin/64bit" | Out-Null
           New-Item -ItemType Directory -Force -Path "package/plugins/obs-vj-mixer/data/shaders" | Out-Null
-          
-          # 2. Régi OBS struktúra (ha közvetlenül az OBS gyökerébe másolnád)
+
+          # 2. Hagyományos mappa (obs-plugins)
           New-Item -ItemType Directory -Force -Path "package/obs-plugins/64bit" | Out-Null
           New-Item -ItemType Directory -Force -Path "package/data/obs-plugins/obs-vj-mixer/shaders" | Out-Null
 
           $dllSource = if (Test-Path "build/bin/Release/obs-vj-mixer.dll") { "build/bin/Release/obs-vj-mixer.dll" } else { "build/bin/obs-vj-mixer.dll" }
-          
+
           Copy-Item $dllSource -Destination "package/plugins/obs-vj-mixer/bin/64bit/obs-vj-mixer.dll"
           Copy-Item "src/shaders/crossfade.effect" -Destination "package/plugins/obs-vj-mixer/data/shaders/"
 
