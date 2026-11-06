@@ -1,0 +1,92 @@
+name: Windows x64 build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up MSVC x64
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt 6.5.3
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.5.3
+          host: windows
+          target: desktop
+          arch: win64_msvc2019_64
+          cache: true
+
+      - name: Download and prepare OBS SDK automatically
+        shell: pwsh
+        run: |
+          $sdkRoot = Join-Path $env:RUNNER_TEMP "obs-sdk"
+          New-Item -ItemType Directory -Force -Path "$sdkRoot/include" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$sdkRoot/lib" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$sdkRoot/bin/64bit" | Out-Null
+
+          # 1. OBS 30.0.2 Windows binárisok letöltése (DLL-ekhez)
+          Write-Host "Downloading OBS Studio release..."
+          Invoke-WebRequest -Uri "https://github.com/obsproject/obs-studio/releases/download/30.0.2/OBS-Studio-30.0.2-Windows.zip" -OutFile "$env:RUNNER_TEMP/obs-rel.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP/obs-rel.zip" -DestinationPath "$env:RUNNER_TEMP/obs-rel" -Force
+          Copy-Item "$env:RUNNER_TEMP/obs-rel/bin/64bit/obs.dll" -Destination "$sdkRoot/bin/64bit/"
+          Copy-Item "$env:RUNNER_TEMP/obs-rel/bin/64bit/obs-frontend-api.dll" -Destination "$sdkRoot/bin/64bit/"
+
+          # 2. OBS fejlécek letöltése
+          Write-Host "Downloading OBS headers..."
+          Invoke-WebRequest -Uri "https://github.com/obsproject/obs-studio/archive/refs/tags/30.0.2.zip" -OutFile "$env:RUNNER_TEMP/obs-src.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP/obs-src.zip" -DestinationPath "$env:RUNNER_TEMP/obs-src" -Force
+          Copy-Item -Recurse "$env:RUNNER_TEMP/obs-src/obs-studio-30.0.2/libobs/*" -Destination "$sdkRoot/include/"
+          Copy-Item "$env:RUNNER_TEMP/obs-src/obs-studio-30.0.2/UI/obs-frontend-api/obs-frontend-api.h" -Destination "$sdkRoot/include/"
+
+          # 3. .lib import könyvtárak legenerálása MSVC lib eszközzel
+          Write-Host "Generating import libraries (.lib)..."
+          function Make-Lib ($dll, $name) {
+              $exp = dumpbin /EXPORTS "$sdkRoot/bin/64bit/$dll" | Select-String -Pattern "^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+(\S+)"
+              $def = "EXPORTS`r`n" + (($exp | ForEach-Object { $_.Matches[0].Groups[1].Value } | Where-Object { -not $_.StartsWith("[") }) -join "`r`n")
+              Set-Content -Path "$name.def" -Value $def
+              lib /def:"$name.def" /machine:x64 /out:"$sdkRoot/lib/$name.lib" | Out-Null
+          }
+          Make-Lib "obs.dll" "obs"
+          Make-Lib "obs-frontend-api.dll" "obs-frontend-api"
+
+          "OBS_ROOT=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Configure Release x64
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DOBS_ROOT="$env:OBS_ROOT"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Stage Artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package/obs-plugins/64bit | Out-Null
+          New-Item -ItemType Directory -Force -Path package/data/obs-plugins/obs-vj-mixer/shaders | Out-Null
+          
+          Copy-Item "build/bin/Release/obs-vj-mixer.dll" -Destination "package/obs-plugins/64bit/" -ErrorAction SilentlyContinue
+          if (-not (Test-Path "package/obs-plugins/64bit/obs-vj-mixer.dll")) {
+              Copy-Item "build/bin/obs-vj-mixer.dll" -Destination "package/obs-plugins/64bit/"
+          }
+          Copy-Item "src/shaders/crossfade.effect" -Destination "package/data/obs-plugins/obs-vj-mixer/shaders/"
+
+      - name: Upload plugin package
+        uses: actions/upload-artifact@v4
+        with:
+          name: obs-vj-mixer-windows-x64
+          path: package/
+          if-no-files-found: error
