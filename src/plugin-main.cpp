@@ -5,7 +5,6 @@
 #include <obs-module.h>
 
 #include <QMainWindow>
-#include <QAction>
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-vj-mixer", "en-US")
@@ -15,20 +14,16 @@ void vdj_register_sources();
 namespace {
 DeckPair *g_decks = nullptr;
 MixerWindow *g_window = nullptr;
-QAction *g_action = nullptr;
 }
 
-static void on_menu_clicked(void *)
+static void on_tools_menu_clicked(void *)
 {
     if (!g_window)
         return;
 
-    if (g_window->isVisible()) {
-        g_window->activateWindow();
-        g_window->raise();
-    } else {
-        g_window->show();
-    }
+    g_window->show();
+    g_window->raise();
+    g_window->activateWindow();
 }
 
 bool obs_module_load(void)
@@ -51,8 +46,8 @@ bool obs_module_load(void)
 
     g_window = new MixerWindow(g_decks, main_window);
 
-    // Beépülő az Eszközök (Tools) menübe: nem dokk, nem tolja el az OBS felületét
-    obs_frontend_add_tools_menu_item("Video DJ Mixer", on_menu_clicked, nullptr);
+    // Külön ablak az Eszközök menüből (nem dokkolódik az OBS felületébe)
+    obs_frontend_add_tools_menu_item("Video DJ Mixer", on_tools_menu_clicked, nullptr);
 
     return true;
 }
