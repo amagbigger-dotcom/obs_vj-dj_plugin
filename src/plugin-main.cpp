@@ -25,7 +25,6 @@ bool obs_module_load(void)
     g_decks = new DeckPair();
     vdj_set_decks(g_decks);
 
-    // Kifejezett típuskonverzió void* -> QMainWindow*
     auto *main_window = static_cast<QMainWindow *>(obs_frontend_get_main_window());
     if (!main_window) {
         blog(LOG_ERROR, "[obs-vj-mixer] OBS main window is unavailable");
