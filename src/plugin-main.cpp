@@ -5,6 +5,7 @@
 #include <obs-module.h>
 
 #include <QMainWindow>
+#include <QAction>
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-vj-mixer", "en-US")
@@ -13,7 +14,21 @@ void vdj_register_sources();
 
 namespace {
 DeckPair *g_decks = nullptr;
-MixerDock *g_dock = nullptr;
+MixerWindow *g_window = nullptr;
+QAction *g_action = nullptr;
+}
+
+static void on_menu_clicked(void *)
+{
+    if (!g_window)
+        return;
+
+    if (g_window->isVisible()) {
+        g_window->activateWindow();
+        g_window->raise();
+    } else {
+        g_window->show();
+    }
 }
 
 bool obs_module_load(void)
@@ -34,19 +49,20 @@ bool obs_module_load(void)
         return false;
     }
 
-    g_dock = new MixerDock(g_decks, main_window);
-    g_dock->setObjectName(QStringLiteral("obs-vj-mixer-dock"));
-    obs_frontend_add_custom_qdock("obs-vj-mixer-dock", g_dock);
+    g_window = new MixerWindow(g_decks, main_window);
+
+    // Beépülő az Eszközök (Tools) menübe: nem dokk, nem tolja el az OBS felületét
+    obs_frontend_add_tools_menu_item("Video DJ Mixer", on_menu_clicked, nullptr);
 
     return true;
 }
 
 void obs_module_unload(void)
 {
-    if (g_dock) {
-        obs_frontend_remove_dock("obs-vj-mixer-dock");
-        delete g_dock;
-        g_dock = nullptr;
+    if (g_window) {
+        g_window->close();
+        delete g_window;
+        g_window = nullptr;
     }
 
     vdj_set_decks(nullptr);
