@@ -113,9 +113,6 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
     btn_row->addWidget(loop_btn);
     layout->addLayout(btn_row);
 
-    if (is_deck_a) play_btn_a_ = play_btn;
-    else play_btn_b_ = play_btn;
-
     auto *seek_slider = new QSlider(Qt::Horizontal, parent);
     seek_slider->setRange(0, 1000);
     layout->addWidget(new QLabel(QStringLiteral("Position"), parent));
