@@ -1,15 +1,15 @@
 #pragma once
 
-#include <QDockWidget>
+#include <QDialog>
 
 class DeckPair;
 class QSlider;
 
-class MixerDock final : public QDockWidget {
+class MixerWindow final : public QDialog {
     Q_OBJECT
 
 public:
-    explicit MixerDock(DeckPair *decks, QWidget *parent = nullptr);
+    explicit MixerWindow(DeckPair *decks, QWidget *parent = nullptr);
 
 private:
     void buildDeckPanel(QWidget *parent, bool deck_a);
