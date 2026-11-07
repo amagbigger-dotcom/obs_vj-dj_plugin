@@ -12,16 +12,18 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-MixerDock::MixerDock(DeckPair *decks, QWidget *parent)
-    : QDockWidget(tr("Video DJ Mixer"), parent),
+MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
+    : QDialog(parent, Qt::Window),
       decks_(decks)
 {
-    auto *body = new QWidget(this);
-    auto *root_layout = new QHBoxLayout(body);
+    setWindowTitle(tr("Video DJ Mixer"));
+    resize(950, 450);
 
-    auto *deck_a_panel = new QWidget(body);
-    auto *mixer_panel = new QWidget(body);
-    auto *deck_b_panel = new QWidget(body);
+    auto *root_layout = new QHBoxLayout(this);
+
+    auto *deck_a_panel = new QWidget(this);
+    auto *mixer_panel = new QWidget(this);
+    auto *deck_b_panel = new QWidget(this);
 
     buildDeckPanel(deck_a_panel, true);
     buildDeckPanel(deck_b_panel, false);
@@ -47,7 +49,7 @@ MixerDock::MixerDock(DeckPair *decks, QWidget *parent)
 
     connect(
         transition,
-        qOverload<int>(&QComboBox::currentIndexChanged),
+        &QComboBox::currentIndexChanged,
         this,
         [this](int index) {
             decks_->setTransitionMode(index);
@@ -65,9 +67,6 @@ MixerDock::MixerDock(DeckPair *decks, QWidget *parent)
     root_layout->addWidget(mixer_panel);
     root_layout->addWidget(deck_b_panel, 1);
 
-    setWidget(body);
-    setMinimumWidth(900);
-
     auto *refresh_timer = new QTimer(this);
     connect(
         refresh_timer,
@@ -80,7 +79,7 @@ MixerDock::MixerDock(DeckPair *decks, QWidget *parent)
     refresh_timer->start(200);
 }
 
-void MixerDock::buildDeckPanel(QWidget *parent, bool deck_a)
+void MixerWindow::buildDeckPanel(QWidget *parent, bool deck_a)
 {
     auto *layout = new QVBoxLayout(parent);
     DeckPlayer *deck = deck_a ? &decks_->deckA() : &decks_->deckB();
@@ -183,7 +182,7 @@ void MixerDock::buildDeckPanel(QWidget *parent, bool deck_a)
         seek_b_ = seek_slider;
 }
 
-void MixerDock::refreshDeck(bool deck_a)
+void MixerWindow::refreshDeck(bool deck_a)
 {
     DeckPlayer &deck = deck_a ? decks_->deckA() : decks_->deckB();
     QSlider *slider = deck_a ? seek_a_ : seek_b_;
