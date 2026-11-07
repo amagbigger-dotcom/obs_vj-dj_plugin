@@ -36,7 +36,7 @@ bool obs_module_load(void)
 
     g_dock = new MixerDock(g_decks, main_window);
     g_dock->setObjectName(QStringLiteral("obs-vj-mixer-dock"));
-    obs_frontend_add_dock(g_dock);
+    obs_frontend_add_custom_qdock("obs-vj-mixer-dock", g_dock);
 
     return true;
 }
