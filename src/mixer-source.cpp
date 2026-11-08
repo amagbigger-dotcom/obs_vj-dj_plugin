@@ -8,7 +8,7 @@
 #include <cstdint>
 
 // ==========================================================================
-// Beágyazott HLSL shader (nem kell hozzá külső .effect fájl vagy data mappa)
+// Beagyazott HLSL shader (nem kell hozza kulso .effect fajl vagy data mappa)
 // ==========================================================================
 static const char *CROSSFADE_EFFECT_SRC = R"(
 uniform float4x4 ViewProj;
@@ -33,6 +33,7 @@ sampler_state image_a_sampler {
 sampler_state image_b_sampler {
     Filter   = Linear;
     AddressU = Clamp;
+    AddressV = Clamp;
 };
 
 struct VertData {
@@ -90,7 +91,7 @@ technique Draw {
 )";
 
 // ==========================================================================
-// 1. Deck Monitor Források (A és B külön megjelenítéséhez a jelenetekben)
+// 1. Deck Monitor Forrasok (A es B kulon megjelenitesehez a jelenetekben)
 // ==========================================================================
 
 struct DeckMonitorData {
@@ -166,7 +167,7 @@ static uint32_t deck_monitor_get_height(void *data)
 }
 
 // ==========================================================================
-// 2. Master Mixer Forrás (Beágyazott HLSL shaderrel kevert kimenet)
+// 2. Master Mixer Forras (Beagyazott HLSL shaderrel kevert kimenet)
 // ==========================================================================
 
 struct MixerSourceData {
@@ -255,7 +256,7 @@ static void mixer_video_render(void *data, gs_effect_t *effect)
     const uint32_t cx = 1920;
     const uint32_t cy = 1080;
 
-    // 1. Deck A lerenderelése textúrába
+    // 1. Deck A lerenderelese texturaba
     gs_texrender_reset(mixer->texrender_a);
     if (gs_texrender_begin(mixer->texrender_a, cx, cy)) {
         struct vec4 clear_color;
@@ -269,7 +270,7 @@ static void mixer_video_render(void *data, gs_effect_t *effect)
         gs_texrender_end(mixer->texrender_a);
     }
 
-    // 2. Deck B lerenderelése textúrába
+    // 2. Deck B lerenderelese texturaba
     gs_texrender_reset(mixer->texrender_b);
     if (gs_texrender_begin(mixer->texrender_b, cx, cy)) {
         struct vec4 clear_color;
@@ -288,10 +289,84 @@ static void mixer_video_render(void *data, gs_effect_t *effect)
     if (!tex_a || !tex_b)
         return;
 
-    // 3. Shader paraméterek átadása
+    // 3. Shader parameterek atadasa
     gs_effect_set_texture(mixer->param_image_a, tex_a);
     gs_effect_set_texture(mixer->param_image_b, tex_b);
     gs_effect_set_float(mixer->param_transition, static_cast<float>(decks->crossfader()));
     gs_effect_set_float(mixer->param_transition_mode, static_cast<float>(decks->transitionMode()));
 
-    struct vec3 tint_a, tint_b
+    struct vec3 tint_a, tint_b;
+    vec3_set(&tint_a, decks->deckA().red(), decks->deckA().green(), decks->deckA().blue());
+    vec3_set(&tint_b, decks->deckB().red(), decks->deckB().green(), decks->deckB().blue());
+
+    gs_effect_set_vec3(mixer->param_tint_a, &tint_a);
+    gs_effect_set_vec3(mixer->param_tint_b, &tint_b);
+    gs_effect_set_float(mixer->param_saturation_a, decks->deckA().saturation());
+    gs_effect_set_float(mixer->param_saturation_b, decks->deckB().saturation());
+
+    // 4. Kevert vegeredmeny kirajzolasa
+    while (gs_effect_loop(mixer->effect, "Draw")) {
+        gs_draw_sprite(nullptr, 0, cx, cy);
+    }
+}
+
+static uint32_t mixer_get_width(void *data)
+{
+    UNUSED_PARAMETER(data);
+    return 1920;
+}
+
+static uint32_t mixer_get_height(void *data)
+{
+    UNUSED_PARAMETER(data);
+    return 1080;
+}
+
+// ==========================================================================
+// 3. OBS Forrasok Regisztracioja
+// ==========================================================================
+
+static struct obs_source_info vdj_deck_a_info = {};
+static struct obs_source_info vdj_deck_b_info = {};
+static struct obs_source_info vdj_master_mixer_info = {};
+
+void vdj_register_sources()
+{
+    // Deck A Monitor Source
+    vdj_deck_a_info.id = "vdj_deck_a_source";
+    vdj_deck_a_info.type = OBS_SOURCE_TYPE_INPUT;
+    vdj_deck_a_info.output_flags = OBS_SOURCE_VIDEO;
+    vdj_deck_a_info.get_name = deck_monitor_get_name;
+    vdj_deck_a_info.create = deck_monitor_create_a;
+    vdj_deck_a_info.destroy = deck_monitor_destroy;
+    vdj_deck_a_info.video_render = deck_monitor_video_render;
+    vdj_deck_a_info.get_width = deck_monitor_get_width;
+    vdj_deck_a_info.get_height = deck_monitor_get_height;
+    vdj_deck_a_info.type_data = reinterpret_cast<void *>(static_cast<intptr_t>(0));
+    obs_register_source(&vdj_deck_a_info);
+
+    // Deck B Monitor Source
+    vdj_deck_b_info.id = "vdj_deck_b_source";
+    vdj_deck_b_info.type = OBS_SOURCE_TYPE_INPUT;
+    vdj_deck_b_info.output_flags = OBS_SOURCE_VIDEO;
+    vdj_deck_b_info.get_name = deck_monitor_get_name;
+    vdj_deck_b_info.create = deck_monitor_create_b;
+    vdj_deck_b_info.destroy = deck_monitor_destroy;
+    vdj_deck_b_info.video_render = deck_monitor_video_render;
+    vdj_deck_b_info.get_width = deck_monitor_get_width;
+    vdj_deck_b_info.get_height = deck_monitor_get_height;
+    vdj_deck_b_info.type_data = reinterpret_cast<void *>(static_cast<intptr_t>(1));
+    obs_register_source(&vdj_deck_b_info);
+
+    // Master Output Mixer Source
+    vdj_master_mixer_info.id = "vdj_master_mixer";
+    vdj_master_mixer_info.type = OBS_SOURCE_TYPE_INPUT;
+    vdj_master_mixer_info.output_flags = OBS_SOURCE_VIDEO;
+    vdj_master_mixer_info.get_name = mixer_get_name;
+    vdj_master_mixer_info.create = mixer_create;
+    vdj_master_mixer_info.destroy = mixer_destroy;
+    vdj_master_mixer_info.video_render = mixer_video_render;
+    vdj_master_mixer_info.get_width = mixer_get_width;
+    vdj_master_mixer_info.get_height = mixer_get_height;
+    obs_register_source(&vdj_master_mixer_info);
+}

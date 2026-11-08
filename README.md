@@ -1,20 +1,15 @@
-# OBS Video DJ / VJ Mixer Plugin
+# OBS Video DJ (VJ) Mixer Plugin
 
-A dual-deck Video DJ & VJ mixer plugin for OBS Studio with real-time HLSL video crossfading, color grading (3-band EQ mapped to RGB gains), and saturation/filter control.
+Professzionalis 2 deckes Video DJ kevero plugin OBS Studio-hoz (Windows x64), amely a **Native Instruments TRAKTOR KONTROL S2 MK3** hardveres kontroller elrendezesere es valos ideju MIDI vezerlesere epul.
 
-## Features
-- **2 Independent Decks (Deck A & Deck B)** with file loading, play/pause, looping, and seeking.
-- **Master Video Output Source** featuring hardware-accelerated HLSL shader mixing:
-  - Linear Crossfade
-  - Horizontal Wipe
-  - Additive Blend
-  - Hard Cut
-- **Visual FX & Tone Controls:**
-  - 3-Band EQ mapped directly to Red, Green, and Blue channel gains.
-  - Filter knob mapped to color saturation (0 = grayscale, 1 = normal, 2 = vibrant).
-- **Qt6 Mixer Dock:** Integrated OBS UI dock with deck controls, media position tracker, sliders, and crossfader.
-- **Automated CI/CD:** GitHub Actions workflow compiling for Windows x64 using MSVC 2022 and Qt 6.5.3.
+## Fobb tulajdonsagok
+- **Egyetlen standalone DLL (`obs-vj-mixer.dll`)**: Nem igenyel kulso .effect fajlokat vagy kulon data mappakat (a HLSL shader be van agyazva a C++ forrasba).
+- **Lebego, fuggetlen ablak**: Az OBS **Eszkozok (Tools) -> Video DJ Mixer** menujebol nyithato meg. Nem ugrik ossze tole az OBS felulete, kulon monitorra is athuzhato.
+- **Traktor S2 MK3 Layout**:
+  - Deck A es Deck B: PLAY/PAUSE, CUE, SYNC, AUTO LOOP, idokod kijelzes (`00:00 / 00:00`), es fuggoleges TEMPO/PITCH fader.
+  - 2-csatornas klubkevero: HI (Red), MID (Green), LOW (Blue), FILTER (Saturation), kulon csatorna hangero federek es nagymereu Crossfader.
+- **Valos ideju WinMM MIDI integracio**: Kozvetlenul fogadja a Traktor S2 MK3 USB MIDI jeleit, es a kepernyon levo csuszkakat is szinkronban mozgatja a fizikai potikkal.
+- **4 video atmeneti mod**: Linear Fade, Horizontal Wipe, Additive Blend, Hard Cut.
 
-## Building
-This plugin is built with CMake and Qt6 against OBS Studio 30+.
-Pushing to your GitHub repository triggers the automated build under the Actions tab.
+## Forditas
+A GitHub Actions automatikusan leforditja minden commit utan (`.github/workflows/build.yml`), es a kesz DLL letoltheto az Actions -> Artifacts alol.

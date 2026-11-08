@@ -4,6 +4,7 @@
 #include <QString>
 
 #include <atomic>
+#include <cstdint>
 
 class DeckPlayer final {
 public:
@@ -20,6 +21,13 @@ public:
     void setPlaying(bool playing);
     void setLooping(bool looping);
     void seek(double normalized_position);
+    void cue();
+
+    void setSpeed(int percent);
+    int speed() const noexcept { return speed_percent_.load(std::memory_order_relaxed); }
+
+    void setVolume(float vol);
+    float volume() const noexcept { return volume_.load(std::memory_order_relaxed); }
 
     void setRed(float value) noexcept;
     void setGreen(float value) noexcept;
@@ -32,12 +40,18 @@ public:
     float saturation() const noexcept;
 
     double position() const;
+    int64_t currentTimeMs() const;
+    int64_t durationMs() const;
     bool isPlaying() const;
     bool isLooping() const noexcept { return looping_; }
 
 private:
     obs_source_t *source_ = nullptr;
     bool looping_ = false;
+    uint64_t cue_point_ms_ = 0;
+
+    std::atomic<int> speed_percent_{100};
+    std::atomic<float> volume_{1.0f};
 
     std::atomic<float> red_{1.0f};
     std::atomic<float> green_{1.0f};
