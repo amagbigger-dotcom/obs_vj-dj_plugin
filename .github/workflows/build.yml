@@ -52,10 +52,13 @@ jobs:
               Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
           }
 
-          # qt-display.hpp másolása az OBS UI mappájából
+          # FONTOS: qt-display.hpp másolása az OBS UI mappájából
           $qtDisplayHeader = Get-ChildItem -Path $srcDir -Filter "qt-display.hpp" -Recurse | Select-Object -First 1
           if ($qtDisplayHeader) {
               Copy-Item -Path $qtDisplayHeader.FullName -Destination "$incDir\qt-display.hpp" -Force
+              Write-Host "Sikeresen átmásolva: qt-display.hpp"
+          } else {
+              throw "Critical: qt-display.hpp not found in OBS Studio source tree!"
           }
 
           # Hiányzó obsconfig.h pótlása
