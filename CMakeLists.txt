@@ -10,7 +10,6 @@ set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 
-# OBS SDK eleresi utvonalak kezelese
 if(DEFINED ENV{OBS_SDK_DIR} AND NOT "$ENV{OBS_SDK_DIR}" STREQUAL "")
     set(OBS_DIR "$ENV{OBS_SDK_DIR}")
 elseif(DEFINED OBS_SDK_DIR AND NOT "${OBS_SDK_DIR}" STREQUAL "")
@@ -48,6 +47,9 @@ set(SOURCES
 )
 
 add_library(obs-vj-mixer MODULE ${SOURCES})
+
+# Ez a sor kényszeríti ki, hogy az OBS lássa az obs_module_load belépési pontot Windows alatt:
+set_target_properties(obs-vj-mixer PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
 
 target_link_libraries(obs-vj-mixer PRIVATE
     Qt6::Core
