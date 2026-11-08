@@ -1,148 +1,96 @@
-name: Build OBS VJ Mixer Plugin (Windows x64)
+name: Build Plugin
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ "main" ]
-  workflow_dispatch:
+    branches: [ main, master ]
 
 jobs:
-  build-windows:
-    runs-on: windows-2022
+  build:
+    runs-on: windows-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-      - name: Setup MSVC Developer Command Prompt
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+    - name: Setup MSVC & Environment
+      uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Setup Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.8.2'
-          target: 'desktop'
-          arch: 'win64_msvc2022_64'
+    - name: Setup Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.6.1'
 
-      - name: Setup OBS Studio SDK & Headers
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $sdkDir = "$env:RUNNER_TEMP\obs-sdk"
-          $incDir = "$sdkDir\include"
-          $libDir = "$sdkDir\lib"
-          
-          New-Item -ItemType Directory -Path $incDir -Force | Out-Null
-          New-Item -ItemType Directory -Path $libDir -Force | Out-Null
+    - name: Prepare OBS SDK and Headers
+      shell: pwsh
+      run: |
+        $workspace = "$env:GITHUB_WORKSPACE"
+        $srcDir = "$workspace\obs-studio-src"
+        $incDir = "$workspace\obs-sdk\include"
+        $libDir = "$workspace\obs-sdk\lib"
+        
+        New-Item -ItemType Directory -Path $incDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $libDir -Force | Out-Null
 
-          Write-Host "Cloning official OBS Studio libobs headers..."
-          $srcDir = "$env:RUNNER_TEMP\obs-src"
-          if (Test-Path $srcDir) { Remove-Item -Path $srcDir -Recurse -Force }
-          git clone --depth 1 https://github.com/obsproject/obs-studio.git $srcDir
+        if (Test-Path $srcDir) { Remove-Item -Path $srcDir -Recurse -Force }
+        git clone --depth 1 https://github.com/obsproject/obs-studio.git $srcDir
 
-          Copy-Item -Path "$srcDir\libobs\*" -Destination $incDir -Recurse -Force
-          
-          $feHeader = Get-ChildItem -Path $srcDir -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
-          if ($feHeader) {
-              Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
-          }
+        # Fejlécek másolása a libobs-ből
+        Copy-Item -Path "$srcDir\libobs\*" -Destination $incDir -Recurse -Force
 
-          $qtDisplayHeader = Get-ChildItem -Path $srcDir -Filter "qt-display.hpp" -Recurse | Select-Object -First 1
-          if ($qtDisplayHeader) {
-              Copy-Item -Path $qtDisplayHeader.FullName -Destination "$incDir\qt-display.hpp" -Force
-          } else {
-              $qtContent = "#pragma once`n#include <obs.h>`n#include <QWidget>`n"
-              Set-Content -Path "$incDir\qt-display.hpp" -Value $qtContent -Encoding Ascii
-          }
+        # obs-frontend-api.h másolása
+        $feHeader = Get-ChildItem -Path $srcDir -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
+        if ($feHeader) {
+            Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
+        }
 
-          $obsConfigContent = "#pragma once`n#define OBS_VERSION `"33.0.1`"`n#define OBS_COMMIT `"git`"`n#define BITS_32 0`n#define BITS_64 1`n"
-          Set-Content -Path "$incDir\obsconfig.h" -Value $obsConfigContent -Encoding Ascii
+        # qt-display.hpp kompatibilitási wrapper generálása
+        $qtDisplayContent = @"
+        #pragma once
+        #include <obs.h>
+        #include <QWidget>
+        obs_display_t *obs_display_create(const struct obs_video_info *ovi, background_color_t background_color);
+        void obs_display_destroy(obs_display_t *display);
+        void obs_display_resize(obs_display_t *display, uint32_t cx, uint32_t cy);
+        void obs_display_add_draw_callback(obs_display_t *display, void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param);
+        void obs_display_remove_draw_callback(obs_display_t *display, void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param);
+        "@
+        Set-Content -Path "$incDir\qt-display.hpp" -Value $qtDisplayContent -Encoding Ascii
 
-          Write-Host "Generating MSVC export library (.lib) for linking..."
-          $defPath = "$env:RUNNER_TEMP\obs.def"
-          $libPath = "$libDir\obs.lib"
-          
-          $defContent = "LIBRARY obs`nEXPORTS`n"
-          $symbols = @(
-              "obs_source_create_private", "obs_source_release", "obs_source_inc_showing", "obs_source_dec_showing",
-              "obs_source_update", "obs_source_media_get_state", "obs_source_media_play_pause", "obs_source_media_restart",
-              "obs_source_media_set_time", "obs_source_media_get_time", "obs_source_media_get_duration", "obs_source_get_settings",
-              "obs_source_set_volume", "obs_source_get_monitoring_type", "obs_source_set_monitoring_type", "obs_source_audio_pending",
-              "obs_source_get_audio_timestamp", "obs_source_get_audio_mix", "obs_source_add_active_child", "obs_source_remove_active_child",
-              "obs_source_video_render", "obs_source_get_width", "obs_source_get_height", "obs_get_video_info", "obs_get_main_window",
-              "obs_frontend_add_tools_menu_item", "obs_frontend_get_main_window", "obs_register_source_s", "blog", "bmalloc", "bfree",
-              "obs_data_create", "obs_data_release", "obs_data_set_string", "obs_data_set_int", "obs_data_set_bool",
-              "obs_data_set_default_int", "obs_data_set_default_double", "obs_data_set_default_bool", "obs_data_get_string",
-              "obs_data_get_int", "obs_data_get_double", "obs_data_get_bool", "obs_properties_create", "obs_properties_add_bool",
-              "obs_properties_add_int_slider", "obs_properties_add_float_slider", "obs_properties_add_path", "obs_properties_add_list",
-              "obs_properties_add_button2", "obs_property_list_add_int", "obs_enter_graphics", "obs_leave_graphics", "gs_effect_create",
-              "gs_effect_destroy", "gs_effect_get_param_by_name", "gs_effect_set_texture", "gs_effect_set_float", "gs_effect_set_vec3",
-              "gs_effect_loop", "gs_draw_sprite", "gs_texrender_create", "gs_texrender_destroy", "gs_texrender_reset",
-              "gs_texrender_begin", "gs_texrender_end", "gs_texrender_get_texture", "gs_clear", "gs_ortho", "gs_matrix_push",
-              "gs_matrix_pop", "gs_matrix_translate3f", "gs_matrix_scale3f", "obs_display_create", "obs_display_destroy",
-              "obs_display_resize", "obs_display_add_draw_callback", "obs_display_remove_draw_callback", "text_lookup_destroy",
-              "text_lookup_getstr", "obs_module_load_locale", "obs_module_load", "obs_module_unload"
-          )
+        # obsconfig.h hiányzó pótlása
+        $obsConfigContent = @"
+        #pragma once
+        #define OBS_VERSION "33.0.1"
+        #define OBS_COMMIT "git"
+        #define BITS_32 0
+        #define BITS_64 1
+        "@
+        Set-Content -Path "$incDir\obsconfig.h" -Value $obsConfigContent -Encoding Ascii
 
-          foreach ($sym in $symbols) {
-              $defContent += "    $sym`n"
-          }
+    - name: Configure CMake
+      shell: pwsh
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" -DOBS_SDK_DIR="$env:GITHUB_WORKSPACE/obs-sdk"
 
-          Set-Content -Path $defPath -Value $defContent -Encoding Ascii
-          & lib /def:$defPath /out:$libPath /machine:x64
-          Copy-Item -Path $libPath -Destination "$libDir\obs-frontend-api.lib" -Force
+    - name: Build Plugin
+      shell: pwsh
+      run: |
+        cmake --build build --config Release
 
-          "OBS_SDK_DIR=$sdkDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - name: Package Artifacts
+      shell: pwsh
+      run: |
+        $artifactDir = "$env:GITHUB_WORKSPACE\artifact_staging"
+        New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
 
-      - name: Configure CMake
-        shell: pwsh
-        run: |
-          $qtPath = "$env:QT_ROOT_DIR"
-          if (-not $qtPath -or -not (Test-Path $qtPath)) {
-              $qtPath = (Get-ChildItem -Path "$env:GITHUB_WORKSPACE\Qt" -Filter "msvc*" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          }
-          if (-not $qtPath) {
-              throw "Qt installation path could not be found!"
-          }
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$qtPath" -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk"
+        Get-ChildItem -Path "build" -Filter "*.dll" -Recurse | ForEach-Object {
+            Write-Host "Staging DLL: $($_.FullName)"
+            Copy-Item -Path $_.FullName -Destination $artifactDir -Force
+        }
 
-      - name: Build Plugin
-        shell: pwsh
-        run: |
-          cmake --build build --config Release --parallel
-
-      - name: Collect Artifacts and Deploy Qt Dependencies
-        shell: pwsh
-        run: |
-          $artifactDir = "$env:GITHUB_WORKSPACE\artifact_staging"
-          New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
-
-          Get-ChildItem -Path "build" -Filter "*.dll" -Recurse | ForEach-Object {
-              Copy-Item -Path $_.FullName -Destination $artifactDir
-          }
-
-          if (Test-Path "src/shaders") {
-              New-Item -ItemType Directory -Path "$artifactDir\data\obs-plugins\obs_vj-dj_plugin" -Force | Out-Null
-              Copy-Item -Path "src/shaders\*" -Destination "$artifactDir\data\obs-plugins\obs_vj-dj_plugin" -Recurse -Force
-          }
-
-          $qtenv = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\Qt" -Filter "windeployqt.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $qtenv) {
-              $qtenv = Get-ChildItem -Path "C:\Qt" -Filter "windeployqt.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-          }
-          
-          if ($qtenv) {
-              Get-ChildItem -Path "$artifactDir\*.dll" | ForEach-Object {
-                  & $qtenv.FullName --qmldir src $_.FullName
-              }
-          }
-
-      - name: Upload Binary Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: obs_vj-dj_plugin-windows-x64
-          path: artifact_staging/*
-          if-no-files-found: error
+    - name: Upload Binary Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: obs-vj-dj_plugin-windows
+        path: artifact_staging/*
