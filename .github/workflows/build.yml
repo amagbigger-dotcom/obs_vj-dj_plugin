@@ -42,7 +42,25 @@ jobs:
           if (Test-Path $srcDir) { Remove-Item -Path $srcDir -Recurse -Force }
           git clone --depth 1 --branch 33.0.1 https://github.com/obsproject/obs-studio.git $srcDir
 
+          # Copy libobs headers
           Copy-Item -Path "$srcDir\libobs\*" -Destination $incDir -Recurse -Force
+          
+          # Hozzáadjuk a hiányzó obsconfig.h fájlt a gyökérből/build mappából vagy generálunk egyet
+          $configHeaderPath = Get-ChildItem -Path $srcDir -Filter "obsconfig.h" -Recurse | Select-Object -First 1
+          if ($configHeaderPath) {
+              Copy-Item -Path $configHeaderPath.FullName -Destination "$incDir\obsconfig.h" -Force
+          } else {
+              # Ha nincs generálva, létrehozunk egy minimalista obsconfig.h-t a hibák elkerülésére
+              $obsConfigContent = @"
+#pragma once
+#define OBS_VERSION "33.0.1"
+#define OBS_VERSION_MAJOR 33
+#define OBS_VERSION_MINOR 0
+#define OBS_VERSION_PATCH 1
+"@
+              $obsConfigContent | Set-Content -Path "$incDir\obsconfig.h" -Encoding Ascii
+          }
+
           $feHeader = Get-ChildItem -Path $srcDir -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
           if ($feHeader) {
               Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
