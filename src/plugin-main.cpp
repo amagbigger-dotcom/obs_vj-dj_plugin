@@ -1,4 +1,5 @@
 #include <obs-module.h>
+#include <graphics/graphics.h>
 #include <obs-frontend-api.h>
 #include <qt-display.hpp>
 #include <QWidget>
@@ -48,7 +49,7 @@ static void open_mixer_window(void *data)
 
 void init_mixer_dock()
 {
-    obs_frontend_add_tools_menu_popup(QStringLiteral("Video DJ Mixer").toUtf8().constData(), open_mixer_window);
+    obs_frontend_add_tools_menu_item(QStringLiteral("Video DJ Mixer").toUtf8().constData(), open_mixer_window, nullptr);
 }
 
 void free_mixer_dock()
