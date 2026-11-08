@@ -1,4 +1,4 @@
-name: Build OBS VJ DJ Plugin
+name: Build OBS VJ DJ Plugin (OBS 33.0.1)
 
 on:
   push:
@@ -17,20 +17,26 @@ jobs:
     - name: Set up MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Download and Extract OBS SDK
+    - name: Download and Extract OBS Studio 33.0.1 SDK Package
       run: |
-        $sdkUrl = "https://github.com/obsproject/obs-studio/releases/download/30.0.0/obs-studio-30.0.0-windows-x64.zip"
-        $outputZip = "$env:RUNNER_TEMP\obs-sdk.zip"
-        $sdkDir = "$env:RUNNER_TEMP\obs-sdk"
+        $sdkUrl = "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip"
+        $outputZip = "$env:RUNNER_TEMP\\obs-sdk.zip"
+        $sdkDir = "$env:RUNNER_TEMP\\obs-sdk"
         
-        Write-Host "Downloading OBS SDK..."
-        Invoke-WebRequest -Uri $sdkUrl -OutFile $outputZip
+        Write-Host "Downloading OBS Studio 33.0.1 from $sdkUrl..."
+        try {
+            Invoke-WebRequest -Uri $sdkUrl -OutFile $outputZip -MaximumRedirection 5
+        } catch {
+            Write-Warning "Direct download failed, trying git clone fallback for headers..."
+            git clone --depth 1 --branch 33.0.1 https://github.com/obsproject/obs-studio.git C:/obs-source
+            New-Item -ItemType Directory -Force -Path "$sdkDir\\include"
+            Copy-Item -Recurse -Force "C:/obs-source/libobs" "$sdkDir\\include/"
+            Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api" "$sdkDir\\include/"
+            exit 0
+        }
         
-        Write-Host "Extracting OBS SDK..."
+        Write-Host "Extracting OBS Studio 33.0.1..."
         Expand-Archive -Path $outputZip -DestinationPath $sdkDir -Force
-        
-        # Ellenőrzés, hogy a lib és include mappa ott van-e
-        Get-ChildItem $sdkDir
       shell: pwsh
 
     - name: Configure CMake
