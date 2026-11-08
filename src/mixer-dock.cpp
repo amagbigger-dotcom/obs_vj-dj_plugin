@@ -405,4 +405,272 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
     loop_box->addWidget(loop_combo);
 
     auto *reset_pitch_btn = new QPushButton(QStringLiteral("RESET PITCH"), parent);
-    loop_box->addWidget(reset_
+    loop_box->addWidget(reset_pitch_btn);
+
+    loop_box->addStretch();
+    mid_row->addLayout(loop_box);
+    layout->addLayout(mid_row);
+
+    auto *transport_row = new QHBoxLayout();
+    auto *play_btn = new QPushButton(QStringLiteral("PLAY / PAUSE"), parent);
+    play_btn->setObjectName(QStringLiteral("play_btn"));
+    if (is_deck_a) play_btn_a_ = play_btn;
+    else play_btn_b_ = play_btn;
+
+    auto *cue_btn = new QPushButton(QStringLiteral("CUE"), parent);
+    cue_btn->setObjectName(QStringLiteral("cue_btn"));
+
+    auto *sync_btn = new QPushButton(QStringLiteral("SYNC"), parent);
+    sync_btn->setObjectName(QStringLiteral("sync_btn"));
+
+    transport_row->addWidget(play_btn, 2);
+    transport_row->addWidget(cue_btn, 1);
+    transport_row->addWidget(sync_btn, 1);
+    layout->addLayout(transport_row);
+
+    connect(load_btn, &QPushButton::clicked, this, [this, deck, file_label]() {
+        const QString path = QFileDialog::getOpenFileName(
+            this, QStringLiteral("Select Media"), QString(),
+            QStringLiteral("Video/Audio (*.mp4 *.mkv *.mov *.avi *.webm *.mp3 *.wav);;All (*.*)"));
+        if (!path.isEmpty()) {
+            deck->loadFile(path);
+            file_label->setText(QFileInfo(path).fileName());
+        }
+    });
+
+    connect(play_btn, &QPushButton::clicked, this, [deck]() { deck->togglePlayback(); });
+    connect(cue_btn, &QPushButton::clicked, this, [deck]() { deck->cue(); });
+    connect(loop_btn, &QPushButton::toggled, this, [deck](bool en) { deck->setLooping(en); });
+
+    connect(loop_combo, &QComboBox::currentIndexChanged, this, [this, is_deck_a](int idx) {
+        if (decks_) decks_->setLoopBeatIndex(is_deck_a ? 0 : 1, idx);
+    });
+
+    connect(seek_slider, &QSlider::sliderMoved, this, [deck](int val) {
+        deck->seek(static_cast<double>(val) / 1000.0);
+    });
+
+    connect(pitch_slider, &QSlider::valueChanged, this, [deck, rate_lbl](int val) {
+        deck->setSpeed(val);
+        const double diff = static_cast<double>(val - 100);
+        rate_lbl->setText(QString("%1%2%").arg(diff >= 0 ? "+" : "").arg(diff, 0, 'f', 1));
+    });
+
+    connect(reset_pitch_btn, &QPushButton::clicked, this, [pitch_slider]() {
+        pitch_slider->setValue(100);
+    });
+
+    connect(sync_btn, &QPushButton::clicked, this, [this, is_deck_a]() {
+        if (!decks_) return;
+        if (is_deck_a) decks_->syncTempoAtoB();
+        else decks_->syncTempoBtoA();
+    });
+}
+
+void MixerWindow::buildMixerSection(QWidget *parent)
+{
+    auto *layout = new QVBoxLayout(parent);
+    layout->setContentsMargins(10, 12, 10, 10);
+    layout->setSpacing(8);
+
+    auto *master_preview = new VideoPreviewWidget(decks_, true, false, parent);
+    layout->addWidget(master_preview);
+    preview_master_ = master_preview;
+
+    auto *strips_layout = new QHBoxLayout();
+
+    auto *col_a = new QVBoxLayout();
+    col_a->addWidget(new QLabel(QStringLiteral("CH A"), parent), 0, Qt::AlignCenter);
+
+    col_a->addWidget(new QLabel(QStringLiteral("HI"), parent), 0, Qt::AlignCenter);
+    hi_a_ = new QSlider(Qt::Horizontal, parent);
+    hi_a_->setRange(0, 200); hi_a_->setValue(100);
+    col_a->addWidget(hi_a_);
+    connect(hi_a_, &QSlider::valueChanged, this, [this](int v) { decks_->deckA().setRed(v / 100.0f); });
+
+    col_a->addWidget(new QLabel(QStringLiteral("MID"), parent), 0, Qt::AlignCenter);
+    mid_a_ = new QSlider(Qt::Horizontal, parent);
+    mid_a_->setRange(0, 200); mid_a_->setValue(100);
+    col_a->addWidget(mid_a_);
+    connect(mid_a_, &QSlider::valueChanged, this, [this](int v) { decks_->deckA().setGreen(v / 100.0f); });
+
+    col_a->addWidget(new QLabel(QStringLiteral("LOW"), parent), 0, Qt::AlignCenter);
+    low_a_ = new QSlider(Qt::Horizontal, parent);
+    low_a_->setRange(0, 200); low_a_->setValue(100);
+    col_a->addWidget(low_a_);
+    connect(low_a_, &QSlider::valueChanged, this, [this](int v) { decks_->deckA().setBlue(v / 100.0f); });
+
+    col_a->addWidget(new QLabel(QStringLiteral("FILTER"), parent), 0, Qt::AlignCenter);
+    flt_a_ = new QSlider(Qt::Horizontal, parent);
+    flt_a_->setRange(0, 200); flt_a_->setValue(100);
+    col_a->addWidget(flt_a_);
+    connect(flt_a_, &QSlider::valueChanged, this, [this](int v) { decks_->deckA().setSaturation(v / 100.0f); });
+
+    col_a->addWidget(new QLabel(QStringLiteral("VOL"), parent), 0, Qt::AlignCenter);
+    vol_a_ = new QSlider(Qt::Vertical, parent);
+    vol_a_->setRange(0, 100); vol_a_->setValue(100); vol_a_->setFixedHeight(70);
+    col_a->addWidget(vol_a_, 0, Qt::AlignCenter);
+    connect(vol_a_, &QSlider::valueChanged, this, [this](int v) { decks_->deckA().setVolume(v / 100.0f); });
+
+    strips_layout->addLayout(col_a);
+
+    auto *line = new QFrame(parent);
+    line->setFrameShape(QFrame::VLine);
+    line->setStyleSheet(QStringLiteral("color: #2c303a;"));
+    strips_layout->addWidget(line);
+
+    auto *col_b = new QVBoxLayout();
+    col_b->addWidget(new QLabel(QStringLiteral("CH B"), parent), 0, Qt::AlignCenter);
+
+    col_b->addWidget(new QLabel(QStringLiteral("HI"), parent), 0, Qt::AlignCenter);
+    hi_b_ = new QSlider(Qt::Horizontal, parent);
+    hi_b_->setRange(0, 200); hi_b_->setValue(100);
+    col_b->addWidget(hi_b_);
+    connect(hi_b_, &QSlider::valueChanged, this, [this](int v) { decks_->deckB().setRed(v / 100.0f); });
+
+    col_b->addWidget(new QLabel(QStringLiteral("MID"), parent), 0, Qt::AlignCenter);
+    mid_b_ = new QSlider(Qt::Horizontal, parent);
+    mid_b_->setRange(0, 200); mid_b_->setValue(100);
+    col_b->addWidget(mid_b_);
+    connect(mid_b_, &QSlider::valueChanged, this, [this](int v) { decks_->deckB().setGreen(v / 100.0f); });
+
+    col_b->addWidget(new QLabel(QStringLiteral("LOW"), parent), 0, Qt::AlignCenter);
+    low_b_ = new QSlider(Qt::Horizontal, parent);
+    low_b_->setRange(0, 200); low_b_->setValue(100);
+    col_b->addWidget(low_b_);
+    connect(low_b_, &QSlider::valueChanged, this, [this](int v) { decks_->deckB().setBlue(v / 100.0f); });
+
+    col_b->addWidget(new QLabel(QStringLiteral("FILTER"), parent), 0, Qt::AlignCenter);
+    flt_b_ = new QSlider(Qt::Horizontal, parent);
+    flt_b_->setRange(0, 200); flt_b_->setValue(100);
+    col_b->addWidget(flt_b_);
+    connect(flt_b_, &QSlider::valueChanged, this, [this](int v) { decks_->deckB().setSaturation(v / 100.0f); });
+
+    col_b->addWidget(new QLabel(QStringLiteral("VOL"), parent), 0, Qt::AlignCenter);
+    vol_b_ = new QSlider(Qt::Vertical, parent);
+    vol_b_->setRange(0, 100); vol_b_->setValue(100); vol_b_->setFixedHeight(70);
+    col_b->addWidget(vol_b_, 0, Qt::AlignCenter);
+    connect(vol_b_, &QSlider::valueChanged, this, [this](int v) { decks_->deckB().setVolume(v / 100.0f); });
+
+    strips_layout->addLayout(col_b);
+    layout->addLayout(strips_layout);
+
+    layout->addSpacing(2);
+
+    auto *trans_lbl = new QLabel(QStringLiteral("FX Transition:"), parent);
+    layout->addWidget(trans_lbl);
+
+    auto *transition = new QComboBox(parent);
+    transition->addItem(QStringLiteral("Linear Fade"));
+    transition->addItem(QStringLiteral("Horizontal Wipe"));
+    transition->addItem(QStringLiteral("Additive Blend"));
+    transition->addItem(QStringLiteral("Hard Cut"));
+    layout->addWidget(transition);
+
+    connect(transition, &QComboBox::currentIndexChanged, this, [this](int idx) {
+        if (decks_) decks_->setTransitionMode(idx);
+    });
+
+    layout->addSpacing(2);
+
+    auto *xfade_lbl = new QLabel(QStringLiteral("CROSSFADER (A <-> B)"), parent);
+    xfade_lbl->setAlignment(Qt::AlignCenter);
+    xfade_lbl->setStyleSheet(QStringLiteral("font-weight: bold; color: #ffffff;"));
+    layout->addWidget(xfade_lbl);
+
+    crossfader_ = new QSlider(Qt::Horizontal, parent);
+    crossfader_->setRange(0, 1000);
+    crossfader_->setValue(500);
+    crossfader_->setStyleSheet(QStringLiteral(
+        "QSlider::groove:horizontal { height: 12px; background: #14161b; border-radius: 6px; }"
+        "QSlider::sub-page:horizontal { background: #0088aa; border-radius: 6px; }"
+        "QSlider::handle:horizontal { background: #ff9e00; width: 24px; margin: -6px 0; border-radius: 12px; }"
+    ));
+    layout->addWidget(crossfader_);
+
+    connect(crossfader_, &QSlider::valueChanged, this, [this](int val) {
+        if (decks_) decks_->setCrossfader(static_cast<double>(val) / 1000.0);
+    });
+}
+
+void MixerWindow::refreshDeck(bool is_deck_a)
+{
+    DeckPlayer &deck = is_deck_a ? decks_->deckA() : decks_->deckB();
+    QSlider *slider = is_deck_a ? seek_a_ : seek_b_;
+    QLabel *time_lbl = is_deck_a ? time_a_ : time_b_;
+
+    if (slider && !slider->isSliderDown()) {
+        const QSignalBlocker blocker(slider);
+        slider->setValue(static_cast<int>(deck.position() * 1000.0));
+    }
+
+    if (time_lbl) {
+        const qint64 cur = deck.currentTimeMs();
+        const qint64 dur = deck.durationMs();
+        time_lbl->setText(QString("%1 / %2").arg(formatTime(cur), formatTime(dur)));
+    }
+}
+
+void MixerWindow::refreshMixer()
+{
+    if (midi_status_lbl_) {
+        if (vdj_midi_is_connected()) {
+            midi_status_lbl_->setText(QString("MIDI: Connected (%1)").arg(vdj_midi_get_device_name()));
+            midi_status_lbl_->setStyleSheet(QStringLiteral("color: #2ecc71; font-weight: bold; font-size: 11px;"));
+        } else {
+            midi_status_lbl_->setText(QStringLiteral("MIDI: Disconnected (Plug in Traktor S2 MK3)"));
+            midi_status_lbl_->setStyleSheet(QStringLiteral("color: #e67e22; font-weight: bold; font-size: 11px;"));
+        }
+    }
+
+    if (!decks_)
+        return;
+
+    obs_source_t *src_a = decks_->deckA().source();
+    obs_source_t *src_b = decks_->deckB().source();
+    if (preview_a_) preview_a_->updateSource(src_a);
+    if (preview_b_) preview_b_->updateSource(src_b);
+    if (preview_master_) {
+        double xf = decks_->crossfader();
+        preview_master_->updateSource(xf < 0.5 ? src_a : src_b);
+    }
+
+    auto sync_slider = [](QSlider *s, float val, float scale) {
+        if (s && !s->isSliderDown()) {
+            const QSignalBlocker blocker(s);
+            s->setValue(static_cast<int>(val * scale));
+        }
+    };
+
+    sync_slider(hi_a_, decks_->deckA().red(), 100.0f);
+    sync_slider(mid_a_, decks_->deckA().green(), 100.0f);
+    sync_slider(low_a_, decks_->deckA().blue(), 100.0f);
+    sync_slider(flt_a_, decks_->deckA().saturation(), 100.0f);
+    sync_slider(vol_a_, decks_->deckA().volume(), 100.0f);
+
+    if (pitch_slider_a_ && !pitch_slider_a_->isSliderDown()) {
+        const QSignalBlocker blocker(pitch_slider_a_);
+        pitch_slider_a_->setValue(decks_->deckA().speed());
+        const double diff = static_cast<double>(decks_->deckA().speed() - 100);
+        if (rate_lbl_a_) rate_lbl_a_->setText(QString("%1%2%").arg(diff >= 0 ? "+" : "").arg(diff, 0, 'f', 1));
+    }
+
+    sync_slider(hi_b_, decks_->deckB().red(), 100.0f);
+    sync_slider(mid_b_, decks_->deckB().green(), 100.0f);
+    sync_slider(low_b_, decks_->deckB().blue(), 100.0f);
+    sync_slider(flt_b_, decks_->deckB().saturation(), 100.0f);
+    sync_slider(vol_b_, decks_->deckB().volume(), 100.0f);
+
+    if (pitch_slider_b_ && !pitch_slider_b_->isSliderDown()) {
+        const QSignalBlocker blocker(pitch_slider_b_);
+        pitch_slider_b_->setValue(decks_->deckB().speed());
+        const double diff = static_cast<double>(decks_->deckB().speed() - 100);
+        if (rate_lbl_b_) rate_lbl_b_->setText(QString("%1%2%").arg(diff >= 0 ? "+" : "").arg(diff, 0, 'f', 1));
+    }
+
+    if (crossfader_ && !crossfader_->isSliderDown()) {
+        const QSignalBlocker blocker(crossfader_);
+        crossfader_->setValue(static_cast<int>(decks_->crossfader() * 1000.0));
+    }
+}
+#include "mixer-dock.moc"
