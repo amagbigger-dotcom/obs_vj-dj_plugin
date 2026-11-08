@@ -135,10 +135,6 @@ void DeckPlayer::setVolume(float vol)
 {
     const float clamped = std::clamp(vol, 0.0f, 1.0f);
     volume_.store(clamped, std::memory_order_relaxed);
-
-    if (source_) {
-        obs_source_set_volume(source_, clamped);
-    }
 }
 
 void DeckPlayer::setLooping(bool looping)
@@ -269,6 +265,31 @@ void DeckPair::setTransitionMode(int mode) noexcept
 int DeckPair::transitionMode() const noexcept
 {
     return transition_mode_.load(std::memory_order_relaxed);
+}
+
+void DeckPair::syncTempoAtoB()
+{
+    deck_a_.setSpeed(deck_b_.speed());
+}
+
+void DeckPair::syncTempoBtoA()
+{
+    deck_b_.setSpeed(deck_a_.speed());
+}
+
+void DeckPair::setLoopBeatIndex(int deck_idx, int beat_index)
+{
+    const int clamped = std::clamp(beat_index, 0, 7);
+    if (deck_idx == 0)
+        loop_beat_idx_a_.store(clamped, std::memory_order_relaxed);
+    else
+        loop_beat_idx_b_.store(clamped, std::memory_order_relaxed);
+}
+
+int DeckPair::getLoopBeatIndex(int deck_idx) const noexcept
+{
+    return deck_idx == 0 ? loop_beat_idx_a_.load(std::memory_order_relaxed)
+                         : loop_beat_idx_b_.load(std::memory_order_relaxed);
 }
 
 namespace {
