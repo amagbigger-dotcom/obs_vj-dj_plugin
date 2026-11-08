@@ -2,6 +2,7 @@
 
 #include <QDialog>
 #include <QWidget>
+#include <obs.h>
 
 class DeckPair;
 class QSlider;
@@ -13,15 +14,24 @@ class VideoPreviewWidget : public QWidget {
     Q_OBJECT
 public:
     explicit VideoPreviewWidget(DeckPair *decks, bool is_master, bool is_deck_a, QWidget *parent = nullptr);
-    ~VideoPreviewWidget() override = default;
+    ~VideoPreviewWidget() override;
+
+    void updateSource(obs_source_t *src);
 
 protected:
-    void paintEvent(QPaintEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
+    void createDisplay();
+    void destroyDisplay();
+
     DeckPair *decks_ = nullptr;
     bool is_master_ = false;
     bool is_deck_a_ = false;
+    obs_display_t *display_ = nullptr;
+    obs_source_t *current_source_ = nullptr;
 };
 
 class MixerWindow final : public QDialog {
@@ -40,6 +50,10 @@ private:
     static QString formatTime(qint64 ms);
 
     DeckPair *decks_ = nullptr;
+
+    VideoPreviewWidget *preview_a_ = nullptr;
+    VideoPreviewWidget *preview_b_ = nullptr;
+    VideoPreviewWidget *preview_master_ = nullptr;
 
     QSlider *seek_a_ = nullptr;
     QSlider *seek_b_ = nullptr;
