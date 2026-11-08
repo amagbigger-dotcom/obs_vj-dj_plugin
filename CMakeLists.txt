@@ -10,27 +10,30 @@ set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 
-# Ha nincs megadva, automatikusan kitalálja a runner temp útvonalából
-if(NOT OBS_SDK_DIR OR OBS_SDK_DIR STREQUAL "")
-    if(DEFINED ENV{OBS_SDK_DIR} AND NOT "$ENV{OBS_SDK_DIR}" STREQUAL "")
-        set(OBS_SDK_DIR "$ENV{OBS_SDK_DIR}")
-    elseif(DEFINED ENV{RUNNER_TEMP})
-        set(OBS_SDK_DIR "$ENV{RUNNER_TEMP}/obs-sdk")
-    else()
-        set(OBS_SDK_DIR "D:/a/_temp/obs-sdk")
-    endif()
+# OBS SDK eleresi utvonalak kezelese
+if(DEFINED ENV{OBS_SDK_DIR} AND NOT "$ENV{OBS_SDK_DIR}" STREQUAL "")
+    set(OBS_DIR "$ENV{OBS_SDK_DIR}")
+elseif(DEFINED OBS_SDK_DIR AND NOT "${OBS_SDK_DIR}" STREQUAL "")
+    set(OBS_DIR "${OBS_SDK_DIR}")
+elseif(DEFINED ENV{RUNNER_TEMP})
+    set(OBS_DIR "$ENV{RUNNER_TEMP}/obs-sdk")
+else()
+    set(OBS_DIR "D:/a/_temp/obs-sdk")
 endif()
 
-file(TO_CMAKE_PATH "${OBS_SDK_DIR}" OBS_SDK_DIR)
-message(STATUS "--> OBS_SDK_DIR: ${OBS_SDK_DIR}")
+file(TO_CMAKE_PATH "${OBS_DIR}" OBS_DIR)
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${OBS_SDK_DIR}/include
+    ${OBS_DIR}/include
+    $ENV{OBS_SDK_DIR}/include
+    "D:/a/_temp/obs-sdk/include"
 )
 
 link_directories(
-    ${OBS_SDK_DIR}/lib
+    ${OBS_DIR}/lib
+    $ENV{OBS_SDK_DIR}/lib
+    "D:/a/_temp/obs-sdk/lib"
 )
 
 set(SOURCES
