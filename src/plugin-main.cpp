@@ -24,6 +24,7 @@ static void open_mixer_window(void *data)
     if (!s_mixer_window) {
         if (!g_decks) {
             g_decks = new DeckPair();
+            vdj_set_decks(g_decks);
         }
         s_mixer_window = new MixerWindow(g_decks, main_window);
     }
@@ -40,6 +41,7 @@ extern "C" {
         
         if (!g_decks) {
             g_decks = new DeckPair();
+            vdj_set_decks(g_decks);
         }
 
         vdj_register_sources();
