@@ -1,8 +1,5 @@
 #include <obs-module.h>
-#include <obs.h>
-#include <graphics/graphics.h>
 #include <obs-frontend-api.h>
-#include <qt-display.hpp>
 #include <QWidget>
 #include "deck-engine.hpp"
 #include "midi-handler.hpp"
