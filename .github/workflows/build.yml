@@ -43,45 +43,23 @@ jobs:
           if (Test-Path $srcDir) { Remove-Item -Path $srcDir -Recurse -Force }
           git clone --depth 1 https://github.com/obsproject/obs-studio.git $srcDir
 
-          # Fejlécek másolása a libobs-ből
           Copy-Item -Path "$srcDir\libobs\*" -Destination $incDir -Recurse -Force
           
-          # obs-frontend-api.h másolása
           $feHeader = Get-ChildItem -Path $srcDir -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
           if ($feHeader) {
               Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
           }
 
-          # Biztonságos qt-display.hpp kezelés: ha megvan a forrásban, átmásoljuk, ha nincs, generálunk egy kompatibilis minimalista fejlécet
           $qtDisplayHeader = Get-ChildItem -Path $srcDir -Filter "qt-display.hpp" -Recurse | Select-Object -First 1
           if ($qtDisplayHeader) {
               Copy-Item -Path $qtDisplayHeader.FullName -Destination "$incDir\qt-display.hpp" -Force
-              Write-Host "Sikeresen átmásolva: qt-display.hpp"
           } else {
-              Write-Host "WARNING: qt-display.hpp not found in source tree, generating compatibility header..."
-              $qtDisplayContent = @"
-              #pragma once
-              #include <obs.h>
-              #include <QWidget>
-              // Kompatibilitási wrapper a plugin preview widgetekhez
-              obs_display_t *obs_display_create(const struct obs_video_info *ovi, background_color_t background_color);
-              void obs_display_destroy(obs_display_t *display);
-              void obs_display_resize(obs_display_t *display, uint32_t cx, uint32_t cy);
-              void obs_display_add_draw_callback(obs_display_t *display, void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param);
-              void obs_display_remove_draw_callback(obs_display_t *display, void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param);
-"@
-              $qtDisplayContent | Set-Content -Path "$incDir\qt-display.hpp" -Encoding Ascii
+              $qtContent = "#pragma once`n#include <obs.h>`n#include <QWidget>`n"
+              Set-Content -Path "$incDir\qt-display.hpp" -Value $qtContent -Encoding Ascii
           }
 
-          # Hiányzó obsconfig.h pótlása
-          $obsConfigContent = @"
-          #pragma once
-          #define OBS_VERSION "33.0.1"
-          #define OBS_COMMIT "git"
-          #define BITS_32 0
-          #define BITS_64 1
-          "@
-          $obsConfigContent | Set-Content -Path "$incDir\obsconfig.h" -Encoding Ascii
+          $obsConfigContent = "#pragma once`n#define OBS_VERSION `"33.0.1`"`n#define OBS_COMMIT `"git`"`n#define BITS_32 0`n#define BITS_64 1`n"
+          Set-Content -Path "$incDir\obsconfig.h" -Value $obsConfigContent -Encoding Ascii
 
           Write-Host "Generating MSVC export library (.lib) for linking..."
           $defPath = "$env:RUNNER_TEMP\obs.def"
@@ -113,7 +91,7 @@ jobs:
               $defContent += "    $sym`n"
           }
 
-          $defContent | Set-Content -Path $defPath -Encoding Ascii
+          Set-Content -Path $defPath -Value $defContent -Encoding Ascii
           & lib /def:$defPath /out:$libPath /machine:x64
           Copy-Item -Path $libPath -Destination "$libDir\obs-frontend-api.lib" -Force
 
@@ -129,7 +107,6 @@ jobs:
           if (-not $qtPath) {
               throw "Qt installation path could not be found!"
           }
-          Write-Host "Configuring CMake with Qt path: $qtPath"
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$qtPath" -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk"
 
       - name: Build Plugin
@@ -143,10 +120,8 @@ jobs:
           $artifactDir = "$env:GITHUB_WORKSPACE\artifact_staging"
           New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
 
-          $compiledDlls = Get-ChildItem -Path "build" -Filter "*.dll" -Recurse
-          foreach ($dll in $compiledDlls) {
-              Write-Host "Staging DLL: $($dll.FullName)"
-              Copy-Item -Path $dll.FullName -Destination $artifactDir
+          Get-ChildItem -Path "build" -Filter "*.dll" -Recurse | ForEach-Object {
+              Copy-Item -Path $_.FullName -Destination $artifactDir
           }
 
           if (Test-Path "src/shaders") {
@@ -160,12 +135,9 @@ jobs:
           }
           
           if ($qtenv) {
-              Write-Host "Running windeployqt from: $($qtenv.FullName)"
               Get-ChildItem -Path "$artifactDir\*.dll" | ForEach-Object {
                   & $qtenv.FullName --qmldir src $_.FullName
               }
-          } else {
-              Write-Host "WARNING: windeployqt.exe not found, skipping dependency deployment."
           }
 
       - name: Upload Binary Artifact
