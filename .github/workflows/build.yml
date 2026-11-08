@@ -83,6 +83,7 @@ jobs:
               "obs_frontend_get_main_window",
               "obs_register_source_s",
               "blog",
+              "bmalloc",
               "bfree",
               "obs_data_create",
               "obs_data_release",
@@ -133,7 +134,9 @@ jobs:
               "obs_display_remove_draw_callback",
               "text_lookup_destroy",
               "text_lookup_getstr",
-              "obs_module_load_locale"
+              "obs_module_load_locale",
+              "obs_module_load",
+              "obs_module_unload"
           )
 
           foreach ($sym in $symbols) {
