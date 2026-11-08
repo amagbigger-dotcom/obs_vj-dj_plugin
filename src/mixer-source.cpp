@@ -2,6 +2,7 @@
 
 #include <obs-module.h>
 #include <graphics/graphics.h>
+#include <graphics/matrix4.h>
 #include <graphics/vec3.h>
 #include <graphics/vec4.h>
 
@@ -92,7 +93,80 @@ technique Draw {
 )";
 
 // ==========================================================================
-// 1. Deck Monitor Források (Deck A és Deck B saját csúszkákkal és tulajdonságokkal)
+// Segédfüggvények: Vászonméret-illesztés és Hang + Crossfader szinkron
+// ==========================================================================
+
+static void get_canvas_size(uint32_t *out_w, uint32_t *out_h)
+{
+    struct obs_video_info ovi;
+    if (obs_get_video_info(&ovi) && ovi.base_width > 0 && ovi.base_height > 0) {
+        *out_w = ovi.base_width;
+        *out_h = ovi.base_height;
+    } else {
+        *out_w = 1920;
+        *out_h = 1080;
+    }
+}
+
+static void render_source_fitted(obs_source_t *src, uint32_t target_w, uint32_t target_h)
+{
+    if (!src)
+        return;
+
+    const uint32_t src_w = obs_source_get_width(src);
+    const uint32_t src_h = obs_source_get_height(src);
+    if (src_w == 0 || src_h == 0 || target_w == 0 || target_h == 0) {
+        obs_source_video_render(src);
+        return;
+    }
+
+    const float scale_x = static_cast<float>(target_w) / static_cast<float>(src_w);
+    const float scale_y = static_cast<float>(target_h) / static_cast<float>(src_h);
+    const float scale = (scale_x < scale_y) ? scale_x : scale_y;
+
+    const float draw_w = static_cast<float>(src_w) * scale;
+    const float draw_h = static_cast<float>(src_h) * scale;
+    const float off_x = (static_cast<float>(target_w) - draw_w) * 0.5f;
+    const float off_y = (static_cast<float>(target_h) - draw_h) * 0.5f;
+
+    gs_matrix_push();
+    gs_matrix_translate3f(off_x, off_y, 0.0f);
+    gs_matrix_scale3f(scale, scale, 1.0f);
+    obs_source_video_render(src);
+    gs_matrix_pop();
+}
+
+static void sync_decks_audio_state()
+{
+    DeckPair *decks = vdj_decks();
+    if (!decks)
+        return;
+
+    obs_source_t *src_a = decks->deckA().source();
+    obs_source_t *src_b = decks->deckB().source();
+
+    // Crossfader hanggörbe (0.0 = Deck A, 0.5 = Mindkettő 100%, 1.0 = Deck B)
+    const double xfade = decks->crossfader();
+    const float gain_a = static_cast<float>(xfade <= 0.5 ? 1.0 : (1.0 - xfade) * 2.0);
+    const float gain_b = static_cast<float>(xfade >= 0.5 ? 1.0 : xfade * 2.0);
+
+    if (src_a) {
+        if (obs_source_get_monitoring_type(src_a) != OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT) {
+            obs_source_set_monitoring_type(src_a, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+        }
+        obs_source_set_volume(src_a, decks->deckA().volume() * gain_a);
+    }
+
+    if (src_b) {
+        if (obs_source_get_monitoring_type(src_b) != OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT) {
+            obs_source_set_monitoring_type(src_b, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+        }
+        obs_source_set_volume(src_b, decks->deckB().volume() * gain_b);
+    }
+}
+
+// ==========================================================================
+// 1. Deck Monitor Források (VDJ Deck A Monitor & VDJ Deck B Monitor)
 // ==========================================================================
 
 struct DeckMonitorData {
@@ -136,6 +210,8 @@ static void deck_monitor_update(void *data, obs_data_t *settings)
     deck.setBlue(static_cast<float>(obs_data_get_double(settings, "low_blue")));
     deck.setSaturation(static_cast<float>(obs_data_get_double(settings, "filter_sat")));
     deck.setVolume(static_cast<float>(obs_data_get_double(settings, "volume")));
+
+    sync_decks_audio_state();
 }
 
 static void deck_monitor_defaults(obs_data_t *settings)
@@ -220,6 +296,13 @@ static void deck_monitor_destroy(void *data)
     delete static_cast<DeckMonitorData *>(data);
 }
 
+static void deck_monitor_video_tick(void *data, float seconds)
+{
+    UNUSED_PARAMETER(data);
+    UNUSED_PARAMETER(seconds);
+    sync_decks_audio_state();
+}
+
 static void deck_monitor_video_render(void *data, gs_effect_t *effect)
 {
     UNUSED_PARAMETER(effect);
@@ -228,41 +311,32 @@ static void deck_monitor_video_render(void *data, gs_effect_t *effect)
     if (!decks)
         return;
 
+    uint32_t cx = 1920, cy = 1080;
+    get_canvas_size(&cx, &cy);
+
     obs_source_t *src = (monitor->deck_index == 0) ? decks->deckA().source()
                                                     : decks->deckB().source();
-    if (src) {
-        obs_source_video_render(src);
-    }
+    render_source_fitted(src, cx, cy);
 }
 
 static uint32_t deck_monitor_get_width(void *data)
 {
-    auto *monitor = static_cast<DeckMonitorData *>(data);
-    DeckPair *decks = vdj_decks();
-    if (!decks)
-        return 1920;
-
-    obs_source_t *src = (monitor->deck_index == 0) ? decks->deckA().source()
-                                                    : decks->deckB().source();
-    const uint32_t w = src ? obs_source_get_width(src) : 0;
-    return w > 0 ? w : 1920;
+    UNUSED_PARAMETER(data);
+    uint32_t cx = 1920, cy = 1080;
+    get_canvas_size(&cx, &cy);
+    return cx;
 }
 
 static uint32_t deck_monitor_get_height(void *data)
 {
-    auto *monitor = static_cast<DeckMonitorData *>(data);
-    DeckPair *decks = vdj_decks();
-    if (!decks)
-        return 1080;
-
-    obs_source_t *src = (monitor->deck_index == 0) ? decks->deckA().source()
-                                                    : decks->deckB().source();
-    const uint32_t h = src ? obs_source_get_height(src) : 0;
-    return h > 0 ? h : 1080;
+    UNUSED_PARAMETER(data);
+    uint32_t cx = 1920, cy = 1080;
+    get_canvas_size(&cx, &cy);
+    return cy;
 }
 
 // ==========================================================================
-// 2. Master Mixer Forrás (Beágyazott HLSL shader + Teljes vezérlés a Tulajdonságokban)
+// 2. Master Mixer Forrás (Kép + Hang + Crossfader + Shader)
 // ==========================================================================
 
 struct MixerSourceData {
@@ -313,17 +387,17 @@ static void mixer_update(void *data, obs_data_t *settings)
     decks->setCrossfader(obs_data_get_double(settings, "crossfader"));
     decks->setTransitionMode(static_cast<int>(obs_data_get_int(settings, "transition_mode")));
 
-    // Deck A EQ -> RGB + Filter
     decks->deckA().setRed(static_cast<float>(obs_data_get_double(settings, "a_hi_red")));
     decks->deckA().setGreen(static_cast<float>(obs_data_get_double(settings, "a_mid_green")));
     decks->deckA().setBlue(static_cast<float>(obs_data_get_double(settings, "a_low_blue")));
     decks->deckA().setSaturation(static_cast<float>(obs_data_get_double(settings, "a_filter_sat")));
 
-    // Deck B EQ -> RGB + Filter
     decks->deckB().setRed(static_cast<float>(obs_data_get_double(settings, "b_hi_red")));
     decks->deckB().setGreen(static_cast<float>(obs_data_get_double(settings, "b_mid_green")));
     decks->deckB().setBlue(static_cast<float>(obs_data_get_double(settings, "b_low_blue")));
     decks->deckB().setSaturation(static_cast<float>(obs_data_get_double(settings, "b_filter_sat")));
+
+    sync_decks_audio_state();
 }
 
 static void mixer_defaults(obs_data_t *settings)
@@ -360,7 +434,6 @@ static obs_properties_t *mixer_properties(void *data)
 {
     obs_properties_t *props = obs_properties_create();
 
-    // Master Crossfader & Transition
     obs_properties_add_float_slider(props, "crossfader", "MASTER CROSSFADER (A <-> B)", 0.0, 1.0, 0.01);
 
     obs_property_t *trans = obs_properties_add_list(
@@ -371,7 +444,6 @@ static obs_properties_t *mixer_properties(void *data)
     obs_property_list_add_int(trans, "Additive Blend", 2);
     obs_property_list_add_int(trans, "Hard Cut", 3);
 
-    // Deck A szekció
     obs_properties_add_path(
         props, "file_a", "DECK A - Videófájl", OBS_PATH_FILE,
         "Video/Audio (*.mp4 *.mkv *.mov *.avi *.webm *.mp3 *.wav);;All (*.*)", nullptr);
@@ -381,7 +453,6 @@ static obs_properties_t *mixer_properties(void *data)
     obs_properties_add_float_slider(props, "a_low_blue", "DECK A - LOW (Blue / Kék)", 0.0, 2.0, 0.01);
     obs_properties_add_float_slider(props, "a_filter_sat", "DECK A - FILTER (Szaturáció)", 0.0, 2.0, 0.01);
 
-    // Deck B szekció
     obs_properties_add_path(
         props, "file_b", "DECK B - Videófájl", OBS_PATH_FILE,
         "Video/Audio (*.mp4 *.mkv *.mov *.avi *.webm *.mp3 *.wav);;All (*.*)", nullptr);
@@ -422,6 +493,15 @@ static void *mixer_create(obs_data_t *settings, obs_source_t *source)
 
     obs_leave_graphics();
 
+    DeckPair *decks = vdj_decks();
+    if (decks) {
+        if (decks->deckA().source())
+            obs_source_add_active_child(source, decks->deckA().source());
+        if (decks->deckB().source())
+            obs_source_add_active_child(source, decks->deckB().source());
+    }
+
+    obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
     mixer_update(data, settings);
     return data;
 }
@@ -431,6 +511,14 @@ static void mixer_destroy(void *data)
     auto *mixer = static_cast<MixerSourceData *>(data);
     if (!mixer)
         return;
+
+    DeckPair *decks = vdj_decks();
+    if (decks && mixer->source) {
+        if (decks->deckA().source())
+            obs_source_remove_active_child(mixer->source, decks->deckA().source());
+        if (decks->deckB().source())
+            obs_source_remove_active_child(mixer->source, decks->deckB().source());
+    }
 
     obs_enter_graphics();
     if (mixer->texrender_a)
@@ -444,6 +532,104 @@ static void mixer_destroy(void *data)
     delete mixer;
 }
 
+static void mixer_enum_active_sources(void *data, obs_source_enum_proc_t enum_callback, void *param)
+{
+    auto *mixer = static_cast<MixerSourceData *>(data);
+    DeckPair *decks = vdj_decks();
+    if (!mixer || !decks)
+        return;
+
+    if (decks->deckA().source())
+        enum_callback(mixer->source, decks->deckA().source(), param);
+    if (decks->deckB().source())
+        enum_callback(mixer->source, decks->deckB().source(), param);
+}
+
+static bool mixer_audio_render(void *data, uint64_t *ts_out,
+                               struct obs_source_audio_mix *audio_output,
+                               uint32_t mixers, size_t channels,
+                               size_t sample_rate)
+{
+    UNUSED_PARAMETER(data);
+    DeckPair *decks = vdj_decks();
+    if (!decks)
+        return false;
+
+    obs_source_t *src_a = decks->deckA().source();
+    obs_source_t *src_b = decks->deckB().source();
+
+    uint64_t ts_a = 0;
+    uint64_t ts_b = 0;
+
+    if (src_a && !obs_source_audio_pending(src_a))
+        ts_a = obs_source_get_audio_timestamp(src_a);
+    if (src_b && !obs_source_audio_pending(src_b))
+        ts_b = obs_source_get_audio_timestamp(src_b);
+
+    if (!ts_a && !ts_b)
+        return false;
+
+    uint64_t min_ts = 0;
+    if (ts_a && ts_b)
+        min_ts = (ts_a < ts_b) ? ts_a : ts_b;
+    else
+        min_ts = ts_a ? ts_a : ts_b;
+
+    if (ts_a) {
+        struct obs_source_audio_mix child_audio;
+        obs_source_get_audio_mix(src_a, &child_audio);
+        const size_t diff = static_cast<size_t>((ts_a - min_ts) * static_cast<uint64_t>(sample_rate) / 1000000000ULL);
+        if (diff < AUDIO_OUTPUT_FRAMES) {
+            const size_t count = AUDIO_OUTPUT_FRAMES - diff;
+            for (size_t mix = 0; mix < MAX_AUDIO_MIXES; ++mix) {
+                if ((mixers & (1 << mix)) == 0)
+                    continue;
+                for (size_t ch = 0; ch < channels; ++ch) {
+                    float *out = audio_output->output[mix].data[ch] + diff;
+                    const float *in = child_audio.output[mix].data[ch];
+                    if (!out || !in)
+                        continue;
+                    for (size_t i = 0; i < count; ++i) {
+                        out[i] += in[i];
+                    }
+                }
+            }
+        }
+    }
+
+    if (ts_b) {
+        struct obs_source_audio_mix child_audio;
+        obs_source_get_audio_mix(src_b, &child_audio);
+        const size_t diff = static_cast<size_t>((ts_b - min_ts) * static_cast<uint64_t>(sample_rate) / 1000000000ULL);
+        if (diff < AUDIO_OUTPUT_FRAMES) {
+            const size_t count = AUDIO_OUTPUT_FRAMES - diff;
+            for (size_t mix = 0; mix < MAX_AUDIO_MIXES; ++mix) {
+                if ((mixers & (1 << mix)) == 0)
+                    continue;
+                for (size_t ch = 0; ch < channels; ++ch) {
+                    float *out = audio_output->output[mix].data[ch] + diff;
+                    const float *in = child_audio.output[mix].data[ch];
+                    if (!out || !in)
+                        continue;
+                    for (size_t i = 0; i < count; ++i) {
+                        out[i] += in[i];
+                    }
+                }
+            }
+        }
+    }
+
+    *ts_out = min_ts;
+    return true;
+}
+
+static void mixer_video_tick(void *data, float seconds)
+{
+    UNUSED_PARAMETER(data);
+    UNUSED_PARAMETER(seconds);
+    sync_decks_audio_state();
+}
+
 static void mixer_video_render(void *data, gs_effect_t *effect)
 {
     UNUSED_PARAMETER(effect);
@@ -455,10 +641,10 @@ static void mixer_video_render(void *data, gs_effect_t *effect)
     obs_source_t *src_a = decks->deckA().source();
     obs_source_t *src_b = decks->deckB().source();
 
-    const uint32_t cx = 1920;
-    const uint32_t cy = 1080;
+    uint32_t cx = 1920, cy = 1080;
+    get_canvas_size(&cx, &cy);
 
-    // 1. Deck A lerenderelése textúrába
+    // 1. Deck A lerenderelése textúrába (automatikus képaránytartó illesztéssel)
     gs_texrender_reset(mixer->texrender_a);
     if (gs_texrender_begin(mixer->texrender_a, cx, cy)) {
         struct vec4 clear_color;
@@ -466,13 +652,11 @@ static void mixer_video_render(void *data, gs_effect_t *effect)
         gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
         gs_ortho(0.0f, static_cast<float>(cx), 0.0f, static_cast<float>(cy), -100.0f, 100.0f);
 
-        if (src_a) {
-            obs_source_video_render(src_a);
-        }
+        render_source_fitted(src_a, cx, cy);
         gs_texrender_end(mixer->texrender_a);
     }
 
-    // 2. Deck B lerenderelése textúrába
+    // 2. Deck B lerenderelése textúrába (automatikus képaránytartó illesztéssel)
     gs_texrender_reset(mixer->texrender_b);
     if (gs_texrender_begin(mixer->texrender_b, cx, cy)) {
         struct vec4 clear_color;
@@ -480,9 +664,7 @@ static void mixer_video_render(void *data, gs_effect_t *effect)
         gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
         gs_ortho(0.0f, static_cast<float>(cx), 0.0f, static_cast<float>(cy), -100.0f, 100.0f);
 
-        if (src_b) {
-            obs_source_video_render(src_b);
-        }
+        render_source_fitted(src_b, cx, cy);
         gs_texrender_end(mixer->texrender_b);
     }
 
@@ -515,17 +697,21 @@ static void mixer_video_render(void *data, gs_effect_t *effect)
 static uint32_t mixer_get_width(void *data)
 {
     UNUSED_PARAMETER(data);
-    return 1920;
+    uint32_t cx = 1920, cy = 1080;
+    get_canvas_size(&cx, &cy);
+    return cx;
 }
 
 static uint32_t mixer_get_height(void *data)
 {
     UNUSED_PARAMETER(data);
-    return 1080;
+    uint32_t cx = 1920, cy = 1080;
+    get_canvas_size(&cx, &cy);
+    return cy;
 }
 
 // ==========================================================================
-// 3. OBS Források Regisztrációja (Tulajdonságokkal együtt)
+// 3. OBS Források Regisztrációja
 // ==========================================================================
 
 static struct obs_source_info vdj_deck_a_info = {};
@@ -544,6 +730,7 @@ void vdj_register_sources()
     vdj_deck_a_info.update = deck_monitor_update;
     vdj_deck_a_info.get_defaults = deck_monitor_defaults;
     vdj_deck_a_info.get_properties = deck_monitor_properties;
+    vdj_deck_a_info.video_tick = deck_monitor_video_tick;
     vdj_deck_a_info.video_render = deck_monitor_video_render;
     vdj_deck_a_info.get_width = deck_monitor_get_width;
     vdj_deck_a_info.get_height = deck_monitor_get_height;
@@ -560,22 +747,26 @@ void vdj_register_sources()
     vdj_deck_b_info.update = deck_monitor_update;
     vdj_deck_b_info.get_defaults = deck_monitor_defaults;
     vdj_deck_b_info.get_properties = deck_monitor_properties;
+    vdj_deck_b_info.video_tick = deck_monitor_video_tick;
     vdj_deck_b_info.video_render = deck_monitor_video_render;
     vdj_deck_b_info.get_width = deck_monitor_get_width;
     vdj_deck_b_info.get_height = deck_monitor_get_height;
     vdj_deck_b_info.type_data = reinterpret_cast<void *>(static_cast<intptr_t>(1));
     obs_register_source(&vdj_deck_b_info);
 
-    // Master Output Mixer Source
+    // Master Output Mixer Source (Video + Audio + Composite)
     vdj_master_mixer_info.id = "vdj_master_mixer";
     vdj_master_mixer_info.type = OBS_SOURCE_TYPE_INPUT;
-    vdj_master_mixer_info.output_flags = OBS_SOURCE_VIDEO;
+    vdj_master_mixer_info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_COMPOSITE;
     vdj_master_mixer_info.get_name = mixer_get_name;
     vdj_master_mixer_info.create = mixer_create;
     vdj_master_mixer_info.destroy = mixer_destroy;
     vdj_master_mixer_info.update = mixer_update;
     vdj_master_mixer_info.get_defaults = mixer_defaults;
     vdj_master_mixer_info.get_properties = mixer_properties;
+    vdj_master_mixer_info.enum_active_sources = mixer_enum_active_sources;
+    vdj_master_mixer_info.audio_render = mixer_audio_render;
+    vdj_master_mixer_info.video_tick = mixer_video_tick;
     vdj_master_mixer_info.video_render = mixer_video_render;
     vdj_master_mixer_info.get_width = mixer_get_width;
     vdj_master_mixer_info.get_height = mixer_get_height;
