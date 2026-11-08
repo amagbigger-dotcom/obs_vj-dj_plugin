@@ -2,7 +2,6 @@
 #include <graphics/graphics.h>
 #include "deck-engine.hpp"
 
-// Külső C-stílusú hivatkozás biztosítása a linker számára
 extern "C" {
 
 struct MixerSource {
@@ -20,7 +19,10 @@ static const char *mixer_get_name(void *type_data)
 static void *mixer_create(obs_data_t *settings, obs_source_t *source)
 {
     UNUSED_PARAMETER(settings);
-    MixerSource *context = static_cast<MixerSource *>(bzalloc(sizeof(MixerSource)));
+    MixerSource *context = static_cast<MixerSource *>(bfree, bmalloc(sizeof(MixerSource))); // Biztonságos allokáció
+    if (!context)
+        return nullptr;
+        
     context->source = source;
     context->is_master = false;
     context->channel = 0;
@@ -34,7 +36,9 @@ static void *mixer_create(obs_data_t *settings, obs_source_t *source)
 static void mixer_destroy(void *data)
 {
     MixerSource *context = static_cast<MixerSource *>(data);
-    bfree(context);
+    if (context) {
+        bfree(context);
+    }
 }
 
 static void mixer_update(void *data, obs_data_t *settings)
@@ -49,8 +53,6 @@ static void mixer_video_render(void *data, gs_effect_t *effect)
     MixerSource *context = static_cast<MixerSource *>(data);
     if (!context || !context->source)
         return;
-
-    // Itt történik a keverési kép renderelése
 }
 
 static uint32_t mixer_get_width(void *data)
@@ -105,7 +107,10 @@ static const char *deck_monitor_get_name(void *type_data)
 static void *deck_monitor_create(obs_data_t *settings, obs_source_t *source)
 {
     UNUSED_PARAMETER(settings);
-    MixerSource *context = static_cast<MixerSource *>(bzalloc(sizeof(MixerSource)));
+    MixerSource *context = static_cast<MixerSource *>(bmalloc(sizeof(MixerSource)));
+    if (!context)
+        return nullptr;
+        
     context->source = source;
     context->is_master = false;
     return context;
@@ -114,7 +119,9 @@ static void *deck_monitor_create(obs_data_t *settings, obs_source_t *source)
 static void deck_monitor_destroy(void *data)
 {
     MixerSource *context = static_cast<MixerSource *>(data);
-    bfree(context);
+    if (context) {
+        bfree(context);
+    }
 }
 
 struct obs_source_info get_deck_a_source_info()
@@ -145,7 +152,6 @@ struct obs_source_info get_deck_b_source_info()
     return info;
 }
 
-// A plugin-main.cpp által keresett C-stílusú regisztrációs függvény
 void vdj_register_sources(void)
 {
     struct obs_source_info mixer_info = get_mixer_source_info();
