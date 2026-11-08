@@ -21,7 +21,6 @@ jobs:
       uses: jurplel/install-qt-action@v4
       with:
         version: '6.6.1'
-        cached: 'true'
 
     - name: Download and Extract OBS Studio 33.0.1 SDK Package
       run: |
@@ -29,15 +28,18 @@ jobs:
         $outputZip = "$env:RUNNER_TEMP\\obs-sdk.zip"
         $sdkDir = "$env:RUNNER_TEMP\\obs-sdk"
         
+        New-Item -ItemType Directory -Force -Path $sdkDir
+        
         Write-Host "Downloading OBS Studio 33.0.1 from $sdkUrl..."
         try {
             Invoke-WebRequest -Uri $sdkUrl -OutFile $outputZip -MaximumRedirection 5
         } catch {
             Write-Warning "Direct download failed, trying git clone fallback for headers..."
             git clone --depth 1 --branch 33.0.1 https://github.com/obsproject/obs-studio.git C:/obs-source
-            New-Item -ItemType Directory -Force -Path "$sdkDir\\include"
-            Copy-Item -Recurse -Force "C:/obs-source/libobs" "$sdkDir\\include/"
-            Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api" "$sdkDir\\include/"
+            New-Item -ItemType Directory -Force -Path "$sdkDir\\include\\libobs"
+            New-Item -ItemType Directory -Force -Path "$sdkDir\\UI\\obs-frontend-api"
+            Copy-Item -Recurse -Force "C:/obs-source/libobs/*" "$sdkDir\\include\\libobs/"
+            Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api/*" "$sdkDir\\UI\\obs-frontend-api/"
             exit 0
         }
         
