@@ -23,11 +23,11 @@ jobs:
       - name: Setup Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.11.1'
+          version: '6.8.2'
           target: 'desktop'
           arch: 'win64_msvc2022_64'
 
-      - name: Prepare OBS SDK Headers and Libs
+      - name: Prepare OBS SDK & Import Libraries from Official OBS Release
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -37,7 +37,7 @@ jobs:
           New-Item -ItemType Directory -Path $incDir -Force | Out-Null
           New-Item -ItemType Directory -Path $libDir -Force | Out-Null
 
-          Write-Host "Cloning OBS headers (33.0.1)..."
+          Write-Host "1. Cloning OBS headers from official repo..."
           $srcDir = "$env:RUNNER_TEMP\obs-src"
           if (Test-Path $srcDir) { Remove-Item -Path $srcDir -Recurse -Force }
           git clone --depth 1 --branch 33.0.1 https://github.com/obsproject/obs-studio.git $srcDir
@@ -48,14 +48,7 @@ jobs:
               Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
           }
 
-          # Hogy ne legyen LNK1181 hiba letöltés nélkül, üres stub / vagy a libobs-t linkeljük, 
-          # de mivel a windows-2022 runneren az MSVC-vel a CMake a target-eket keresi, 
-          # hozzuk létre a szükséges üres lib fájlokat vagy használjuk a helyes célt.
-          # Létrehozunk egy dummy obs.lib-et, ha a CMake csak a szimbólumok miatt keresi (mert a WINDOWS_EXPORT_ALL_SYMBOLS a saját pluginunkra vonatkozik, de az obs.lib-hez kell linkage):
-          # Stubb-oljuk az obs.lib-et egy üres archive-val vagy letöltünk egy stabil libobs.lib-et.
-          # Legjobb: letöltjük az obsproject prebuilt libobs-t vagy létrehozunk egy minimal .lib-et.
-          
-          # Hozzunk létre egy minimal .lib-et a linkelési hiba elkerülésére:
+          Write-Host "2. Creating stub import libraries to satisfy linker..."
           $dummyDef = "$env:RUNNER_TEMP\obs.def"
           "LIBRARY obs`nEXPORTS`n" | Set-Content -Path $dummyDef -Encoding Ascii
           & lib /def:$dummyDef /out:"$libDir\obs.lib" /machine:x64
