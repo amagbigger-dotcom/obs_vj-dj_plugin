@@ -21,6 +21,7 @@ static void open_mixer_window(void *data)
     UNUSED_PARAMETER(data);
     QMainWindow *main_window = static_cast<QMainWindow *>(obs_frontend_get_main_window());
     
+    // Csak akkor hozzuk létre a deckeket és az ablakot, amikor a felhasználó megnyitja a keverőt!
     if (!s_mixer_window) {
         if (!g_decks) {
             g_decks = new DeckPair();
@@ -34,7 +35,7 @@ static void open_mixer_window(void *data)
     s_mixer_window->activateWindow();
 }
 
-// Biztosítjuk a DLL keresési útvonalat a Qt6 könyvtárakhoz
+// DLL belépési pont a Qt6 / Windows keresési útvonalhoz
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 {
     UNUSED_PARAMETER(lpReserved);
@@ -67,12 +68,8 @@ extern "C" {
     __declspec(dllexport) bool obs_module_load(void)
     {
         blog(LOG_INFO, "[obs-vj-mixer] Loading Traktor S2 VJ Mixer plugin...");
-        
-        if (!g_decks) {
-            g_decks = new DeckPair();
-            vdj_set_decks(g_decks);
-        }
 
+        // ITT NEM PÉLDÁNYOSÍTUNK DeckPair-t, mert az OBS még nem kész az ffmpeg_source létrehozására!
         vdj_register_sources();
         vdj_midi_init();
 
@@ -93,9 +90,11 @@ extern "C" {
             s_mixer_window = nullptr;
         }
 
-        delete g_decks;
-        g_decks = nullptr;
-        vdj_set_decks(nullptr);
+        if (g_decks) {
+            delete g_decks;
+            g_decks = nullptr;
+            vdj_set_decks(nullptr);
+        }
         
         blog(LOG_INFO, "[obs-vj-mixer] Plugin unloaded.");
     }
