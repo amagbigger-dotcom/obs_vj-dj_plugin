@@ -1,14 +1,37 @@
 #pragma once
 
 #include <QDialog>
+#include <obs.h>
 
 class DeckPair;
 class QSlider;
 class QLabel;
 class QPushButton;
 class QComboBox;
+class QVBoxLayout;
 
-class VideoPreviewWidget;
+class VideoPreviewWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit VideoPreviewWidget(DeckPair *decks, bool is_master, bool is_deck_a, QWidget *parent = nullptr);
+    ~VideoPreviewWidget() override;
+
+protected:
+    void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+
+private:
+    void createDisplay();
+    void destroyDisplay();
+    void updateSource();
+
+    DeckPair *decks_ = nullptr;
+    bool is_master_ = false;
+    bool is_deck_a_ = false;
+    obs_display_t *display_ = nullptr;
+    obs_source_t *tracked_source_ = nullptr;
+};
 
 class MixerWindow final : public QDialog {
     Q_OBJECT
