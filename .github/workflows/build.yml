@@ -17,6 +17,12 @@ jobs:
     - name: Set up MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
+    - name: Set up Qt6
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: '6.6.1'
+        cached: 'true'
+
     - name: Download and Extract OBS Studio 33.0.1 SDK Package
       run: |
         $sdkUrl = "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip"
