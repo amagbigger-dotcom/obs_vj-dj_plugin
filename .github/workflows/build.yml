@@ -19,10 +19,8 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.2'
-          host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2022_64'
-          modules: 'qtbase'
 
       - name: Download & Extract OBS Studio SDK
         shell: pwsh
@@ -37,12 +35,6 @@ jobs:
           Write-Host "Extracting OBS SDK..."
           Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
           
-          # OBS SDK lib and include locations
-          $obsSdkDir = "$extractPath\libobs"
-          if (-not (Test-Path $obsSdkDir)) {
-              $obsSdkDir = $extractPath
-          }
-          
           echo "OBS_SDK_DIR=$extractPath" >> $env:GITHUB_ENV
           Write-Host "OBS SDK extracted to: $extractPath"
 
@@ -51,7 +43,7 @@ jobs:
         run: |
           cmake -B build `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
             -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk"
 
       - name: Build Plugin
