@@ -1,126 +1,74 @@
-name: Windows x64 build (OBS 33+)
+name: Build OBS VJ Mixer Plugin (Windows x64)
 
 on:
   push:
+    branches: [ "main" ]
   pull_request:
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-2022
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up MSVC x64
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
-      - name: Install Qt 6 (MSVC 2022)
+      - name: Setup Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.3'
-          host: windows
-          target: desktop
-          arch: win64_msvc2022_64
-          cache: true
+          version: '6.8.2'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2022_64'
+          modules: 'qtbase'
 
-      - name: Download and prepare OBS 33.0.1 SDK
+      - name: Download & Extract OBS Studio SDK
         shell: pwsh
         run: |
-          $sdkRoot = Join-Path $env:RUNNER_TEMP "obs-sdk"
-          New-Item -ItemType Directory -Force -Path "$sdkRoot/include" | Out-Null
-          New-Item -ItemType Directory -Force -Path "$sdkRoot/lib" | Out-Null
-          New-Item -ItemType Directory -Force -Path "$sdkRoot/bin/64bit" | Out-Null
-
-          # 1. Hivatalos OBS 33.0.1 Windows x64 binárisok letöltése
-          Write-Host "Downloading OBS Studio 33.0.1 release..."
-          $obsZip = "$env:RUNNER_TEMP/obs-rel.zip"
-          curl.exe -fL "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip" -o $obsZip
-          Expand-Archive -Path $obsZip -DestinationPath "$env:RUNNER_TEMP/obs-rel" -Force
-          Copy-Item "$env:RUNNER_TEMP/obs-rel/bin/64bit/obs.dll" -Destination "$sdkRoot/bin/64bit/"
-          Copy-Item "$env:RUNNER_TEMP/obs-rel/bin/64bit/obs-frontend-api.dll" -Destination "$sdkRoot/bin/64bit/"
-
-          # 2. OBS 33.0.1 fejlécek letöltése és másolása
-          Write-Host "Downloading OBS Studio 33.0.1 headers..."
-          $srcZip = "$env:RUNNER_TEMP/obs-src.zip"
-          curl.exe -fL "https://github.com/obsproject/obs-studio/archive/refs/tags/33.0.1.zip" -o $srcZip
-          Expand-Archive -Path $srcZip -DestinationPath "$env:RUNNER_TEMP/obs-src" -Force
-
-          $libobsDir = Get-ChildItem -Path "$env:RUNNER_TEMP/obs-src" -Directory -Filter "libobs" -Recurse | Select-Object -First 1
-          if ($libobsDir) {
-              Copy-Item -Recurse "$($libobsDir.FullName)/*" -Destination "$sdkRoot/include/"
-          } else {
-              throw "libobs directory not found in source archive!"
+          $sdkUrl = "https://github.com/obsproject/obs-studio/releases/download/30.2.3/obs-studio-30.2.3-Windows.zip"
+          $zipPath = "$env:RUNNER_TEMP\obs-sdk.zip"
+          $extractPath = "$env:RUNNER_TEMP\obs-sdk"
+          
+          Write-Host "Downloading OBS SDK from $sdkUrl..."
+          Invoke-WebRequest -Uri $sdkUrl -OutFile $zipPath
+          
+          Write-Host "Extracting OBS SDK..."
+          Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+          
+          # OBS SDK lib and include locations
+          $obsSdkDir = "$extractPath\libobs"
+          if (-not (Test-Path $obsSdkDir)) {
+              $obsSdkDir = $extractPath
           }
+          
+          echo "OBS_SDK_DIR=$extractPath" >> $env:GITHUB_ENV
+          Write-Host "OBS SDK extracted to: $extractPath"
 
-          $feHeader = Get-ChildItem -Path "$env:RUNNER_TEMP/obs-src" -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
-          if ($feHeader) {
-              Copy-Item $feHeader.FullName -Destination "$sdkRoot/include/"
-          } else {
-              throw "obs-frontend-api.h not found in source archive!"
-          }
-
-          # 3. Hiányzó obsconfig.h létrehozása
-          Write-Host "Generating obsconfig.h stub..."
-          $configStub = @(
-              '#pragma once',
-              '#define OBS_VERSION "33.0.1"',
-              '#define OBS_DATA_PATH "../../data"',
-              '#define OBS_INSTALL_PREFIX ""',
-              '#define OBS_PLUGIN_DESTINATION "obs-plugins/64bit"'
-          )
-          $configStub | Set-Content -Path "$sdkRoot/include/obsconfig.h"
-
-          # 4. .lib import könyvtárak legenerálása az MSVC lib eszközzel
-          Write-Host "Generating import libraries (.lib)..."
-          function Make-Lib ($dll, $name) {
-              $exp = dumpbin /EXPORTS "$sdkRoot/bin/64bit/$dll" | Select-String -Pattern "^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+(\S+)"
-              $defLines = @("EXPORTS")
-              foreach ($m in $exp) {
-                  $sym = $m.Matches[0].Groups[1].Value
-                  if (-not $sym.StartsWith("[")) {
-                      $defLines += $sym
-                  }
-              }
-              $defPath = "$env:RUNNER_TEMP/$name.def"
-              $defLines | Set-Content -Path $defPath
-              lib /def:"$defPath" /machine:x64 /out:"$sdkRoot/lib/$name.lib" | Out-Null
-          }
-          Make-Lib "obs.dll" "obs"
-          Make-Lib "obs-frontend-api.dll" "obs-frontend-api"
-
-          "OBS_ROOT=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
-      - name: Configure Release x64
-        shell: pwsh
-        run: cmake -S . -B build -A x64 -DCMAKE_BUILD_TYPE=Release -DOBS_ROOT="$env:OBS_ROOT"
-
-      - name: Build
-        run: cmake --build build --config Release --parallel
-
-      - name: Stage Artifacts (OBS 33 layout)
+      - name: Configure CMake
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "package/plugins/obs-vj-mixer/bin/64bit" | Out-Null
-          New-Item -ItemType Directory -Force -Path "package/plugins/obs-vj-mixer/data/shaders" | Out-Null
+          cmake -B build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
+            -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk"
 
-          New-Item -ItemType Directory -Force -Path "package/obs-plugins/64bit" | Out-Null
-          New-Item -ItemType Directory -Force -Path "package/data/obs-plugins/obs-vj-mixer/shaders" | Out-Null
+      - name: Build Plugin
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --parallel
 
-          $dllSource = if (Test-Path "build/bin/Release/obs-vj-mixer.dll") { "build/bin/Release/obs-vj-mixer.dll" } else { "build/bin/obs-vj-mixer.dll" }
+      - name: Prepare Artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path bin -Force
+          Get-ChildItem -Path build -Recurse -Filter "obs-vj-mixer.dll" | Copy-Item -Destination bin/
+          Get-Item bin\obs-vj-mixer.dll
 
-          Copy-Item $dllSource -Destination "package/plugins/obs-vj-mixer/bin/64bit/obs-vj-mixer.dll"
-          Copy-Item "src/shaders/crossfade.effect" -Destination "package/plugins/obs-vj-mixer/data/shaders/"
-
-          Copy-Item $dllSource -Destination "package/obs-plugins/64bit/"
-          Copy-Item "src/shaders/crossfade.effect" -Destination "package/data/obs-plugins/obs-vj-mixer/shaders/"
-
-      - name: Upload plugin package
+      - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
         with:
           name: obs-vj-mixer-windows-x64
-          path: package/
+          path: bin/obs-vj-mixer.dll
           if-no-files-found: error
