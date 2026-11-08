@@ -6,6 +6,9 @@ class DeckPair;
 class QSlider;
 class QLabel;
 class QPushButton;
+class QComboBox;
+
+class VideoPreviewWidget;
 
 class MixerWindow final : public QDialog {
     Q_OBJECT
@@ -34,8 +37,9 @@ private:
     QLabel *rate_lbl_b_ = nullptr;
     QSlider *pitch_slider_a_ = nullptr;
     QSlider *pitch_slider_b_ = nullptr;
+    QComboBox *loop_combo_a_ = nullptr;
+    QComboBox *loop_combo_b_ = nullptr;
 
-    // Hardveres MIDI ketiranyu szinkronizaciohoz
     QSlider *hi_a_ = nullptr;
     QSlider *mid_a_ = nullptr;
     QSlider *low_a_ = nullptr;
