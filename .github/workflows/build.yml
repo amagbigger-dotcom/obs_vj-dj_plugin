@@ -50,65 +50,65 @@ jobs:
           Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
 
           Write-Host "3. Creating dummy import libs for compilation..."
-          # Mivel a plugin csak linkeli az obs-t es obs-frontend-api-t, MSVC def/lib parccsal generalunk ures/stub import libeket a forditashoz
           function New-StubLib($libName) {
               $defPath = "$env:RUNNER_TEMP\$libName.def"
               $libPath = "$libDir\$libName.lib"
-              @"
-EXPORTS
-    obs_source_create_private
-    obs_source_release
-    obs_source_inc_showing
-    obs_source_dec_showing
-    obs_source_update
-    obs_source_media_get_state
-    obs_source_media_play_pause
-    obs_source_media_restart
-    obs_source_media_set_time
-    obs_source_media_get_time
-    obs_source_media_get_duration
-    obs_source_get_settings
-    obs_source_set_volume
-    obs_source_get_monitoring_type
-    obs_source_set_monitoring_type
-    obs_source_audio_pending
-    obs_source_get_audio_timestamp
-    obs_source_get_audio_mix
-    obs_source_add_active_child
-    obs_source_remove_active_child
-    obs_source_video_render
-    obs_source_get_width
-    obs_source_get_height
-    obs_get_video_info
-    obs_get_main_window
-    obs_frontend_add_tools_menu_item
-    obs_register_source
-    gs_effect_create
-    gs_effect_destroy
-    gs_effect_get_param_by_name
-    gs_effect_set_texture
-    gs_effect_set_float
-    gs_effect_set_vec3
-    gs_effect_loop
-    gs_draw_sprite
-    gs_texrender_create
-    gs_texrender_destroy
-    gs_texrender_reset
-    gs_texrender_begin
-    gs_texrender_end
-    gs_texrender_get_texture
-    gs_clear
-    gs_ortho
-    gs_matrix_push
-    gs_matrix_pop
-    gs_matrix_translate3f
-    gs_matrix_scale3f
-    obs_display_create
-    obs_display_destroy
-    obs_display_resize
-    obs_display_add_draw_callback
-    obs_display_remove_draw_callback
-"@ | Set-Content -Path $defPath -Encoding Ascii
+              $exports = @(
+                  "EXPORTS",
+                  "obs_source_create_private",
+                  "obs_source_release",
+                  "obs_source_inc_showing",
+                  "obs_source_dec_showing",
+                  "obs_source_update",
+                  "obs_source_media_get_state",
+                  "obs_source_media_play_pause",
+                  "obs_source_media_restart",
+                  "obs_source_media_set_time",
+                  "obs_source_media_get_time",
+                  "obs_source_media_get_duration",
+                  "obs_source_get_settings",
+                  "obs_source_set_volume",
+                  "obs_source_get_monitoring_type",
+                  "obs_source_set_monitoring_type",
+                  "obs_source_audio_pending",
+                  "obs_source_get_audio_timestamp",
+                  "obs_source_get_audio_mix",
+                  "obs_source_add_active_child",
+                  "obs_source_remove_active_child",
+                  "obs_source_video_render",
+                  "obs_source_get_width",
+                  "obs_source_get_height",
+                  "obs_get_video_info",
+                  "obs_get_main_window",
+                  "obs_frontend_add_tools_menu_item",
+                  "obs_register_source",
+                  "gs_effect_create",
+                  "gs_effect_destroy",
+                  "gs_effect_get_param_by_name",
+                  "gs_effect_set_texture",
+                  "gs_effect_set_float",
+                  "gs_effect_set_vec3",
+                  "gs_effect_loop",
+                  "gs_draw_sprite",
+                  "gs_texrender_create",
+                  "gs_texrender_destroy",
+                  "gs_texrender_reset",
+                  "gs_texrender_begin",
+                  "gs_texrender_end",
+                  "gs_texrender_get_texture",
+                  "gs_clear",
+                  "gs_ortho",
+                  "gs_matrix_push",
+                  "gs_matrix_pop",
+                  "gs_matrix_translate3f",
+                  "gs_matrix_scale3f",
+                  "obs_display_create",
+                  "obs_display_destroy",
+                  "obs_display_resize",
+                  "obs_display_add_draw_callback",
+                  "obs_display_remove_draw_callback"
+              )
+              $exports | Set-Content -Path $defPath -Encoding Ascii
               & lib /def:$defPath /out:$libPath /machine:x64
           }
 
