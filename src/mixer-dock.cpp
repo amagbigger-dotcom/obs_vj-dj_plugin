@@ -664,5 +664,3 @@ void MixerWindow::refreshMixer()
         crossfader_->setValue(static_cast<int>(decks_->crossfader() * 1000.0));
     }
 }
-
-#include "mixer-dock.moc"
