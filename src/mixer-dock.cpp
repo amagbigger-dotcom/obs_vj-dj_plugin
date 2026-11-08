@@ -2,6 +2,9 @@
 #include "deck-engine.hpp"
 #include "midi-handler.hpp"
 
+#include <obs.h>
+#include <graphics/graphics.h>
+
 #include <QComboBox>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -14,6 +17,61 @@
 #include <QSlider>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QWidget>
+#include <QPainter>
+
+// Élő widget előnézethez a UI-ban
+class VideoPreviewWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit VideoPreviewWidget(DeckPair *decks, bool is_master, bool is_deck_a, QWidget *parent = nullptr)
+        : QWidget(parent), decks_(decks), is_master_(is_master), is_deck_a_(is_deck_a)
+    {
+        setFixedHeight(110);
+        setStyleSheet("background-color: #0b0c0e; border: 1px solid #2a2d36; border-radius: 4px;");
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        Q_UNUSED(event);
+        QPainter painter(this);
+        painter.fillRect(rect(), QColor("#0b0c0e"));
+
+        if (!decks_) {
+            painter.setPen(QColor("#7d8494"));
+            painter.drawText(rect(), Qt::AlignCenter, "No Signal");
+            return;
+        }
+
+        obs_source_t *src = nullptr;
+        if (is_master_) {
+            // Master kimenet megjelenítése
+            // (egyszerűsítve a crossfader állapota szerint az aktív decket mutatjuk előnézetben)
+            double xf = decks_->crossfader();
+            src = (xf < 0.5) ? decks_->deckA().source() : decks_->deckB().source();
+        } else {
+            src = is_deck_a_ ? decks_->deckA().source() : decks_->deckB().source();
+        }
+
+        if (!src) {
+            painter.setPen(QColor("#7d8494"));
+            painter.drawText(rect(), Qt::AlignCenter, is_master_ ? "MASTER OUT" : (is_deck_a_ ? "DECK A EMPTY" : "DECK B EMPTY"));
+            return;
+        }
+
+        // Itt rajzolhatnánk ki a frame-et, ha az OBS grafikus kontextus aktív. 
+        // Mivel a Qt widget külön szálon renderel, jelöljük ki vizuálisan:
+        painter.setPen(QColor(is_master_ ? "#ff9e00" : (is_deck_a_ ? "#00d2ff" : "#cc5500")));
+        painter.drawRect(rect().adjusted(1, 1, -1, -1));
+        painter.drawText(rect(), Qt::AlignCenter, is_master_ ? "MASTER OUTPUT" : (is_deck_a_ ? "DECK A (ACTIVE)" : "DECK B (ACTIVE)"));
+    }
+
+private:
+    DeckPair *decks_ = nullptr;
+    bool is_master_ = false;
+    bool is_deck_a_ = false;
+};
 
 static const char *TRAKTOR_S2_STYLESHEET = R"(
 QDialog {
@@ -151,14 +209,13 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
       decks_(decks)
 {
     setWindowTitle(QStringLiteral("Traktor S2 VJ Mixer - OBS"));
-    resize(1040, 580);
+    resize(1080, 620);
     setStyleSheet(TRAKTOR_S2_STYLESHEET);
 
     auto *main_v_layout = new QVBoxLayout(this);
     main_v_layout->setContentsMargins(12, 10, 12, 12);
     main_v_layout->setSpacing(8);
 
-    // Felso allapotsor: MIDI Kapcsolat
     auto *status_bar = new QHBoxLayout();
     midi_status_lbl_ = new QLabel(QStringLiteral("MIDI: Scanning..."), this);
     midi_status_lbl_->setStyleSheet(QStringLiteral("color: #00d2ff; font-weight: bold; font-size: 11px;"));
@@ -206,12 +263,15 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
 
     DeckPlayer *deck = is_deck_a ? &decks_->deckA() : &decks_->deckB();
 
-    // 1. File Info & Browse
+    // Előnézet ablak a deck felett
+    auto *preview = new VideoPreviewWidget(decks_, false, is_deck_a, parent);
+    layout->addWidget(preview);
+
     auto *file_row = new QHBoxLayout();
     auto *file_label = new QLabel(QStringLiteral("Empty Deck - Click Load"), parent);
     file_label->setStyleSheet(QStringLiteral("color: #7d8494; font-size: 11px; font-weight: bold;"));
     file_label->setWordWrap(true);
-    file_label->setMaximumHeight(32);
+    file_label->setMaximumHeight(28);
 
     auto *load_btn = new QPushButton(QStringLiteral("LOAD"), parent);
     load_btn->setFixedWidth(60);
@@ -219,7 +279,6 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
     file_row->addWidget(load_btn);
     layout->addLayout(file_row);
 
-    // 2. Waveform / Position Scrub Bar + Time Display
     auto *time_row = new QHBoxLayout();
     auto *pos_lbl = new QLabel(QStringLiteral("00:00 / 00:00"), parent);
     pos_lbl->setStyleSheet(QStringLiteral("color: #00d2ff; font-weight: bold; font-family: monospace;"));
@@ -236,7 +295,6 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
     if (is_deck_a) seek_a_ = seek_slider;
     else seek_b_ = seek_slider;
 
-    // 3. Middle Section: Pitch Slider (Traktor S2 Tempo Fader) + Loop Bar
     auto *mid_row = new QHBoxLayout();
 
     auto *pitch_box = new QVBoxLayout();
@@ -249,7 +307,7 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
     auto *pitch_slider = new QSlider(Qt::Vertical, parent);
     pitch_slider->setRange(50, 150);
     pitch_slider->setValue(100);
-    pitch_slider->setFixedHeight(120);
+    pitch_slider->setFixedHeight(100);
 
     if (is_deck_a) pitch_slider_a_ = pitch_slider;
     else pitch_slider_b_ = pitch_slider;
@@ -260,13 +318,27 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
     mid_row->addLayout(pitch_box);
 
     auto *loop_box = new QVBoxLayout();
-    auto *loop_lbl = new QLabel(QStringLiteral("LOOP SECTION"), parent);
+    auto *loop_lbl = new QLabel(QStringLiteral("LOOP / BEATS"), parent);
     loop_lbl->setStyleSheet(QStringLiteral("font-weight: bold; color: #a0a6b5;"));
     loop_box->addWidget(loop_lbl);
 
     auto *loop_btn = new QPushButton(QStringLiteral("AUTO LOOP"), parent);
     loop_btn->setCheckable(true);
     loop_box->addWidget(loop_btn);
+
+    auto *loop_combo = new QComboBox(parent);
+    loop_combo->addItem(QStringLiteral("1/2 Beat"));
+    loop_combo->addItem(QStringLiteral("1 Beat"));
+    loop_combo->addItem(QStringLiteral("2 Beats"));
+    loop_combo->addItem(QStringLiteral("4 Beats"));
+    loop_combo->addItem(QStringLiteral("8 Beats"));
+    loop_combo->addItem(QStringLiteral("16 Beats"));
+    loop_combo->addItem(QStringLiteral("32 Beats"));
+    loop_combo->addItem(QStringLiteral("64 Beats"));
+    loop_combo->setCurrentIndex(3); // Alap: 4 Beats
+    if (is_deck_a) loop_combo_a_ = loop_combo;
+    else loop_combo_b_ = loop_combo;
+    loop_box->addWidget(loop_combo);
 
     auto *reset_pitch_btn = new QPushButton(QStringLiteral("RESET PITCH"), parent);
     loop_box->addWidget(reset_pitch_btn);
@@ -275,7 +347,6 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
     mid_row->addLayout(loop_box);
     layout->addLayout(mid_row);
 
-    // 4. Transport Controls (Traktor S2: PLAY, CUE, SYNC)
     auto *transport_row = new QHBoxLayout();
     auto *play_btn = new QPushButton(QStringLiteral("PLAY / PAUSE"), parent);
     play_btn->setObjectName(QStringLiteral("play_btn"));
@@ -293,7 +364,6 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
     transport_row->addWidget(sync_btn, 1);
     layout->addLayout(transport_row);
 
-    // Event Connections
     connect(load_btn, &QPushButton::clicked, this, [this, deck, file_label]() {
         const QString path = QFileDialog::getOpenFileName(
             this, QStringLiteral("Select Media"), QString(),
@@ -307,6 +377,10 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
     connect(play_btn, &QPushButton::clicked, this, [deck]() { deck->togglePlayback(); });
     connect(cue_btn, &QPushButton::clicked, this, [deck]() { deck->cue(); });
     connect(loop_btn, &QPushButton::toggled, this, [deck](bool en) { deck->setLooping(en); });
+
+    connect(loop_combo, &QComboBox::currentIndexChanged, this, [this, is_deck_a](int idx) {
+        if (decks_) decks_->setLoopBeatIndex(is_deck_a ? 0 : 1, idx);
+    });
 
     connect(seek_slider, &QSlider::sliderMoved, this, [deck](int val) {
         deck->seek(static_cast<double>(val) / 1000.0);
@@ -322,9 +396,10 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
         pitch_slider->setValue(100);
     });
 
-    connect(sync_btn, &QPushButton::clicked, this, [this, is_deck_a, pitch_slider]() {
-        DeckPlayer &other = is_deck_a ? decks_->deckB() : decks_->deckA();
-        pitch_slider->setValue(other.speed());
+    connect(sync_btn, &QPushButton::clicked, this, [this, is_deck_a]() {
+        if (!decks_) return;
+        if (is_deck_a) decks_->syncTempoAtoB();
+        else decks_->syncTempoBtoA();
     });
 }
 
@@ -334,9 +409,12 @@ void MixerWindow::buildMixerSection(QWidget *parent)
     layout->setContentsMargins(10, 12, 10, 10);
     layout->setSpacing(8);
 
+    // Master kimenet előnézet középen
+    auto *master_preview = new VideoPreviewWidget(decks_, true, false, parent);
+    layout->addWidget(master_preview);
+
     auto *strips_layout = new QHBoxLayout();
 
-    // Deck A Strip
     auto *col_a = new QVBoxLayout();
     col_a->addWidget(new QLabel(QStringLiteral("CH A"), parent), 0, Qt::AlignCenter);
 
@@ -366,8 +444,7 @@ void MixerWindow::buildMixerSection(QWidget *parent)
 
     col_a->addWidget(new QLabel(QStringLiteral("VOL"), parent), 0, Qt::AlignCenter);
     vol_a_ = new QSlider(Qt::Vertical, parent);
-    vol_a_->setRange(0, 100); vol_a_->setValue(100);
-    vol_a_->setFixedHeight(90);
+    vol_a_->setRange(0, 100); vol_a_->setValue(100); vol_a_->setFixedHeight(75);
     col_a->addWidget(vol_a_, 0, Qt::AlignCenter);
     connect(vol_a_, &QSlider::valueChanged, this, [this](int v) { decks_->deckA().setVolume(v / 100.0f); });
 
@@ -378,7 +455,6 @@ void MixerWindow::buildMixerSection(QWidget *parent)
     line->setStyleSheet(QStringLiteral("color: #2c303a;"));
     strips_layout->addWidget(line);
 
-    // Deck B Strip
     auto *col_b = new QVBoxLayout();
     col_b->addWidget(new QLabel(QStringLiteral("CH B"), parent), 0, Qt::AlignCenter);
 
@@ -408,15 +484,14 @@ void MixerWindow::buildMixerSection(QWidget *parent)
 
     col_b->addWidget(new QLabel(QStringLiteral("VOL"), parent), 0, Qt::AlignCenter);
     vol_b_ = new QSlider(Qt::Vertical, parent);
-    vol_b_->setRange(0, 100); vol_b_->setValue(100);
-    vol_b_->setFixedHeight(90);
+    vol_b_->setRange(0, 100); vol_b_->setValue(100); vol_b_->setFixedHeight(75);
     col_b->addWidget(vol_b_, 0, Qt::AlignCenter);
     connect(vol_b_, &QSlider::valueChanged, this, [this](int v) { decks_->deckB().setVolume(v / 100.0f); });
 
     strips_layout->addLayout(col_b);
     layout->addLayout(strips_layout);
 
-    layout->addSpacing(6);
+    layout->addSpacing(4);
 
     auto *trans_lbl = new QLabel(QStringLiteral("FX Transition:"), parent);
     layout->addWidget(trans_lbl);
@@ -432,7 +507,7 @@ void MixerWindow::buildMixerSection(QWidget *parent)
         if (decks_) decks_->setTransitionMode(idx);
     });
 
-    layout->addSpacing(8);
+    layout->addSpacing(4);
 
     auto *xfade_lbl = new QLabel(QStringLiteral("CROSSFADER (A <-> B)"), parent);
     xfade_lbl->setAlignment(Qt::AlignCenter);
@@ -494,12 +569,12 @@ void MixerWindow::refreshMixer()
         }
     };
 
-    // Deck A
     sync_slider(hi_a_, decks_->deckA().red(), 100.0f);
     sync_slider(mid_a_, decks_->deckA().green(), 100.0f);
     sync_slider(low_a_, decks_->deckA().blue(), 100.0f);
     sync_slider(flt_a_, decks_->deckA().saturation(), 100.0f);
     sync_slider(vol_a_, decks_->deckA().volume(), 100.0f);
+
     if (pitch_slider_a_ && !pitch_slider_a_->isSliderDown()) {
         const QSignalBlocker blocker(pitch_slider_a_);
         pitch_slider_a_->setValue(decks_->deckA().speed());
@@ -507,12 +582,12 @@ void MixerWindow::refreshMixer()
         if (rate_lbl_a_) rate_lbl_a_->setText(QString("%1%2%").arg(diff >= 0 ? "+" : "").arg(diff, 0, 'f', 1));
     }
 
-    // Deck B
     sync_slider(hi_b_, decks_->deckB().red(), 100.0f);
     sync_slider(mid_b_, decks_->deckB().green(), 100.0f);
     sync_slider(low_b_, decks_->deckB().blue(), 100.0f);
     sync_slider(flt_b_, decks_->deckB().saturation(), 100.0f);
     sync_slider(vol_b_, decks_->deckB().volume(), 100.0f);
+
     if (pitch_slider_b_ && !pitch_slider_b_->isSliderDown()) {
         const QSignalBlocker blocker(pitch_slider_b_);
         pitch_slider_b_->setValue(decks_->deckB().speed());
@@ -520,9 +595,9 @@ void MixerWindow::refreshMixer()
         if (rate_lbl_b_) rate_lbl_b_->setText(QString("%1%2%").arg(diff >= 0 ? "+" : "").arg(diff, 0, 'f', 1));
     }
 
-    // Crossfader
     if (crossfader_ && !crossfader_->isSliderDown()) {
         const QSignalBlocker blocker(crossfader_);
         crossfader_->setValue(static_cast<int>(decks_->crossfader() * 1000.0));
     }
 }
+#include "mixer-dock.moc"
