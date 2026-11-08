@@ -43,12 +43,22 @@ jobs:
           if (Test-Path $srcDir) { Remove-Item -Path $srcDir -Recurse -Force }
           git clone --depth 1 https://github.com/obsproject/obs-studio.git $srcDir
 
-          # Fejlécek másolása a libobs-ből és a frontend-api-ból
+          # Fejlécek másolása a libobs-ből
           Copy-Item -Path "$srcDir\libobs\*" -Destination $incDir -Recurse -Force
           $feHeader = Get-ChildItem -Path $srcDir -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
           if ($feHeader) {
               Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
           }
+
+          # HIÁNYZÓ OBSCONFIG.H PÓTLÁSA: Létrehozunk egy minimális obsconfig.h-t, hogy a fordító ne omoljon össze
+          $obsConfigContent = @"
+          #pragma once
+          #define OBS_VERSION "30.0.0"
+          #define OBS_COMMIT "git"
+          #define BITS_32 0
+          #define BITS_64 1
+          "@
+          $obsConfigContent | Set-Content -Path "$incDir\obsconfig.h" -Encoding Ascii
 
           Write-Host "Generating MSVC export library (.lib) for linking..."
           $defPath = "$env:RUNNER_TEMP\obs.def"
