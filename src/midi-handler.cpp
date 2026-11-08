@@ -1,11 +1,8 @@
 #include "midi-handler.hpp"
 #include "deck-engine.hpp"
-
 #include <obs-module.h>
-
 #include <windows.h>
 #include <mmsystem.h>
-
 #include <atomic>
 #include <cstring>
 #include <string>
@@ -86,7 +83,6 @@ void CALLBACK midi_in_proc(HMIDIIN hMidiIn, UINT wMsg, DWORD_PTR dwInstance, DWO
     if (msg_type == 0x90 && data2 > 0) {
         DeckPlayer *deck = nullptr;
         DeckPlayer *other_deck = nullptr;
-
         if (channel == 0) {
             deck = &decks->deckA();
             other_deck = &decks->deckB();

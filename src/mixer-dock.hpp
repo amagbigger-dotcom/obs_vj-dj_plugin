@@ -36,7 +36,6 @@ private:
 
 class MixerWindow final : public QDialog {
     Q_OBJECT
-
 public:
     explicit MixerWindow(DeckPair *decks, QWidget *parent = nullptr);
     ~MixerWindow() override = default;
@@ -46,11 +45,9 @@ private:
     void buildMixerSection(QWidget *parent);
     void refreshDeck(bool is_deck_a);
     void refreshMixer();
-
     static QString formatTime(qint64 ms);
 
     DeckPair *decks_ = nullptr;
-
     VideoPreviewWidget *preview_a_ = nullptr;
     VideoPreviewWidget *preview_b_ = nullptr;
     VideoPreviewWidget *preview_master_ = nullptr;

@@ -1,15 +1,12 @@
 # OBS Video DJ (VJ) Mixer Plugin
 
-Professzionalis 2 deckes Video DJ kevero plugin OBS Studio-hoz (Windows x64), amely a **Native Instruments TRAKTOR KONTROL S2 MK3** hardveres kontroller elrendezesere es valos ideju MIDI vezerlesere epul.
+Professzionális 2 deckes Video DJ keverő plugin OBS Studio-hoz (Windows x64), amely a **Native Instruments TRAKTOR KONTROL S2 MK3** hardveres kontroller elrendezésére és valós idejű MIDI vezérlésére épül.
 
-## Fobb tulajdonsagok
-- **Egyetlen standalone DLL (`obs-vj-mixer.dll`)**: Nem igenyel kulso .effect fajlokat vagy kulon data mappakat (a HLSL shader be van agyazva a C++ forrasba).
-- **Lebego, fuggetlen ablak**: Az OBS **Eszkozok (Tools) -> Video DJ Mixer** menujebol nyithato meg. Nem ugrik ossze tole az OBS felulete, kulon monitorra is athuzhato.
-- **Traktor S2 MK3 Layout**:
-  - Deck A es Deck B: PLAY/PAUSE, CUE, SYNC, AUTO LOOP, idokod kijelzes (`00:00 / 00:00`), es fuggoleges TEMPO/PITCH fader.
-  - 2-csatornas klubkevero: HI (Red), MID (Green), LOW (Blue), FILTER (Saturation), kulon csatorna hangero federek es nagymereu Crossfader.
-- **Valos ideju WinMM MIDI integracio**: Kozvetlenul fogadja a Traktor S2 MK3 USB MIDI jeleit, es a kepernyon levo csuszkakat is szinkronban mozgatja a fizikai potikkal.
-- **4 video atmeneti mod**: Linear Fade, Horizontal Wipe, Additive Blend, Hard Cut.
-
-## Forditas
-A GitHub Actions automatikusan leforditja minden commit utan (`.github/workflows/build.yml`), es a kesz DLL letoltheto az Actions -> Artifacts alol.
+## Főbb tulajdonságok
+- **Egyetlen standalone DLL (`obs_vj-dj_plugin.dll`)**: Nem igényel külső .effect fájlokat vagy külön data mappákat.
+- **Lebegő, független ablak**: Az OBS **Eszközök (Tools) -> Video DJ Mixer** menüjéből nyitható meg.
+- **Traktor S2 MK3 Layout**: 
+  - Deck A és Deck B: PLAY/PAUSE, CUE, SYNC, AUTO LOOP, időkód kijelzés, és függőleges TEMPO/PITCH fader.
+  - 2-csatornás klubkeverő: HI, MID, LOW, FILTER, csatorna hangerő és Crossfader.
+- **Valós idejű WinMM MIDI integráció**: Közvetlenül fogadja a Traktor S2 MK3 USB MIDI jeleit.
+- **4 videó átmeneti mód**: Linear Fade, Horizontal Wipe, Additive Blend, Hard Cut.

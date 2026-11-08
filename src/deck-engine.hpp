@@ -2,7 +2,6 @@
 
 #include <obs-module.h>
 #include <QString>
-
 #include <atomic>
 #include <cstdint>
 
@@ -22,10 +21,8 @@ public:
     void setLooping(bool looping);
     void seek(double normalized_position);
     void cue();
-
     void setSpeed(int percent);
     int speed() const noexcept { return speed_percent_.load(std::memory_order_relaxed); }
-
     void setVolume(float vol);
     float volume() const noexcept { return volume_.load(std::memory_order_relaxed); }
 
@@ -49,10 +46,8 @@ private:
     obs_source_t *source_ = nullptr;
     bool looping_ = false;
     uint64_t cue_point_ms_ = 0;
-
     std::atomic<int> speed_percent_{100};
     std::atomic<float> volume_{1.0f};
-
     std::atomic<float> red_{1.0f};
     std::atomic<float> green_{1.0f};
     std::atomic<float> blue_{1.0f};
@@ -83,7 +78,6 @@ public:
 private:
     DeckPlayer deck_a_;
     DeckPlayer deck_b_;
-
     std::atomic<double> crossfader_{0.5};
     std::atomic<int> transition_mode_{0};
     std::atomic<int> loop_beat_idx_a_{3};

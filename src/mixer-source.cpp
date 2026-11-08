@@ -1,5 +1,6 @@
 #include <obs-module.h>
 #include <graphics/graphics.h>
+#include <graphics/effect.h>
 #include "deck-engine.hpp"
 
 extern "C" {
@@ -22,14 +23,10 @@ static void *mixer_create(obs_data_t *settings, obs_source_t *source)
     MixerSource *context = static_cast<MixerSource *>(bmalloc(sizeof(MixerSource)));
     if (!context)
         return nullptr;
-        
+             
     context->source = source;
-    context->is_master = false;
+    context->is_master = true;
     context->channel = 0;
-
-    obs_enter_graphics();
-    obs_leave_graphics();
-
     return context;
 }
 
@@ -53,6 +50,23 @@ static void mixer_video_render(void *data, gs_effect_t *effect)
     MixerSource *context = static_cast<MixerSource *>(data);
     if (!context || !context->source)
         return;
+
+    DeckPair *decks = vdj_decks();
+    if (!decks) {
+        gs_clear(GS_CLEAR_COLOR, vec4(), 0.0f, 0);
+        return;
+    }
+
+    obs_source_t *src_a = decks->deckA().source();
+    obs_source_t *src_b = decks->deckB().source();
+
+    double xf = decks->crossfader();
+    obs_source_t *active_src = (xf < 0.5) ? src_a : src_b;
+    if (active_src) {
+        obs_source_video_render(active_src);
+    } else {
+        gs_clear(GS_CLEAR_COLOR, vec4(), 0.0f, 0);
+    }
 }
 
 static uint32_t mixer_get_width(void *data)
@@ -110,7 +124,7 @@ static void *deck_monitor_create(obs_data_t *settings, obs_source_t *source)
     MixerSource *context = static_cast<MixerSource *>(bmalloc(sizeof(MixerSource)));
     if (!context)
         return nullptr;
-        
+             
     context->source = source;
     context->is_master = false;
     return context;

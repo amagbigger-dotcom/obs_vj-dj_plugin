@@ -1,7 +1,5 @@
 #include "deck-engine.hpp"
-
 #include <obs-module.h>
-
 #include <algorithm>
 #include <cstdint>
 
@@ -12,7 +10,6 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
         blog(LOG_ERROR, "[obs-vj-mixer] Could not allocate source settings for '%s'", source_name);
         return;
     }
-
     obs_data_set_bool(settings, "looping", false);
     obs_data_set_bool(settings, "close_when_inactive", false);
     obs_data_set_bool(settings, "restart_on_activate", false);
@@ -27,7 +24,6 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
              source_name, display_name);
         return;
     }
-
     obs_source_inc_showing(source_);
 }
 
@@ -35,7 +31,6 @@ DeckPlayer::~DeckPlayer()
 {
     if (!source_)
         return;
-
     obs_source_dec_showing(source_);
     obs_source_release(source_);
     source_ = nullptr;
@@ -70,7 +65,6 @@ void DeckPlayer::togglePlayback()
 {
     if (!source_)
         return;
-
     const obs_media_state state = obs_source_media_get_state(source_);
     if (state == OBS_MEDIA_STATE_PLAYING) {
         obs_source_media_play_pause(source_, true);
@@ -85,7 +79,6 @@ void DeckPlayer::setPlaying(bool playing)
 {
     if (!source_)
         return;
-
     if (playing) {
         const obs_media_state state = obs_source_media_get_state(source_);
         if (state == OBS_MEDIA_STATE_PAUSED)
@@ -101,7 +94,6 @@ void DeckPlayer::cue()
 {
     if (!source_)
         return;
-
     const obs_media_state state = obs_source_media_get_state(source_);
     if (state == OBS_MEDIA_STATE_PLAYING) {
         obs_source_media_play_pause(source_, true);
@@ -118,12 +110,10 @@ void DeckPlayer::setSpeed(int percent)
 {
     const int clamped = std::clamp(percent, 50, 200);
     speed_percent_.store(clamped, std::memory_order_relaxed);
-
     if (!source_)
         return;
 
     const int64_t current_time = obs_source_media_get_time(source_);
-
     obs_data_t *settings = obs_source_get_settings(source_);
     if (!settings)
         return;
@@ -146,7 +136,6 @@ void DeckPlayer::setVolume(float vol)
 void DeckPlayer::setLooping(bool looping)
 {
     looping_ = looping;
-
     if (!source_)
         return;
 
@@ -163,7 +152,6 @@ void DeckPlayer::seek(double normalized_position)
 {
     if (!source_)
         return;
-
     const int64_t duration = obs_source_media_get_duration(source_);
     if (duration <= 0)
         return;
@@ -171,7 +159,6 @@ void DeckPlayer::seek(double normalized_position)
     const double position = std::clamp(normalized_position, 0.0, 1.0);
     const uint64_t target_ms =
         static_cast<uint64_t>(position * static_cast<double>(duration));
-
     obs_source_media_set_time(source_, target_ms);
 }
 
@@ -179,11 +166,9 @@ double DeckPlayer::position() const
 {
     if (!source_)
         return 0.0;
-
     const int64_t duration = obs_source_media_get_duration(source_);
     if (duration <= 0)
         return 0.0;
-
     const int64_t current = obs_source_media_get_time(source_);
     return std::clamp(
         static_cast<double>(current) / static_cast<double>(duration),

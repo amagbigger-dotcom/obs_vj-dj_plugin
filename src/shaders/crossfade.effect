@@ -1,11 +1,8 @@
 uniform float4x4 ViewProj;
-
 uniform texture2d image_a;
 uniform texture2d image_b;
-
 uniform float transition;
 uniform float transition_mode;
-
 uniform float3 tint_a;
 uniform float3 tint_b;
 uniform float saturation_a;
@@ -38,14 +35,10 @@ VertData VSDefault(VertData v_in)
 
 float4 apply_color_grade(float4 color, float3 tint, float saturation)
 {
-    // HI/MID/LOW hozzárendelése az RGB csatornák szorzóihoz (0.0 - 2.0)
     color.rgb *= tint;
-
-    // Szaturáció (Rec.709 luma): 0.0 = fekete-fehér, 1.0 = normál, 2.0 = túlszaturált
     float luminance = dot(color.rgb, float3(0.2126, 0.7152, 0.0722));
     float3 gray = float3(luminance, luminance, luminance);
     color.rgb = lerp(gray, color.rgb, saturation);
-
     return color;
 }
 
@@ -59,21 +52,15 @@ float4 PSBlend(VertData v_in) : TARGET
 
     float t = saturate(transition);
 
-    // Mode 0: Linear Fade
     if (transition_mode < 0.5)
         return lerp(a, b, t);
-
-    // Mode 1: Horizontal Wipe
     if (transition_mode < 1.5) {
         float edge = smoothstep(t - 0.005, t + 0.005, v_in.uv.x);
         return lerp(b, a, edge);
     }
-
-    // Mode 2: Additive
     if (transition_mode < 2.5)
         return float4(saturate(a.rgb + b.rgb * t), lerp(a.a, b.a, t));
 
-    // Mode 3: Hard Cut
     return t < 0.5 ? a : b;
 }
 
