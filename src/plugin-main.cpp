@@ -16,20 +16,38 @@ extern "C" void vdj_register_sources(void);
 static QPointer<MixerWindow> s_mixer_window = nullptr;
 DeckPair *g_decks = nullptr;
 
-// Ez a konstruktor/függvény automatikusan lefut a DLL betöltésekor, és hozzáadja a bin\64bit mappát a kereséshez
+static void open_mixer_window(void *data)
+{
+    UNUSED_PARAMETER(data);
+    QMainWindow *main_window = static_cast<QMainWindow *>(obs_frontend_get_main_window());
+    
+    if (!s_mixer_window) {
+        if (!g_decks) {
+            g_decks = new DeckPair();
+            vdj_set_decks(g_decks);
+        }
+        s_mixer_window = new MixerWindow(g_decks, main_window);
+    }
+    
+    s_mixer_window->show();
+    s_mixer_window->raise();
+    s_mixer_window->activateWindow();
+}
+
+// Biztosítjuk a DLL keresési útvonalat a Qt6 könyvtárakhoz
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 {
+    UNUSED_PARAMETER(lpReserved);
     switch (ul_reason_for_call) {
     case DLL_PROCESS_ATTACH: {
-        // Hozzáadjuk az OBS bin\64bit mappáját a DLL keresési útvonalhoz, hogy a Qt6 DLL-ek megleljenek
         char path[MAX_PATH];
         if (GetModuleFileNameA(hModule, path, MAX_PATH)) {
             char *last_slash = strrchr(path, '\\');
             if (last_slash) {
-                *last_slash = '\0'; // obs-plugins\64bit
+                *last_slash = '\0';
                 char *second_slash = strrchr(path, '\\');
                 if (second_slash) {
-                    *second_slash = '\0'; // obs-plugins
+                    *second_slash = '\0';
                     char bin_path[MAX_PATH];
                     snprintf(bin_path, sizeof(bin_path), "%s\\bin\\64bit", path);
                     SetDllDirectoryA(bin_path);
@@ -43,4 +61,42 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         break;
     }
     return TRUE;
+}
+
+extern "C" {
+    __declspec(dllexport) bool obs_module_load(void)
+    {
+        blog(LOG_INFO, "[obs-vj-mixer] Loading Traktor S2 VJ Mixer plugin...");
+        
+        if (!g_decks) {
+            g_decks = new DeckPair();
+            vdj_set_decks(g_decks);
+        }
+
+        vdj_register_sources();
+        vdj_midi_init();
+
+        obs_frontend_add_tools_menu_item("Traktor S2 VJ Mixer", open_mixer_window, nullptr);
+        
+        blog(LOG_INFO, "[obs-vj-mixer] Plugin loaded successfully.");
+        return true;
+    }
+
+    __declspec(dllexport) void obs_module_unload(void)
+    {
+        blog(LOG_INFO, "[obs-vj-mixer] Unloading plugin...");
+        vdj_midi_shutdown();
+
+        if (s_mixer_window) {
+            s_mixer_window->close();
+            delete s_mixer_window;
+            s_mixer_window = nullptr;
+        }
+
+        delete g_decks;
+        g_decks = nullptr;
+        vdj_set_decks(nullptr);
+        
+        blog(LOG_INFO, "[obs-vj-mixer] Plugin unloaded.");
+    }
 }
