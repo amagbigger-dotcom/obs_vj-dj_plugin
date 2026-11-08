@@ -10,13 +10,21 @@ set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 
+if(NOT DEFINED OBS_SDK_DIR AND DEFINED ENV{OBS_SDK_DIR})
+    set(OBS_SDK_DIR "$ENV{OBS_SDK_DIR}")
+endif()
+
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    $ENV{OBS_SDK_DIR}/include
+    ${OBS_SDK_DIR}/include
+    ${OBS_SDK_DIR}/include/obs
+    ${OBS_SDK_DIR}/include/libobs
 )
 
 link_directories(
-    $ENV{OBS_SDK_DIR}/lib
+    ${OBS_SDK_DIR}/lib
+    ${OBS_SDK_DIR}/bin/64bit
+    ${OBS_SDK_DIR}/bin
 )
 
 set(SOURCES
