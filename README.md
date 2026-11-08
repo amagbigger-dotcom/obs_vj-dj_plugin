@@ -1,6 +1,6 @@
 # OBS Video DJ (VJ) Mixer Plugin (OBS 33+)
 
-Professzionális 2 deckes Video DJ keverő plugin OBS Studio 33+ verziókhoz (Windows x64), amely a **Native Instruments TRAKTOR KONTROL S2 MK3** hardveres kontroller elrendezésére és valós idejű MIDI vezérlésére épül.
+Professzionális 2 deckes Video DJ keverő plugin OBS Studio 33.0.1+ verziókhoz (Windows x64), amely a **Native Instruments TRAKTOR KONTROL S2 MK3** hardveres kontroller elrendezésére és valós idejű MIDI vezérlésére épül.
 
 ## Főbb tulajdonságok
 - **Egyetlen standalone DLL (`obs_vj-dj_plugin.dll`)**: Nem igényel külső .effect fájlokat.
