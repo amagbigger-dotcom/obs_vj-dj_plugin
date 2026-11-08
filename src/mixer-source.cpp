@@ -53,7 +53,8 @@ static void mixer_video_render(void *data, gs_effect_t *effect)
 
     DeckPair *decks = vdj_decks();
     if (!decks) {
-        gs_clear(GS_CLEAR_COLOR, vec4(), 0.0f, 0);
+        vec4 clear_color = {};
+        gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
         return;
     }
 
@@ -65,7 +66,8 @@ static void mixer_video_render(void *data, gs_effect_t *effect)
     if (active_src) {
         obs_source_video_render(active_src);
     } else {
-        gs_clear(GS_CLEAR_COLOR, vec4(), 0.0f, 0);
+        vec4 clear_color = {};
+        gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
     }
 }
 
