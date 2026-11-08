@@ -3,6 +3,7 @@
 #include "midi-handler.hpp"
 
 #include <obs.h>
+#include <graphics/graphics.h>
 
 #include <QComboBox>
 #include <QFileDialog>
@@ -17,69 +18,122 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
-#include <QPainter>
+#include <QResizeEvent>
+#include <QShowEvent>
+#include <QHideEvent>
+
+static void preview_draw_callback(void *param, uint32_t cx, uint32_t cy)
+{
+    UNUSED_PARAMETER(cx);
+    UNUSED_PARAMETER(cy);
+    obs_source_t *source = static_cast<obs_source_t *>(param);
+    if (source) {
+        obs_source_video_render(source);
+    }
+}
 
 VideoPreviewWidget::VideoPreviewWidget(DeckPair *decks, bool is_master, bool is_deck_a, QWidget *parent)
     : QWidget(parent), decks_(decks), is_master_(is_master), is_deck_a_(is_deck_a)
 {
-    setFixedHeight(105);
+    setFixedHeight(120);
+    setAttribute(Qt::WA_OpaquePaintEvent, true);
+    setAttribute(Qt::WA_NoSystemBackground, true);
     setStyleSheet("background-color: #0b0c0e; border: 1px solid #2a2d36; border-radius: 4px;");
 }
 
-void VideoPreviewWidget::paintEvent(QPaintEvent *event)
+VideoPreviewWidget::~VideoPreviewWidget()
 {
-    Q_UNUSED(event);
-    QPainter painter(this);
-    painter.fillRect(rect(), QColor("#0b0c0e"));
+    destroyDisplay();
+}
 
-    if (!decks_) {
-        painter.setPen(QColor("#7d8494"));
-        painter.drawText(rect(), Qt::AlignCenter, "No Signal");
+void VideoPreviewWidget::createDisplay()
+{
+    if (display_ || !isVisible() || width() <= 1 || height() <= 1)
         return;
+
+    obs_video_info ovi;
+    if (!obs_get_video_info(&ovi))
+        return;
+
+    gs_init_data gsd = {};
+    gsd.cx = width();
+    gsd.cy = height();
+    gsd.format = ovi.output_format;
+    gsd.zsformat = GS_ZS_NONE;
+#if defined(_WIN32) || defined(_WIN64)
+    gsd.window.hwnd = reinterpret_cast<HWND>(winId());
+#else
+    gsd.window.id = reinterpret_cast<void *>(winId());
+#endif
+
+    obs_enter_graphics();
+    display_ = obs_display_create(&gsd, 0x000000);
+    obs_leave_graphics();
+
+    if (display_ && current_source_) {
+        obs_enter_graphics();
+        obs_display_add_draw_callback(display_, preview_draw_callback, current_source_);
+        obs_leave_graphics();
+    }
+}
+
+void VideoPreviewWidget::destroyDisplay()
+{
+    if (!display_)
+        return;
+
+    obs_enter_graphics();
+    if (current_source_) {
+        obs_display_remove_draw_callback(display_, preview_draw_callback, current_source_);
+    }
+    obs_display_destroy(display_);
+    display_ = nullptr;
+    obs_leave_graphics();
+    current_source_ = nullptr;
+}
+
+void VideoPreviewWidget::updateSource(obs_source_t *src)
+{
+    if (current_source_ == src)
+        return;
+
+    if (display_ && current_source_) {
+        obs_enter_graphics();
+        obs_display_remove_draw_callback(display_, preview_draw_callback, current_source_);
+        obs_leave_graphics();
     }
 
-    bool active = false;
-    QString title = "";
-    QString info = "";
+    current_source_ = src;
 
-    if (is_master_) {
-        title = "MASTER OUTPUT";
-        double xf = decks_->crossfader();
-        active = decks_->deckA().isPlaying() || decks_->deckB().isPlaying();
-        info = QString("Crossfader: %1%").arg(static_cast<int>(xf * 100.0));
-    } else {
-        DeckPlayer &deck = is_deck_a_ ? decks_->deckA() : decks_->deckB();
-        title = is_deck_a_ ? "DECK A" : "DECK B";
-        active = deck.isPlaying();
-        info = QString("Speed: %1% | Vol: %2%")
-            .arg(deck.speed())
-            .arg(static_cast<int>(deck.volume() * 100.0));
+    if (display_ && current_source_) {
+        obs_enter_graphics();
+        obs_display_add_draw_callback(display_, preview_draw_callback, current_source_);
+        obs_leave_graphics();
     }
+}
 
-    // Keret és háttérstátusz
-    QColor border_color = active ? (is_master_ ? QColor("#ff9e00") : (is_deck_a_ ? QColor("#0088aa") : QColor("#cc5500")))
-                                 : QColor("#2a2d36");
-    painter.setPen(border_color);
-    painter.drawRect(rect().adjusted(1, 1, -1, -1));
+void VideoPreviewWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    createDisplay();
+}
 
-    // Szövegek
-    painter.setPen(QColor("#ffffff"));
-    QFont font = painter.font();
-    font.setBold(true);
-    painter.setFont(font);
-    painter.drawText(QRect(10, 10, width() - 20, 20), Qt::AlignLeft, title);
+void VideoPreviewWidget::hideEvent(QHideEvent *event)
+{
+    QWidget::hideEvent(event);
+    destroyDisplay();
+}
 
-    font.setBold(false);
-    font.setPointSize(9);
-    painter.setFont(font);
-    painter.setPen(QColor("#9aa0ac"));
-    painter.drawText(QRect(10, 35, width() - 20, 20), Qt::AlignLeft, active ? "Status: PLAYING" : "Status: STOPPED");
-    painter.drawText(QRect(10, 55, width() - 20, 20), Qt::AlignLeft, info);
-
-    // Élő státusz pötty
-    painter.setBrush(active ? QColor("#2ecc71") : QColor("#7d8494"));
-    painter.setPen(Qt::NoPen);
-    painter.drawEllipse(width() - 20, 15, 10, 10);
+void VideoPreviewWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    if (display_ && width() > 1 && height() > 1) {
+        obs_enter_graphics();
+        obs_display_resize(display_, width(), height());
+        obs_leave_graphics();
+    } else if (!display_) {
+        createDisplay();
+    }
 }
 
 static const char *TRAKTOR_S2_STYLESHEET = R"(
@@ -218,7 +272,7 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
       decks_(decks)
 {
     setWindowTitle(QStringLiteral("Traktor S2 VJ Mixer - OBS"));
-    resize(1080, 620);
+    resize(1080, 660);
     setStyleSheet(TRAKTOR_S2_STYLESHEET);
 
     auto *main_v_layout = new QVBoxLayout(this);
@@ -274,6 +328,8 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
 
     auto *preview = new VideoPreviewWidget(decks_, false, is_deck_a, parent);
     layout->addWidget(preview);
+    if (is_deck_a) preview_a_ = preview;
+    else preview_b_ = preview;
 
     auto *file_row = new QHBoxLayout();
     auto *file_label = new QLabel(QStringLiteral("Empty Deck - Click Load"), parent);
@@ -315,7 +371,7 @@ void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
     auto *pitch_slider = new QSlider(Qt::Vertical, parent);
     pitch_slider->setRange(50, 150);
     pitch_slider->setValue(100);
-    pitch_slider->setFixedHeight(100);
+    pitch_slider->setFixedHeight(90);
 
     if (is_deck_a) pitch_slider_a_ = pitch_slider;
     else pitch_slider_b_ = pitch_slider;
@@ -419,6 +475,7 @@ void MixerWindow::buildMixerSection(QWidget *parent)
 
     auto *master_preview = new VideoPreviewWidget(decks_, true, false, parent);
     layout->addWidget(master_preview);
+    preview_master_ = master_preview;
 
     auto *strips_layout = new QHBoxLayout();
 
@@ -451,7 +508,7 @@ void MixerWindow::buildMixerSection(QWidget *parent)
 
     col_a->addWidget(new QLabel(QStringLiteral("VOL"), parent), 0, Qt::AlignCenter);
     vol_a_ = new QSlider(Qt::Vertical, parent);
-    vol_a_->setRange(0, 100); vol_a_->setValue(100); vol_a_->setFixedHeight(75);
+    vol_a_->setRange(0, 100); vol_a_->setValue(100); vol_a_->setFixedHeight(70);
     col_a->addWidget(vol_a_, 0, Qt::AlignCenter);
     connect(vol_a_, &QSlider::valueChanged, this, [this](int v) { decks_->deckA().setVolume(v / 100.0f); });
 
@@ -491,14 +548,14 @@ void MixerWindow::buildMixerSection(QWidget *parent)
 
     col_b->addWidget(new QLabel(QStringLiteral("VOL"), parent), 0, Qt::AlignCenter);
     vol_b_ = new QSlider(Qt::Vertical, parent);
-    vol_b_->setRange(0, 100); vol_b_->setValue(100); vol_b_->setFixedHeight(75);
+    vol_b_->setRange(0, 100); vol_b_->setValue(100); vol_b_->setFixedHeight(70);
     col_b->addWidget(vol_b_, 0, Qt::AlignCenter);
     connect(vol_b_, &QSlider::valueChanged, this, [this](int v) { decks_->deckB().setVolume(v / 100.0f); });
 
     strips_layout->addLayout(col_b);
     layout->addLayout(strips_layout);
 
-    layout->addSpacing(4);
+    layout->addSpacing(2);
 
     auto *trans_lbl = new QLabel(QStringLiteral("FX Transition:"), parent);
     layout->addWidget(trans_lbl);
@@ -514,7 +571,7 @@ void MixerWindow::buildMixerSection(QWidget *parent)
         if (decks_) decks_->setTransitionMode(idx);
     });
 
-    layout->addSpacing(4);
+    layout->addSpacing(2);
 
     auto *xfade_lbl = new QLabel(QStringLiteral("CROSSFADER (A <-> B)"), parent);
     xfade_lbl->setAlignment(Qt::AlignCenter);
@@ -568,6 +625,15 @@ void MixerWindow::refreshMixer()
 
     if (!decks_)
         return;
+
+    obs_source_t *src_a = decks_->deckA().source();
+    obs_source_t *src_b = decks_->deckB().source();
+    if (preview_a_) preview_a_->updateSource(src_a);
+    if (preview_b_) preview_b_->updateSource(src_b);
+    if (preview_master_) {
+        double xf = decks_->crossfader();
+        preview_master_->updateSource(xf < 0.5 ? src_a : src_b);
+    }
 
     auto sync_slider = [](QSlider *s, float val, float scale) {
         if (s && !s->isSliderDown()) {
