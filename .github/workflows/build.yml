@@ -1,4 +1,4 @@
-name: Build Plugin
+name: Build OBS VJ DJ Plugin
 
 on:
   push:
@@ -14,83 +14,39 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Setup MSVC & Environment
+    - name: Set up MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Setup Qt
-      uses: jurplel/install-qt-action@v3
-      with:
-        version: '6.6.1'
-
-    - name: Prepare OBS SDK and Headers
-      shell: pwsh
+    - name: Download and Extract OBS SDK
       run: |
-        $workspace = "$env:GITHUB_WORKSPACE"
-        $srcDir = "$workspace\obs-studio-src"
-        $incDir = "$workspace\obs-sdk\include"
-        $libDir = "$workspace\obs-sdk\lib"
+        $sdkUrl = "https://github.com/obsproject/obs-studio/releases/download/30.0.0/obs-studio-30.0.0-windows-x64.zip"
+        $outputZip = "$env:RUNNER_TEMP\obs-sdk.zip"
+        $sdkDir = "$env:RUNNER_TEMP\obs-sdk"
         
-        New-Item -ItemType Directory -Path $incDir -Force | Out-Null
-        New-Item -ItemType Directory -Path $libDir -Force | Out-Null
-
-        if (Test-Path $srcDir) { Remove-Item -Path $srcDir -Recurse -Force }
-        git clone --depth 1 https://github.com/obsproject/obs-studio.git $srcDir
-
-        # Fejlécek másolása a libobs-ből
-        Copy-Item -Path "$srcDir\libobs\*" -Destination $incDir -Recurse -Force
-
-        # obs-frontend-api.h másolása
-        $feHeader = Get-ChildItem -Path $srcDir -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
-        if ($feHeader) {
-            Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
-        }
-
-        # qt-display.hpp kompatibilitási wrapper generálása
-        $qtDisplayContent = @"
-        #pragma once
-        #include <obs.h>
-        #include <QWidget>
-        obs_display_t *obs_display_create(const struct obs_video_info *ovi, background_color_t background_color);
-        void obs_display_destroy(obs_display_t *display);
-        void obs_display_resize(obs_display_t *display, uint32_t cx, uint32_t cy);
-        void obs_display_add_draw_callback(obs_display_t *display, void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param);
-        void obs_display_remove_draw_callback(obs_display_t *display, void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param);
-        "@
-        Set-Content -Path "$incDir\qt-display.hpp" -Value $qtDisplayContent -Encoding Ascii
-
-        # obsconfig.h hiányzó pótlása
-        $obsConfigContent = @"
-        #pragma once
-        #define OBS_VERSION "33.0.1"
-        #define OBS_COMMIT "git"
-        #define BITS_32 0
-        #define BITS_64 1
-        "@
-        Set-Content -Path "$incDir\obsconfig.h" -Value $obsConfigContent -Encoding Ascii
+        Write-Host "Downloading OBS SDK..."
+        Invoke-WebRequest -Uri $sdkUrl -OutFile $outputZip
+        
+        Write-Host "Extracting OBS SDK..."
+        Expand-Archive -Path $outputZip -DestinationPath $sdkDir -Force
+        
+        # Ellenőrzés, hogy a lib és include mappa ott van-e
+        Get-ChildItem $sdkDir
+      shell: pwsh
 
     - name: Configure CMake
-      shell: pwsh
+      env:
+        OBS_SDK_DIR: ${{ runner.temp }}/obs-sdk
       run: |
-        cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" -DOBS_SDK_DIR="$env:GITHUB_WORKSPACE/obs-sdk"
+        cmake -B build -G "Visual Studio 17 2022" -A x64 -DOBS_SDK_DIR="$env:OBS_SDK_DIR"
+      shell: pwsh
 
     - name: Build Plugin
-      shell: pwsh
       run: |
         cmake --build build --config Release
-
-    - name: Package Artifacts
       shell: pwsh
-      run: |
-        $artifactDir = "$env:GITHUB_WORKSPACE\artifact_staging"
-        New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
 
-        Get-ChildItem -Path "build" -Filter "*.dll" -Recurse | ForEach-Object {
-            Write-Host "Staging DLL: $($_.FullName)"
-            Copy-Item -Path $_.FullName -Destination $artifactDir -Force
-        }
-
-    - name: Upload Binary Artifact
+    - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: obs-vj-dj_plugin-windows
-        path: artifact_staging/*
+        name: obs_vj-dj_plugin.dll
+        path: build/Release/obs_vj-dj_plugin.dll
