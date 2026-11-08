@@ -10,9 +10,17 @@ set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 
-if(NOT DEFINED OBS_SDK_DIR AND DEFINED ENV{OBS_SDK_DIR})
-    set(OBS_SDK_DIR "$ENV{OBS_SDK_DIR}")
+# Ha parancssorból vagy környezeti változóból érkezik az OBS_SDK_DIR
+if(NOT DEFINED OBS_SDK_DIR OR OBS_SDK_DIR STREQUAL "")
+    if(DEFINED ENV{OBS_SDK_DIR})
+        set(OBS_SDK_DIR "$ENV{OBS_SDK_DIR}")
+    else()
+        set(OBS_SDK_DIR "$ENV{RUNNER_TEMP}/obs-sdk")
+    endif()
 endif()
+
+file(TO_CMAKE_PATH "${OBS_SDK_DIR}" OBS_SDK_DIR)
+message(STATUS "--> Using OBS_SDK_DIR: ${OBS_SDK_DIR}")
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -40,6 +48,13 @@ set(SOURCES
 
 add_library(obs-vj-mixer MODULE ${SOURCES})
 
+target_include_directories(obs-vj-mixer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${OBS_SDK_DIR}/include
+    ${OBS_SDK_DIR}/include/obs
+    ${OBS_SDK_DIR}/include/libobs
+)
+
 target_link_libraries(obs-vj-mixer PRIVATE
     Qt6::Core
     Qt6::Gui
@@ -52,4 +67,6 @@ target_link_libraries(obs-vj-mixer PRIVATE
 target_compile_definitions(obs-vj-mixer PRIVATE
     UNICODE
     _UNICODE
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN
 )
