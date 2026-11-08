@@ -40,30 +40,39 @@ jobs:
           Write-Host "1. Cloning OBS 30.2.3 headers..."
           $srcDir = "$env:RUNNER_TEMP\obs-src"
           if (Test-Path $srcDir) { Remove-Item -Path $srcDir -Recurse -Force }
-          git clone --depth 1 --branch 30.2.3 https://github.com/obsproject/obs-studio.git $srcDir
+          # Tag helyett klónozzuk közvetlenül a stabil commitot, elkerülve a tag hibaüzenetet
+          git clone --depth 1 https://github.com/obsproject/obs-studio.git $srcDir
+          git -C $srcDir fetch --depth 1 origin c45ba7415e65201d269132f112072d83c23fa88b 2>$null
+          git -C $srcDir checkout c45ba7415e65201d269132f112072d83c23fa88b 2>$null
+
           Copy-Item -Path "$srcDir\libobs\*" -Destination $incDir -Recurse -Force
           $feHeader = Get-ChildItem -Path $srcDir -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
           Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
 
-          Write-Host "2. Downloading OBS 30.2.3 Windows binaries for import libs (with retry)..."
+          Write-Host "2. Downloading OBS 30.2.3 Windows binaries using curl (robust against gateway timeouts)..."
           $sdkUrl = "https://github.com/obsproject/obs-studio/releases/download/30.2.3/OBS-Studio-30.2.3-Windows.zip"
           $zipPath = "$env:RUNNER_TEMP\obs-bin.zip"
           $binDir = "$env:RUNNER_TEMP\obs-bin"
-          
-          $maxRetries = 3
+
+          $maxRetries = 5
           $retryCount = 0
           $success = $false
 
           while (-not $success -and $retryCount -lt $maxRetries) {
               try {
                   $retryCount++
-                  Write-Host "Download attempt $retryCount of $maxRetries..."
-                  Invoke-WebRequest -Uri $sdkUrl -OutFile $zipPath -TimeoutSec 300
-                  $success = $true
+                  Write-Host "Download attempt $retryCount of $maxRetries using curl..."
+                  # Használjuk a Windows beépített curl.exe parancsát -L (követi a átirányításokat) és --retry opciókkal
+                  & curl.exe -L --retry 3 --retry-delay 5 -o $zipPath $sdkUrl
+                  if ((Get-Item $zipPath).Length -gt 1000000) {
+                      $success = $true
+                  } else {
+                      throw "Downloaded file is too small, likely an error page."
+                  }
               } catch {
                   Write-Warning "Download failed: $_"
                   if ($retryCount -ge $maxRetries) { throw "All download attempts failed." }
-                  Start-Sleep -Seconds 10
+                  Start-Sleep -Seconds 15
               }
           }
 
