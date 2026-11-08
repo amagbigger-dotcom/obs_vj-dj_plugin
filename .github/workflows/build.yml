@@ -45,14 +45,14 @@ jobs:
 
           # Fejlécek másolása a libobs-ből
           Copy-Item -Path "$srcDir\libobs\*" -Destination $incDir -Recurse -Force
-
-          # obs-frontend-api.h átmásolása
+          
+          # obs-frontend-api.h másolása
           $feHeader = Get-ChildItem -Path $srcDir -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
           if ($feHeader) {
               Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
           }
 
-          # qt-display.hpp átmásolása a UI mappából
+          # qt-display.hpp másolása az OBS UI mappájából
           $qtDisplayHeader = Get-ChildItem -Path $srcDir -Filter "qt-display.hpp" -Recurse | Select-Object -First 1
           if ($qtDisplayHeader) {
               Copy-Item -Path $qtDisplayHeader.FullName -Destination "$incDir\qt-display.hpp" -Force
@@ -61,7 +61,7 @@ jobs:
           # Hiányzó obsconfig.h pótlása
           $obsConfigContent = @"
           #pragma once
-          #define OBS_VERSION "30.0.0"
+          #define OBS_VERSION "33.0.1"
           #define OBS_COMMIT "git"
           #define BITS_32 0
           #define BITS_64 1
