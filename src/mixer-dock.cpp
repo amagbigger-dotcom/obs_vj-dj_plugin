@@ -3,7 +3,6 @@
 #include "midi-handler.hpp"
 
 #include <obs.h>
-#include <graphics/graphics.h>
 
 #include <QComboBox>
 #include <QFileDialog>
@@ -18,104 +17,69 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
-#include <QResizeEvent>
-#include <QShowEvent>
-#include <QHideEvent>
+#include <QPainter>
 
-// Valódi OBS előnézeti widget (obs_display) a kezelőfelület kisképernyőihez
 VideoPreviewWidget::VideoPreviewWidget(DeckPair *decks, bool is_master, bool is_deck_a, QWidget *parent)
     : QWidget(parent), decks_(decks), is_master_(is_master), is_deck_a_(is_deck_a)
 {
-    setFixedHeight(110);
-    setAttribute(Qt::WA_OpaquePaintEvent, true);
-    setAttribute(Qt::WA_NoSystemBackground, true);
+    setFixedHeight(105);
     setStyleSheet("background-color: #0b0c0e; border: 1px solid #2a2d36; border-radius: 4px;");
 }
 
-VideoPreviewWidget::~VideoPreviewWidget()
+void VideoPreviewWidget::paintEvent(QPaintEvent *event)
 {
-    destroyDisplay();
-}
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.fillRect(rect(), QColor("#0b0c0e"));
 
-void VideoPreviewWidget::createDisplay()
-{
-    if (display_ || !isVisible() || width() <= 1 || height() <= 1)
+    if (!decks_) {
+        painter.setPen(QColor("#7d8494"));
+        painter.drawText(rect(), Qt::AlignCenter, "No Signal");
         return;
+    }
 
-    obs_video_info ovi;
-    if (!obs_get_video_info(&ovi))
-        return;
+    bool active = false;
+    QString title = "";
+    QString info = "";
 
-    gs_init_data gsd = {};
-    gsd.cx = width();
-    gsd.cy = height();
-    gsd.format = ovi.output_format;
-    gsd.zsformat = GS_ZS_NONE;
-    gsd.window.id = reinterpret_cast<void *>(winId());
-
-    obs_enter_graphics();
-    display_ = obs_display_create(&gsd, 0, 0, 0);
-    obs_leave_graphics();
-
-    updateSource();
-}
-
-void VideoPreviewWidget::destroyDisplay()
-{
-    if (!display_)
-        return;
-
-    obs_enter_graphics();
-    obs_display_destroy(display_);
-    display_ = nullptr;
-    obs_leave_graphics();
-    tracked_source_ = nullptr;
-}
-
-void VideoPreviewWidget::updateSource()
-{
-    if (!display_ || !decks_)
-        return;
-
-    obs_source_t *target = nullptr;
     if (is_master_) {
-        // Master előnézet (a shader által kevert végeredmény megjelenítéséhez)
-        // Megkeressük a regisztrált master forrást vagy az aktív decket
-        target = decks_->deckA().source(); // Ha van master source, itt köthető
+        title = "MASTER OUTPUT";
+        double xf = decks_->crossfader();
+        active = decks_->deckA().isPlaying() || decks_->deckB().isPlaying();
+        info = QString("Crossfader: %1%").arg(static_cast<int>(xf * 100.0));
     } else {
-        target = is_deck_a_ ? decks_->deckA().source() : decks_->deckB().source();
+        DeckPlayer &deck = is_deck_a_ ? decks_->deckA() : decks_->deckB();
+        title = is_deck_a_ ? "DECK A" : "DECK B";
+        active = deck.isPlaying();
+        info = QString("Speed: %1% | Vol: %2%")
+            .arg(deck.speed())
+            .arg(static_cast<int>(deck.volume() * 100.0));
     }
 
-    if (target != tracked_source_) {
-        obs_enter_graphics();
-        obs_display_set_default_source(display_, target);
-        obs_leave_graphics();
-        tracked_source_ = target;
-    }
-}
+    // Keret és háttérstátusz
+    QColor border_color = active ? (is_master_ ? QColor("#ff9e00") : (is_deck_a_ ? QColor("#0088aa") : QColor("#cc5500")))
+                                 : QColor("#2a2d36");
+    painter.setPen(border_color);
+    painter.drawRect(rect().adjusted(1, 1, -1, -1));
 
-void VideoPreviewWidget::showEvent(QShowEvent *event)
-{
-    QWidget::showEvent(event);
-    createDisplay();
-}
+    // Szövegek
+    painter.setPen(QColor("#ffffff"));
+    QFont font = painter.font();
+    font.setBold(true);
+    painter.setFont(font);
+    painter.drawText(QRect(10, 10, width() - 20, 20), Qt::AlignLeft, title);
 
-void VideoPreviewWidget::hideEvent(QHideEvent *event)
-{
-    QWidget::hideEvent(event);
-    destroyDisplay();
-}
+    font.setBold(false);
+    font.setPointSize(9);
+    painter.setFont(font);
+    painter.setPen(QColor("#9aa0ac"));
+    painter.drawText(QRect(10, 35, width() - 20, 20), Qt::AlignLeft, active ? "Status: PLAYING" : "Status: STOPPED");
+    painter.drawText(QRect(10, 55, width() - 20, 20), Qt::AlignLeft, info);
 
-void VideoPreviewWidget::resizeEvent(QResizeEvent *event)
-{
-    QWidget::resizeEvent(event);
-    if (display_ && width() > 1 && height() > 1) {
-        obs_enter_graphics();
-        obs_display_resize(display_, width(), height());
-        obs_leave_graphics();
-    } else if (!display_) {
-        createDisplay();
-    }
+    // Élő státusz pötty
+    painter.setBrush(active ? QColor("#2ecc71") : QColor("#7d8494"));
+    painter.setPen(Qt::NoPen);
+    painter.drawEllipse(width() - 20, 15, 10, 10);
 }
 
 static const char *TRAKTOR_S2_STYLESHEET = R"(
