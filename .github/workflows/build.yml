@@ -40,7 +40,7 @@ jobs:
           Write-Host "1. Cloning OBS headers from official repo..."
           $srcDir = "$env:RUNNER_TEMP\obs-src"
           if (Test-Path $srcDir) { Remove-Item -Path $srcDir -Recurse -Force }
-          git clone --depth 1 --branch 30.2.0 https://github.com/obsproject/obs-studio.git $srcDir
+          git clone --depth 1 --branch 30.2.3 https://github.com/obsproject/obs-studio.git $srcDir
 
           # Copy libobs, UI headers, and frontend-api
           Copy-Item -Path "$srcDir\libobs\*" -Destination $incDir -Recurse -Force
@@ -49,9 +49,9 @@ jobs:
               Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
           }
 
-          Write-Host "2. Downloading official OBS portable release to extract DLLs and generate valid import libs..."
+          Write-Host "2. Downloading official OBS release archive to extract DLLs and generate valid import libs..."
           $obsZip = "$env:RUNNER_TEMP\obs-portable.zip"
-          Invoke-WebRequest -Uri "https://github.com/obsproject/obs-studio/releases/download/30.2.0/OBS-Studio-30.2.0-Full-Windows.zip" -OutFile $obsZip
+          Invoke-WebRequest -Uri "https://github.com/obsproject/obs-studio/releases/download/30.2.3/OBS-Studio-30.2.3-Full-Windows.zip" -OutFile $obsZip
           $extractDir = "$env:RUNNER_TEMP\obs-extracted"
           Expand-Archive -Path $obsZip -DestinationPath $extractDir -Force
 
