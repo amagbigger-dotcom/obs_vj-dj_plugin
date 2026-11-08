@@ -45,12 +45,20 @@ jobs:
 
           # Fejlécek másolása a libobs-ből
           Copy-Item -Path "$srcDir\libobs\*" -Destination $incDir -Recurse -Force
+
+          # obs-frontend-api.h átmásolása
           $feHeader = Get-ChildItem -Path $srcDir -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
           if ($feHeader) {
               Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
           }
 
-          # HIÁNYZÓ OBSCONFIG.H PÓTLÁSA: Létrehozunk egy minimális obsconfig.h-t, hogy a fordító ne omoljon össze
+          # qt-display.hpp átmásolása a UI mappából
+          $qtDisplayHeader = Get-ChildItem -Path $srcDir -Filter "qt-display.hpp" -Recurse | Select-Object -First 1
+          if ($qtDisplayHeader) {
+              Copy-Item -Path $qtDisplayHeader.FullName -Destination "$incDir\qt-display.hpp" -Force
+          }
+
+          # Hiányzó obsconfig.h pótlása
           $obsConfigContent = @"
           #pragma once
           #define OBS_VERSION "30.0.0"
@@ -148,6 +156,6 @@ jobs:
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: obs-vj-dj_plugin-windows-x64
+          name: obs_vj-dj_plugin-windows-x64
           path: artifact_staging/*
           if-no-files-found: error
