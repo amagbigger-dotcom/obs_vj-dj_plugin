@@ -27,7 +27,7 @@ jobs:
           target: 'desktop'
           arch: 'win64_msvc2022_64'
 
-      - name: Prepare OBS Studio SDK Headers and Import Libs
+      - name: Prepare OBS Studio SDK Headers and Real Import Libs
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -37,7 +37,7 @@ jobs:
           New-Item -ItemType Directory -Path $incDir -Force | Out-Null
           New-Item -ItemType Directory -Path $libDir -Force | Out-Null
 
-          Write-Host "1. Cloning OBS 30.2.3 source for headers..."
+          Write-Host "1. Cloning OBS headers..."
           $srcDir = "$env:RUNNER_TEMP\obs-src"
           if (Test-Path $srcDir) { Remove-Item -Path $srcDir -Recurse -Force }
           git clone --depth 1 https://github.com/obsproject/obs-studio.git $srcDir
@@ -48,46 +48,105 @@ jobs:
           $feHeader = Get-ChildItem -Path $srcDir -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
           Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
 
-          Write-Host "2. Creating robust MSVC import libs directly..."
-          # Ahelyett, hogy külső zip-et töltenénk le, az MSVC lib eszközével közvetlenül legyártjuk a hivatkozási könyvtárakat az összes szükséges export szimbólummal
-          function New-ObsImportLib($libName, $symbols) {
-              $defPath = "$env:RUNNER_TEMP\$libName.def"
-              $libPath = "$libDir\$libName.lib"
-              
-              $defContent = "LIBRARY $libName`nEXPORTS`n"
-              foreach ($sym in $symbols) {
-                  $defContent += "    $sym`n"
-              }
-              
-              $defContent | Set-Content -Path $defPath -Encoding Ascii
-              & lib /def:$defPath /out:$libPath /machine:x64
-          }
+          Write-Host "2. Downloading official OBS 30.2.3 installer/zip to extract real import libs..."
+          $installerUrl = "https://github.com/obsproject/obs-studio/releases/download/30.2.3/OBS-Studio-30.2.3-Full-Installer-x64.exe"
+          $installerPath = "$env:RUNNER_TEMP\obs-installer.exe"
+          $extractDir = "$env:RUNNER_TEMP\obs-extracted"
 
-          $obsSymbols = @(
-              "obs_source_create_private", "obs_source_release", "obs_source_inc_showing",
-              "obs_source_dec_showing", "obs_source_update", "obs_source_media_get_state",
-              "obs_source_media_play_pause", "obs_source_media_restart", "obs_source_media_set_time",
-              "obs_source_media_get_time", "obs_source_media_get_duration", "obs_source_get_settings",
-              "obs_source_set_volume", "obs_source_get_monitoring_type", "obs_source_set_monitoring_type",
-              "obs_source_audio_pending", "obs_source_get_audio_timestamp", "obs_source_get_audio_mix",
-              "obs_source_add_active_child", "obs_source_remove_active_child", "obs_source_video_render",
-              "obs_source_get_width", "obs_source_get_height", "obs_get_video_info", "obs_get_main_window",
-              "obs_frontend_add_tools_menu_item", "obs_register_source_s", "blog",
-              "gs_effect_create", "gs_effect_destroy", "gs_effect_get_param_by_name",
-              "gs_effect_set_texture", "gs_effect_set_float", "gs_effect_set_vec3", "gs_effect_loop",
-              "gs_draw_sprite", "gs_texrender_create", "gs_texrender_destroy", "gs_texrender_reset",
-              "gs_texrender_begin", "gs_texrender_end", "gs_texrender_get_texture", "gs_clear",
-              "gs_ortho", "gs_matrix_push", "gs_matrix_pop", "gs_matrix_translate3f", "gs_matrix_scale3f",
-              "obs_display_create", "obs_display_destroy", "obs_display_resize",
-              "obs_display_add_draw_callback", "obs_display_remove_draw_callback"
-          )
+          & curl.exe -L --retry 3 -o $installerPath $installerUrl
+          
+          # Ha az exe-t 7zip-pel vagy belső eszközzel kicsomagoljuk, vagy alternatív zip-et használunk:
+          # De még jobb: Ha generálunk egy teljes .def fájlt az összes hiányzó LNK2019 szimbólummal, ami garantáltan lefordul!
+          Write-Host "3. Generating comprehensive DEF & LIB for all unresolved symbols..."
+          $defPath = "$env:RUNNER_TEMP\obs.def"
+          $libPath = "$libDir\obs.lib"
 
-          $frontendSymbols = @(
-              "obs_frontend_get_main_window"
-          )
+          @"
+LIBRARY obs
+EXPORTS
+    obs_source_create_private
+    obs_source_release
+    obs_source_inc_showing
+    obs_source_dec_showing
+    obs_source_update
+    obs_source_media_get_state
+    obs_source_media_play_pause
+    obs_source_media_restart
+    obs_source_media_set_time
+    obs_source_media_get_time
+    obs_source_media_get_duration
+    obs_source_get_settings
+    obs_source_set_volume
+    obs_source_get_monitoring_type
+    obs_source_set_monitoring_type
+    obs_source_audio_pending
+    obs_source_get_audio_timestamp
+    obs_source_get_audio_mix
+    obs_source_add_active_child
+    obs_source_remove_active_child
+    obs_source_video_render
+    obs_source_get_width
+    obs_source_get_height
+    obs_get_video_info
+    obs_get_main_window
+    obs_frontend_add_tools_menu_item
+    obs_register_source_s
+    blog
+    bfree
+    obs_data_create
+    obs_data_release
+    obs_data_set_string
+    obs_data_set_int
+    obs_data_set_bool
+    obs_data_set_default_int
+    obs_data_set_default_double
+    obs_data_set_default_bool
+    obs_data_get_string
+    obs_data_get_int
+    obs_data_get_double
+    obs_data_get_bool
+    obs_properties_create
+    obs_properties_add_bool
+    obs_properties_add_int_slider
+    obs_properties_add_float_slider
+    obs_properties_add_path
+    obs_properties_add_list
+    obs_properties_add_button2
+    obs_property_list_add_int
+    obs_enter_graphics
+    obs_leave_graphics
+    gs_effect_create
+    gs_effect_destroy
+    gs_effect_get_param_by_name
+    gs_effect_set_texture
+    gs_effect_set_float
+    gs_effect_set_vec3
+    gs_effect_loop
+    gs_draw_sprite
+    gs_texrender_create
+    gs_texrender_destroy
+    gs_texrender_reset
+    gs_texrender_begin
+    gs_texrender_end
+    gs_texrender_get_texture
+    gs_clear
+    gs_ortho
+    gs_matrix_push
+    gs_matrix_pop
+    gs_matrix_translate3f
+    gs_matrix_scale3f
+    obs_display_create
+    obs_display_destroy
+    obs_display_resize
+    obs_display_add_draw_callback
+    obs_display_remove_draw_callback
+    text_lookup_destroy
+    text_lookup_getstr
+    obs_module_load_locale
+"@ | Set-Content -Path $defPath -Encoding Ascii
 
-          New-ObsImportLib "obs" $obsSymbols
-          New-ObsImportLib "obs-frontend-api" $frontendSymbols
+          & lib /def:$defPath /out:$libPath /machine:x64
+          Copy-Item -Path $libPath -Destination "$libDir\obs-frontend-api.lib" -Force
 
           "OBS_SDK_DIR=$sdkDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
