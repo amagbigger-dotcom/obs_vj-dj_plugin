@@ -43,7 +43,7 @@ jobs:
       env:
         OBS_SDK_DIR: ${{ runner.temp }}/obs-sdk
       run: |
-        cmake -B build -G "Visual Studio 17 2022" -A x64 -DOBS_SDK_DIR="$env:OBS_SDK_DIR"
+        cmake -B build -A x64 -DOBS_SDK_DIR="$env:OBS_SDK_DIR"
       shell: pwsh
 
     - name: Build Plugin
