@@ -35,16 +35,33 @@ jobs:
           Write-Host "Extracting OBS SDK..."
           Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
           
-          echo "OBS_SDK_DIR=$extractPath" >> $env:GITHUB_ENV
-          Write-Host "OBS SDK extracted to: $extractPath"
+          # Fejlécek pontos helyének ellenőrzése
+          $header = Get-ChildItem -Path "$env:RUNNER_TEMP" -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
+          if ($header) {
+              $sdkRoot = $header.Directory.Parent.FullName
+              Write-Host "Found OBS headers in: $($header.Directory.FullName)"
+          } else {
+              $sdkRoot = $extractPath
+          }
+          
+          "OBS_SDK_DIR=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "OBS SDK set to: $sdkRoot"
 
       - name: Configure CMake
         shell: pwsh
         run: |
+          $sdkRoot = "$env:RUNNER_TEMP\obs-sdk"
+          $header = Get-ChildItem -Path "$env:RUNNER_TEMP" -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
+          if ($header) {
+              $sdkRoot = $header.Directory.Parent.FullName
+          }
+          
+          $env:OBS_SDK_DIR = $sdkRoot
+          
           cmake -B build `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
-            -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk"
+            -DOBS_SDK_DIR="$sdkRoot"
 
       - name: Build Plugin
         shell: pwsh
