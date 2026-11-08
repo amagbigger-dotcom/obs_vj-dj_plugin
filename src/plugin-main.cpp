@@ -1,68 +1,66 @@
-#include "deck-engine.hpp"
-#include "mixer-dock.hpp"
-#include "midi-handler.hpp"
-
 #include <obs-module.h>
 #include <obs-frontend-api.h>
+#include "mixer-dock.hpp"
+#include "deck-engine.hpp"
+#include "midi-handler.hpp"
 
-#include <QMainWindow>
+#include <QPointer>
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-vj-mixer", "en-US")
 
-extern void vdj_register_sources();
+static QPointer<MixerWindow> s_mixer_window = nullptr;
+DeckPair *g_decks = nullptr;
 
-namespace {
-MixerWindow *g_window = nullptr;
-
-void open_mixer_window(void *private_data)
+static void open_mixer_window(void *data)
 {
-    (void)private_data;
-    if (!g_window) {
-        auto *main_win = static_cast<QMainWindow *>(obs_frontend_get_main_window());
-        g_window = new MixerWindow(vdj_decks(), main_win);
+    UNUSED_PARAMETER(data);
+    QMainWindow *main_window = static_cast<QMainWindow *>(obs_frontend_get_main_window());
+    
+    if (!s_mixer_window) {
+        if (!g_decks) {
+            g_decks = new DeckPair();
+        }
+        s_mixer_window = new MixerWindow(g_decks, main_window);
     }
-    g_window->show();
-    g_window->raise();
-    g_window->activateWindow();
-}
-} // namespace
-
-bool obs_module_load(void)
-{
-    blog(LOG_INFO, "[obs-vj-mixer] Loading Video DJ plugin...");
-
-    auto *decks = new DeckPair();
-    vdj_set_decks(decks);
-
-    vdj_register_sources();
-
-    // Windows MIDI In csatlakozas inditasa
-    vdj_midi_init();
-
-    obs_frontend_add_tools_menu_item("Video DJ Mixer", open_mixer_window, nullptr);
-
-    blog(LOG_INFO, "[obs-vj-mixer] Plugin loaded successfully.");
-    return true;
+    
+    s_mixer_window->show();
+    s_mixer_window->raise();
+    s_mixer_window->activateWindow();
 }
 
-void obs_module_unload(void)
-{
-    blog(LOG_INFO, "[obs-vj-mixer] Unloading Video DJ plugin...");
+extern "C" {
+    __declspec(dllexport) bool obs_module_load(void)
+    {
+        blog(LOG_INFO, "[obs-vj-mixer] Loading Traktor S2 VJ Mixer plugin...");
+        
+        if (!g_decks) {
+            g_decks = new DeckPair();
+        }
 
-    // MIDI kapcsolat leallitasa
-    vdj_midi_shutdown();
+        vdj_register_sources();
+        vdj_midi_init();
 
-    if (g_window) {
-        delete g_window;
-        g_window = nullptr;
+        obs_frontend_add_tools_menu_item("Traktor S2 VJ Mixer", open_mixer_window, nullptr);
+        
+        blog(LOG_INFO, "[obs-vj-mixer] Plugin loaded successfully.");
+        return true;
     }
 
-    DeckPair *decks = vdj_decks();
-    if (decks) {
-        delete decks;
-        vdj_set_decks(nullptr);
-    }
+    __declspec(dllexport) void obs_module_unload(void)
+    {
+        blog(LOG_INFO, "[obs-vj-mixer] Unloading plugin...");
+        vdj_midi_shutdown();
 
-    blog(LOG_INFO, "[obs-vj-mixer] Plugin unloaded.");
+        if (s_mixer_window) {
+            s_mixer_window->close();
+            delete s_mixer_window;
+            s_mixer_window = nullptr;
+        }
+
+        delete g_decks;
+        g_decks = nullptr;
+        
+        blog(LOG_INFO, "[obs-vj-mixer] Plugin unloaded.");
+    }
 }
