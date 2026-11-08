@@ -27,116 +27,53 @@ jobs:
           target: 'desktop'
           arch: 'win64_msvc2022_64'
 
-      - name: Prepare OBS Studio SDK Headers and Import Libs
+      - name: Setup OBS Studio SDK
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $sdkDir = "$env:RUNNER_TEMP\obs-sdk"
           $incDir = "$sdkDir\include"
           $libDir = "$sdkDir\lib"
+          
           New-Item -ItemType Directory -Path $incDir -Force | Out-Null
           New-Item -ItemType Directory -Path $libDir -Force | Out-Null
 
-          Write-Host "1. Cloning OBS headers..."
+          Write-Host "Cloning official OBS Studio headers..."
           $srcDir = "$env:RUNNER_TEMP\obs-src"
           if (Test-Path $srcDir) { Remove-Item -Path $srcDir -Recurse -Force }
           git clone --depth 1 https://github.com/obsproject/obs-studio.git $srcDir
 
+          # Fejlécek másolása a libobs-ből és a frontend-api-ból
           Copy-Item -Path "$srcDir\libobs\*" -Destination $incDir -Recurse -Force
           $feHeader = Get-ChildItem -Path $srcDir -Filter "obs-frontend-api.h" -Recurse | Select-Object -First 1
           if ($feHeader) {
               Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
           }
 
-          Write-Host "2. Generating comprehensive export definitions for linker..."
+          Write-Host "Generating MSVC export library (.lib) for linking..."
           $defPath = "$env:RUNNER_TEMP\obs.def"
           $libPath = "$libDir\obs.lib"
           
           $defContent = "LIBRARY obs`nEXPORTS`n"
           $symbols = @(
-              "obs_source_create_private",
-              "obs_source_release",
-              "obs_source_inc_showing",
-              "obs_source_dec_showing",
-              "obs_source_update",
-              "obs_source_media_get_state",
-              "obs_source_media_play_pause",
-              "obs_source_media_restart",
-              "obs_source_media_set_time",
-              "obs_source_media_get_time",
-              "obs_source_media_get_duration",
-              "obs_source_get_settings",
-              "obs_source_set_volume",
-              "obs_source_get_monitoring_type",
-              "obs_source_set_monitoring_type",
-              "obs_source_audio_pending",
-              "obs_source_get_audio_timestamp",
-              "obs_source_get_audio_mix",
-              "obs_source_add_active_child",
-              "obs_source_remove_active_child",
-              "obs_source_video_render",
-              "obs_source_get_width",
-              "obs_source_get_height",
-              "obs_get_video_info",
-              "obs_get_main_window",
-              "obs_frontend_add_tools_menu_item",
-              "obs_frontend_get_main_window",
-              "obs_register_source_s",
-              "blog",
-              "bmalloc",
-              "bfree",
-              "obs_data_create",
-              "obs_data_release",
-              "obs_data_set_string",
-              "obs_data_set_int",
-              "obs_data_set_bool",
-              "obs_data_set_default_int",
-              "obs_data_set_default_double",
-              "obs_data_set_default_bool",
-              "obs_data_get_string",
-              "obs_data_get_int",
-              "obs_data_get_double",
-              "obs_data_get_bool",
-              "obs_properties_create",
-              "obs_properties_add_bool",
-              "obs_properties_add_int_slider",
-              "obs_properties_add_float_slider",
-              "obs_properties_add_path",
-              "obs_properties_add_list",
-              "obs_properties_add_button2",
-              "obs_property_list_add_int",
-              "obs_enter_graphics",
-              "obs_leave_graphics",
-              "gs_effect_create",
-              "gs_effect_destroy",
-              "gs_effect_get_param_by_name",
-              "gs_effect_set_texture",
-              "gs_effect_set_float",
-              "gs_effect_set_vec3",
-              "gs_effect_loop",
-              "gs_draw_sprite",
-              "gs_texrender_create",
-              "gs_texrender_destroy",
-              "gs_texrender_reset",
-              "gs_texrender_begin",
-              "gs_texrender_end",
-              "gs_texrender_get_texture",
-              "gs_clear",
-              "gs_ortho",
-              "gs_matrix_push",
-              "gs_matrix_pop",
-              "gs_matrix_translate3f",
-              "gs_matrix_scale3f",
-              "obs_display_create",
-              "obs_display_destroy",
-              "obs_display_resize",
-              "obs_display_add_draw_callback",
-              "obs_display_remove_draw_callback",
-              "text_lookup_destroy",
-              "text_lookup_getstr",
-              "obs_module_load_locale",
-              "obs_module_load",
-              "obs_module_unload"
+              "obs_source_create_private", "obs_source_release", "obs_source_inc_showing", "obs_source_dec_showing",
+              "obs_source_update", "obs_source_media_get_state", "obs_source_media_play_pause", "obs_source_media_restart",
+              "obs_source_media_set_time", "obs_source_media_get_time", "obs_source_media_get_duration", "obs_source_get_settings",
+              "obs_source_set_volume", "obs_source_get_monitoring_type", "obs_source_set_monitoring_type", "obs_source_audio_pending",
+              "obs_source_get_audio_timestamp", "obs_source_get_audio_mix", "obs_source_add_active_child", "obs_source_remove_active_child",
+              "obs_source_video_render", "obs_source_get_width", "obs_source_get_height", "obs_get_video_info", "obs_get_main_window",
+              "obs_frontend_add_tools_menu_item", "obs_frontend_get_main_window", "obs_register_source_s", "blog", "bmalloc", "bfree",
+              "obs_data_create", "obs_data_release", "obs_data_set_string", "obs_data_set_int", "obs_data_set_bool",
+              "obs_data_set_default_int", "obs_data_set_default_double", "obs_data_set_default_bool", "obs_data_get_string",
+              "obs_data_get_int", "obs_data_get_double", "obs_data_get_bool", "obs_properties_create", "obs_properties_add_bool",
+              "obs_properties_add_int_slider", "obs_properties_add_float_slider", "obs_properties_add_path", "obs_properties_add_list",
+              "obs_properties_add_button2", "obs_property_list_add_int", "obs_enter_graphics", "obs_leave_graphics", "gs_effect_create",
+              "gs_effect_destroy", "gs_effect_get_param_by_name", "gs_effect_set_texture", "gs_effect_set_float", "gs_effect_set_vec3",
+              "gs_effect_loop", "gs_draw_sprite", "gs_texrender_create", "gs_texrender_destroy", "gs_texrender_reset",
+              "gs_texrender_begin", "gs_texrender_end", "gs_texrender_get_texture", "gs_clear", "gs_ortho", "gs_matrix_push",
+              "gs_matrix_pop", "gs_matrix_translate3f", "gs_matrix_scale3f", "obs_display_create", "obs_display_destroy",
+              "obs_display_resize", "obs_display_add_draw_callback", "obs_display_remove_draw_callback", "text_lookup_destroy",
+              "text_lookup_getstr", "obs_module_load_locale", "obs_module_load", "obs_module_unload"
           )
 
           foreach ($sym in $symbols) {
@@ -152,30 +89,51 @@ jobs:
       - name: Configure CMake
         shell: pwsh
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk"
+          $qtPath = "$env:Qt6_DIR"
+          if (-not $qtPath -or -not (Test-Path $qtPath)) {
+              $qtPath = Get-ChildItem -Path "C:\Qt" -Filter "msvc*" -Recurse | Select-Object -First 1 | Select-Object -ExpandProperty FullName
+          }
+          Write-Host "Configuring CMake with Qt path: $qtPath"
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$qtPath" -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk"
 
       - name: Build Plugin
         shell: pwsh
         run: |
           cmake --build build --config Release --parallel
 
-      - name: Deploy Qt Dependencies (windeployqt)
+      - name: Collect Artifacts and Deploy Qt Dependencies
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path bin -Force
-          Copy-Item -Path "build\Release\obs-vj-mixer.dll" -Destination bin/
-          
-          $qtenv = Get-ChildItem -Path "$env:Qt6_DIR" -Filter "windeployqt.exe" -Recurse | Select-Object -First 1
+          $artifactDir = "$env:GITHUB_WORKSPACE\artifact_staging"
+          New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
+
+          # Dinamikusan felkutatjuk az összes lefordított .dll fájlt (függetlenül a target névválasztástól)
+          $compiledDlls = Get-ChildItem -Path "build" -Filter "*.dll" -Recurse
+          foreach ($dll in $compiledDlls) {
+              Write-Host "Staging DLL: $($dll.FullName)"
+              Copy-Item -Path $dll.FullName -Destination $artifactDir
+          }
+
+          # Opcionálisan átmásolhatjuk a shader effect fájlokat is, ha léteznek a src/shaders mappában
+          if (Test-Path "src/shaders") {
+              New-Item -ItemType Directory -Path "$artifactDir\data\obs-plugins\obs_vj-dj_plugin" -Force | Out-Null
+              Copy-Item -Path "src/shaders\*" -Destination "$artifactDir\data\obs-plugins\obs_vj-dj_plugin" -Recurse -Force
+          }
+
+          # Qt függőségek bemásolása a windeployqt segítségével
+          $qtenv = Get-ChildItem -Path "C:\Qt" -Filter "windeployqt.exe" -Recurse | Select-Object -First 1
           if ($qtenv) {
               Write-Host "Running windeployqt from: $($qtenv.FullName)"
-              & $qtenv.FullName --qmldir src bin\obs-vj-mixer.dll
+              Get-ChildItem -Path "$artifactDir\*.dll" | ForEach-Object {
+                  & $qtenv.FullName --qmldir src $_.FullName
+              }
           } else {
-              Write-Host "WARNING: windeployqt.exe not found!"
+              Write-Host "WARNING: windeployqt.exe not found, skipping dependency deployment."
           }
 
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: obs-vj-mixer-windows-x64
-          path: bin/*
+          name: obs-vj-dj_plugin-windows-x64
+          path: artifact_staging/*
           if-no-files-found: error
