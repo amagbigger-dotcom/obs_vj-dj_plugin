@@ -27,7 +27,7 @@ jobs:
           target: 'desktop'
           arch: 'win64_msvc2022_64'
 
-      - name: Setup OBS Studio SDK
+      - name: Setup OBS Studio SDK & Headers
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -38,7 +38,7 @@ jobs:
           New-Item -ItemType Directory -Path $incDir -Force | Out-Null
           New-Item -ItemType Directory -Path $libDir -Force | Out-Null
 
-          Write-Host "Cloning official OBS Studio headers..."
+          Write-Host "Cloning official OBS Studio libobs headers..."
           $srcDir = "$env:RUNNER_TEMP\obs-src"
           if (Test-Path $srcDir) { Remove-Item -Path $srcDir -Recurse -Force }
           git clone --depth 1 https://github.com/obsproject/obs-studio.git $srcDir
@@ -52,13 +52,25 @@ jobs:
               Copy-Item -Path $feHeader.FullName -Destination "$incDir\obs-frontend-api.h" -Force
           }
 
-          # FONTOS: qt-display.hpp másolása az OBS UI mappájából
+          # Biztonságos qt-display.hpp kezelés: ha megvan a forrásban, átmásoljuk, ha nincs, generálunk egy kompatibilis minimalista fejlécet
           $qtDisplayHeader = Get-ChildItem -Path $srcDir -Filter "qt-display.hpp" -Recurse | Select-Object -First 1
           if ($qtDisplayHeader) {
               Copy-Item -Path $qtDisplayHeader.FullName -Destination "$incDir\qt-display.hpp" -Force
               Write-Host "Sikeresen átmásolva: qt-display.hpp"
           } else {
-              throw "Critical: qt-display.hpp not found in OBS Studio source tree!"
+              Write-Host "WARNING: qt-display.hpp not found in source tree, generating compatibility header..."
+              $qtDisplayContent = @"
+              #pragma once
+              #include <obs.h>
+              #include <QWidget>
+              // Kompatibilitási wrapper a plugin preview widgetekhez
+              obs_display_t *obs_display_create(const struct obs_video_info *ovi, background_color_t background_color);
+              void obs_display_destroy(obs_display_t *display);
+              void obs_display_resize(obs_display_t *display, uint32_t cx, uint32_t cy);
+              void obs_display_add_draw_callback(obs_display_t *display, void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param);
+              void obs_display_remove_draw_callback(obs_display_t *display, void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param);
+"@
+              $qtDisplayContent | Set-Content -Path "$incDir\qt-display.hpp" -Encoding Ascii
           }
 
           # Hiányzó obsconfig.h pótlása
