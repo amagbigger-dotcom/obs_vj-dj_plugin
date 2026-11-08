@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(obs-vj-mixer LANGUAGES C CXX)
+project(obs_vj-dj_plugin LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -46,12 +46,14 @@ set(SOURCES
     src/midi-handler.hpp
 )
 
-add_library(obs-vj-mixer MODULE ${SOURCES})
+add_library(obs_vj-dj_plugin MODULE ${SOURCES})
 
-# Ez a sor kényszeríti ki, hogy az OBS lássa az obs_module_load belépési pontot Windows alatt:
-set_target_properties(obs-vj-mixer PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+set_target_properties(obs_vj-dj_plugin PROPERTIES 
+    WINDOWS_EXPORT_ALL_SYMBOLS TRUE
+    PREFIX ""
+)
 
-target_link_libraries(obs-vj-mixer PRIVATE
+target_link_libraries(obs_vj-dj_plugin PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
@@ -60,7 +62,7 @@ target_link_libraries(obs-vj-mixer PRIVATE
     winmm
 )
 
-target_compile_definitions(obs-vj-mixer PRIVATE
+target_compile_definitions(obs_vj-dj_plugin PRIVATE
     UNICODE
     _UNICODE
     NOMINMAX
