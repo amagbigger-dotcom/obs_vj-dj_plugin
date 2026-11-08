@@ -122,7 +122,6 @@ void DeckPlayer::setSpeed(int percent)
     if (!source_)
         return;
 
-    // Időkód megőrzése, hogy ne ugrana a videó elejére
     const int64_t current_time = obs_source_media_get_time(source_);
 
     obs_data_t *settings = obs_source_get_settings(source_);

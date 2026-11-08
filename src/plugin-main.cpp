@@ -10,7 +10,6 @@
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-vj-mixer", "en-US")
 
-// Elődeklaráció a mixer-source.cpp-ben definiált függvényhez
 extern "C" void vdj_register_sources(void);
 
 static QPointer<MixerWindow> s_mixer_window = nullptr;
@@ -66,6 +65,7 @@ extern "C" {
 
         delete g_decks;
         g_decks = nullptr;
+        vdj_set_decks(nullptr);
         
         blog(LOG_INFO, "[obs-vj-mixer] Plugin unloaded.");
     }

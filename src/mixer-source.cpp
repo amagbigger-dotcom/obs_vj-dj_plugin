@@ -19,7 +19,7 @@ static const char *mixer_get_name(void *type_data)
 static void *mixer_create(obs_data_t *settings, obs_source_t *source)
 {
     UNUSED_PARAMETER(settings);
-    MixerSource *context = static_cast<MixerSource *>(bmalloc(sizeof(MixerSource))); // Biztonságos allokáció
+    MixerSource *context = static_cast<MixerSource *>(bmalloc(sizeof(MixerSource)));
     if (!context)
         return nullptr;
         

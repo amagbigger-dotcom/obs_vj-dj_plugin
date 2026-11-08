@@ -77,7 +77,7 @@ public:
     void syncTempoAtoB();
     void syncTempoBtoA();
 
-    void setLoopBeatIndex(int deck_idx, int beat_index); // 0=1/2, 1=1, 2=2, 3=4, 4=8, 5=16, 6=32, 7=64
+    void setLoopBeatIndex(int deck_idx, int beat_index);
     int getLoopBeatIndex(int deck_idx) const noexcept;
 
 private:
@@ -86,7 +86,7 @@ private:
 
     std::atomic<double> crossfader_{0.5};
     std::atomic<int> transition_mode_{0};
-    std::atomic<int> loop_beat_idx_a_{3}; // Alapértelmezett: 4 ütem
+    std::atomic<int> loop_beat_idx_a_{3};
     std::atomic<int> loop_beat_idx_b_{3};
 };
 
