@@ -27,11 +27,9 @@ public:
     void setSpeed(int percent);
     int speed() const noexcept;
 
-    // volume() a felhasználó által beállított csatornahangerő.
     void setVolume(float volume);
     float volume() const noexcept;
 
-    // A crossfader által beállított szorzó.
     void setMixGain(float gain) noexcept;
 
     void setRed(float value) noexcept;
