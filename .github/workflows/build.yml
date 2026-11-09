@@ -26,6 +26,7 @@ jobs:
       shell: pwsh
       run: |
         $ErrorActionPreference = 'Stop'
+
         $sdkDir = "$env:RUNNER_TEMP\obs-sdk"
         $sourceDir = "$env:RUNNER_TEMP\obs-source"
         $buildDir = "$env:RUNNER_TEMP\obs-build"
@@ -42,7 +43,7 @@ jobs:
         Invoke-WebRequest -Uri "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip" -OutFile $zipPath
         Expand-Archive -Path $zipPath -DestinationPath $releaseDir -Force
 
-        Write-Host "Cloning OBS Studio 33.0.1 source..."
+        Write-Host "Cloning OBS Studio 33.0.1 source with submodules..."
         git clone --depth 1 --recurse-submodules --shallow-submodules --branch 33.0.1 https://github.com/obsproject/obs-studio.git $sourceDir
         if ($LASTEXITCODE -ne 0) {
           throw "Failed to clone OBS Studio source and its submodules."
@@ -72,21 +73,21 @@ jobs:
         }
 
         Write-Host "Copying OBS import libraries..."
-        $libobsLib = "$buildDir\libobs\Release\libobs.lib"
-        $frontendLib = "$buildDir\UI\obs-frontend-api\Release\obs-frontend-api.lib"
+        $libobsLib = Get-ChildItem -Path $buildDir -Recurse -Filter "libobs.lib" | Select-Object -First 1 -ExpandProperty FullName
+        $frontendLib = Get-ChildItem -Path $buildDir -Recurse -Filter "obs-frontend-api.lib" | Select-Object -First 1 -ExpandProperty FullName
 
-        if (Test-Path $libobsLib) {
-          Copy-Item -Force $libobsLib "$sdkDir\lib\libobs.lib"
-          Copy-Item -Force $libobsLib "$sdkDir\bin\libobs.lib"
-        } else {
+        if (-not $libobsLib) {
           throw "libobs.lib was not found after building OBS."
         }
 
-        if (Test-Path $frontendLib) {
+        Copy-Item -Force $libobsLib "$sdkDir\lib\libobs.lib"
+        Copy-Item -Force $libobsLib "$sdkDir\bin\libobs.lib"
+
+        if ($frontendLib) {
           Copy-Item -Force $frontendLib "$sdkDir\lib\obs-frontend-api.lib"
           Copy-Item -Force $frontendLib "$sdkDir\bin\obs-frontend-api.lib"
         } else {
-          Write-Warning "obs-frontend-api.lib not found at $frontendLib"
+          Write-Warning "obs-frontend-api.lib not found; continuing with warning because UI is disabled."
         }
 
         $obsConfigPath = "$sdkDir\include\libobs\obsconfig.h"
