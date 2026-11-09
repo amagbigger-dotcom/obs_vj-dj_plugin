@@ -43,7 +43,10 @@ jobs:
         Expand-Archive -Path $zipPath -DestinationPath $releaseDir -Force
 
         Write-Host "Cloning OBS Studio 33.0.1 source..."
-        git clone --depth 1 --branch 33.0.1 https://github.com/obsproject/obs-studio.git $sourceDir
+        git clone --depth 1 --recurse-submodules --shallow-submodules --branch 33.0.1 https://github.com/obsproject/obs-studio.git $sourceDir
+        if ($LASTEXITCODE -ne 0) {
+          throw "Failed to clone OBS Studio source and its submodules."
+        }
 
         Write-Host "Configuring OBS Studio build..."
         cmake -S $sourceDir -B $buildDir -G "Visual Studio 17 2022" -A x64 `
