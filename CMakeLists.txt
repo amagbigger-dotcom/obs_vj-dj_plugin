@@ -9,7 +9,6 @@ set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 
-# Ha van megadva OBS SDK / Source mappa
 if(DEFINED ENV{OBS_SDK_DIR})
     set(OBS_DIR "$ENV{OBS_SDK_DIR}")
 elseif(DEFINED RUNNER_TEMP)
@@ -38,12 +37,11 @@ set_target_properties(obs_vj-dj_plugin PROPERTIES
     PREFIX ""
 )
 
-# Pontos include könyvtárak beállítása
 target_include_directories(obs_vj-dj_plugin PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     "${OBS_DIR}/include"
     "${OBS_DIR}/include/libobs"
-    "${OBS_DIR}/include/UI"
+    "${OBS_DIR}/include/obs-frontend-api"
     "C:/obs-source"
     "C:/obs-source/libobs"
     "C:/obs-source/UI"
