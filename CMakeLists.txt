@@ -37,7 +37,7 @@ set_target_properties(obs_vj-dj_plugin PROPERTIES
     PREFIX ""
 )
 
-# Itt explicit módon megadjuk az összes lehetséges útvonalat az obs-frontend-api.h-hoz
+# Itt van a kulcs: közvetlenül beillesztjük a C:/obs-source/UI/obs-frontend-api mappát is
 target_include_directories(obs_vj-dj_plugin PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     "${OBS_DIR}/include"
@@ -45,7 +45,6 @@ target_include_directories(obs_vj-dj_plugin PRIVATE
     "${OBS_DIR}/include/obs-frontend-api"
     "C:/obs-source"
     "C:/obs-source/libobs"
-    "C:/obs-source/UI"
     "C:/obs-source/UI/obs-frontend-api"
 )
 
