@@ -30,94 +30,83 @@ jobs:
         $sdkDir = "$env:RUNNER_TEMP\obs-sdk"
         $sourceDir = "$env:RUNNER_TEMP\obs-source"
         $buildDir = "$env:RUNNER_TEMP\obs-build"
-        $zipPath = "$env:RUNNER_TEMP\obs-studio.zip"
-        $releaseDir = "$env:RUNNER_TEMP\obs-release"
 
         New-Item -ItemType Directory -Force -Path "$sdkDir\include\libobs" | Out-Null
         New-Item -ItemType Directory -Force -Path "$sdkDir\include\obs-frontend-api" | Out-Null
         New-Item -ItemType Directory -Force -Path "$sdkDir\lib" | Out-Null
         New-Item -ItemType Directory -Force -Path "$sdkDir\bin" | Out-Null
-        New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
 
-        Write-Host "Downloading OBS Studio 33.0.1 release ZIP..."
-        Invoke-WebRequest -Uri "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip" -OutFile $zipPath
-        Expand-Archive -Path $zipPath -DestinationPath $releaseDir -Force
-
-        Write-Host "Cloning OBS Studio 33.0.1 source with submodules..."
+        Write-Host "Cloning OBS Studio 33.0.1 with submodules..."
         git clone --depth 1 --recurse-submodules --shallow-submodules --branch 33.0.1 https://github.com/obsproject/obs-studio.git $sourceDir
         if ($LASTEXITCODE -ne 0) {
           throw "Failed to clone OBS Studio source and its submodules."
         }
 
-        git -C $sourceDir submodule update --init --recursive
-        if ($LASTEXITCODE -ne 0) {
-          throw "Failed to initialize OBS submodules."
-        }
-
-        Write-Host "Configuring OBS Studio build..."
+        Write-Host "Configuring OBS Studio..."
         cmake -S $sourceDir -B $buildDir -G "Visual Studio 17 2022" -A x64 `
           -DBUILD_BROWSER=OFF `
           -DBUILD_TESTS=OFF `
-          -DENABLE_UI=OFF `
+          -DENABLE_FRONTEND=OFF `
+          -DENABLE_SCRIPTING=OFF `
           -DCMAKE_BUILD_TYPE=Release
+        if ($LASTEXITCODE -ne 0) {
+          throw "OBS Studio CMake configuration failed."
+        }
 
-        Write-Host "Building OBS libs..."
+        Write-Host "Building OBS libraries..."
         cmake --build $buildDir --config Release --target libobs obs-frontend-api --parallel
-
-        Write-Host "Searching generated OBS libraries..."
-        Get-ChildItem -Path $buildDir -Recurse -Include *.lib | Select-Object -ExpandProperty FullName
+        if ($LASTEXITCODE -ne 0) {
+          throw "OBS library build failed."
+        }
 
         Write-Host "Copying OBS headers..."
-        if (Test-Path "$sourceDir\libobs") {
-          Copy-Item -Recurse -Force "$sourceDir\libobs\*" "$sdkDir\include\libobs\"
-        }
+        Copy-Item -Recurse -Force "$sourceDir\libobs\*" "$sdkDir\include\libobs\"
+        Copy-Item -Force "$buildDir\config\obsconfig.h" "$sdkDir\include\libobs\obsconfig.h"
+        Copy-Item -Force "$sourceDir\frontend\api\*.h" "$sdkDir\include\obs-frontend-api\"
 
-        if (Test-Path "$sourceDir\frontend\api") {
-          Copy-Item -Recurse -Force "$sourceDir\frontend\api\*.h" "$sdkDir\include\obs-frontend-api\"
-        } elseif (Test-Path "$sourceDir\UI\obs-frontend-api") {
-          Copy-Item -Recurse -Force "$sourceDir\UI\obs-frontend-api\*.h" "$sdkDir\include\obs-frontend-api\"
-        } else {
-          throw "obs-frontend-api headers not found in OBS source."
-        }
+        Write-Host "Searching for generated OBS import libraries..."
+        Get-ChildItem -Path $buildDir -Recurse -File -Include "obs.lib", "obs-frontend-api.lib" |
+          ForEach-Object { Write-Host $_.FullName }
 
-        Write-Host "Copying OBS import libraries..."
-        $libobsLib = Get-ChildItem -Path $buildDir -Recurse -Filter "libobs.lib" | Select-Object -First 1 -ExpandProperty FullName
-        $frontendLib = Get-ChildItem -Path $buildDir -Recurse -Filter "obs-frontend-api.lib" | Select-Object -First 1 -ExpandProperty FullName
+        # OBS 33 names the libobs Windows import library obs.lib.
+        $libobsLib = Get-ChildItem -Path $buildDir -Recurse -File -Filter "obs.lib" |
+          Select-Object -First 1 -ExpandProperty FullName
 
         if (-not $libobsLib) {
-          throw "libobs.lib was not found after building OBS."
+          throw "obs.lib was not found after building OBS. See the library search output above."
         }
 
+        # The plugin's CMakeLists links against libobs, so place it under that filename.
         Copy-Item -Force $libobsLib "$sdkDir\lib\libobs.lib"
         Copy-Item -Force $libobsLib "$sdkDir\bin\libobs.lib"
 
-        if ($frontendLib) {
-          Copy-Item -Force $frontendLib "$sdkDir\lib\obs-frontend-api.lib"
-          Copy-Item -Force $frontendLib "$sdkDir\bin\obs-frontend-api.lib"
-        } else {
-          Write-Warning "obs-frontend-api.lib not found; continuing with warning."
+        $frontendLib = Get-ChildItem -Path $buildDir -Recurse -File -Filter "obs-frontend-api.lib" |
+          Select-Object -First 1 -ExpandProperty FullName
+
+        if (-not $frontendLib) {
+          throw "obs-frontend-api.lib was not found after building OBS."
         }
 
-        $obsConfigPath = "$sdkDir\include\libobs\obsconfig.h"
-        @(
-          "#pragma once",
-          '#define OBS_VERSION "33.0.1"',
-          '#define OBS_VERSION_NUMBER 0x210001'
-        ) | Set-Content -Path $obsConfigPath -Encoding ascii
+        Copy-Item -Force $frontendLib "$sdkDir\lib\obs-frontend-api.lib"
+        Copy-Item -Force $frontendLib "$sdkDir\bin\obs-frontend-api.lib"
 
         Write-Host "OBS SDK preparation complete."
 
     - name: Configure CMake
-      env:
-        OBS_SDK_DIR: ${{ runner.temp }}/obs-sdk
       shell: pwsh
       run: |
         cmake -B build -A x64 -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk"
+        if ($LASTEXITCODE -ne 0) {
+          throw "Plugin CMake configuration failed."
+        }
 
     - name: Build Plugin
       shell: pwsh
       run: |
         cmake --build build --config Release
+        if ($LASTEXITCODE -ne 0) {
+          throw "Plugin build failed."
+        }
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
