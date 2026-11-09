@@ -22,7 +22,7 @@ jobs:
       with:
         version: '6.6.1'
 
-    - name: Prepare OBS SDK Headers and Libs
+    - name: Prepare OBS SDK Headers and Config
       run: |
         $sdkDir = "$env:RUNNER_TEMP\\obs-sdk"
         New-Item -ItemType Directory -Force -Path "$sdkDir\\include\\libobs"
@@ -40,6 +40,15 @@ jobs:
         } elseif (Test-Path "C:/obs-source/obs-frontend-api") {
             Copy-Item -Recurse -Force "C:/obs-source/obs-frontend-api/*" "$sdkDir\\include\\obs-frontend-api/"
         }
+
+        # Létrehozzuk a hiányzó obsconfig.h fájlt, amit különben a CMake generálna
+        $obsConfigContent = @"
+#pragma once
+#define OBS_VERSION "33.0.1"
+#define OBS_VERSION_NUMBER 0x210001
+"@
+        Set-Content -Path "$sdkDir\\include\\libobs\\obsconfig.h" -Value $obsConfigContent
+        Write-Host "obsconfig.h successfully created."
       shell: pwsh
 
     - name: Configure CMake
