@@ -44,12 +44,13 @@ target_include_directories(obs_vj-dj_plugin PRIVATE
     "${OBS_DIR}/include/obs-frontend-api"
 )
 
+# Explicit megadjuk az összes lehetséges lib könyvtárat, ahová a workflow pakolhatja
 target_link_directories(obs_vj-dj_plugin PRIVATE
     "${OBS_DIR}/lib"
     "${OBS_DIR}/bin"
+    "${OBS_DIR}/bin/64bit"
 )
 
-# Itt volt a hiba: obs helyett libobs kell
 target_link_libraries(obs_vj-dj_plugin PRIVATE
     Qt6::Core
     Qt6::Gui
