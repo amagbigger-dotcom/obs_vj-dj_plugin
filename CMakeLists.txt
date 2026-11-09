@@ -9,13 +9,11 @@ set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 
-# Megkeressük az OBS SDK mappát
-if(DEFINED ENV{OBS_SDK_DIR} AND NOT "$ENV{OBS_SDK_DIR}" STREQUAL "")
+# Ha van megadva OBS SDK / Source mappa
+if(DEFINED ENV{OBS_SDK_DIR})
     set(OBS_DIR "$ENV{OBS_SDK_DIR}")
-elseif(DEFINED OBS_SDK_DIR AND NOT "${OBS_SDK_DIR}" STREQUAL "")
-    set(OBS_DIR "${OBS_SDK_DIR}")
-elseif(DEFINED ENV{RUNNER_TEMP})
-    set(OBS_DIR "$ENV{RUNNER_TEMP}/obs-sdk")
+elseif(DEFINED RUNNER_TEMP)
+    set(OBS_DIR "$env:RUNNER_TEMP/obs-sdk")
 else()
     set(OBS_DIR "D:/a/_temp/obs-sdk")
 endif()
@@ -40,30 +38,22 @@ set_target_properties(obs_vj-dj_plugin PROPERTIES
     PREFIX ""
 )
 
-# Célhoz kötött include útvonalak, amiket a fordító garantáltan megkap
+# Pontos include könyvtárak beállítása
 target_include_directories(obs_vj-dj_plugin PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${OBS_DIR}/include
-    ${OBS_DIR}/include/libobs
-    ${OBS_DIR}/UI/obs-frontend-api
-    $ENV{OBS_SDK_DIR}/include
-    $ENV{OBS_SDK_DIR}/include/libobs
-    $ENV{OBS_SDK_DIR}/UI/obs-frontend-api
-    "D:/a/_temp/obs-sdk/include"
-    "D:/a/_temp/obs-sdk/include/libobs"
-    "D:/a/_temp/obs-sdk/UI/obs-frontend-api"
+    "${OBS_DIR}/include"
+    "${OBS_DIR}/include/libobs"
+    "${OBS_DIR}/include/UI"
     "C:/obs-source"
     "C:/obs-source/libobs"
+    "C:/obs-source/UI"
     "C:/obs-source/UI/obs-frontend-api"
 )
 
 target_link_directories(obs_vj-dj_plugin PRIVATE
-    ${OBS_DIR}/lib
-    ${OBS_DIR}/bin
-    $ENV{OBS_SDK_DIR}/lib
-    $ENV{OBS_SDK_DIR}/bin
-    "D:/a/_temp/obs-sdk/lib"
-    "D:/a/_temp/obs-sdk/bin"
+    "${OBS_DIR}/lib"
+    "C:/obs-source/build/libobs"
+    "C:/obs-source/build/UI/obs-frontend-api"
 )
 
 target_link_libraries(obs_vj-dj_plugin PRIVATE
