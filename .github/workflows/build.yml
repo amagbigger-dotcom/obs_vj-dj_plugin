@@ -22,7 +22,7 @@ jobs:
       with:
         version: '6.6.1'
 
-    - name: Prepare OBS SDK Headers and Config
+    - name: Prepare OBS SDK (Headers + Libraries)
       shell: pwsh
       run: |
         $sdkDir = "$env:RUNNER_TEMP\obs-sdk"
@@ -30,6 +30,19 @@ jobs:
         New-Item -ItemType Directory -Force -Path "$sdkDir\include\obs-frontend-api"
         New-Item -ItemType Directory -Force -Path "$sdkDir\lib"
         
+        Write-Host "Downloading OBS Studio 33.0.1 Release ZIP for precompiled libraries..."
+        $sdkUrl = "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip"
+        $outputZip = "$env:RUNNER_TEMP\obs-sdk.zip"
+        $releaseDir = "$env:RUNNER_TEMP\obs-release"
+        
+        Invoke-WebRequest -Uri $sdkUrl -OutFile $outputZip -MaximumRedirection 5
+        Expand-Archive -Path $outputZip -DestinationPath $releaseDir -Force
+
+        # .lib fájlok másolása a hivatalos release csomagból
+        Get-ChildItem -Path $releaseDir -Recurse -Filter "*.lib" | ForEach-Object {
+            Copy-Item $_.FullName "$sdkDir\lib\" -Force
+        }
+
         Write-Host "Cloning OBS Studio source for headers..."
         git clone --depth 1 https://github.com/obsproject/obs-studio.git C:/obs-source
         
@@ -47,7 +60,7 @@ jobs:
         "#pragma once" | Out-File -FilePath $obsConfigPath -Encoding utf8
         '#define OBS_VERSION "33.0.1"' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
         '#define OBS_VERSION_NUMBER 0x210001' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
-        Write-Host "obsconfig.h and headers successfully prepared."
+        Write-Host "OBS SDK headers and libraries successfully prepared."
 
     - name: Configure CMake
       env:
