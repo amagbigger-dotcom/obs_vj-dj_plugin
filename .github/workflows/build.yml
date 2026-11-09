@@ -39,11 +39,17 @@ jobs:
         Invoke-WebRequest -Uri $sdkUrl -OutFile $outputZip -MaximumRedirection 5
         Expand-Archive -Path $outputZip -DestinationPath $releaseDir -Force
 
-        # Megkeressük az összes .lib fájlt a release csomagban (akárhol is van: bin, obs-plugins, stb.) és átmásoljuk a $sdkDir\lib\-be
+        # Minden .lib fájl átmásolása
         $libs = Get-ChildItem -Path $releaseDir -Recurse -Filter "*.lib"
         foreach ($lib in $libs) {
             Write-Host "Found lib: $($lib.FullName)"
             Copy-Item $lib.FullName "$sdkDir\lib\" -Force
+        }
+
+        # BIZTOSÍTÉK: Ha obs.lib létezik, de libobs.lib nem, csinálunk belőle egy másolatot libobs.lib néven is!
+        if ((Test-Path "$sdkDir\lib\obs.lib") -and (-not (Test-Path "$sdkDir\lib\libobs.lib"))) {
+            Copy-Item "$sdkDir\lib\obs.lib" "$sdkDir\lib\libobs.lib"
+            Write-Host "Created libobs.lib copy from obs.lib"
         }
 
         Write-Host "Cloning OBS Studio source for headers..."
@@ -59,7 +65,6 @@ jobs:
             Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api/*.h" "$sdkDir\include\obs-frontend-api/"
         }
 
-        # obsconfig.h generálása
         $obsConfigPath = "$sdkDir\include\libobs\obsconfig.h"
         "#pragma once" | Out-File -FilePath $obsConfigPath -Encoding utf8
         '#define OBS_VERSION "33.0.1"' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
