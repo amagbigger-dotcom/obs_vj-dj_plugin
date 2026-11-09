@@ -49,6 +49,11 @@ jobs:
           throw "Failed to clone OBS Studio source and its submodules."
         }
 
+        git -C $sourceDir submodule update --init --recursive
+        if ($LASTEXITCODE -ne 0) {
+          throw "Failed to initialize OBS submodules."
+        }
+
         Write-Host "Configuring OBS Studio build..."
         cmake -S $sourceDir -B $buildDir -G "Visual Studio 17 2022" -A x64 `
           -DBUILD_BROWSER=OFF `
@@ -57,7 +62,10 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
 
         Write-Host "Building OBS libs..."
-        cmake --build $buildDir --config Release --target libobs obs-frontend-api
+        cmake --build $buildDir --config Release --target libobs obs-frontend-api --parallel
+
+        Write-Host "Searching generated OBS libraries..."
+        Get-ChildItem -Path $buildDir -Recurse -Include *.lib | Select-Object -ExpandProperty FullName
 
         Write-Host "Copying OBS headers..."
         if (Test-Path "$sourceDir\libobs") {
@@ -87,7 +95,7 @@ jobs:
           Copy-Item -Force $frontendLib "$sdkDir\lib\obs-frontend-api.lib"
           Copy-Item -Force $frontendLib "$sdkDir\bin\obs-frontend-api.lib"
         } else {
-          Write-Warning "obs-frontend-api.lib not found; continuing with warning because UI is disabled."
+          Write-Warning "obs-frontend-api.lib not found; continuing with warning."
         }
 
         $obsConfigPath = "$sdkDir\include\libobs\obsconfig.h"
