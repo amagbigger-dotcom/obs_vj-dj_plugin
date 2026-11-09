@@ -23,45 +23,42 @@ jobs:
         version: '6.6.1'
 
     - name: Prepare OBS SDK Headers and Config
+      shell: pwsh
       run: |
-        $sdkDir = "$env:RUNNER_TEMP\\obs-sdk"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\\include\\libobs"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\\include\\obs-frontend-api"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\\lib"
+        $sdkDir = "$env:RUNNER_TEMP\obs-sdk"
+        New-Item -ItemType Directory -Force -Path "$sdkDir\include\libobs"
+        New-Item -ItemType Directory -Force -Path "$sdkDir\include\obs-frontend-api"
+        New-Item -ItemType Directory -Force -Path "$sdkDir\lib"
         
         Write-Host "Cloning OBS Studio source for headers..."
         git clone --depth 1 https://github.com/obsproject/obs-studio.git C:/obs-source
         
         if (Test-Path "C:/obs-source/libobs") {
-            Copy-Item -Recurse -Force "C:/obs-source/libobs/*" "$sdkDir\\include\\libobs/"
+            Copy-Item -Recurse -Force "C:/obs-source/libobs/*" "$sdkDir\include\libobs/"
         }
         if (Test-Path "C:/obs-source/UI/obs-frontend-api") {
             Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api/*" "$sdkDir\\include\\obs-frontend-api/"
         } elseif (Test-Path "C:/obs-source/obs-frontend-api") {
-            Copy-Item -Recurse -Force "C:/obs-source/obs-frontend-api/*" "$sdkDir\\include\\obs-frontend-api/"
+            Copy-Item -Recurse -Force "C:/obs-source/obs-frontend-api/*" "$sdkDir\include\obs-frontend-api/"
         }
 
-        # Létrehozzuk a hiányzó obsconfig.h fájlt, amit különben a CMake generálna
-        $obsConfigContent = @"
-#pragma once
-#define OBS_VERSION "33.0.1"
-#define OBS_VERSION_NUMBER 0x210001
-"@
-        Set-Content -Path "$sdkDir\\include\\libobs\\obsconfig.h" -Value $obsConfigContent
+        $obsConfigPath = "$sdkDir\include\libobs\obsconfig.h"
+        "#pragma once" | Out-File -FilePath $obsConfigPath -Encoding utf8
+        '#define OBS_VERSION "33.0.1"' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
+        '#define OBS_VERSION_NUMBER 0x210001' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
         Write-Host "obsconfig.h successfully created."
-      shell: pwsh
 
     - name: Configure CMake
       env:
         OBS_SDK_DIR: ${{ runner.temp }}/obs-sdk
+      shell: pwsh
       run: |
         cmake -B build -A x64 -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk"
-      shell: pwsh
 
     - name: Build Plugin
+      shell: pwsh
       run: |
         cmake --build build --config Release
-      shell: pwsh
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
