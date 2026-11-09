@@ -40,7 +40,7 @@ jobs:
         Invoke-WebRequest -Uri $sdkUrl -OutFile $outputZip -MaximumRedirection 5
         Expand-Archive -Path $outputZip -DestinationPath $releaseDir -Force
 
-        # Minden .lib fájl másolása a $sdkDir\lib\ és bin mappákba is
+        # Minden .lib fájl másolása
         $libs = Get-ChildItem -Path $releaseDir -Recurse -Filter "*.lib"
         foreach ($lib in $libs) {
             Write-Host "Found lib: $($lib.FullName)"
@@ -48,7 +48,7 @@ jobs:
             Copy-Item $lib.FullName "$sdkDir\bin\" -Force
         }
 
-        # Névütközés áthidalása: ha obs.lib van, de libobs.lib nincs, csinálunk belőle másolatot!
+        # Névütközés fixálása: obs.lib -> libobs.lib
         if ((Test-Path "$sdkDir\lib\obs.lib") -and (-not (Test-Path "$sdkDir\lib\libobs.lib"))) {
             Copy-Item "$sdkDir\lib\obs.lib" "$sdkDir\lib\libobs.lib"
             Copy-Item "$sdkDir\lib\obs.lib" "$sdkDir\bin\libobs.lib"
