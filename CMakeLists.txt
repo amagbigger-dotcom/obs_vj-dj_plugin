@@ -37,12 +37,16 @@ set_target_properties(obs_vj-dj_plugin PROPERTIES
     PREFIX ""
 )
 
-# Itt adjuk meg a pontos könyvtárakat, ahová a workflow mentette a headereket
+# Itt explicit módon megadjuk az összes lehetséges útvonalat az obs-frontend-api.h-hoz
 target_include_directories(obs_vj-dj_plugin PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     "${OBS_DIR}/include"
     "${OBS_DIR}/include/libobs"
     "${OBS_DIR}/include/obs-frontend-api"
+    "C:/obs-source"
+    "C:/obs-source/libobs"
+    "C:/obs-source/UI"
+    "C:/obs-source/UI/obs-frontend-api"
 )
 
 target_link_directories(obs_vj-dj_plugin PRIVATE
