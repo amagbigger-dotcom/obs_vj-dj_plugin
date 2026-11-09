@@ -37,28 +37,24 @@ set_target_properties(obs_vj-dj_plugin PROPERTIES
     PREFIX ""
 )
 
-# Itt van a kulcs: közvetlenül beillesztjük a C:/obs-source/UI/obs-frontend-api mappát is
 target_include_directories(obs_vj-dj_plugin PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     "${OBS_DIR}/include"
     "${OBS_DIR}/include/libobs"
     "${OBS_DIR}/include/obs-frontend-api"
-    "C:/obs-source"
-    "C:/obs-source/libobs"
-    "C:/obs-source/UI/obs-frontend-api"
 )
 
 target_link_directories(obs_vj-dj_plugin PRIVATE
     "${OBS_DIR}/lib"
-    "C:/obs-source/build/libobs"
-    "C:/obs-source/build/UI/obs-frontend-api"
+    "${OBS_DIR}/bin"
 )
 
+# Itt volt a hiba: obs helyett libobs kell
 target_link_libraries(obs_vj-dj_plugin PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
-    obs
+    libobs
     obs-frontend-api
     winmm
 )
