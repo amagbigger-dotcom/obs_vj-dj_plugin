@@ -25,55 +25,75 @@ jobs:
     - name: Prepare OBS SDK (Headers + Libraries)
       shell: pwsh
       run: |
+        $ErrorActionPreference = 'Stop'
         $sdkDir = "$env:RUNNER_TEMP\obs-sdk"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\include\libobs"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\include\obs-frontend-api"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\lib"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\bin"
-        
-        Write-Host "Downloading OBS Studio 33.0.1 Release ZIP..."
-        $sdkUrl = "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip"
-        $outputZip = "$env:RUNNER_TEMP\obs-sdk.zip"
+        $sourceDir = "$env:RUNNER_TEMP\obs-source"
+        $buildDir = "$env:RUNNER_TEMP\obs-build"
+        $zipPath = "$env:RUNNER_TEMP\obs-studio.zip"
         $releaseDir = "$env:RUNNER_TEMP\obs-release"
-        
-        New-Item -ItemType Directory -Force -Path $releaseDir
-        Invoke-WebRequest -Uri $sdkUrl -OutFile $outputZip -MaximumRedirection 5
-        Expand-Archive -Path $outputZip -DestinationPath $releaseDir -Force
 
-        # Minden .lib fájl másolása
-        $libs = Get-ChildItem -Path $releaseDir -Recurse -Filter "*.lib"
-        foreach ($lib in $libs) {
-            Write-Host "Found lib: $($lib.FullName)"
-            Copy-Item $lib.FullName "$sdkDir\lib\" -Force
-            Copy-Item $lib.FullName "$sdkDir\bin\" -Force
+        New-Item -ItemType Directory -Force -Path "$sdkDir\include\libobs" | Out-Null
+        New-Item -ItemType Directory -Force -Path "$sdkDir\include\obs-frontend-api" | Out-Null
+        New-Item -ItemType Directory -Force -Path "$sdkDir\lib" | Out-Null
+        New-Item -ItemType Directory -Force -Path "$sdkDir\bin" | Out-Null
+        New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+
+        Write-Host "Downloading OBS Studio 33.0.1 release ZIP..."
+        Invoke-WebRequest -Uri "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip" -OutFile $zipPath
+        Expand-Archive -Path $zipPath -DestinationPath $releaseDir -Force
+
+        Write-Host "Cloning OBS Studio 33.0.1 source..."
+        git clone --depth 1 --branch 33.0.1 https://github.com/obsproject/obs-studio.git $sourceDir
+
+        Write-Host "Configuring OBS Studio build..."
+        cmake -S $sourceDir -B $buildDir -G "Visual Studio 17 2022" -A x64 `
+          -DBUILD_BROWSER=OFF `
+          -DBUILD_TESTS=OFF `
+          -DENABLE_UI=OFF `
+          -DCMAKE_BUILD_TYPE=Release
+
+        Write-Host "Building OBS libs..."
+        cmake --build $buildDir --config Release --target libobs obs-frontend-api
+
+        Write-Host "Copying OBS headers..."
+        if (Test-Path "$sourceDir\libobs") {
+          Copy-Item -Recurse -Force "$sourceDir\libobs\*" "$sdkDir\include\libobs\"
         }
 
-        # Névütközés fixálása: obs.lib -> libobs.lib
-        if ((Test-Path "$sdkDir\lib\obs.lib") -and (-not (Test-Path "$sdkDir\lib\libobs.lib"))) {
-            Copy-Item "$sdkDir\lib\obs.lib" "$sdkDir\lib\libobs.lib"
-            Copy-Item "$sdkDir\lib\obs.lib" "$sdkDir\bin\libobs.lib"
-            Write-Host "Created libobs.lib copies from obs.lib"
+        if (Test-Path "$sourceDir\frontend\api") {
+          Copy-Item -Recurse -Force "$sourceDir\frontend\api\*.h" "$sdkDir\include\obs-frontend-api\"
+        } elseif (Test-Path "$sourceDir\UI\obs-frontend-api") {
+          Copy-Item -Recurse -Force "$sourceDir\UI\obs-frontend-api\*.h" "$sdkDir\include\obs-frontend-api\"
+        } else {
+          throw "obs-frontend-api headers not found in OBS source."
         }
 
-        Write-Host "Cloning OBS Studio source for headers..."
-        git clone --depth 1 https://github.com/obsproject/obs-studio.git C:/obs-source
-        
-        if (Test-Path "C:/obs-source/libobs") {
-            Copy-Item -Recurse -Force "C:/obs-source/libobs/*" "$sdkDir\include\libobs/"
+        Write-Host "Copying OBS import libraries..."
+        $libobsLib = "$buildDir\libobs\Release\libobs.lib"
+        $frontendLib = "$buildDir\UI\obs-frontend-api\Release\obs-frontend-api.lib"
+
+        if (Test-Path $libobsLib) {
+          Copy-Item -Force $libobsLib "$sdkDir\lib\libobs.lib"
+          Copy-Item -Force $libobsLib "$sdkDir\bin\libobs.lib"
+        } else {
+          throw "libobs.lib was not found after building OBS."
         }
-        
-        if (Test-Path "C:/obs-source/frontend/api") {
-            Copy-Item -Recurse -Force "C:/obs-source/frontend/api/*.h" "$sdkDir\include\obs-frontend-api/"
-        } elseif (Test-Path "C:/obs-source/UI/obs-frontend-api") {
-            Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api/*.h" "$sdkDir\include\obs-frontend-api/"
+
+        if (Test-Path $frontendLib) {
+          Copy-Item -Force $frontendLib "$sdkDir\lib\obs-frontend-api.lib"
+          Copy-Item -Force $frontendLib "$sdkDir\bin\obs-frontend-api.lib"
+        } else {
+          Write-Warning "obs-frontend-api.lib not found at $frontendLib"
         }
 
         $obsConfigPath = "$sdkDir\include\libobs\obsconfig.h"
-        "#pragma once" | Out-File -FilePath $obsConfigPath -Encoding utf8
-        '#define OBS_VERSION "33.0.1"' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
-        '#define OBS_VERSION_NUMBER 0x210001' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
-        
-        Write-Host "SDK preparation complete."
+        @(
+          "#pragma once",
+          '#define OBS_VERSION "33.0.1"',
+          '#define OBS_VERSION_NUMBER 0x210001'
+        ) | Set-Content -Path $obsConfigPath -Encoding ascii
+
+        Write-Host "OBS SDK preparation complete."
 
     - name: Configure CMake
       env:
