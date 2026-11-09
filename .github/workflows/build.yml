@@ -30,17 +30,20 @@ jobs:
         New-Item -ItemType Directory -Force -Path "$sdkDir\include\obs-frontend-api"
         New-Item -ItemType Directory -Force -Path "$sdkDir\lib"
         
-        Write-Host "Downloading OBS Studio 33.0.1 Release ZIP for precompiled libraries..."
+        Write-Host "Downloading OBS Studio 33.0.1 Release ZIP..."
         $sdkUrl = "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip"
         $outputZip = "$env:RUNNER_TEMP\obs-sdk.zip"
         $releaseDir = "$env:RUNNER_TEMP\obs-release"
         
+        New-Item -ItemType Directory -Force -Path $releaseDir
         Invoke-WebRequest -Uri $sdkUrl -OutFile $outputZip -MaximumRedirection 5
         Expand-Archive -Path $outputZip -DestinationPath $releaseDir -Force
 
-        # .lib fájlok másolása a hivatalos release csomagból
-        Get-ChildItem -Path $releaseDir -Recurse -Filter "*.lib" | ForEach-Object {
-            Copy-Item $_.FullName "$sdkDir\lib\" -Force
+        # Megkeressük az összes .lib fájlt a release csomagban (akárhol is van: bin, obs-plugins, stb.) és átmásoljuk a $sdkDir\lib\-be
+        $libs = Get-ChildItem -Path $releaseDir -Recurse -Filter "*.lib"
+        foreach ($lib in $libs) {
+            Write-Host "Found lib: $($lib.FullName)"
+            Copy-Item $lib.FullName "$sdkDir\lib\" -Force
         }
 
         Write-Host "Cloning OBS Studio source for headers..."
@@ -56,11 +59,13 @@ jobs:
             Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api/*.h" "$sdkDir\include\obs-frontend-api/"
         }
 
+        # obsconfig.h generálása
         $obsConfigPath = "$sdkDir\include\libobs\obsconfig.h"
         "#pragma once" | Out-File -FilePath $obsConfigPath -Encoding utf8
         '#define OBS_VERSION "33.0.1"' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
         '#define OBS_VERSION_NUMBER 0x210001' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
-        Write-Host "OBS SDK headers and libraries successfully prepared."
+        
+        Write-Host "SDK preparation complete."
 
     - name: Configure CMake
       env:
