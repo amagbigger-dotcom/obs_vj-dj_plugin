@@ -29,6 +29,7 @@ jobs:
         New-Item -ItemType Directory -Force -Path "$sdkDir\include\libobs"
         New-Item -ItemType Directory -Force -Path "$sdkDir\include\obs-frontend-api"
         New-Item -ItemType Directory -Force -Path "$sdkDir\lib"
+        New-Item -ItemType Directory -Force -Path "$sdkDir\bin"
         
         Write-Host "Downloading OBS Studio 33.0.1 Release ZIP..."
         $sdkUrl = "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip"
@@ -39,17 +40,19 @@ jobs:
         Invoke-WebRequest -Uri $sdkUrl -OutFile $outputZip -MaximumRedirection 5
         Expand-Archive -Path $outputZip -DestinationPath $releaseDir -Force
 
-        # Minden .lib fájl átmásolása
+        # Minden .lib fájl másolása a $sdkDir\lib\ és bin mappákba is
         $libs = Get-ChildItem -Path $releaseDir -Recurse -Filter "*.lib"
         foreach ($lib in $libs) {
             Write-Host "Found lib: $($lib.FullName)"
             Copy-Item $lib.FullName "$sdkDir\lib\" -Force
+            Copy-Item $lib.FullName "$sdkDir\bin\" -Force
         }
 
-        # BIZTOSÍTÉK: Ha obs.lib létezik, de libobs.lib nem, csinálunk belőle egy másolatot libobs.lib néven is!
+        # Névütközés áthidalása: ha obs.lib van, de libobs.lib nincs, csinálunk belőle másolatot!
         if ((Test-Path "$sdkDir\lib\obs.lib") -and (-not (Test-Path "$sdkDir\lib\libobs.lib"))) {
             Copy-Item "$sdkDir\lib\obs.lib" "$sdkDir\lib\libobs.lib"
-            Write-Host "Created libobs.lib copy from obs.lib"
+            Copy-Item "$sdkDir\lib\obs.lib" "$sdkDir\bin\libobs.lib"
+            Write-Host "Created libobs.lib copies from obs.lib"
         }
 
         Write-Host "Cloning OBS Studio source for headers..."
