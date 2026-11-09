@@ -37,8 +37,10 @@ jobs:
             Copy-Item -Recurse -Force "C:/obs-source/libobs/*" "$sdkDir\include\libobs/"
         }
         
-        # Itt a lényeg: a helyes UI/obs-frontend-api mappából másolunk
-        if (Test-Path "C:/obs-source/UI/obs-frontend-api") {
+        # OBS 33+ alatt a frontend-api a frontend/api/ mappában van
+        if (Test-Path "C:/obs-source/frontend/api") {
+            Copy-Item -Recurse -Force "C:/obs-source/frontend/api/*.h" "$sdkDir\include\obs-frontend-api/"
+        } elseif (Test-Path "C:/obs-source/UI/obs-frontend-api") {
             Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api/*.h" "$sdkDir\include\obs-frontend-api/"
         }
 
