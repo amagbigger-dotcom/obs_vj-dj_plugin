@@ -12,7 +12,6 @@ jobs:
 
     steps:
     - name: Checkout Repository
-    - name: Checkout Repository
       uses: actions/checkout@v4
 
     - name: Set up MSVC
@@ -33,7 +32,6 @@ jobs:
         Write-Host "Cloning OBS Studio source for headers..."
         git clone --depth 1 https://github.com/obsproject/obs-studio.git C:/obs-source
         
-        # Biztonságos másolás létező útvonalak alapján
         if (Test-Path "C:/obs-source/libobs") {
             Copy-Item -Recurse -Force "C:/obs-source/libobs/*" "$sdkDir\\include\\libobs/"
         }
