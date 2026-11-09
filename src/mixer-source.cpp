@@ -103,9 +103,9 @@ static void ensure_resources(MixerSource *context)
 }
 
 static bool render_to_texture(gs_texrender_t *target,
-                             obs_source_t *source,
-                             uint32_t width,
-                             uint32_t height)
+                              obs_source_t *source,
+                              uint32_t width,
+                              uint32_t height)
 {
     if (!target || !source || width == 0 || height == 0)
         return false;
@@ -255,8 +255,9 @@ static void draw_mixer(void *data)
     set_color_params(context, *color_a, *color_b, xfade,
                      decks->transitionMode());
 
-    gs_effect_loop(context->effect, "Draw")
+    while (gs_effect_loop(context->effect, "Draw")) {
         gs_draw_sprite(texture_a, 0, width, height);
+    }
 }
 
 static void mixer_video_render(void *data, gs_effect_t *)
@@ -333,8 +334,9 @@ static void monitor_video_render(void *data, gs_effect_t *)
 
     set_color_params(context, deck, deck, 0.0f, 0);
 
-    gs_effect_loop(context->effect, "Draw")
+    while (gs_effect_loop(context->effect, "Draw")) {
         gs_draw_sprite(texture, 0, width, height);
+    }
 }
 
 static obs_properties_t *mixer_properties(void *)
