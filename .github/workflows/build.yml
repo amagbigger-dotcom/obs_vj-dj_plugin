@@ -12,6 +12,7 @@ jobs:
 
     steps:
     - name: Checkout Repository
+    - name: Checkout Repository
       uses: actions/checkout@v4
 
     - name: Set up MSVC
@@ -26,26 +27,28 @@ jobs:
       run: |
         $sdkDir = "$env:RUNNER_TEMP\\obs-sdk"
         New-Item -ItemType Directory -Force -Path "$sdkDir\\include\\libobs"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\\include\\UI\\obs-frontend-api"
+        New-Item -ItemType Directory -Force -Path "$sdkDir\\include\\obs-frontend-api"
         New-Item -ItemType Directory -Force -Path "$sdkDir\\lib"
         
-        Write-Host "Cloning OBS Studio 33.0.1 headers and libraries..."
-        git clone --depth 1 --branch 33.0.1 https://github.com/obsproject/obs-studio.git C:/obs-source
+        Write-Host "Cloning OBS Studio source for headers..."
+        git clone --depth 1 https://github.com/obsproject/obs-studio.git C:/obs-source
         
-        # Header fájlok átmásolása a helyes struktúrába
-        Copy-Item -Recurse -Force "C:/obs-source/libobs/*" "$sdkDir\\include\\libobs/"
-        Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api/*" "$sdkDir\\include\\UI\\obs-frontend-api/"
-        
-        # Létrehozunk egy dummy libobs.lib / obs-frontend-api.lib stubot vagy átmásoljuk, ha van
-        # Mivel a plugin DLL-t építünk, a linkeléshez a libobs target kell. 
-        # A legegyszerűbb, ha az egész obs-source-t átadjuk CMake-nek source subdirectoryként vagy include-ként.
+        # Biztonságos másolás létező útvonalak alapján
+        if (Test-Path "C:/obs-source/libobs") {
+            Copy-Item -Recurse -Force "C:/obs-source/libobs/*" "$sdkDir\\include\\libobs/"
+        }
+        if (Test-Path "C:/obs-source/UI/obs-frontend-api") {
+            Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api/*" "$sdkDir\\include\\obs-frontend-api/"
+        } elseif (Test-Path "C:/obs-source/obs-frontend-api") {
+            Copy-Item -Recurse -Force "C:/obs-source/obs-frontend-api/*" "$sdkDir\\include\\obs-frontend-api/"
+        }
       shell: pwsh
 
     - name: Configure CMake
       env:
         OBS_SDK_DIR: ${{ runner.temp }}/obs-sdk
       run: |
-        cmake -B build -A x64 -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk" -Dobs-studio_DIR="C:/obs-source"
+        cmake -B build -A x64 -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk"
       shell: pwsh
 
     - name: Build Plugin
