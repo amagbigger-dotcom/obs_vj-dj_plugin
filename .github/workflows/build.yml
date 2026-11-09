@@ -36,17 +36,19 @@ jobs:
         if (Test-Path "C:/obs-source/libobs") {
             Copy-Item -Recurse -Force "C:/obs-source/libobs/*" "$sdkDir\include\libobs/"
         }
+        
+        # Pontosabb másolás az obs-frontend-api headerhez
         if (Test-Path "C:/obs-source/UI/obs-frontend-api") {
-            Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api/*" "$sdkDir\\include\\obs-frontend-api/"
+            Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api/*.h" "$sdkDir\include\obs-frontend-api/"
         } elseif (Test-Path "C:/obs-source/obs-frontend-api") {
-            Copy-Item -Recurse -Force "C:/obs-source/obs-frontend-api/*" "$sdkDir\include\obs-frontend-api/"
+            Copy-Item -Recurse -Force "C:/obs-source/obs-frontend-api/*.h" "$sdkDir\include\obs-frontend-api/"
         }
 
         $obsConfigPath = "$sdkDir\include\libobs\obsconfig.h"
         "#pragma once" | Out-File -FilePath $obsConfigPath -Encoding utf8
         '#define OBS_VERSION "33.0.1"' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
         '#define OBS_VERSION_NUMBER 0x210001' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
-        Write-Host "obsconfig.h successfully created."
+        Write-Host "obsconfig.h and headers successfully prepared."
 
     - name: Configure CMake
       env:
