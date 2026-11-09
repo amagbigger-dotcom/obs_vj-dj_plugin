@@ -1,69 +1,66 @@
-name: Build OBS VJ DJ Plugin (OBS 33.0.1)
+cmake_minimum_required(VERSION 3.25)
+project(obs_vj-dj_plugin LANGUAGES C CXX)
 
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
 
-jobs:
-  build:
-    runs-on: windows-latest
+find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+if(DEFINED ENV{OBS_SDK_DIR})
+    set(OBS_DIR "$ENV{OBS_SDK_DIR}")
+elseif(DEFINED RUNNER_TEMP)
+    set(OBS_DIR "$env:RUNNER_TEMP/obs-sdk")
+else()
+    set(OBS_DIR "D:/a/_temp/obs-sdk")
+endif()
 
-    - name: Set up MSVC
-      uses: ilammy/msvc-dev-cmd@v1
+file(TO_CMAKE_PATH "${OBS_DIR}" OBS_DIR)
 
-    - name: Set up Qt6
-      uses: jurplel/install-qt-action@v4
-      with:
-        version: '6.6.1'
+set(SOURCES
+    src/plugin-main.cpp
+    src/deck-engine.cpp
+    src/deck-engine.hpp
+    src/mixer-source.cpp
+    src/mixer-dock.cpp
+    src/mixer-dock.hpp
+    src/midi-handler.cpp
+    src/midi-handler.hpp
+)
 
-    - name: Prepare OBS SDK Headers and Config
-      shell: pwsh
-      run: |
-        $sdkDir = "$env:RUNNER_TEMP\obs-sdk"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\include\libobs"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\include\obs-frontend-api"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\lib"
-        
-        Write-Host "Cloning OBS Studio source for headers..."
-        git clone --depth 1 https://github.com/obsproject/obs-studio.git C:/obs-source
-        
-        if (Test-Path "C:/obs-source/libobs") {
-            Copy-Item -Recurse -Force "C:/obs-source/libobs/*" "$sdkDir\include\libobs/"
-        }
-        
-        # OBS 33+ alatt a frontend-api a frontend/api/ mappában van
-        if (Test-Path "C:/obs-source/frontend/api") {
-            Copy-Item -Recurse -Force "C:/obs-source/frontend/api/*.h" "$sdkDir\include\obs-frontend-api/"
-        } elseif (Test-Path "C:/obs-source/UI/obs-frontend-api") {
-            Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api/*.h" "$sdkDir\include\obs-frontend-api/"
-        }
+add_library(obs_vj-dj_plugin MODULE ${SOURCES})
 
-        $obsConfigPath = "$sdkDir\include\libobs\obsconfig.h"
-        "#pragma once" | Out-File -FilePath $obsConfigPath -Encoding utf8
-        '#define OBS_VERSION "33.0.1"' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
-        '#define OBS_VERSION_NUMBER 0x210001' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
-        Write-Host "obsconfig.h and headers successfully prepared."
+set_target_properties(obs_vj-dj_plugin PROPERTIES 
+    WINDOWS_EXPORT_ALL_SYMBOLS TRUE
+    PREFIX ""
+)
 
-    - name: Configure CMake
-      env:
-        OBS_SDK_DIR: ${{ runner.temp }}/obs-sdk
-      shell: pwsh
-      run: |
-        cmake -B build -A x64 -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk"
+target_include_directories(obs_vj-dj_plugin PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    "${OBS_DIR}/include"
+    "${OBS_DIR}/include/libobs"
+    "${OBS_DIR}/include/obs-frontend-api"
+)
 
-    - name: Build Plugin
-      shell: pwsh
-      run: |
-        cmake --build build --config Release
+target_link_directories(obs_vj-dj_plugin PRIVATE
+    "${OBS_DIR}/lib"
+    "${OBS_DIR}/bin"
+)
 
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: obs_vj-dj_plugin.dll
-        path: build/Release/obs_vj-dj_plugin.dll
+# Itt volt a hiba: obs helyett libobs kell
+target_link_libraries(obs_vj-dj_plugin PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    libobs
+    obs-frontend-api
+    winmm
+)
+
+target_compile_definitions(obs_vj-dj_plugin PRIVATE
+    UNICODE
+    _UNICODE
+    NOMINMAX
+)
