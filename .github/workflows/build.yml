@@ -22,33 +22,22 @@ jobs:
       with:
         version: '6.6.1'
 
-    - name: Prepare OBS SDK Headers and Config
+    - name: Download and Extract OBS Studio 33.0.1 SDK
       shell: pwsh
       run: |
+        $sdkUrl = "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip"
+        $outputZip = "$env:RUNNER_TEMP\obs-sdk.zip"
         $sdkDir = "$env:RUNNER_TEMP\obs-sdk"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\include\libobs"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\include\obs-frontend-api"
-        New-Item -ItemType Directory -Force -Path "$sdkDir\lib"
         
-        Write-Host "Cloning OBS Studio source for headers..."
-        git clone --depth 1 https://github.com/obsproject/obs-studio.git C:/obs-source
+        New-Item -ItemType Directory -Force -Path $sdkDir
+        Write-Host "Downloading OBS Studio SDK from $sdkUrl..."
+        Invoke-WebRequest -Uri $sdkUrl -OutFile $outputZip -MaximumRedirection 5
         
-        if (Test-Path "C:/obs-source/libobs") {
-            Copy-Item -Recurse -Force "C:/obs-source/libobs/*" "$sdkDir\include\libobs/"
-        }
-        
-        # OBS 33+ alatt a frontend-api a frontend/api/ mappában van
-        if (Test-Path "C:/obs-source/frontend/api") {
-            Copy-Item -Recurse -Force "C:/obs-source/frontend/api/*.h" "$sdkDir\include\obs-frontend-api/"
-        } elseif (Test-Path "C:/obs-source/UI/obs-frontend-api") {
-            Copy-Item -Recurse -Force "C:/obs-source/UI/obs-frontend-api/*.h" "$sdkDir\include\obs-frontend-api/"
-        }
+        Write-Host "Extracting OBS Studio SDK..."
+        Expand-Archive -Path $outputZip -DestinationPath $sdkDir -Force
 
-        $obsConfigPath = "$sdkDir\include\libobs\obsconfig.h"
-        "#pragma once" | Out-File -FilePath $obsConfigPath -Encoding utf8
-        '#define OBS_VERSION "33.0.1"' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
-        '#define OBS_VERSION_NUMBER 0x210001' | Out-File -FilePath $obsConfigPath -Append -Encoding utf8
-        Write-Host "obsconfig.h and headers successfully prepared."
+        # Ellenőrzésképpen kiírjuk, hol van a libobs.lib
+        Get-ChildItem -Path $sdkDir -Recurse -Filter "libobs.lib" | Select-Object FullName
 
     - name: Configure CMake
       env:
