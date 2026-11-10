@@ -86,7 +86,8 @@ void DeckPlayer::loadFile(const QString &path)
 
     {
         std::lock_guard<std::mutex> lock(waveform_mutex_);
-        waveform_samples_.clear();
+        overview_samples_.clear();
+        detailed_samples_.clear();
     }
 
     // Launch real asynchronous audio decoding, BPM & downbeat analysis
@@ -94,7 +95,7 @@ void DeckPlayer::loadFile(const QString &path)
         if (res.success) {
             setBpm(res.detected_bpm);
             setGridOffsetMs(res.grid_offset_ms);
-            setWaveformSamples(res.waveform_peaks);
+            setWaveformSamples(res.overview_peaks, res.detailed_peaks);
         }
     });
 
@@ -245,22 +246,114 @@ void DeckPlayer::setGridAnchorAtCurrent() noexcept
     grid_offset_ms_.store(offset, std::memory_order_relaxed);
 }
 
-void DeckPlayer::setWaveformSamples(const std::vector<float> &samples)
+void DeckPlayer::setWaveformSamples(const std::vector<float> &overview, const std::vector<float> &detailed)
 {
     std::lock_guard<std::mutex> lock(waveform_mutex_);
-    waveform_samples_ = samples;
+    overview_samples_ = overview;
+    detailed_samples_ = detailed;
+}
+
+std::vector<float> DeckPlayer::overviewSamples() const
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    return overview_samples_;
+}
+
+std::vector<float> DeckPlayer::detailedSamples() const
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    return detailed_samples_;
 }
 
 std::vector<float> DeckPlayer::waveformSamples() const
 {
     std::lock_guard<std::mutex> lock(waveform_mutex_);
-    return waveform_samples_;
+    return overview_samples_;
 }
 
 bool DeckPlayer::hasAnalyzedWaveform() const
 {
     std::lock_guard<std::mutex> lock(waveform_mutex_);
-    return !waveform_samples_.empty();
+    return !overview_samples_.empty() || !detailed_samples_.empty();
+}
+
+void DeckPlayer::setEqHi(float val) noexcept
+{
+    eq_hi_.store(std::clamp(val, 0.0f, 2.0f), std::memory_order_relaxed);
+    setRed(val);
+}
+
+void DeckPlayer::setEqMid(float val) noexcept
+{
+    eq_mid_.store(std::clamp(val, 0.0f, 2.0f), std::memory_order_relaxed);
+    setGreen(val);
+}
+
+void DeckPlayer::setEqLow(float val) noexcept
+{
+    eq_low_.store(std::clamp(val, 0.0f, 2.0f), std::memory_order_relaxed);
+    setBlue(val);
+}
+
+void DeckPlayer::setFilterVal(float val) noexcept
+{
+    filter_val_.store(std::clamp(val, -1.0f, 1.0f), std::memory_order_relaxed);
+    setSaturation(1.0f + val);
+}
+
+float DeckPlayer::eqHi() const noexcept { return eq_hi_.load(std::memory_order_relaxed); }
+float DeckPlayer::eqMid() const noexcept { return eq_mid_.load(std::memory_order_relaxed); }
+float DeckPlayer::eqLow() const noexcept { return eq_low_.load(std::memory_order_relaxed); }
+float DeckPlayer::filterVal() const noexcept { return filter_val_.load(std::memory_order_relaxed); }
+
+void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t channel_idx, size_t sample_rate)
+{
+    if (!channel_data || num_frames == 0)
+        return;
+
+    const float g_hi = eq_hi_.load(std::memory_order_relaxed);
+    const float g_mid = eq_mid_.load(std::memory_order_relaxed);
+    const float g_low = eq_low_.load(std::memory_order_relaxed);
+    const float f_val = filter_val_.load(std::memory_order_relaxed);
+
+    const size_t ch = channel_idx % 2;
+    FilterState &st = dsp_states_[ch];
+
+    const float sr = (sample_rate > 0) ? static_cast<float>(sample_rate) : 48000.0f;
+    // Low crossover at 300 Hz, High crossover at 3000 Hz
+    const float alpha_low = std::clamp(2.0f * 3.14159f * 300.0f / sr, 0.001f, 0.99f);
+    const float alpha_high = std::clamp(2.0f * 3.14159f * 3000.0f / sr, 0.001f, 0.99f);
+
+    for (size_t i = 0; i < num_frames; ++i) {
+        const float in = channel_data[i];
+
+        // 3-band crossover decomposition
+        st.lp += alpha_low * (in - st.lp);
+        st.hp += alpha_high * (in - st.hp);
+
+        const float low_band = st.lp;
+        const float high_band = in - st.hp;
+        const float mid_band = in - low_band - high_band;
+
+        float out = low_band * g_low + mid_band * g_mid + high_band * g_hi;
+
+        // DJ Filter: Low-Pass when f_val < 0, High-Pass when f_val > 0
+        if (f_val < -0.01f) {
+            // Cut highs progressively
+            const float cutoff = 300.0f + (1.0f + f_val) * 8000.0f;
+            const float a_lp = std::clamp(2.0f * 3.14159f * cutoff / sr, 0.01f, 0.99f);
+            st.dj_lp += a_lp * (out - st.dj_lp);
+            out = st.dj_lp;
+        } else if (f_val > 0.01f) {
+            // Cut lows progressively
+            const float cutoff = 100.0f + f_val * 4000.0f;
+            const float a_hp = std::clamp(2.0f * 3.14159f * cutoff / sr, 0.01f, 0.99f);
+            st.dj_hp += a_hp * (out - st.dj_hp);
+            out = out - st.dj_hp;
+        }
+
+        channel_data[i] = std::clamp(out, -1.5f, 1.5f);
+    }
 }
 
 void DeckPlayer::setHeadphoneCue(bool cue) noexcept
@@ -404,8 +497,17 @@ void DeckPlayer::updateLoop()
     const int64_t start = loop_start_ms_.load(std::memory_order_relaxed);
     const int64_t end = loop_end_ms_.load(std::memory_order_relaxed);
 
-    if (end > start && currentTimeMs() >= end)
+    if (is_loop_seeking_.load(std::memory_order_relaxed)) {
+        if (currentTimeMs() <= start + 150) {
+            is_loop_seeking_.store(false, std::memory_order_relaxed);
+        }
+        return;
+    }
+
+    if (end > start && currentTimeMs() >= end) {
+        is_loop_seeking_.store(true, std::memory_order_relaxed);
         obs_source_media_set_time(source_, static_cast<uint64_t>(start));
+    }
 }
 
 void DeckPlayer::seek(double normalized_position)

@@ -20,10 +20,11 @@
 #include <QFileInfo>
 
 namespace {
-constexpr uint32_t kSampleRate = 11025; // 11.025 kHz is ideal for fast onset/beat tracking
-constexpr size_t kMaxAnalysisSeconds = 180; // First 3 minutes is plenty for accurate BPM & downbeat
+constexpr uint32_t kSampleRate = 11025; // 11.025 kHz mono PCM
+constexpr size_t kMaxAnalysisSeconds = 240; // Analyze first 4 minutes
 constexpr size_t kMaxSamples = kSampleRate * kMaxAnalysisSeconds;
-constexpr size_t kWaveformBuckets = 600;
+constexpr size_t kOverviewBuckets = 500;
+constexpr size_t kWindowSize = 110; // ~10 ms (100 windows/sec)
 }
 
 TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
@@ -101,7 +102,7 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
 
     // Read audio PCM samples
     std::vector<int16_t> audio_samples;
-    audio_samples.reserve(kSampleRate * 60); // Reserve 1 minute
+    audio_samples.reserve(kSampleRate * 120);
 
     while (audio_samples.size() < kMaxSamples) {
         DWORD streamIndex = 0;
@@ -147,13 +148,12 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         return result;
 
     result.success = true;
-
-    // 1. Calculate Real Waveform Envelope (Peak Buckets)
-    result.waveform_peaks.resize(kWaveformBuckets, 0.05f);
     const size_t total_samples = audio_samples.size();
-    const size_t samples_per_bucket = std::max<size_t>(1, total_samples / kWaveformBuckets);
 
-    for (size_t b = 0; b < kWaveformBuckets; ++b) {
+    // 1. Overview Waveform (whole track progress bar, ~500 points)
+    result.overview_peaks.resize(kOverviewBuckets, 0.05f);
+    const size_t samples_per_bucket = std::max<size_t>(1, total_samples / kOverviewBuckets);
+    for (size_t b = 0; b < kOverviewBuckets; ++b) {
         const size_t start = b * samples_per_bucket;
         const size_t end = std::min(start + samples_per_bucket, total_samples);
 
@@ -161,47 +161,51 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         for (size_t i = start; i < end; ++i) {
             max_val = std::max(max_val, static_cast<int32_t>(std::abs(audio_samples[i])));
         }
-
-        const float peak = static_cast<float>(max_val) / 32768.0f;
-        result.waveform_peaks[b] = std::clamp(peak, 0.05f, 1.0f);
+        result.overview_peaks[b] = std::clamp(static_cast<float>(max_val) / 32768.0f, 0.05f, 1.0f);
     }
+    result.waveform_peaks = result.overview_peaks;
 
-    // 2. Onset Detection Function / Novelty Curve
-    // Window of ~10 ms (110 samples at 11025 Hz)
-    constexpr size_t kWindowSize = 110;
+    // 2. High-Resolution Detailed Waveform (100 points/sec, 10ms window)
+    // Every single kick drum, snare, and hi-hat transient will be clearly visible!
     const size_t num_windows = total_samples / kWindowSize;
-    if (num_windows < 500)
-        return result; // Not enough audio for beat tracking
-
+    result.detailed_peaks.resize(num_windows, 0.05f);
     std::vector<float> energy(num_windows, 0.0f);
+
     for (size_t w = 0; w < num_windows; ++w) {
+        const size_t start = w * kWindowSize;
+        int32_t max_val = 0;
         double sum_sq = 0.0;
-        const size_t offset = w * kWindowSize;
         for (size_t i = 0; i < kWindowSize; ++i) {
-            const double s = static_cast<double>(audio_samples[offset + i]) / 32768.0;
+            const int16_t val = audio_samples[start + i];
+            max_val = std::max(max_val, static_cast<int32_t>(std::abs(val)));
+            const double s = static_cast<double>(val) / 32768.0;
             sum_sq += s * s;
         }
+        result.detailed_peaks[w] = std::clamp(static_cast<float>(max_val) / 32768.0f, 0.05f, 1.0f);
         energy[w] = static_cast<float>(std::sqrt(sum_sq / static_cast<double>(kWindowSize)));
     }
 
-    // Half-wave rectified first difference (spectral flux proxy)
+    if (num_windows < 500)
+        return result;
+
+    // 3. Onset Novelty Curve (Energy Increase)
     std::vector<float> novelty(num_windows, 0.0f);
     for (size_t w = 1; w < num_windows; ++w) {
         const float diff = energy[w] - energy[w - 1];
         novelty[w] = (diff > 0.0f) ? diff : 0.0f;
     }
 
-    // 3. Autocorrelation Tempo Estimation (Range 60 - 190 BPM)
-    // Step size is ~10 ms (100 windows per second)
-    // BPM = 60000 / (lag_in_ms) = (60 * 100) / lag = 6000 / lag
-    // For BPM in [60, 190]: lag in [6000/190, 6000/60] = [31, 100]
-    constexpr int kMinLag = 31;  // ~193 BPM
+    // 4. Autocorrelation with Parabolic Sub-sample Peak Interpolation
+    // Lag in steps of 10ms (100 windows/sec)
+    // 60 BPM to 185 BPM: lag range ~ [32, 100]
+    constexpr int kMinLag = 32;  // ~187.5 BPM
     constexpr int kMaxLag = 100; // ~60 BPM
 
-    double best_score = -1.0;
-    int best_lag = 47; // Default ~127.6 BPM
+    std::vector<double> autocorr(kMaxLag + 2, 0.0);
+    const size_t max_novelty_len = std::min<size_t>(novelty.size(), 100 * 90); // 90 seconds analysis
 
-    const size_t max_novelty_len = std::min<size_t>(novelty.size(), 100 * 90); // Use up to 90 seconds
+    int best_lag = 47;
+    double best_score = -1.0;
 
     for (int lag = kMinLag; lag <= kMaxLag; ++lag) {
         double sum = 0.0;
@@ -210,10 +214,11 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
             sum += static_cast<double>(novelty[i]) * static_cast<double>(novelty[i + lag]);
         }
 
-        const double bpm = 6000.0 / static_cast<double>(lag);
-        // Gaussian tempo prior centered around 125 BPM (sigma = 35) to favor dance tempos and resolve octaves
-        const double prior = std::exp(-std::pow(bpm - 125.0, 2.0) / (2.0 * 35.0 * 35.0));
+        const double bpm = (60.0 * static_cast<double>(kSampleRate)) / (static_cast<double>(kWindowSize) * lag);
+        // Gaussian tempo prior around 126 BPM (sigma 35) to prevent octave jumps
+        const double prior = std::exp(-std::pow(bpm - 126.0, 2.0) / (2.0 * 35.0 * 35.0));
         const double score = sum * prior;
+        autocorr[lag] = score;
 
         if (score > best_score) {
             best_score = score;
@@ -221,13 +226,28 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         }
     }
 
-    const double detected_bpm = 6000.0 / static_cast<double>(best_lag);
-    result.detected_bpm = std::round(detected_bpm * 10.0) / 10.0; // 1 decimal place
+    // Parabolic interpolation for fine sub-sample BPM accuracy:
+    double fine_lag = static_cast<double>(best_lag);
+    if (best_lag > kMinLag && best_lag < kMaxLag) {
+        const double y0 = autocorr[best_lag - 1];
+        const double y1 = autocorr[best_lag];
+        const double y2 = autocorr[best_lag + 1];
+        const double denom = 2.0 * (y0 - 2.0 * y1 + y2);
+        if (std::abs(denom) > 1e-6) {
+            const double delta = (y0 - y2) / denom;
+            if (std::abs(delta) < 1.0)
+                fine_lag += delta;
+        }
+    }
 
-    // 4. Downbeat Anchor Detection (First Beat Offset)
-    // Check offsets in first 15 seconds to maximize alignment with beat period
-    const int period = best_lag;
-    const size_t max_search_windows = std::min<size_t>(novelty.size() - period, 100 * 15); // First 15 seconds
+    const double samples_per_beat = fine_lag * static_cast<double>(kWindowSize);
+    const double detected_bpm = (60.0 * static_cast<double>(kSampleRate)) / samples_per_beat;
+    result.detected_bpm = std::round(detected_bpm * 10.0) / 10.0;
+
+    // 5. Downbeat (Kick 1) Anchor Alignment
+    // Scan the first 15 seconds to find the beat phase offset that aligns with maximum onset peaks
+    const int period = std::max(1, static_cast<int>(std::round(fine_lag)));
+    const size_t max_search_windows = std::min<size_t>(novelty.size() - period, 100 * 15);
 
     double best_offset_score = -1.0;
     int best_offset = 0;
@@ -248,8 +268,9 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         }
     }
 
-    // Convert offset windows to milliseconds (each window is ~10 ms)
-    result.grid_offset_ms = static_cast<int64_t>(best_offset) * 10;
+    // Convert offset windows to milliseconds (each window is kWindowSize / kSampleRate seconds)
+    const double ms_per_window = (static_cast<double>(kWindowSize) / static_cast<double>(kSampleRate)) * 1000.0;
+    result.grid_offset_ms = static_cast<int64_t>(best_offset * ms_per_window);
 #endif
 
     return result;
@@ -264,4 +285,3 @@ void AudioAnalyzer::analyzeFileAsync(const QString &file_path,
             callback(res);
     }).detach();
 }
-

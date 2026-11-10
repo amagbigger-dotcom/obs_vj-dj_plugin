@@ -138,7 +138,7 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
       decks_(decks)
 {
     setWindowTitle(QStringLiteral("Traktor DJ Studio • OBS Video DJ Mixer"));
-    resize(1200, 680);
+    resize(1140, 560);
     setStyleSheet(QString::fromUtf8(TRAKTOR_V2_STYLESHEET));
 
     auto *main_layout = new QVBoxLayout(this);
@@ -617,10 +617,10 @@ QWidget *MixerWindow::buildCenterMixerPanel()
         };
 
         addEqSlider(QStringLiteral("GAIN"), out_gain, 0, [deck](float v) { deck->setVolume(v); });
-        addEqSlider(QStringLiteral("HI"), out_hi, 0, [deck](float v) { deck->setRed(v); });
-        addEqSlider(QStringLiteral("MID"), out_mid, 0, [deck](float v) { deck->setGreen(v); });
-        addEqSlider(QStringLiteral("LOW"), out_low, 0, [deck](float v) { deck->setBlue(v); });
-        addEqSlider(QStringLiteral("FLT"), out_flt, 0, [deck](float v) { deck->setSaturation(v); });
+        addEqSlider(QStringLiteral("HI"), out_hi, 0, [deck](float v) { deck->setEqHi(v); });
+        addEqSlider(QStringLiteral("MID"), out_mid, 0, [deck](float v) { deck->setEqMid(v); });
+        addEqSlider(QStringLiteral("LOW"), out_low, 0, [deck](float v) { deck->setEqLow(v); });
+        addEqSlider(QStringLiteral("FLT"), out_flt, 0, [deck](float v) { deck->setFilterVal(v - 1.0f); });
 
         return col;
     };
@@ -673,7 +673,7 @@ QWidget *MixerWindow::buildCenterMixerPanel()
     vol_a_ = new DJSlider(Qt::Vertical, 100, panel);
     vol_a_->setRange(0, 100);
     vol_a_->setValue(100);
-    vol_a_->setFixedHeight(75);
+    vol_a_->setFixedHeight(115);
     vol_a_->setToolTip(QStringLiteral("Deck A Volume Fader. Double-click resets to 100%."));
     fader_col_a->addWidget(hp_cue_a_btn_);
     fader_col_a->addWidget(vol_a_, 0, Qt::AlignCenter);
@@ -688,7 +688,7 @@ QWidget *MixerWindow::buildCenterMixerPanel()
     vol_b_ = new DJSlider(Qt::Vertical, 100, panel);
     vol_b_->setRange(0, 100);
     vol_b_->setValue(100);
-    vol_b_->setFixedHeight(75);
+    vol_b_->setFixedHeight(115);
     vol_b_->setToolTip(QStringLiteral("Deck B Volume Fader. Double-click resets to 100%."));
     fader_col_b->addWidget(hp_cue_b_btn_);
     fader_col_b->addWidget(vol_b_, 0, Qt::AlignCenter);

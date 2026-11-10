@@ -19,6 +19,7 @@ struct MixerSource {
 };
 
 static const char *MIXER_EFFECT = R"(
+uniform float4x4 ViewProj;
 uniform texture2d image_a;
 uniform texture2d image_b;
 uniform float4 gains_a;
@@ -47,7 +48,10 @@ struct VertData {
 
 VertData VSDefault(VertData v)
 {
-    return v;
+    VertData v_out;
+    v_out.pos = mul(float4(v.pos.xyz, 1.0), ViewProj);
+    v_out.uv  = v.uv;
+    return v_out;
 }
 
 float4 colorize(float4 color, float4 gains, float saturation)
@@ -435,6 +439,26 @@ static bool mixer_audio_render(void *data, uint64_t *ts_out,
     else
         *ts_out = has_a ? ts_a : ts_b;
 
+    if (has_a) {
+        for (size_t mix = 0; mix < MAX_AUDIO_MIXES; mix++) {
+            if ((mixers & (1U << mix)) == 0)
+                continue;
+            for (size_t ch = 0; ch < channels; ch++) {
+                deck_a.processAudioDsp(mix_a.output[mix].data[ch], AUDIO_OUTPUT_FRAMES, ch, sample_rate);
+            }
+        }
+    }
+
+    if (has_b) {
+        for (size_t mix = 0; mix < MAX_AUDIO_MIXES; mix++) {
+            if ((mixers & (1U << mix)) == 0)
+                continue;
+            for (size_t ch = 0; ch < channels; ch++) {
+                deck_b.processAudioDsp(mix_b.output[mix].data[ch], AUDIO_OUTPUT_FRAMES, ch, sample_rate);
+            }
+        }
+    }
+
     const int output_mode = decks->obsOutputMode();
     const float crossfade = static_cast<float>(decks->crossfader());
     const float gain_a = (output_mode == 2) ? 0.0f : ((output_mode == 1) ? 1.0f : (1.0f - crossfade));
@@ -498,10 +522,12 @@ static bool monitor_audio_render(void *data, uint64_t *ts_out,
         for (size_t ch = 0; ch < channels; ch++) {
             float *out = audio_output->output[m].data[ch];
             const float *in = mix.output[m].data[ch];
-            if (in)
+            if (in) {
                 memcpy(out, in, AUDIO_OUTPUT_FRAMES * sizeof(float));
-            else
+                deck.processAudioDsp(out, AUDIO_OUTPUT_FRAMES, ch, sample_rate);
+            } else {
                 memset(out, 0, AUDIO_OUTPUT_FRAMES * sizeof(float));
+            }
         }
     }
 

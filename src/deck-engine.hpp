@@ -39,9 +39,23 @@ public:
     void nudgeGrid(int64_t delta_ms) noexcept;
     void setGridAnchorAtCurrent() noexcept;
 
-    void setWaveformSamples(const std::vector<float> &samples);
+    void setWaveformSamples(const std::vector<float> &overview, const std::vector<float> &detailed);
+    std::vector<float> overviewSamples() const;
+    std::vector<float> detailedSamples() const;
     std::vector<float> waveformSamples() const;
     bool hasAnalyzedWaveform() const;
+
+    void setEqHi(float val) noexcept;
+    void setEqMid(float val) noexcept;
+    void setEqLow(float val) noexcept;
+    void setFilterVal(float val) noexcept;
+
+    float eqHi() const noexcept;
+    float eqMid() const noexcept;
+    float eqLow() const noexcept;
+    float filterVal() const noexcept;
+
+    void processAudioDsp(float *channel_data, size_t num_frames, size_t channel_idx, size_t sample_rate);
 
     void setVolume(float volume);
     float volume() const noexcept;
@@ -97,8 +111,23 @@ private:
     std::atomic<float> blue_{1.0f};
     std::atomic<float> saturation_{1.0f};
 
+    std::atomic<float> eq_hi_{1.0f};
+    std::atomic<float> eq_mid_{1.0f};
+    std::atomic<float> eq_low_{1.0f};
+    std::atomic<float> filter_val_{0.0f};
+
+    std::atomic<bool> is_loop_seeking_{false};
+
+    struct FilterState {
+        float lp = 0.0f;
+        float hp = 0.0f;
+        float dj_lp = 0.0f;
+        float dj_hp = 0.0f;
+    } dsp_states_[2];
+
     mutable std::mutex waveform_mutex_;
-    std::vector<float> waveform_samples_;
+    std::vector<float> overview_samples_;
+    std::vector<float> detailed_samples_;
 };
 
 using DeckEngine = DeckPlayer;

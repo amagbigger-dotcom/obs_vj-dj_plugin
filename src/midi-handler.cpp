@@ -68,16 +68,16 @@ void handle_control_change(DeckPair *decks,
 
     switch (controller) {
     case 16:
-        deck->setRed(static_cast<float>(value) / 63.5f);
+        deck->setEqHi(static_cast<float>(value) / 63.5f);
         break;
     case 17:
-        deck->setGreen(static_cast<float>(value) / 63.5f);
+        deck->setEqMid(static_cast<float>(value) / 63.5f);
         break;
     case 18:
-        deck->setBlue(static_cast<float>(value) / 63.5f);
+        deck->setEqLow(static_cast<float>(value) / 63.5f);
         break;
     case 19:
-        deck->setSaturation(static_cast<float>(value) / 63.5f);
+        deck->setFilterVal((static_cast<float>(value) - 63.5f) / 63.5f);
         break;
     case 20:
         deck->setVolume(static_cast<float>(value) / 127.0f);
