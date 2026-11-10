@@ -43,6 +43,7 @@ public:
 private:
     void buildDeckPanel(QWidget *parent, bool is_deck_a);
     void buildMixerSection(QWidget *parent);
+    void loadAudioMonitoringDevices();
     void refreshDeck(bool is_deck_a);
     void refreshMixer();
     static QString formatTime(qint64 ms);
@@ -79,4 +80,5 @@ private:
 
     QSlider *crossfader_ = nullptr;
     QLabel *midi_status_lbl_ = nullptr;
+    QComboBox *audio_monitor_devices_ = nullptr;
 };

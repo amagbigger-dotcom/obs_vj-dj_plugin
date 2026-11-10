@@ -23,6 +23,28 @@
 #include <QWidget>
 
 #include <cstdint>
+#include <vector>
+
+namespace {
+struct AudioDeviceEntry {
+    QString name;
+    QString id;
+};
+
+struct AudioDeviceList {
+    std::vector<AudioDeviceEntry> entries;
+};
+
+bool enum_audio_monitoring_devices_cb(void *data, const char *name, const char *id)
+{
+    auto *list = static_cast<AudioDeviceList *>(data);
+    if (!list || !name || !id || !*name || !*id)
+        return true;
+
+    list->entries.push_back({QString::fromUtf8(name), QString::fromUtf8(id)});
+    return true;
+}
+} // namespace
 
 static void preview_draw_callback(void *param, uint32_t cx, uint32_t cy)
 {
@@ -333,6 +355,42 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
     refreshMixer();
 }
 
+void MixerWindow::loadAudioMonitoringDevices()
+{
+    if (!audio_monitor_devices_)
+        return;
+
+    audio_monitor_devices_->clear();
+
+    if (!obs_audio_monitoring_available()) {
+        audio_monitor_devices_->addItem(QStringLiteral("Monitoring unavailable"));
+        audio_monitor_devices_->setEnabled(false);
+        return;
+    }
+
+    AudioDeviceList devices;
+    obs_enum_audio_monitoring_devices(enum_audio_monitoring_devices_cb, &devices);
+
+    const char *current_name = nullptr;
+    const char *current_id = nullptr;
+    obs_get_audio_monitoring_device(&current_name, &current_id);
+
+    int selected_index = -1;
+    for (const auto &device : devices.entries) {
+        audio_monitor_devices_->addItem(device.name, device.id);
+        if (current_id && device.id == QString::fromUtf8(current_id))
+            selected_index = audio_monitor_devices_->count() - 1;
+    }
+
+    if (!devices.entries.empty()) {
+        audio_monitor_devices_->setEnabled(true);
+        audio_monitor_devices_->setCurrentIndex(selected_index >= 0 ? selected_index : 0);
+    } else {
+        audio_monitor_devices_->addItem(QStringLiteral("No devices found"));
+        audio_monitor_devices_->setEnabled(false);
+    }
+}
+
 void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
 {
     auto *layout = new QVBoxLayout(parent);
@@ -602,6 +660,35 @@ void MixerWindow::buildMixerSection(QWidget *parent)
                         static_cast<double>(value) / 1000.0);
             });
 
+    auto *audio_label =
+        new QLabel(QStringLiteral("MONITOR OUTPUT"), parent);
+    audio_label->setAlignment(Qt::AlignCenter);
+    layout->addWidget(audio_label);
+
+    audio_monitor_devices_ = new QComboBox(parent);
+    audio_monitor_devices_->setMinimumWidth(180);
+    loadAudioMonitoringDevices();
+    layout->addWidget(audio_monitor_devices_);
+
+    connect(audio_monitor_devices_,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            [this](int index) {
+                if (index < 0 || !audio_monitor_devices_)
+                    return;
+                const QString selected_id =
+                    audio_monitor_devices_->itemData(index).toString();
+                const QString selected_name =
+                    audio_monitor_devices_->itemText(index);
+                if (selected_id.isEmpty())
+                    return;
+                if (obs_audio_monitoring_available()) {
+                    obs_set_audio_monitoring_device(
+                        selected_name.toUtf8().constData(),
+                        selected_id.toUtf8().constData());
+                }
+            });
+
     auto *channels = new QHBoxLayout();
 
     auto createChannelControls =
@@ -761,6 +848,24 @@ void MixerWindow::refreshMixer()
                 QStringLiteral("MIDI: Not connected"));
             midi_status_lbl_->setStyleSheet(
                 QStringLiteral("color: #e67e22; font-weight: bold; font-size: 11px;"));
+        }
+    }
+
+    if (audio_monitor_devices_) {
+        const char *current_name = nullptr;
+        const char *current_id = nullptr;
+        obs_get_audio_monitoring_device(&current_name, &current_id);
+        if (current_id && *current_id) {
+            for (int i = 0; i < audio_monitor_devices_->count(); ++i) {
+                if (audio_monitor_devices_->itemData(i).toString() ==
+                    QString::fromUtf8(current_id)) {
+                    if (audio_monitor_devices_->currentIndex() != i) {
+                        const QSignalBlocker blocker(audio_monitor_devices_);
+                        audio_monitor_devices_->setCurrentIndex(i);
+                    }
+                    break;
+                }
+            }
         }
     }
 }
