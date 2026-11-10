@@ -1,9 +1,14 @@
 #include "midi-handler.hpp"
+
 #include "deck-engine.hpp"
+
 #include <obs-module.h>
+
 #include <windows.h>
 #include <mmsystem.h>
+
 #include <atomic>
+#include <cctype>
 #include <cstring>
 #include <string>
 
@@ -13,104 +18,150 @@ namespace {
 
 HMIDIIN g_midi_in = nullptr;
 std::atomic<bool> g_connected{false};
-char g_device_name[MAXPNAMELEN] = {0};
+char g_device_name[MAXPNAMELEN] = {};
 
-void CALLBACK midi_in_proc(HMIDIIN hMidiIn, UINT wMsg, DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2)
+std::string lowercase(std::string value)
 {
-    (void)hMidiIn;
-    (void)dwInstance;
-    (void)dwParam2;
+    for (char &character : value) {
+        character = static_cast<char>(
+            std::tolower(static_cast<unsigned char>(character)));
+    }
+    return value;
+}
 
-    if (wMsg != MIM_DATA)
+bool is_target_device(const char *device_name)
+{
+    if (!device_name)
+        return false;
+
+    const std::string name = lowercase(device_name);
+
+    // A Traktor S2 nevét keressük, hogy ne nyisson meg véletlenül
+    // egy másik, nem ehhez a kiosztáshoz tartozó MIDI eszközt.
+    return name.find("traktor") != std::string::npos &&
+           name.find("s2") != std::string::npos;
+}
+
+void handle_control_change(DeckPair *decks,
+                           unsigned char channel,
+                           unsigned char controller,
+                           unsigned char value)
+{
+    if (!decks)
         return;
+
+    // A terv szerint a crossfader Ch 1 / CC 8.
+    if (channel == 0 && controller == 8) {
+        decks->setCrossfader(static_cast<double>(value) / 127.0);
+        return;
+    }
+
+    DeckPlayer *deck = nullptr;
+
+    if (channel == 0) {
+        deck = &decks->deckA();
+    } else if (channel == 1) {
+        deck = &decks->deckB();
+    } else {
+        return;
+    }
+
+    switch (controller) {
+    case 16:
+        deck->setRed(static_cast<float>(value) / 63.5f);
+        break;
+    case 17:
+        deck->setGreen(static_cast<float>(value) / 63.5f);
+        break;
+    case 18:
+        deck->setBlue(static_cast<float>(value) / 63.5f);
+        break;
+    case 19:
+        deck->setSaturation(static_cast<float>(value) / 63.5f);
+        break;
+    case 20:
+        deck->setVolume(static_cast<float>(value) / 127.0f);
+        break;
+    case 21: {
+        const int speed =
+            50 + static_cast<int>((static_cast<unsigned int>(value) * 100U) / 127U);
+        deck->setSpeed(speed);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+void handle_note(DeckPair *decks,
+                 unsigned char channel,
+                 unsigned char note)
+{
+    if (!decks)
+        return;
+
+    DeckPlayer *deck = nullptr;
+    DeckPlayer *other_deck = nullptr;
+
+    if (channel == 0) {
+        deck = &decks->deckA();
+        other_deck = &decks->deckB();
+    } else if (channel == 1) {
+        deck = &decks->deckB();
+        other_deck = &decks->deckA();
+    } else {
+        return;
+    }
+
+    switch (note) {
+    case 35:
+        deck->togglePlayback();
+        break;
+    case 36:
+        deck->cue();
+        break;
+    case 37:
+        if (other_deck)
+            deck->setSpeed(other_deck->speed());
+        break;
+    default:
+        break;
+    }
+}
+
+void CALLBACK midi_in_proc(HMIDIIN,
+                           UINT message,
+                           DWORD_PTR,
+                           DWORD_PTR parameter,
+                           DWORD_PTR)
+{
+    if (message != MIM_DATA)
+        return;
+
+    const DWORD packed_message = static_cast<DWORD>(parameter);
+    const auto status =
+        static_cast<unsigned char>(packed_message & 0xFFU);
+    const auto data1 =
+        static_cast<unsigned char>((packed_message >> 8U) & 0xFFU);
+    const auto data2 =
+        static_cast<unsigned char>((packed_message >> 16U) & 0xFFU);
+
+    const unsigned char message_type = status & 0xF0U;
+    const unsigned char channel = status & 0x0FU;
 
     DeckPair *decks = vdj_decks();
     if (!decks)
         return;
 
-    const unsigned char status = static_cast<unsigned char>(dwParam1 & 0xFF);
-    const unsigned char data1  = static_cast<unsigned char>((dwParam1 >> 8) & 0xFF);
-    const unsigned char data2  = static_cast<unsigned char>((dwParam1 >> 16) & 0xFF);
-
-    const unsigned char msg_type = status & 0xF0;
-    const unsigned char channel  = status & 0x0F;
-
-    if (msg_type == 0xB0) {
-        if (data1 == 8 || data1 == 10) {
-            const double xfade = static_cast<double>(data2) / 127.0;
-            decks->setCrossfader(xfade);
-            return;
-        }
-
-        DeckPlayer *deck = nullptr;
-        if (channel == 0) {
-            deck = &decks->deckA();
-        } else if (channel == 1) {
-            deck = &decks->deckB();
-        }
-
-        if (!deck)
-            return;
-
-        switch (data1) {
-        case 16:
-            deck->setRed(static_cast<float>(data2) / 63.5f);
-            break;
-        case 17:
-            deck->setGreen(static_cast<float>(data2) / 63.5f);
-            break;
-        case 18:
-            deck->setBlue(static_cast<float>(data2) / 63.5f);
-            break;
-        case 19:
-            deck->setSaturation(static_cast<float>(data2) / 63.5f);
-            break;
-        case 20:
-            deck->setVolume(static_cast<float>(data2) / 127.0f);
-            break;
-        case 21:
-            {
-                const int speed = 50 + static_cast<int>((data2 * 100.0f) / 127.0f);
-                deck->setSpeed(speed);
-            }
-            break;
-        default:
-            break;
-        }
+    if (message_type == 0xB0U) {
+        handle_control_change(decks, channel, data1, data2);
         return;
     }
 
-    if (msg_type == 0x90 && data2 > 0) {
-        DeckPlayer *deck = nullptr;
-        DeckPlayer *other_deck = nullptr;
-        if (channel == 0) {
-            deck = &decks->deckA();
-            other_deck = &decks->deckB();
-        } else if (channel == 1) {
-            deck = &decks->deckB();
-            other_deck = &decks->deckA();
-        }
-
-        if (!deck)
-            return;
-
-        switch (data1) {
-        case 35:
-            deck->togglePlayback();
-            break;
-        case 36:
-            deck->cue();
-            break;
-        case 37:
-            if (other_deck) {
-                deck->setSpeed(other_deck->speed());
-            }
-            break;
-        default:
-            break;
-        }
-        return;
-    }
+    // A Note On 0 velocity MIDI szerint a Note Off megfelelője.
+    // Gombműveletet csak tényleges lenyomáskor indítunk.
+    if (message_type == 0x90U && data2 > 0)
+        handle_note(decks, channel, data1);
 }
 
 } // namespace
@@ -120,70 +171,93 @@ void vdj_midi_init()
     if (g_midi_in)
         return;
 
-    const UINT num_devs = midiInGetNumDevs();
-    if (num_devs == 0) {
-        blog(LOG_INFO, "[obs-vj-mixer] No MIDI input devices found on system.");
+    g_connected.store(false, std::memory_order_relaxed);
+    g_device_name[0] = '\0';
+
+    const UINT device_count = midiInGetNumDevs();
+    UINT target_device_id = MIDI_MAPPER;
+    bool found_target = false;
+
+    for (UINT device_id = 0; device_id < device_count; ++device_id) {
+        MIDIINCAPSA capabilities = {};
+
+        if (midiInGetDevCapsA(
+                device_id, &capabilities, sizeof(capabilities)) != MMSYSERR_NOERROR) {
+            continue;
+        }
+
+        if (!is_target_device(capabilities.szPname))
+            continue;
+
+        target_device_id = device_id;
+        found_target = true;
+
+        std::strncpy(
+            g_device_name,
+            capabilities.szPname,
+            sizeof(g_device_name) - 1);
+        g_device_name[sizeof(g_device_name) - 1] = '\0';
+
+        break;
+    }
+
+    if (!found_target) {
+        blog(LOG_INFO,
+             "[obs-vj-mixer] Traktor Kontrol S2 MIDI input device not found.");
         return;
     }
 
-    UINT target_dev_id = 0;
-    bool found_traktor = false;
+    MMRESULT result = midiInOpen(
+        &g_midi_in,
+        target_device_id,
+        reinterpret_cast<DWORD_PTR>(midi_in_proc),
+        0,
+        CALLBACK_FUNCTION);
 
-    for (UINT i = 0; i < num_devs; ++i) {
-        MIDIINCAPSA caps = {0};
-        if (midiInGetDevCapsA(i, &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
-            std::string name(caps.szPname);
-            if (name.find("Traktor") != std::string::npos ||
-                name.find("Kontrol") != std::string::npos ||
-                name.find("S2") != std::string::npos) {
-                target_dev_id = i;
-                found_traktor = true;
-                std::strncpy(g_device_name, caps.szPname, sizeof(g_device_name) - 1);
-            }
-        }
-    }
-
-    if (!found_traktor) {
-        MIDIINCAPSA caps = {0};
-        if (midiInGetDevCapsA(0, &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
-            std::strncpy(g_device_name, caps.szPname, sizeof(g_device_name) - 1);
-        }
-        target_dev_id = 0;
-    }
-
-    MMRESULT res = midiInOpen(&g_midi_in, target_dev_id, reinterpret_cast<DWORD_PTR>(midi_in_proc), 0, CALLBACK_FUNCTION);
-    if (res != MMSYSERR_NOERROR) {
+    if (result != MMSYSERR_NOERROR) {
         g_midi_in = nullptr;
-        g_connected.store(false);
+        g_device_name[0] = '\0';
+        blog(LOG_WARNING,
+             "[obs-vj-mixer] Could not open Traktor S2 MIDI input (error %u).",
+             static_cast<unsigned int>(result));
         return;
     }
 
-    res = midiInStart(g_midi_in);
-    if (res != MMSYSERR_NOERROR) {
+    result = midiInStart(g_midi_in);
+
+    if (result != MMSYSERR_NOERROR) {
         midiInClose(g_midi_in);
         g_midi_in = nullptr;
-        g_connected.store(false);
+        g_device_name[0] = '\0';
+        blog(LOG_WARNING,
+             "[obs-vj-mixer] Could not start Traktor S2 MIDI input (error %u).",
+             static_cast<unsigned int>(result));
         return;
     }
 
-    g_connected.store(true);
+    g_connected.store(true, std::memory_order_relaxed);
+    blog(LOG_INFO,
+         "[obs-vj-mixer] MIDI connected: %s",
+         g_device_name);
 }
 
 void vdj_midi_shutdown()
 {
+    g_connected.store(false, std::memory_order_relaxed);
+
     if (g_midi_in) {
         midiInStop(g_midi_in);
         midiInReset(g_midi_in);
         midiInClose(g_midi_in);
         g_midi_in = nullptr;
     }
-    g_connected.store(false);
-    std::memset(g_device_name, 0, sizeof(g_device_name));
+
+    g_device_name[0] = '\0';
 }
 
 bool vdj_midi_is_connected()
 {
-    return g_connected.load();
+    return g_connected.load(std::memory_order_relaxed);
 }
 
 const char *vdj_midi_get_device_name()
