@@ -27,11 +27,22 @@ public:
     void setSpeed(int percent);
     int speed() const noexcept;
 
+    void setBpm(double bpm) noexcept;
+    double bpm() const noexcept;
+    double effectiveBpm() const noexcept;
+    double beatDurationMs() const noexcept;
+
     void setVolume(float volume);
     float volume() const noexcept;
 
     void setMixGain(float gain) noexcept;
     void enableAudioMonitoring() noexcept;
+
+    void setHeadphoneCue(bool cue) noexcept;
+    bool isHeadphoneCue() const noexcept;
+
+    int64_t loopStartMs() const noexcept;
+    int64_t loopEndMs() const noexcept;
 
     void setRed(float value) noexcept;
     void setGreen(float value) noexcept;
@@ -60,6 +71,10 @@ private:
     std::atomic<int64_t> loop_start_ms_{0};
     std::atomic<int64_t> loop_end_ms_{0};
     std::atomic<int64_t> cue_point_ms_{0};
+
+    std::atomic<double> base_bpm_{128.0};
+    std::atomic<bool> headphone_cue_{false};
+    std::atomic<int64_t> pending_speed_seek_ms_{-1};
 
     std::atomic<int> speed_percent_{100};
     std::atomic<float> volume_{1.0f};
@@ -92,6 +107,15 @@ public:
     void setTransitionMode(int mode) noexcept;
     int transitionMode() const noexcept;
 
+    void setObsOutputMode(int mode) noexcept;
+    int obsOutputMode() const noexcept;
+
+    void setHeadphoneVolume(float v) noexcept;
+    float headphoneVolume() const noexcept;
+
+    void setHeadphoneMix(float m) noexcept;
+    float headphoneMix() const noexcept;
+
     void syncTempoAtoB();
     void syncTempoBtoA();
 
@@ -108,6 +132,9 @@ private:
 
     std::atomic<double> crossfader_{0.5};
     std::atomic<int> transition_mode_{0};
+    std::atomic<int> obs_output_mode_{0};
+    std::atomic<float> headphone_volume_{1.0f};
+    std::atomic<float> headphone_mix_{0.5f};
     std::atomic<int> loop_beat_idx_a_{3};
     std::atomic<int> loop_beat_idx_b_{3};
 };

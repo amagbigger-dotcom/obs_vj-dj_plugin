@@ -229,6 +229,21 @@ static void draw_mixer(void *data)
         return;
     }
 
+    const int output_mode = decks->obsOutputMode();
+    if (output_mode == 1 && texture_a) {
+        gs_effect_t *default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+        while (gs_effect_loop(default_effect, "Draw")) {
+            gs_draw_sprite(texture_a, 0, width, height);
+        }
+        return;
+    } else if (output_mode == 2 && texture_b) {
+        gs_effect_t *default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+        while (gs_effect_loop(default_effect, "Draw")) {
+            gs_draw_sprite(texture_b, 0, width, height);
+        }
+        return;
+    }
+
     const DeckPlayer *color_a = &deck_a;
     const DeckPlayer *color_b = &deck_b;
     float xfade = static_cast<float>(decks->crossfader());
@@ -401,6 +416,11 @@ static bool mixer_audio_render(void *data, uint64_t *ts_out,
     else
         *ts_out = has_a ? ts_a : ts_b;
 
+    const int output_mode = decks->obsOutputMode();
+    const float crossfade = static_cast<float>(decks->crossfader());
+    const float gain_a = (output_mode == 2) ? 0.0f : ((output_mode == 1) ? 1.0f : (1.0f - crossfade));
+    const float gain_b = (output_mode == 1) ? 0.0f : ((output_mode == 2) ? 1.0f : crossfade);
+
     for (size_t mix = 0; mix < MAX_AUDIO_MIXES; mix++) {
         if ((mixers & (1U << mix)) == 0)
             continue;
@@ -412,11 +432,13 @@ static bool mixer_audio_render(void *data, uint64_t *ts_out,
 
             if (in_a && in_b) {
                 for (size_t f = 0; f < AUDIO_OUTPUT_FRAMES; f++)
-                    out[f] = in_a[f] + in_b[f];
+                    out[f] = in_a[f] * gain_a + in_b[f] * gain_b;
             } else if (in_a) {
-                memcpy(out, in_a, AUDIO_OUTPUT_FRAMES * sizeof(float));
+                for (size_t f = 0; f < AUDIO_OUTPUT_FRAMES; f++)
+                    out[f] = in_a[f] * gain_a;
             } else if (in_b) {
-                memcpy(out, in_b, AUDIO_OUTPUT_FRAMES * sizeof(float));
+                for (size_t f = 0; f < AUDIO_OUTPUT_FRAMES; f++)
+                    out[f] = in_b[f] * gain_b;
             } else {
                 memset(out, 0, AUDIO_OUTPUT_FRAMES * sizeof(float));
             }

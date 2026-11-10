@@ -14,14 +14,16 @@
 
 * **Egyetlen önálló bináris (`obs-vj-mixer.dll`):** Nincsenek külső `.effect` fájlok, szkriptek vagy segédmappák; az összes HLSL shader C++ karaktersorozatként be van ágyazva a DLL-be.
 * **Lebegő Traktor stílusú kezelőfelület:** Nem töri szét az OBS beépített dokkoló elrendezését; az OBS felső menüjéből (*Eszközök* $\rightarrow$ *Video DJ Mixer*) nyitható meg lebegő ablak formájában (`QDialog`).
-* **Valós idejű élő Direct3D előnézet:** Beágyazott hardveresen gyorsított videó előnézeti panelek (`VideoPreviewWidget` / `obs_display_t`) a Deck A, a Deck B és a Mester kimenethez.
+* **Valós idejű zenei hullámforma és BPM kijelzés (`WaveformWidget`):** Digitális BPM kijelző, `TAP` tempó gomb, görgetett audio-hullámforma és függőleges beatgrid ütemvonalak minden negyed- és egész ütemnél, az aktuális lejátszási fejjel.
+* **OBS Főablak Kimenetválasztó (OBS Active Output):** `[ MASTER MIX ]` | `[ DECK A ]` | `[ DECK B ]` gombokkal közvetlenül a felületről vezérelhető, hogy mi jelenjen meg az OBS vásznon és stream kimeneten.
+* **Fejhallgató Előhallgatás (Headphone CUE / PFL):** Csatornánkénti `[ 🎧 CUE ]` gombok, külön Pre-Fade jelszint kezelés, fejhallgató hangerő és Cue/Master Mix átúszó potméter.
 * **2-csatornás professzionális motor (Deck A & B):**
   * Támogatott formátumok: `mp4`, `mkv`, `mov`, `avi`, `webm`, `mp3`, `wav`.
   * Play / Pause, pontos pozicionálás és időkijelzés (ms pontossággal).
   * CUE pont mentése és azonnali visszaugrás.
-  * Sebesség és Pitch fader (50% – 150%).
+  * Sebesség és Pitch fader (50% – 150%) **pozíció-megőrzéssel** (nem ugrik vissza a videó elejére).
   * SYNC gomb (Deck A $\leftrightarrow$ Deck B tempószinkronizáció).
-  * Varratmentes Auto Beat-Loop (1/2, 1, 2, 4, 8, 16, 32, 64 ütem).
+  * Kvantált, ütemhelyes Auto Beat-Loop (1/2, 1, 2, 4, 8, 16, 32, 64 ütem a valós BPM alapján).
 * **Vizuális EQ és Színkorrekció:**
   * **HI Knob:** PIROS (Red) csatornaerősítés ($0.0 - 2.0$, középérték: $1.0$).
   * **MID Knob:** ZÖLD (Green) csatornaerősítés ($0.0 - 2.0$, középérték: $1.0$).
@@ -141,6 +143,7 @@ A bővítmény 3 szigorúan izolált környezetben működik párhuzamosan:
 | **Deck A PLAY** | Note On ($vel > 0$) | Ch 1, Note 35 | Deck A Play / Pause toggle | Állapotfüggő váltás |
 | **Deck A CUE** | Note On ($vel > 0$) | Ch 1, Note 36 | Deck A CUE mentés / ugrás | Lejátszáskor: ugrás + pause; Stopkor: CUE mentés |
 | **Deck A SYNC** | Note On ($vel > 0$) | Ch 1, Note 37 | Deck A Sync Deck B-hez | Deck A sebességének beállítása Deck B sebességére |
+| **Deck A HEADPHONE CUE** | Note On ($vel > 0$) | Ch 1, Note 38 | Deck A Fejhallgató Előhallgatás | PFL kapcsoló ki/be váltása |
 | **Deck B HI** | Control Change | Ch 2, CC 16 (0–127) | Deck B Vörös (Red) EQ | `val / 63.5f` $\rightarrow$ $0.0 - 2.0$ (közép: 1.0) |
 | **Deck B MID** | Control Change | Ch 2, CC 17 (0–127) | Deck B Zöld (Green) EQ | `val / 63.5f` $\rightarrow$ $0.0 - 2.0$ (közép: 1.0) |
 | **Deck B LOW** | Control Change | Ch 2, CC 18 (0–127) | Deck B Kék (Blue) EQ | `val / 63.5f` $\rightarrow$ $0.0 - 2.0$ (közép: 1.0) |
@@ -150,6 +153,7 @@ A bővítmény 3 szigorúan izolált környezetben működik párhuzamosan:
 | **Deck B PLAY** | Note On ($vel > 0$) | Ch 2, Note 35 | Deck B Play / Pause toggle | Állapotfüggő váltás |
 | **Deck B CUE** | Note On ($vel > 0$) | Ch 2, Note 36 | Deck B CUE mentés / ugrás | Lejátszáskor: ugrás + pause; Stopkor: CUE mentés |
 | **Deck B SYNC** | Note On ($vel > 0$) | Ch 2, Note 37 | Deck B Sync Deck A-hoz | Deck B sebességének beállítása Deck A sebességére |
+| **Deck B HEADPHONE CUE** | Note On ($vel > 0$) | Ch 2, Note 38 | Deck B Fejhallgató Előhallgatás | PFL kapcsoló ki/be váltása |
 | **CROSSFADER** | Control Change | Global / Ch 1, CC 8 (0–127) | Master Crossfader | `val / 127.0` $\rightarrow$ $0.0$ (Deck A) és $1.0$ (Deck B) között |
 
 *Megjegyzés:* A Traktor S2 kontrolleren a Note On 0 velocity értékét a Windows MIDI specifikáció szerint Note Off-ként kezeljük; a műveletek kizárólag tényleges gombnyomáskor ($vel > 0$) hajtódnak végre.

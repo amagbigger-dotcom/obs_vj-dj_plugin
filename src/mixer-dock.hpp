@@ -5,34 +5,11 @@
 #include <obs.h>
 
 class DeckPair;
+class WaveformWidget;
 class QSlider;
 class QLabel;
 class QPushButton;
 class QComboBox;
-
-class VideoPreviewWidget : public QWidget {
-    Q_OBJECT
-public:
-    explicit VideoPreviewWidget(DeckPair *decks, bool is_master, bool is_deck_a, QWidget *parent = nullptr);
-    ~VideoPreviewWidget() override;
-
-    void updateSource(obs_source_t *src);
-
-protected:
-    void showEvent(QShowEvent *event) override;
-    void hideEvent(QHideEvent *event) override;
-    void resizeEvent(QResizeEvent *event) override;
-
-private:
-    void createDisplay();
-    void destroyDisplay();
-
-    DeckPair *decks_ = nullptr;
-    bool is_master_ = false;
-    bool is_deck_a_ = false;
-    obs_display_t *display_ = nullptr;
-    obs_source_t *current_source_ = nullptr;
-};
 
 class MixerWindow final : public QDialog {
     Q_OBJECT
@@ -46,12 +23,12 @@ private:
     void loadAudioMonitoringDevices();
     void refreshDeck(bool is_deck_a);
     void refreshMixer();
+    void updateObsOutputButtons(int mode);
     static QString formatTime(qint64 ms);
 
     DeckPair *decks_ = nullptr;
-    VideoPreviewWidget *preview_a_ = nullptr;
-    VideoPreviewWidget *preview_b_ = nullptr;
-    VideoPreviewWidget *preview_master_ = nullptr;
+    WaveformWidget *waveform_a_ = nullptr;
+    WaveformWidget *waveform_b_ = nullptr;
 
     QSlider *seek_a_ = nullptr;
     QSlider *seek_b_ = nullptr;
@@ -65,6 +42,8 @@ private:
     QSlider *pitch_slider_b_ = nullptr;
     QComboBox *loop_combo_a_ = nullptr;
     QComboBox *loop_combo_b_ = nullptr;
+    QPushButton *hp_cue_a_btn_ = nullptr;
+    QPushButton *hp_cue_b_btn_ = nullptr;
 
     QSlider *hi_a_ = nullptr;
     QSlider *mid_a_ = nullptr;
@@ -81,4 +60,12 @@ private:
     QSlider *crossfader_ = nullptr;
     QLabel *midi_status_lbl_ = nullptr;
     QComboBox *audio_monitor_devices_ = nullptr;
+
+    QPushButton *obs_out_master_btn_ = nullptr;
+    QPushButton *obs_out_deck_a_btn_ = nullptr;
+    QPushButton *obs_out_deck_b_btn_ = nullptr;
+
+    QSlider *hp_vol_slider_ = nullptr;
+    QSlider *hp_mix_slider_ = nullptr;
+    QLabel *hp_mix_lbl_ = nullptr;
 };

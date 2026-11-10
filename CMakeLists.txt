@@ -23,6 +23,8 @@ set(SOURCES
     src/plugin-main.cpp
     src/deck-engine.cpp
     src/deck-engine.hpp
+    src/waveform-widget.cpp
+    src/waveform-widget.hpp
     src/mixer-source.cpp
     src/mixer-dock.cpp
     src/mixer-dock.hpp

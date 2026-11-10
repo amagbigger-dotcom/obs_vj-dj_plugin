@@ -124,6 +124,9 @@ void handle_note(DeckPair *decks,
         if (other_deck)
             deck->setSpeed(other_deck->speed());
         break;
+    case 38:
+        deck->setHeadphoneCue(!deck->isHeadphoneCue());
+        break;
     default:
         break;
     }

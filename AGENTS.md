@@ -160,25 +160,38 @@ A bővítmény három független szálon/környezetben dolgozik:
   - Modul belépési pont (`obs_module_load`, `obs_module_unload`).
   - Regisztrálja az OBS forrásokat (`vdj_register_sources`).
   - Inicializálja a globális motort (`init_deck_engine`), beindítja a MIDI figyelőt (`vdj_midi_init`), és hozzáadja az OBS Eszközök menüjébe a "Video DJ Mixer" ablaknyitó elemet.
+* **`src/waveform-widget.hpp` & `src/waveform-widget.cpp`:** *(Kész)*
+  - `WaveformWidget`: Valós idejű zenei hullámforma és BPM kijelző widget.
+  - Dinamikus digitális BPM kijelzés, `TAP` tempó gomb és finomhangoló (`+`/`-`) gombok.
+  - Függőleges beatgrid ütemvonalak negyedenként és ütemenként (vastagabb sávok számozással).
+  - Folyamatosan gördülő hullámforma az aktuális lejátszási fej körül, loop szakasz kiemeléssel és interaktív pozíció-kereséssel (scrubbing).
 * **`src/deck-engine.hpp` & `src/deck-engine.cpp`:** *(Kész)*
-  - `DeckPlayer`: Privát `ffmpeg_source` kezelő. Támogatja a Play/Pause, CUE, seek, sebesség (50-150%), hangerő, atomi RGB és telítettségi értékek, valamint az automatikus beat loop (1/2, 1, 2, 4, 8, 16, 32, 64 ütem) futtatását.
-  - `DeckPair`: Deck A és B párosítása, mester forrás (`vdj_master_mixer`) összerendelése, crossfader és átmeneti módok kezelése, tempószinkron (`syncTempoAtoB`, `syncTempoBtoA`), audió arányok számítása.
+  - `DeckPlayer`: Privát `ffmpeg_source` kezelő. Támogatja a Play/Pause, CUE, seek, sebesség (50-150%), hangerő, atomi RGB és telítettségi értékek, BPM és kvantált ütemhelyes beat loop (1/2, 1, 2, 4, 8, 16, 32, 64 ütem) futtatását.
+  - Tempóváltás pozíció-megőrzéssel (`pending_speed_seek_ms_`), amely megakadályozza, hogy a videó a legelejére ugorjon sebességállításkor.
+  - Fejhallgató CUE (PFL) állapotkezelés és Pre-Fade hangerővezérlés.
+  - `DeckPair`: Deck A és B párosítása, mester forrás (`vdj_master_mixer`) összerendelése, crossfader és átmeneti módok kezelése, tempószinkron (`syncTempoAtoB`, `syncTempoBtoA`), OBS aktív kimenet választó (`obs_output_mode_`), fejhallgató hangerő és Cue/Master mix.
 * **`src/mixer-source.cpp`:** *(Kész)*
   - Kettős `gs_texrender` renderelési lánc.
   - Beágyazott `MIXER_EFFECT` HLSL shader:
     - RGB szorzók (`gains_a`, `gains_b`) és Rec.709 luma alapú színtelítettség (`saturation_a`, `saturation_b`).
     - 4 átmeneti mód: 0 = Linear Fade, 1 = Horizontal Wipe, 2 = Additive Blend, 3 = Hard Cut.
-  - OBS források regisztrációja: `vdj_master_mixer` (mester kimenet), `vdj_deck_a_source` és `vdj_deck_b_source` (egyedi monitorok).
+  - OBS kimeneti mód választó támogatása: Master Crossfade (0), Direkt Deck A (1), Direkt Deck B (2).
+  - OBS források regisztrációja: `vdj_master_mixer` (mester kimenet), `vdj_deck_a_source` és `vdj_deck_b_source` (egyedi monitorok) `enum_active_sources` és `enum_all_sources` támogatással.
 * **`src/shaders/crossfade.effect`:** *(Kész)*
   - Referencia HLSL effect fájl külső teszteléshez és későbbi kibővítésekhez.
 * **`src/midi-handler.hpp` & `src/midi-handler.cpp`:** *(Kész)*
   - Windows Multimedia API alapú MIDI illesztő (`midiInOpen`, `midiInStart`, `midiInStop`, `midiInClose`).
   - Automatikus kontroller-keresés: név alapján detektálja a "traktor" és "s2" sztringeket a csatlakoztatott MIDI bemenetek között.
-  - Feldolgozza a CC 8, 16–21 és Note 35–37 üzeneteket, és közvetlenül a `DeckPair` / `DeckPlayer` atomi változóiba írja.
-* **`src/mixer-dock.hpp` & `src/mixer-dock.cpp`:** *(Működőképes, bővítés alatt)*
-  - Traktor S2 stílusú sötét felület: Transport gombok (Play/Cue/Sync), Tempo slider, Beat Loop combo, Master Crossfader, Audió kimeneti megfigyelő eszköz választó (`obs_enum_audio_monitoring_devices`).
-  - Beágyazott `VideoPreviewWidget` valós idejű Direct3D előnézetekkel (`obs_display_t`).
-  - 80 ms-os frissítési ciklus (`QTimer`).
+  - Feldolgozza a CC 8, 16–21 és Note 35–38 üzeneteket (Play, Cue, Sync, Headphone Cue), és közvetlenül a `DeckPair` / `DeckPlayer` atomi változóiba írja.
+* **`src/mixer-dock.hpp` & `src/mixer-dock.cpp`:** *(Kész)*
+  - Traktor Pro stílusú professzionális sötét kezelőfelület:
+    - A kis videó előnézetek helyett interaktív zenei `WaveformWidget` hullámforma és BPM sávok.
+    - **OBS ACTIVE OUTPUT** gombok: `[ MASTER MIX ]` | `[ DECK A ]` | `[ DECK B ]`, amelyek közvetlenül a fő OBS vászonra küldik a választott forrást.
+    - Fejhallgató CUE (PFL) gombok mindkét deckhez (`[ 🎧 CUE A ]`, `[ 🎧 CUE B ]`).
+    - Fejhallgató Cue/Master Mix és Hangerő szabályozók.
+    - Kétcsatornás EQ és Volume fader szekció, nagyméretű Master Crossfader.
+    - Hangkártya választó és automatikus inicializálás (`obs_enum_audio_monitoring_devices`).
+  - 50 ms-os frissítési ciklus (`QTimer`).
 
 ---
 
@@ -189,13 +202,21 @@ A bővítmény három független szálon/környezetben dolgozik:
 - A `refreshDeck` ciklus `QSignalBlocker`-rel és `!isSliderDown()` védelemmel lekérdezi és simán animálja az EQ és Volume csúszkákat a Traktor S2 hardveres potmétereinek forgatásakor.
 - A Master Crossfader és a Pitch slider szintén védve van a visszaugrásoktól (`!isSliderDown()`).
 
-### 2. Valós BPM detektálás vagy Tap Tempo (Prioritás: KÖZEPES)
-* **Jelenlegi állapot:** Az Auto-Loop funkció fix $500\text{ ms}$-os referencia ütemmel számol (`kReferenceBeatMs = 500.0` $\rightarrow$ 120 BPM).
-* **Fejlesztési cél:** Vagy kézi BPM megadási lehetőség / Tap Tempo gomb, vagy metaadatokból / audió analízisből származó valós BPM lekezelése.
+### 2. Valós BPM kezelés, Tap Tempo és Ütemvonalak *(KÉSZ)*
+* **Megvalósítás:** A `WaveformWidget` valós idejű digitális BPM kijelzést, TAP Tempo számlálót, `+`/`-` finomhangolást és gördülő beatgrid ütemvonalakat kapott. Az Auto-Loop a valós BPM és sebesség alapján kvantált ütemhelyes loopolást végez.
 
-### 3. MIDI Out / Hardveres LED visszajelzés (Prioritás: KÉNYELMI)
+### 3. Tempóállítás pozíció-megőrzéssel *(KÉSZ)*
+* **Megvalósítás:** A sebesség csúszka mozgatásakor az aktuális lejátszási pozíció rögzítésre kerül, így a dekóder újraindulásakor nem ugrik a videó a legelejére.
+
+### 4. Fejhallgató Előhallgatás (Headphone CUE / PFL) *(KÉSZ)*
+* **Megvalósítás:** Külön CUE A és CUE B előhallgatási gombok, független Pre-Fade jelszint kezelés és fejhallgató hangerő / Cue-Master mix potméter.
+
+### 5. OBS Aktív Kimenet Választó *(KÉSZ)*
+* **Megvalósítás:** A felületről közvetlenül vezérelhető, hogy az OBS fő kimenetén a Master Mix, csak a Deck A vagy csak a Deck B jelenjen meg.
+
+### 6. MIDI Out / Hardveres LED visszajelzés (Prioritás: KÉNYELMI)
 * **Jelenlegi állapot:** A plugin jelenleg kizárólag MIDI IN-t olvas.
-* **Fejlesztési cél:** `midiOutOpen` és `midiOutShortMsg` megvalósítása, hogy a Traktor Kontrol S2 hardverén lévő PLAY, CUE, SYNC gombok és a Loop kijelzők LED-jei világítsanak az aktuális lejátszási állapotnak megfelelően.
+* **Fejlesztési cél:** `midiOutOpen` és `midiOutShortMsg` megvalósítása a gombok és LED-ek hardveres visszajelzéséhez.
 
 ### 4. Átfogó Dokumentáció (`README.md`) *(KÉSZ)*
 * Elkészült a teljes körű `README.md` a rendszerarchitektúra, hardveres bekötés, Mermaid folyamatábra, valamint a build és telepítési lépések bemutatásával.
