@@ -17,14 +17,11 @@
 #include <cmath>
 #include <algorithm>
 #include <numeric>
+#include <vector>
 #include <QFileInfo>
 
 namespace {
-constexpr uint32_t kSampleRate = 22050; // 22.05 kHz mono PCM
-constexpr size_t kMaxAnalysisSeconds = 240; // Analyze first 4 minutes
-constexpr size_t kMaxSamples = kSampleRate * kMaxAnalysisSeconds;
 constexpr size_t kOverviewBuckets = 500;
-constexpr size_t kOnsetWindowSize = 44; // ~2 ms (501.1 windows/sec) for 0.05 BPM accuracy
 }
 
 TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
@@ -78,18 +75,30 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     pReader->SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS, FALSE);
     pReader->SetStreamSelection(MF_SOURCE_READER_FIRST_AUDIO_STREAM, TRUE);
 
-    // Configure uncompressed 22050 Hz 16-bit mono PCM output
+    // Request uncompressed 16-bit PCM output.
+    // Try standard 44100 Hz mono first:
     IMFMediaType *pPartialType = nullptr;
     hr = MFCreateMediaType(&pPartialType);
     if (SUCCEEDED(hr)) {
         pPartialType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
         pPartialType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
         pPartialType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 1);
-        pPartialType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, kSampleRate);
+        pPartialType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100);
         pPartialType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
 
         hr = pReader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, nullptr, pPartialType);
         pPartialType->Release();
+    }
+
+    // If 44100 mono was rejected by the demuxer, fallback to generic uncompressed PCM:
+    if (FAILED(hr)) {
+        hr = MFCreateMediaType(&pPartialType);
+        if (SUCCEEDED(hr)) {
+            pPartialType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
+            pPartialType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
+            hr = pReader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, nullptr, pPartialType);
+            pPartialType->Release();
+        }
     }
 
     if (FAILED(hr)) {
@@ -100,11 +109,27 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         return result;
     }
 
-    // Read audio PCM samples
-    std::vector<int16_t> audio_samples;
-    audio_samples.reserve(kSampleRate * 120);
+    // Query actual decoded audio format:
+    UINT32 channels = 1;
+    UINT32 sample_rate = 44100;
+    UINT32 bits_per_sample = 16;
+    IMFMediaType *pActualType = nullptr;
+    hr = pReader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, &pActualType);
+    if (SUCCEEDED(hr) && pActualType) {
+        pActualType->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &channels);
+        pActualType->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &sample_rate);
+        pActualType->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &bits_per_sample);
+        pActualType->Release();
+    }
+    if (channels == 0) channels = 1;
+    if (sample_rate == 0) sample_rate = 44100;
+    if (bits_per_sample == 0) bits_per_sample = 16;
 
-    while (audio_samples.size() < kMaxSamples) {
+    // Read audio PCM samples (up to 240 seconds):
+    std::vector<float> mono_samples;
+    mono_samples.reserve(sample_rate * 120);
+
+    while (mono_samples.size() < static_cast<size_t>(sample_rate * 240)) {
         DWORD streamIndex = 0;
         DWORD flags = 0;
         LONGLONG llTimestamp = 0;
@@ -126,11 +151,28 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
                 BYTE *pAudioData = nullptr;
                 DWORD cbCurrentLength = 0;
                 hr = pBuffer->Lock(&pAudioData, nullptr, &cbCurrentLength);
-                if (SUCCEEDED(hr) && pAudioData && cbCurrentLength >= 2) {
-                    const auto *pcm = reinterpret_cast<const int16_t *>(pAudioData);
-                    const size_t num_samples = cbCurrentLength / sizeof(int16_t);
-                    const size_t needed = std::min(num_samples, kMaxSamples - audio_samples.size());
-                    audio_samples.insert(audio_samples.end(), pcm, pcm + needed);
+                if (SUCCEEDED(hr) && pAudioData && cbCurrentLength >= sizeof(int16_t)) {
+                    if (bits_per_sample == 16) {
+                        const auto *pcm = reinterpret_cast<const int16_t *>(pAudioData);
+                        const size_t num_frames = cbCurrentLength / (sizeof(int16_t) * channels);
+                        for (size_t f = 0; f < num_frames; ++f) {
+                            float sum = 0.0f;
+                            for (size_t c = 0; c < channels; ++c) {
+                                sum += static_cast<float>(pcm[f * channels + c]) / 32768.0f;
+                            }
+                            mono_samples.push_back(sum / static_cast<float>(channels));
+                        }
+                    } else if (bits_per_sample == 32) {
+                        const auto *flt = reinterpret_cast<const float *>(pAudioData);
+                        const size_t num_frames = cbCurrentLength / (sizeof(float) * channels);
+                        for (size_t f = 0; f < num_frames; ++f) {
+                            float sum = 0.0f;
+                            for (size_t c = 0; c < channels; ++c) {
+                                sum += flt[f * channels + c];
+                            }
+                            mono_samples.push_back(sum / static_cast<float>(channels));
+                        }
+                    }
                     pBuffer->Unlock();
                 }
                 pBuffer->Release();
@@ -144,81 +186,91 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     if (co_initialized)
         CoUninitialize();
 
-    if (audio_samples.empty())
+    if (mono_samples.empty())
         return result;
 
     result.success = true;
-    const size_t total_samples = audio_samples.size();
+    const size_t total_samples = mono_samples.size();
 
-    // 1. Overview Waveform (whole track progress bar, ~500 points)
+    // 1. Overview Waveform (~500 points for full track strip)
     result.overview_peaks.resize(kOverviewBuckets, 0.05f);
     const size_t samples_per_bucket = std::max<size_t>(1, total_samples / kOverviewBuckets);
     for (size_t b = 0; b < kOverviewBuckets; ++b) {
         const size_t start = b * samples_per_bucket;
         const size_t end = std::min(start + samples_per_bucket, total_samples);
 
-        int32_t max_val = 0;
+        float max_val = 0.0f;
         for (size_t i = start; i < end; ++i) {
-            max_val = std::max(max_val, static_cast<int32_t>(std::abs(audio_samples[i])));
+            max_val = std::max(max_val, std::abs(mono_samples[i]));
         }
-        result.overview_peaks[b] = std::clamp(static_cast<float>(max_val) / 32768.0f, 0.05f, 1.0f);
+        result.overview_peaks[b] = std::clamp(max_val, 0.05f, 1.0f);
     }
     result.waveform_peaks = result.overview_peaks;
 
-    // 2. Low-Pass Filter (180 Hz) to isolate kick drum & bass transients from vocals/synths
-    const float fc = 180.0f;
-    const float alpha = std::clamp(2.0f * 3.14159f * fc / static_cast<float>(kSampleRate), 0.001f, 0.99f);
+    // 2. Low-Pass Filter (160 Hz) on mono samples to isolate kick drum punch
+    const float fc = 160.0f;
+    const float alpha = std::clamp(2.0f * 3.14159f * fc / static_cast<float>(sample_rate), 0.001f, 0.99f);
     float lp1 = 0.0f;
     float lp2 = 0.0f;
     std::vector<float> kick_samples(total_samples, 0.0f);
+    float max_kick_all = 0.001f;
+    float max_full_all = 0.001f;
+
     for (size_t i = 0; i < total_samples; ++i) {
-        const float in = static_cast<float>(audio_samples[i]) / 32768.0f;
+        const float in = mono_samples[i];
         lp1 += alpha * (in - lp1);
         lp2 += alpha * (lp1 - lp2);
         kick_samples[i] = lp2;
+
+        const float abs_k = std::abs(lp2);
+        const float abs_f = std::abs(in);
+        if (abs_k > max_kick_all) max_kick_all = abs_k;
+        if (abs_f > max_full_all) max_full_all = abs_f;
     }
 
-    // 3. High-Resolution Detailed Waveform (100 points/sec, 10ms window = 220 samples)
-    // Dynamic envelope combines kick transients and overall dynamics so kicks visibly pop out!
-    constexpr size_t kDetailedWindow = 220; // 10 ms at 22.05 kHz
-    const size_t num_detailed = total_samples / kDetailedWindow;
+    // 3. High-Resolution Detailed Waveform (100 points/sec, 10ms window)
+    // Normalized to global maximums with non-linear transient punch:
+    // Kicks punch sharply to 0.90 - 1.0, while valleys between beats drop down to 0.15 - 0.25!
+    const size_t samples_per_10ms = std::max<size_t>(1, static_cast<size_t>(sample_rate / 100));
+    const size_t num_detailed = total_samples / samples_per_10ms;
     result.detailed_peaks.resize(num_detailed, 0.05f);
 
     for (size_t w = 0; w < num_detailed; ++w) {
-        const size_t start = w * kDetailedWindow;
-        double sum_sq_kick = 0.0;
-        double sum_sq_full = 0.0;
+        const size_t start = w * samples_per_10ms;
+        const size_t end = std::min(start + samples_per_10ms, total_samples);
 
-        for (size_t i = 0; i < kDetailedWindow; ++i) {
-            const float k = kick_samples[start + i];
-            sum_sq_kick += k * k;
-
-            const double s = static_cast<double>(audio_samples[start + i]) / 32768.0;
-            sum_sq_full += s * s;
+        float peak_kick = 0.0f;
+        float peak_full = 0.0f;
+        for (size_t i = start; i < end; ++i) {
+            peak_kick = std::max(peak_kick, std::abs(kick_samples[i]));
+            peak_full = std::max(peak_full, std::abs(mono_samples[i]));
         }
 
-        const float rms_kick = static_cast<float>(std::sqrt(sum_sq_kick / static_cast<double>(kDetailedWindow)));
-        const float rms_full = static_cast<float>(std::sqrt(sum_sq_full / static_cast<double>(kDetailedWindow)));
+        const float norm_k = peak_kick / max_kick_all;
+        const float norm_f = peak_full / max_full_all;
 
-        // Kick transients punch up sharply to 0.9 - 1.0, dipping between beats to 0.15 - 0.3
-        const float env = 0.10f + rms_kick * 2.8f + rms_full * 0.4f;
-        result.detailed_peaks[w] = std::clamp(env, 0.05f, 1.0f);
+        // Kick transients punch sharply using power law to eliminate flat block saturation
+        const float env = 0.18f * norm_f + 0.82f * std::pow(norm_k, 1.8f);
+        result.detailed_peaks[w] = std::clamp(env, 0.06f, 1.0f);
     }
 
-    // 4. Onset Novelty Curve at 500 Hz (~2 ms windows = 44 samples)
-    const size_t num_onset_windows = total_samples / kOnsetWindowSize;
+    // 4. Onset Novelty Curve at 500 Hz (2 ms windows) for ultra-accurate BPM autocorrelation
+    const size_t samples_per_2ms = std::max<size_t>(1, static_cast<size_t>(sample_rate / 500));
+    const size_t num_onset_windows = total_samples / samples_per_2ms;
     if (num_onset_windows < 500)
         return result;
 
     std::vector<float> kick_energy(num_onset_windows, 0.0f);
     for (size_t w = 0; w < num_onset_windows; ++w) {
-        const size_t start = w * kOnsetWindowSize;
+        const size_t start = w * samples_per_2ms;
+        const size_t end = std::min(start + samples_per_2ms, total_samples);
         double sum_sq = 0.0;
-        for (size_t i = 0; i < kOnsetWindowSize; ++i) {
-            const float val = kick_samples[start + i];
+        for (size_t i = start; i < end; ++i) {
+            const float val = kick_samples[i];
             sum_sq += val * val;
         }
-        kick_energy[w] = static_cast<float>(std::sqrt(sum_sq / static_cast<double>(kOnsetWindowSize)));
+        const float count = static_cast<float>(end - start);
+        kick_energy[w] = (count > 0.0f) ? static_cast<float>(std::sqrt(sum_sq / count)) : 0.0f;
     }
 
     std::vector<float> novelty(num_onset_windows, 0.0f);
@@ -227,17 +279,14 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         novelty[w] = (diff > 0.0f) ? diff : 0.0f;
     }
 
-    // 5. Autocorrelation over 65 to 185 BPM at 500 Hz resolution
-    // Lag in steps of 2ms:
-    // 65 BPM  -> lag ~ 462
-    // 185 BPM -> lag ~ 162
-    constexpr int kMinLag = 160; // ~187 BPM
-    constexpr int kMaxLag = 470; // ~63 BPM
+    // 5. Autocorrelation over 65 to 185 BPM at 500 Hz
+    constexpr int kMinLag = 162; // ~185 BPM
+    constexpr int kMaxLag = 461; // ~65 BPM
 
     std::vector<double> autocorr(kMaxLag + 2, 0.0);
-    const size_t max_novelty_len = std::min<size_t>(novelty.size(), 500 * 90); // 90 seconds analysis
+    const size_t max_novelty_len = std::min<size_t>(novelty.size(), static_cast<size_t>(500 * 90)); // 90 seconds analysis
 
-    int best_lag = 234; // ~128 BPM
+    int best_lag = 234; // 128 BPM
     double best_score = -1.0;
 
     for (int lag = kMinLag; lag <= kMaxLag; ++lag) {
@@ -247,7 +296,7 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
             sum += static_cast<double>(novelty[i]) * static_cast<double>(novelty[i + lag]);
         }
 
-        const double bpm = (60.0 * static_cast<double>(kSampleRate)) / (static_cast<double>(kOnsetWindowSize) * lag);
+        const double bpm = (60.0 * 500.0) / static_cast<double>(lag);
         // Gaussian tempo prior centered at 128 BPM (sigma 38)
         const double prior = std::exp(-std::pow(bpm - 128.0, 2.0) / (2.0 * 38.0 * 38.0));
         const double score = sum * prior;
@@ -273,14 +322,12 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         }
     }
 
-    const double samples_per_beat = fine_lag * static_cast<double>(kOnsetWindowSize);
-    const double detected_bpm = (60.0 * static_cast<double>(kSampleRate)) / samples_per_beat;
+    const double detected_bpm = (60.0 * 500.0) / fine_lag;
     result.detected_bpm = std::round(detected_bpm * 10.0) / 10.0;
 
     // 7. Downbeat (Kick 1) Anchor Alignment
-    // Scan the first 25 seconds for the beat phase offset that aligns with maximum kick spikes
     const int period = std::max(1, static_cast<int>(std::round(fine_lag)));
-    const size_t max_search_windows = std::min<size_t>(novelty.size() - period, 500 * 25);
+    const size_t max_search_windows = std::min<size_t>(novelty.size() - period, static_cast<size_t>(500 * 25));
 
     double best_offset_score = -1.0;
     int best_offset = 0;
@@ -301,9 +348,8 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         }
     }
 
-    // Convert offset windows to milliseconds (each window is kOnsetWindowSize / kSampleRate seconds)
-    const double ms_per_window = (static_cast<double>(kOnsetWindowSize) / static_cast<double>(kSampleRate)) * 1000.0;
-    result.grid_offset_ms = static_cast<int64_t>(best_offset * ms_per_window);
+    // Convert offset windows to milliseconds (each window is 2ms at 500 Hz)
+    result.grid_offset_ms = static_cast<int64_t>(best_offset * 2);
 #endif
 
     return result;

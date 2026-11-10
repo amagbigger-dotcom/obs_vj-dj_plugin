@@ -254,13 +254,16 @@ void MixerWindow::addToActiveScene()
 
     obs_scene_t *scene = obs_scene_from_source(scene_source);
     if (scene) {
-        obs_source_t *master_src = obs_get_source_by_name("VJ Master Output");
-        if (!master_src) {
-            master_src = obs_source_create("vdj_master_mixer", "VJ Master Output", nullptr, nullptr);
-        }
-        if (master_src) {
-            obs_scene_add(scene, master_src);
-            obs_source_release(master_src);
+        obs_sceneitem_t *existing = obs_scene_find_source_exact(scene, "VJ Master Output");
+        if (!existing) {
+            obs_source_t *master_src = obs_get_source_by_name("VJ Master Output");
+            if (!master_src) {
+                master_src = obs_source_create("vdj_master_mixer", "VJ Master Output", nullptr, nullptr);
+            }
+            if (master_src) {
+                obs_scene_add(scene, master_src);
+                obs_source_release(master_src);
+            }
         }
     }
     obs_source_release(scene_source);
@@ -864,6 +867,10 @@ void MixerWindow::refreshDeck(bool is_deck_a)
         return;
 
     DeckPlayer &deck = is_deck_a ? decks_->deckA() : decks_->deckB();
+
+    // Run seamless beat loop check on every GUI tick (every 50 ms)
+    deck.updateLoop();
+
     auto *waveform = is_deck_a ? waveform_a_ : waveform_b_;
     auto *play_btn = is_deck_a ? play_btn_a_ : play_btn_b_;
     auto *loop_btn = is_deck_a ? loop_toggle_a_ : loop_toggle_b_;

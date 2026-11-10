@@ -220,28 +220,28 @@ A bővítmény három független szálon/környezetben dolgozik:
 * **Megvalósítás:** A felületről közvetlenül vezérelhető, hogy az OBS fő kimenetén a Master Mix, csak a Deck A vagy csak a Deck B jelenjen meg.
 
 ### 6. Valós BPM Analízis, Kick Transient Detektálás & Hullámforma *(KÉSZ)*
-- Az `AudioAnalyzer` 22.05 kHz-es dekódolással és 180 Hz-es másodrendű aluláteresztő szűrővel elkülöníti a lábdob és basszus energiát a szintiktől/énekektől.
-- 500 Hz-es (2 ms) felbontású Onset Novelty görbe és autokorreláció 3 pontos parabolikus interpolációval (0.05 BPM pontosság).
-- A részletes hullámforma dinamikus burkológörbével dolgozik: a lábdobok támadása éles, magas csúcsokként (0.9 - 1.0) azonnal kiugrik a völgyekből.
+- Az `AudioAnalyzer` 44.1 kHz-es mono WMF dekódolással (dinamikus 16/32-bit float fallbackkel) és 160 Hz-es másodrendű aluláteresztő szűrővel elkülöníti a lábdob energiát.
+- 500 Hz-es (2 ms) felbontású Onset Novelty görbe és autokorreláció 3 pontos parabolikus interpolációval (0.05 BPM pontosság) és automatikus downbeat (Kick 1) ütemrács-igazítás.
+- Globális normalizált tranzienstelítés: a hullámforma a kickszel 0.95–1.0 csúcsokat üt ki, a völgyekben pedig 0.15–0.25-re esik vissza, megszüntetve a lapos téglalap-telítettséget.
 
-### 7. OBS Videó Renderelés & 1080p DJ Vizualizáció *(KÉSZ)*
-- A `MIXER_EFFECT` shader megkapta a `ViewProj` projekciós mátrixot, kiküszöbölve a fekete képernyőt.
-- Amikor tisztán audió fájl (.wav, .mp3) van betöltve, a bővítmény automatikusan egy 1080p stúdió DJ vizualizációt generál forgó analóg lemezjátszóval, valós idejű spektrumanalizátorral, deck logóval, BPM és időkód kijelzéssel.
+### 7. OBS Videó Renderelés & 1080p GPU DJ Vizualizáció *(KÉSZ)*
+- A `MIXER_EFFECT` HLSL shader `mul(v.pos, ViewProj)` projekcióval tűpontosan illeszkedik az OBS jelenet koordinátarendszerébe.
+- Valós videófájloknál (.mp4, .mov) a dekódolt videó jelenik meg valós idejű színkorrekcióval és 4-féle átmeneti móddal (Linear Fade, Wipe, Additive, Cut).
+- Tisztán audió fájloknál (.wav, .mp3) a shader egy 1080p 60 FPS sebességű procedurális DJ stúdió vizualizációt generál a GPU-n: percenkénti fordulatszámmal (BPM) forgó analóg vinyl lemez, neonszínű horizontális kiber grid, kivezérlésjelző frekvenciasávok és deck-színű világító fénygyűrű.
 
 ### 8. Audió Útvonalválasztás és 3-sávos DSP Szűrés *(KÉSZ)*
-- `OBS_SOURCE_AUDIO` hozzáadva a kimeneti zászlókhoz, így a `VJ Master Output` megjelenik az OBS Hangkeresőben saját faderrel és kivezérlésjelzővel.
-- A privát `ffmpeg_source` közvetlen monitorozása letiltva (`OBS_MONITORING_TYPE_NONE`), megakadályozva a nyers hang közvetlen kimenetre kerülését.
-- A 3 sávos EQ és DJ Filter DSP csatornánként egyszer fut le, védve a szűrőállapotokat a torzítástól.
-- A GAIN trim potméter és a VOL fader független szorzóként működik.
-- A loop váltás legalább 250 ms-os időkülönbség-védelemmel van ellátva, megszüntetve a pufferürítés miatti akadozást.
+- A privát dekóder forrás `OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT` módban dolgozik natív OBS audio filterrel (`vdj_eq_filter`).
+- A 3-sávos EQ és DJ Filter valós időben közvetlenül a mintákra fut le csatornánként.
+- A Master Crossfader, hangerő és Pre-Fade CUE jelszintek tisztán és akadásmentesen jutnak el az OBS kimenetre és a fejhallgató monitorra.
 
-### 9. Valódi Matematikai DJ SYNC *(KÉSZ)*
-- A SYNC gomb most a cél deck tényleges effektív BPM értékét veszi át:
-  $$\text{Target Speed} = \text{std::clamp}\left(\text{round}\left(\frac{\text{Effective BPM}_{master}}{\text{Base BPM}_{slave}} \times 100.0\right), 50, 150\right)$$
+### 9. Varratmentes Ütemhelyes Beat Loop *(KÉSZ)*
+- Eltávolítva a nulla időtartamú blokkolás; az Auto-Loop (1/2 – 32 ütem) bármely pillanatban azonnal aktiválható.
+- Kettős állapotgép-ellenőrzés: 50 ms-os Qt GUI ciklusban és a renderelési ciklusban is lefut 40 ms-os debounce védelemmel, megakadályozva a visszaugrás átcsúszását vagy ffmpeg túlterhelését.
 
-### 10. Felületi Stabilitás és Reszponzivitás *(KÉSZ)*
-- Rögzített szélességű időkód, BPM és Pitch Rate címkék (`setFixedWidth()`), amelyek megakadályozzák a kezelőfelület ugrálását és nyúlását a csúszkák húzásakor.
-- Megnövelt és kényelmesebb méretű Waveform Canvas (90px), `[edit]` és `[TAP]` gombok.
+### 10. Interaktív Ütemrács (Beatgrid) Csúsztatás és Duplaklikkes Reset *(KÉSZ)*
+- `Shift + Bal egérgombos húzás` VAGY `Jobb egérgombos húzás` a hullámformán az ütemrács (Beatgrid) azonnali valós idejű eltolásához.
+- A `MOVE` szekcióban `<<` és `>>` finomhangoló gombok (10 ms) és valós idejű `GRID: Xms` kijelzés.
+- Minden EQ, Gain, Filter és Pitch potméter dupla kattintásra visszaugrik az alapértelmezett középpozícióba.
 
 ---
 

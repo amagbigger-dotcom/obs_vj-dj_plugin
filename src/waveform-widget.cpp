@@ -33,6 +33,7 @@ WaveformCanvas::WaveformCanvas(DeckPlayer *deck, bool is_deck_a, QWidget *parent
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setCursor(Qt::PointingHandCursor);
     setMouseTracking(true);
+    setToolTip(QStringLiteral("Bal klikk: Pozíció keresés | Shift + Húzás vagy Jobb klikk: Ütemrács (Beatgrid) csúsztatása"));
 }
 
 void WaveformCanvas::refreshCanvas()
@@ -272,11 +273,15 @@ void WaveformCanvas::mousePressEvent(QMouseEvent *event)
 {
     last_mouse_x_ = event->pos().x();
 
-    if (event->button() == Qt::LeftButton) {
-        is_dragging_seek_ = true;
-        mouseMoveEvent(event);
-    } else if (event->button() == Qt::RightButton) {
+    const bool is_shift = (event->modifiers() & Qt::ShiftModifier);
+    if (event->button() == Qt::RightButton || (event->button() == Qt::LeftButton && is_shift)) {
         is_sliding_grid_ = true;
+        is_dragging_seek_ = false;
+        setCursor(Qt::SizeHorCursor);
+    } else if (event->button() == Qt::LeftButton) {
+        is_dragging_seek_ = true;
+        is_sliding_grid_ = false;
+        mouseMoveEvent(event);
     }
 }
 
@@ -311,7 +316,7 @@ void WaveformCanvas::mouseMoveEvent(QMouseEvent *event)
         }
         update();
     } else if (is_sliding_grid_) {
-        // Right drag to slide beatgrid!
+        // Drag to slide beatgrid!
         const int delta_x = cur_x - last_mouse_x_;
         if (delta_x != 0) {
             const double visible_ms = kZoomSeconds * 1000.0;
@@ -329,8 +334,11 @@ void WaveformCanvas::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton)
         is_dragging_seek_ = false;
-    else if (event->button() == Qt::RightButton)
+    
+    if (event->button() == Qt::RightButton || (event->button() == Qt::LeftButton && is_sliding_grid_)) {
         is_sliding_grid_ = false;
+        setCursor(Qt::PointingHandCursor);
+    }
 }
 
 // ============================================================================

@@ -36,15 +36,34 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
         return;
     }
 
+    is_deck_a_ = (display_name && std::strcmp(display_name, "Deck A") == 0);
+
     obs_source_inc_showing(source_);
     obs_source_inc_active(source_);
     obs_source_set_audio_active(source_, true);
     obs_source_set_audio_mixers(source_, 0x3F);
-    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
+    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+
+    obs_data_t *filter_settings = obs_data_create();
+    if (filter_settings) {
+        obs_data_set_int(filter_settings, "deck_idx", is_deck_a_ ? 0 : 1);
+        eq_filter_ = obs_source_create_private("vdj_eq_filter", "Deck EQ Filter", filter_settings);
+        obs_data_release(filter_settings);
+        if (eq_filter_) {
+            obs_source_filter_add(source_, eq_filter_);
+        }
+    }
+    applyAudioVolume();
 }
 
 DeckPlayer::~DeckPlayer()
 {
+    if (eq_filter_ && source_) {
+        obs_source_filter_remove(source_, eq_filter_);
+        obs_source_release(eq_filter_);
+        eq_filter_ = nullptr;
+    }
+
     if (!source_)
         return;
 
@@ -420,8 +439,14 @@ void DeckPlayer::applyAudioVolume() noexcept
     if (!source_)
         return;
 
-    const float channel_volume = volume_.load(std::memory_order_relaxed) * gain_.load(std::memory_order_relaxed);
-    obs_source_set_volume(source_, std::clamp(channel_volume, 0.0f, 2.0f));
+    const float channel_volume = volume_.load(std::memory_order_relaxed);
+    const float trim_gain = gain_.load(std::memory_order_relaxed);
+    const float crossfade_gain = mix_gain_.load(std::memory_order_relaxed);
+    const bool is_cue = headphone_cue_.load(std::memory_order_relaxed);
+
+    const float effective_gain = is_cue ? 1.0f : crossfade_gain;
+    const float final_vol = channel_volume * trim_gain * effective_gain;
+    obs_source_set_volume(source_, std::clamp(final_vol, 0.0f, 2.0f));
 }
 
 void DeckPlayer::enableAudioMonitoring() noexcept
@@ -431,7 +456,7 @@ void DeckPlayer::enableAudioMonitoring() noexcept
 
     obs_source_set_audio_active(source_, true);
     obs_source_set_audio_mixers(source_, 0x3F);
-    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
+    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
 
     applyAudioVolume();
 }
@@ -453,7 +478,7 @@ void DeckPlayer::setLooping(bool enabled)
         return;
     }
 
-    if (!source_ || durationMs() <= 0)
+    if (!source_)
         return;
 
     const int index = loop_beat_index_.load(std::memory_order_relaxed);
@@ -474,10 +499,10 @@ void DeckPlayer::setLooping(bool enabled)
 
     const int64_t loop_length = std::max<int64_t>(
         1, static_cast<int64_t>(beats * beat_ms));
-    const int64_t end = std::min<int64_t>(durationMs(), start + loop_length);
-
-    if (end <= start)
-        return;
+    const int64_t duration = durationMs();
+    const int64_t end = (duration > 0)
+        ? std::min<int64_t>(duration, start + loop_length)
+        : (start + loop_length);
 
     loop_start_ms_.store(start, std::memory_order_relaxed);
     loop_end_ms_.store(end, std::memory_order_relaxed);
@@ -486,7 +511,7 @@ void DeckPlayer::setLooping(bool enabled)
 
 void DeckPlayer::updateLoop()
 {
-    if (!source_ || !isLooping() || !isPlaying())
+    if (!source_ || !isLooping())
         return;
 
     const int64_t start = loop_start_ms_.load(std::memory_order_relaxed);
@@ -498,7 +523,7 @@ void DeckPlayer::updateLoop()
     const auto now_tp = std::chrono::steady_clock::now();
     const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now_tp - last_loop_seek_tp_).count();
 
-    if (cur >= end && elapsed_ms > 250) {
+    if (cur >= end && elapsed_ms > 40) {
         last_loop_seek_tp_ = now_tp;
         obs_source_media_set_time(source_, static_cast<uint64_t>(start));
     }

@@ -96,6 +96,8 @@ private:
     void applyAudioVolume() noexcept;
 
     obs_source_t *source_ = nullptr;
+    obs_source_t *eq_filter_ = nullptr;
+    bool is_deck_a_ = true;
 
     mutable std::mutex file_mutex_;
     QString file_name_{};
