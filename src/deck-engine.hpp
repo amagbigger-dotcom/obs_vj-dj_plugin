@@ -31,6 +31,7 @@ public:
     float volume() const noexcept;
 
     void setMixGain(float gain) noexcept;
+    void enableAudioMonitoring() noexcept;
 
     void setRed(float value) noexcept;
     void setGreen(float value) noexcept;
@@ -98,6 +99,7 @@ public:
     int getLoopBeatIndex(int deck_index) const noexcept;
 
     void updateAudioMix() noexcept;
+    void enableAudioMonitoring() noexcept;
 
 private:
     DeckPlayer deck_a_;

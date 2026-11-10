@@ -386,11 +386,24 @@ void MixerWindow::loadAudioMonitoringDevices()
 
     if (!devices.entries.empty()) {
         audio_monitor_devices_->setEnabled(true);
-        audio_monitor_devices_->setCurrentIndex(selected_index >= 0 ? selected_index : 0);
+        const int idx = (selected_index >= 0) ? selected_index : 0;
+        audio_monitor_devices_->setCurrentIndex(idx);
+
+        const QString dev_name = audio_monitor_devices_->itemText(idx);
+        const QString dev_id = audio_monitor_devices_->itemData(idx).toString();
+        if (!dev_id.isEmpty()) {
+            obs_set_audio_monitoring_device(
+                dev_name.toUtf8().constData(),
+                dev_id.toUtf8().constData());
+            obs_reset_audio_monitoring();
+        }
     } else {
         audio_monitor_devices_->addItem(QStringLiteral("No devices found"));
         audio_monitor_devices_->setEnabled(false);
     }
+
+    if (decks_)
+        decks_->enableAudioMonitoring();
 }
 
 void MixerWindow::buildDeckPanel(QWidget *parent, bool is_deck_a)
@@ -669,7 +682,6 @@ void MixerWindow::buildMixerSection(QWidget *parent)
 
     audio_monitor_devices_ = new QComboBox(parent);
     audio_monitor_devices_->setMinimumWidth(180);
-    loadAudioMonitoringDevices();
     layout->addWidget(audio_monitor_devices_);
 
     connect(audio_monitor_devices_,
@@ -688,8 +700,13 @@ void MixerWindow::buildMixerSection(QWidget *parent)
                     obs_set_audio_monitoring_device(
                         selected_name.toUtf8().constData(),
                         selected_id.toUtf8().constData());
+                    obs_reset_audio_monitoring();
                 }
+                if (decks_)
+                    decks_->enableAudioMonitoring();
             });
+
+    loadAudioMonitoringDevices();
 
     auto *channels = new QHBoxLayout();
 

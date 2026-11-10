@@ -35,7 +35,10 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
     }
 
     obs_source_inc_showing(source_);
-    obs_source_set_monitoring_enabled(source_, true);
+    obs_source_inc_active(source_);
+    obs_source_set_audio_active(source_, true);
+    obs_source_set_audio_mixers(source_, 0x3F);
+    enableAudioMonitoring();
 }
 
 DeckPlayer::~DeckPlayer()
@@ -43,6 +46,7 @@ DeckPlayer::~DeckPlayer()
     if (!source_)
         return;
 
+    obs_source_dec_active(source_);
     obs_source_dec_showing(source_);
     obs_source_release(source_);
     source_ = nullptr;
@@ -71,6 +75,8 @@ void DeckPlayer::loadFile(const QString &path)
     obs_source_update(source_, settings);
     obs_data_release(settings);
 
+    enableAudioMonitoring();
+
     looping_.store(false, std::memory_order_relaxed);
     loop_start_ms_.store(0, std::memory_order_relaxed);
     loop_end_ms_.store(0, std::memory_order_relaxed);
@@ -83,6 +89,8 @@ void DeckPlayer::togglePlayback()
 {
     if (!source_)
         return;
+
+    enableAudioMonitoring();
 
     const obs_media_state state = obs_source_media_get_state(source_);
 
@@ -98,6 +106,8 @@ void DeckPlayer::setPlaying(bool playing)
 {
     if (!source_)
         return;
+
+    enableAudioMonitoring();
 
     const obs_media_state state = obs_source_media_get_state(source_);
 
@@ -187,6 +197,23 @@ void DeckPlayer::applyAudioVolume() noexcept
     const float crossfader_gain = mix_gain_.load(std::memory_order_relaxed);
 
     obs_source_set_volume(source_, channel_volume * crossfader_gain);
+}
+
+void DeckPlayer::enableAudioMonitoring() noexcept
+{
+    if (!source_)
+        return;
+
+    obs_source_set_audio_active(source_, true);
+    obs_source_set_audio_mixers(source_, 0x3F);
+
+    obs_source_set_monitoring_enabled(source_, false);
+    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
+
+    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+    obs_source_set_monitoring_enabled(source_, true);
+
+    applyAudioVolume();
 }
 
 void DeckPlayer::setLoopBeatIndex(int index) noexcept
@@ -346,10 +373,13 @@ DeckPair::DeckPair()
         obs_data_release(settings);
     }
 
-    if (master_source_)
+    if (master_source_) {
         obs_source_inc_showing(master_source_);
+        obs_source_inc_active(master_source_);
+    }
 
     updateAudioMix();
+    enableAudioMonitoring();
 }
 
 DeckPair::~DeckPair()
@@ -357,6 +387,7 @@ DeckPair::~DeckPair()
     if (!master_source_)
         return;
 
+    obs_source_dec_active(master_source_);
     obs_source_dec_showing(master_source_);
     obs_source_release(master_source_);
     master_source_ = nullptr;
@@ -421,6 +452,12 @@ void DeckPair::updateAudioMix() noexcept
 
     deck_a_.setMixGain(static_cast<float>(1.0 - x));
     deck_b_.setMixGain(static_cast<float>(x));
+}
+
+void DeckPair::enableAudioMonitoring() noexcept
+{
+    deck_a_.enableAudioMonitoring();
+    deck_b_.enableAudioMonitoring();
 }
 
 DeckPair *vdj_decks() noexcept

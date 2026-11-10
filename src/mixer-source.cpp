@@ -1,6 +1,7 @@
 #include <obs-module.h>
 #include <graphics/graphics.h>
 #include <graphics/effect.h>
+#include <media-io/audio-io.h>
 
 #include <cstring>
 
@@ -339,6 +340,197 @@ static void monitor_video_render(void *data, gs_effect_t *)
     }
 }
 
+#ifndef AUDIO_OUTPUT_FRAMES
+#define AUDIO_OUTPUT_FRAMES 1024
+#endif
+
+#ifndef MAX_AUDIO_MIXES
+#define MAX_AUDIO_MIXES 6
+#endif
+
+static bool mixer_audio_render(void *data, uint64_t *ts_out,
+                               struct obs_source_audio_mix *audio_output,
+                               uint32_t mixers, size_t channels,
+                               size_t sample_rate)
+{
+    UNUSED_PARAMETER(data);
+    UNUSED_PARAMETER(sample_rate);
+
+    DeckPair *decks = vdj_decks();
+    if (!decks || !ts_out || !audio_output)
+        return false;
+
+    DeckPlayer &deck_a = decks->deckA();
+    DeckPlayer &deck_b = decks->deckB();
+    obs_source_t *source_a = deck_a.source();
+    obs_source_t *source_b = deck_b.source();
+
+    bool has_a = source_a && deck_a.isPlaying() && !obs_source_audio_pending(source_a);
+    bool has_b = source_b && deck_b.isPlaying() && !obs_source_audio_pending(source_b);
+
+    if (!has_a && !has_b)
+        return false;
+
+    struct obs_source_audio_mix mix_a = {};
+    struct obs_source_audio_mix mix_b = {};
+
+    uint64_t ts_a = 0;
+    uint64_t ts_b = 0;
+
+    if (has_a) {
+        ts_a = obs_source_get_audio_timestamp(source_a);
+        if (ts_a)
+            obs_source_get_audio_mix(source_a, &mix_a);
+        else
+            has_a = false;
+    }
+
+    if (has_b) {
+        ts_b = obs_source_get_audio_timestamp(source_b);
+        if (ts_b)
+            obs_source_get_audio_mix(source_b, &mix_b);
+        else
+            has_b = false;
+    }
+
+    if (!has_a && !has_b)
+        return false;
+
+    if (has_a && has_b)
+        *ts_out = (ts_a < ts_b) ? ts_a : ts_b;
+    else
+        *ts_out = has_a ? ts_a : ts_b;
+
+    for (size_t mix = 0; mix < MAX_AUDIO_MIXES; mix++) {
+        if ((mixers & (1U << mix)) == 0)
+            continue;
+
+        for (size_t ch = 0; ch < channels; ch++) {
+            float *out = audio_output->output[mix].data[ch];
+            const float *in_a = has_a ? mix_a.output[mix].data[ch] : nullptr;
+            const float *in_b = has_b ? mix_b.output[mix].data[ch] : nullptr;
+
+            if (in_a && in_b) {
+                for (size_t f = 0; f < AUDIO_OUTPUT_FRAMES; f++)
+                    out[f] = in_a[f] + in_b[f];
+            } else if (in_a) {
+                memcpy(out, in_a, AUDIO_OUTPUT_FRAMES * sizeof(float));
+            } else if (in_b) {
+                memcpy(out, in_b, AUDIO_OUTPUT_FRAMES * sizeof(float));
+            } else {
+                memset(out, 0, AUDIO_OUTPUT_FRAMES * sizeof(float));
+            }
+        }
+    }
+
+    return true;
+}
+
+static bool monitor_audio_render(void *data, uint64_t *ts_out,
+                                 struct obs_source_audio_mix *audio_output,
+                                 uint32_t mixers, size_t channels,
+                                 size_t sample_rate)
+{
+    UNUSED_PARAMETER(sample_rate);
+    auto *context = static_cast<MixerSource *>(data);
+    DeckPair *decks = vdj_decks();
+    if (!context || !decks || !ts_out || !audio_output)
+        return false;
+
+    DeckPlayer &deck = context->channel == 0 ? decks->deckA() : decks->deckB();
+    obs_source_t *source = deck.source();
+    if (!source || !deck.isPlaying() || obs_source_audio_pending(source))
+        return false;
+
+    uint64_t ts = obs_source_get_audio_timestamp(source);
+    if (!ts)
+        return false;
+
+    struct obs_source_audio_mix mix = {};
+    obs_source_get_audio_mix(source, &mix);
+    *ts_out = ts;
+
+    for (size_t m = 0; m < MAX_AUDIO_MIXES; m++) {
+        if ((mixers & (1U << m)) == 0)
+            continue;
+
+        for (size_t ch = 0; ch < channels; ch++) {
+            float *out = audio_output->output[m].data[ch];
+            const float *in = mix.output[m].data[ch];
+            if (in)
+                memcpy(out, in, AUDIO_OUTPUT_FRAMES * sizeof(float));
+            else
+                memset(out, 0, AUDIO_OUTPUT_FRAMES * sizeof(float));
+        }
+    }
+
+    return true;
+}
+
+static void mixer_enum_active_sources(void *data, obs_source_enum_proc_t cb, void *param)
+{
+    auto *context = static_cast<MixerSource *>(data);
+    DeckPair *decks = vdj_decks();
+    if (!context || !decks)
+        return;
+
+    obs_source_t *parent = context->source;
+    obs_source_t *source_a = decks->deckA().source();
+    obs_source_t *source_b = decks->deckB().source();
+
+    if (source_a && decks->deckA().isPlaying())
+        cb(parent, source_a, param);
+    if (source_b && decks->deckB().isPlaying())
+        cb(parent, source_b, param);
+}
+
+static void mixer_enum_all_sources(void *data, obs_source_enum_proc_t cb, void *param)
+{
+    auto *context = static_cast<MixerSource *>(data);
+    DeckPair *decks = vdj_decks();
+    if (!context || !decks)
+        return;
+
+    obs_source_t *parent = context->source;
+    obs_source_t *source_a = decks->deckA().source();
+    obs_source_t *source_b = decks->deckB().source();
+
+    if (source_a)
+        cb(parent, source_a, param);
+    if (source_b)
+        cb(parent, source_b, param);
+}
+
+static void monitor_enum_active_sources(void *data, obs_source_enum_proc_t cb, void *param)
+{
+    auto *context = static_cast<MixerSource *>(data);
+    DeckPair *decks = vdj_decks();
+    if (!context || !decks)
+        return;
+
+    obs_source_t *parent = context->source;
+    DeckPlayer &deck = (context->channel == 0) ? decks->deckA() : decks->deckB();
+    obs_source_t *child = deck.source();
+
+    if (child && deck.isPlaying())
+        cb(parent, child, param);
+}
+
+static void monitor_enum_all_sources(void *data, obs_source_enum_proc_t cb, void *param)
+{
+    auto *context = static_cast<MixerSource *>(data);
+    DeckPair *decks = vdj_decks();
+    if (!context || !decks)
+        return;
+
+    obs_source_t *parent = context->source;
+    DeckPlayer &deck = (context->channel == 0) ? decks->deckA() : decks->deckB();
+    obs_source_t *child = deck.source();
+
+    if (child)
+        cb(parent, child, param);
+}
+
 static obs_properties_t *mixer_properties(void *)
 {
     obs_properties_t *props = obs_properties_create();
@@ -371,6 +563,9 @@ void vdj_register_sources(void)
     master.create = mixer_create;
     master.destroy = mixer_destroy;
     master.video_render = mixer_video_render;
+    master.audio_render = mixer_audio_render;
+    master.enum_active_sources = mixer_enum_active_sources;
+    master.enum_all_sources = mixer_enum_all_sources;
     master.get_width = mixer_get_width;
     master.get_height = mixer_get_height;
     master.get_properties = mixer_properties;
@@ -380,17 +575,23 @@ void vdj_register_sources(void)
     obs_source_info deck_a = {};
     deck_a.id = "vdj_deck_a_source";
     deck_a.type = OBS_SOURCE_TYPE_INPUT;
-    deck_a.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
+    deck_a.output_flags =
+        OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_COMPOSITE;
     deck_a.get_name = monitor_get_name;
     deck_a.create = monitor_create;
     deck_a.destroy = mixer_destroy;
     deck_a.video_render = monitor_video_render;
+    deck_a.audio_render = monitor_audio_render;
+    deck_a.enum_active_sources = monitor_enum_active_sources;
+    deck_a.enum_all_sources = monitor_enum_all_sources;
     deck_a.get_width = mixer_get_width;
     deck_a.get_height = mixer_get_height;
     obs_register_source_s(&deck_a, sizeof(deck_a));
 
     obs_source_info deck_b = deck_a;
     deck_b.id = "vdj_deck_b_source";
+    deck_b.enum_active_sources = monitor_enum_active_sources;
+    deck_b.enum_all_sources = monitor_enum_all_sources;
     obs_register_source_s(&deck_b, sizeof(deck_b));
 }
 
