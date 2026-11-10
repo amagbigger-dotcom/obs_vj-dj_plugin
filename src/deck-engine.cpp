@@ -7,11 +7,9 @@
 namespace {
 DeckPair *g_decks = nullptr;
 
-// A beat-grid és BPM-elemzés még nincs implementálva.
-// Az Auto Loop ezért 120 BPM referencia-tempót használ.
 constexpr double kReferenceBeatMs = 500.0;
 constexpr int kLoopBeatCounts[] = {0, 1, 2, 4, 8, 16, 32, 64};
-}
+} // namespace
 
 DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
 {
@@ -37,6 +35,7 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
     }
 
     obs_source_inc_showing(source_);
+    obs_source_set_monitoring_enabled(source_, true);
 }
 
 DeckPlayer::~DeckPlayer()
@@ -163,7 +162,7 @@ int DeckPlayer::speed() const noexcept
 void DeckPlayer::setVolume(float volume)
 {
     volume_.store(std::clamp(volume, 0.0f, 1.0f),
-                  std::memory_order_relaxed);
+                 std::memory_order_relaxed);
     applyAudioVolume();
 }
 
@@ -175,7 +174,7 @@ float DeckPlayer::volume() const noexcept
 void DeckPlayer::setMixGain(float gain) noexcept
 {
     mix_gain_.store(std::clamp(gain, 0.0f, 1.0f),
-                    std::memory_order_relaxed);
+                   std::memory_order_relaxed);
     applyAudioVolume();
 }
 
@@ -193,7 +192,7 @@ void DeckPlayer::applyAudioVolume() noexcept
 void DeckPlayer::setLoopBeatIndex(int index) noexcept
 {
     loop_beat_index_.store(std::clamp(index, 0, 7),
-                           std::memory_order_relaxed);
+                          std::memory_order_relaxed);
 
     if (isLooping())
         setLooping(true);
@@ -293,25 +292,25 @@ bool DeckPlayer::isLooping() const noexcept
 void DeckPlayer::setRed(float value) noexcept
 {
     red_.store(std::clamp(value, 0.0f, 2.0f),
-               std::memory_order_relaxed);
+              std::memory_order_relaxed);
 }
 
 void DeckPlayer::setGreen(float value) noexcept
 {
     green_.store(std::clamp(value, 0.0f, 2.0f),
-                 std::memory_order_relaxed);
+                std::memory_order_relaxed);
 }
 
 void DeckPlayer::setBlue(float value) noexcept
 {
     blue_.store(std::clamp(value, 0.0f, 2.0f),
-                std::memory_order_relaxed);
+               std::memory_order_relaxed);
 }
 
 void DeckPlayer::setSaturation(float value) noexcept
 {
     saturation_.store(std::clamp(value, 0.0f, 2.0f),
-                      std::memory_order_relaxed);
+                     std::memory_order_relaxed);
 }
 
 float DeckPlayer::red() const noexcept
@@ -366,7 +365,7 @@ DeckPair::~DeckPair()
 void DeckPair::setCrossfader(double value) noexcept
 {
     crossfader_.store(std::clamp(value, 0.0, 1.0),
-                      std::memory_order_relaxed);
+                     std::memory_order_relaxed);
     updateAudioMix();
 }
 
@@ -378,7 +377,7 @@ double DeckPair::crossfader() const noexcept
 void DeckPair::setTransitionMode(int mode) noexcept
 {
     transition_mode_.store(std::clamp(mode, 0, 3),
-                           std::memory_order_relaxed);
+                          std::memory_order_relaxed);
 }
 
 int DeckPair::transitionMode() const noexcept
