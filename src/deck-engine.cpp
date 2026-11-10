@@ -2,6 +2,7 @@
 #include "audio-analyzer.hpp"
 
 #include <obs-module.h>
+#include <QFileInfo>
 #include <algorithm>
 #include <cmath>
 
@@ -39,7 +40,7 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
     obs_source_inc_active(source_);
     obs_source_set_audio_active(source_, true);
     obs_source_set_audio_mixers(source_, 0x3F);
-    enableAudioMonitoring();
+    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
 }
 
 DeckPlayer::~DeckPlayer()
@@ -57,6 +58,8 @@ void DeckPlayer::loadFile(const QString &path)
 {
     if (!source_ || path.isEmpty())
         return;
+
+    setFileName(QFileInfo(path).fileName());
 
     obs_data_t *settings = obs_source_get_settings(source_);
     if (!settings)
@@ -100,6 +103,18 @@ void DeckPlayer::loadFile(const QString &path)
     });
 
     obs_source_media_restart(source_);
+}
+
+QString DeckPlayer::fileName() const
+{
+    std::lock_guard<std::mutex> lock(file_mutex_);
+    return file_name_;
+}
+
+void DeckPlayer::setFileName(const QString &name)
+{
+    std::lock_guard<std::mutex> lock(file_mutex_);
+    file_name_ = name;
 }
 
 void DeckPlayer::togglePlayback()
@@ -168,10 +183,6 @@ void DeckPlayer::setSpeed(int percent)
     if (!source_)
         return;
 
-    const int64_t current_time = currentTimeMs();
-    if (current_time > 100)
-        pending_speed_seek_ms_.store(current_time, std::memory_order_relaxed);
-
     obs_data_t *settings = obs_source_get_settings(source_);
     if (!settings)
         return;
@@ -179,9 +190,6 @@ void DeckPlayer::setSpeed(int percent)
     obs_data_set_int(settings, "speed_percent", clamped);
     obs_source_update(source_, settings);
     obs_data_release(settings);
-
-    if (current_time > 100)
-        obs_source_media_set_time(source_, static_cast<uint64_t>(current_time));
 }
 
 int DeckPlayer::speed() const noexcept
@@ -377,6 +385,17 @@ int64_t DeckPlayer::loopEndMs() const noexcept
     return loop_end_ms_.load(std::memory_order_relaxed);
 }
 
+void DeckPlayer::setGain(float gain) noexcept
+{
+    gain_.store(std::clamp(gain, 0.0f, 2.0f), std::memory_order_relaxed);
+    applyAudioVolume();
+}
+
+float DeckPlayer::gain() const noexcept
+{
+    return gain_.load(std::memory_order_relaxed);
+}
+
 void DeckPlayer::setVolume(float volume)
 {
     volume_.store(std::clamp(volume, 0.0f, 1.0f),
@@ -401,13 +420,8 @@ void DeckPlayer::applyAudioVolume() noexcept
     if (!source_)
         return;
 
-    const float channel_volume = volume_.load(std::memory_order_relaxed);
-    const float crossfader_gain = mix_gain_.load(std::memory_order_relaxed);
-    const bool is_cue = headphone_cue_.load(std::memory_order_relaxed);
-
-    // If Headphone Cue (PFL) is enabled, keep source audible for monitoring regardless of fader
-    const float effective_gain = is_cue ? 1.0f : crossfader_gain;
-    obs_source_set_volume(source_, channel_volume * effective_gain);
+    const float channel_volume = volume_.load(std::memory_order_relaxed) * gain_.load(std::memory_order_relaxed);
+    obs_source_set_volume(source_, std::clamp(channel_volume, 0.0f, 2.0f));
 }
 
 void DeckPlayer::enableAudioMonitoring() noexcept
@@ -417,12 +431,7 @@ void DeckPlayer::enableAudioMonitoring() noexcept
 
     obs_source_set_audio_active(source_, true);
     obs_source_set_audio_mixers(source_, 0x3F);
-
-    obs_source_set_monitoring_enabled(source_, false);
     obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
-
-    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
-    obs_source_set_monitoring_enabled(source_, true);
 
     applyAudioVolume();
 }
@@ -477,35 +486,20 @@ void DeckPlayer::setLooping(bool enabled)
 
 void DeckPlayer::updateLoop()
 {
-    if (!source_)
-        return;
-
-    // Check if we need to restore position after tempo/speed update
-    const int64_t pending_seek = pending_speed_seek_ms_.load(std::memory_order_relaxed);
-    if (pending_seek > 100) {
-        const int64_t now = currentTimeMs();
-        if (now < 500 && pending_seek > 1000) {
-            obs_source_media_set_time(source_, static_cast<uint64_t>(pending_seek));
-        } else if (now >= pending_seek - 500) {
-            pending_speed_seek_ms_.store(-1, std::memory_order_relaxed);
-        }
-    }
-
-    if (!isLooping() || !isPlaying())
+    if (!source_ || !isLooping() || !isPlaying())
         return;
 
     const int64_t start = loop_start_ms_.load(std::memory_order_relaxed);
     const int64_t end = loop_end_ms_.load(std::memory_order_relaxed);
-
-    if (is_loop_seeking_.load(std::memory_order_relaxed)) {
-        if (currentTimeMs() <= start + 150) {
-            is_loop_seeking_.store(false, std::memory_order_relaxed);
-        }
+    if (end <= start)
         return;
-    }
 
-    if (end > start && currentTimeMs() >= end) {
-        is_loop_seeking_.store(true, std::memory_order_relaxed);
+    const int64_t cur = currentTimeMs();
+    const auto now_tp = std::chrono::steady_clock::now();
+    const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now_tp - last_loop_seek_tp_).count();
+
+    if (cur >= end && elapsed_ms > 250) {
+        last_loop_seek_tp_ = now_tp;
         obs_source_media_set_time(source_, static_cast<uint64_t>(start));
     }
 }
@@ -621,6 +615,9 @@ DeckPair::DeckPair()
     if (master_source_) {
         obs_source_inc_showing(master_source_);
         obs_source_inc_active(master_source_);
+        obs_source_set_audio_active(master_source_, true);
+        obs_source_set_audio_mixers(master_source_, 0x3F);
+        obs_source_set_monitoring_type(master_source_, OBS_MONITORING_TYPE_NONE);
     }
 
     updateAudioMix();
@@ -693,12 +690,32 @@ float DeckPair::headphoneMix() const noexcept
 
 void DeckPair::syncTempoAtoB()
 {
-    deck_b_.setSpeed(deck_a_.speed());
+    // Deck B matches Deck A's effective BPM
+    const double eff_bpm_a = deck_a_.effectiveBpm();
+    const double base_bpm_b = deck_b_.bpm();
+    if (base_bpm_b > 10.0 && eff_bpm_a > 10.0) {
+        const int target_speed = std::clamp(
+            static_cast<int>(std::round((eff_bpm_a / base_bpm_b) * 100.0)),
+            50, 150);
+        deck_b_.setSpeed(target_speed);
+    } else {
+        deck_b_.setSpeed(deck_a_.speed());
+    }
 }
 
 void DeckPair::syncTempoBtoA()
 {
-    deck_a_.setSpeed(deck_b_.speed());
+    // Deck A matches Deck B's effective BPM
+    const double eff_bpm_b = deck_b_.effectiveBpm();
+    const double base_bpm_a = deck_a_.bpm();
+    if (base_bpm_a > 10.0 && eff_bpm_b > 10.0) {
+        const int target_speed = std::clamp(
+            static_cast<int>(std::round((eff_bpm_b / base_bpm_a) * 100.0)),
+            50, 150);
+        deck_a_.setSpeed(target_speed);
+    } else {
+        deck_a_.setSpeed(deck_b_.speed());
+    }
 }
 
 void DeckPair::setLoopBeatIndex(int deck_index, int beat_index)

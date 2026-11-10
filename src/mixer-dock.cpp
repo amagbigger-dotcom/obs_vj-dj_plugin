@@ -488,6 +488,8 @@ QWidget *MixerWindow::buildDeckPanel(bool is_deck_a)
     tempo_row->addWidget(bend_plus);
 
     auto *rate_lbl = new QLabel(QStringLiteral("100%"), panel);
+    rate_lbl->setFixedWidth(38);
+    rate_lbl->setAlignment(Qt::AlignCenter);
     rate_lbl->setStyleSheet(QStringLiteral("font-weight: bold; font-size: 10px; font-family: monospace; color: #e0e6f0;"));
     tempo_row->addWidget(rate_lbl);
 
@@ -616,7 +618,7 @@ QWidget *MixerWindow::buildCenterMixerPanel()
             });
         };
 
-        addEqSlider(QStringLiteral("GAIN"), out_gain, 0, [deck](float v) { deck->setVolume(v); });
+        addEqSlider(QStringLiteral("GAIN"), out_gain, 0, [deck](float v) { deck->setGain(v); });
         addEqSlider(QStringLiteral("HI"), out_hi, 0, [deck](float v) { deck->setEqHi(v); });
         addEqSlider(QStringLiteral("MID"), out_mid, 0, [deck](float v) { deck->setEqMid(v); });
         addEqSlider(QStringLiteral("LOW"), out_low, 0, [deck](float v) { deck->setEqLow(v); });
@@ -848,6 +850,12 @@ void MixerWindow::loadAudioDevices()
                     obs_set_audio_monitoring_device(name.toUtf8().constData(), id.toUtf8().constData());
                 }
             });
+
+    connect(master_device_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [this](int index) {
+                if (index < 0 || !master_device_combo_)
+                    return;
+            });
 }
 
 void MixerWindow::refreshDeck(bool is_deck_a)
@@ -885,6 +893,18 @@ void MixerWindow::refreshDeck(bool is_deck_a)
                 rate_lbl->setText(QStringLiteral("%1%").arg(spd));
         }
     }
+
+    auto syncSlider = [](DJSlider *sl, int val) {
+        if (sl && !sl->isSliderDown() && std::abs(sl->value() - val) > 1) {
+            QSignalBlocker blocker(sl);
+            sl->setValue(val);
+        }
+    };
+    syncSlider(is_deck_a ? hi_a_ : hi_b_, static_cast<int>((deck.eqHi() - 1.0f) * 100.0f));
+    syncSlider(is_deck_a ? mid_a_ : mid_b_, static_cast<int>((deck.eqMid() - 1.0f) * 100.0f));
+    syncSlider(is_deck_a ? low_a_ : low_b_, static_cast<int>((deck.eqLow() - 1.0f) * 100.0f));
+    syncSlider(is_deck_a ? flt_a_ : flt_b_, static_cast<int>(deck.filterVal() * 100.0f));
+    syncSlider(is_deck_a ? vol_a_ : vol_b_, static_cast<int>(deck.volume() * 100.0f));
 
     if (grid_lbl) {
         grid_lbl->setText(QStringLiteral("GRID: %1ms").arg(deck.gridOffsetMs()));

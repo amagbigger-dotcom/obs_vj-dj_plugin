@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <vector>
 #include <mutex>
+#include <chrono>
 
 class DeckPlayer final {
 public:
@@ -18,6 +19,9 @@ public:
     obs_source_t *source() const noexcept { return source_; }
 
     void loadFile(const QString &path);
+    QString fileName() const;
+    void setFileName(const QString &name);
+
     void togglePlayback();
     void setPlaying(bool playing);
     void setLooping(bool looping);
@@ -57,6 +61,9 @@ public:
 
     void processAudioDsp(float *channel_data, size_t num_frames, size_t channel_idx, size_t sample_rate);
 
+    void setGain(float gain) noexcept;
+    float gain() const noexcept;
+
     void setVolume(float volume);
     float volume() const noexcept;
 
@@ -90,6 +97,9 @@ private:
 
     obs_source_t *source_ = nullptr;
 
+    mutable std::mutex file_mutex_;
+    QString file_name_{};
+
     std::atomic<bool> looping_{false};
     std::atomic<int> loop_beat_index_{3};
 
@@ -100,9 +110,9 @@ private:
     std::atomic<double> base_bpm_{128.0};
     std::atomic<int64_t> grid_offset_ms_{0};
     std::atomic<bool> headphone_cue_{false};
-    std::atomic<int64_t> pending_speed_seek_ms_{-1};
 
     std::atomic<int> speed_percent_{100};
+    std::atomic<float> gain_{1.0f};
     std::atomic<float> volume_{1.0f};
     std::atomic<float> mix_gain_{1.0f};
 
@@ -116,7 +126,7 @@ private:
     std::atomic<float> eq_low_{1.0f};
     std::atomic<float> filter_val_{0.0f};
 
-    std::atomic<bool> is_loop_seeking_{false};
+    std::chrono::steady_clock::time_point last_loop_seek_tp_{};
 
     struct FilterState {
         float lp = 0.0f;

@@ -121,8 +121,10 @@ void handle_note(DeckPair *decks,
         deck->cue();
         break;
     case 37:
-        if (other_deck)
-            deck->setSpeed(other_deck->speed());
+        if (channel == 0)
+            decks->syncTempoBtoA();
+        else
+            decks->syncTempoAtoB();
         break;
     case 38:
         deck->setHeadphoneCue(!deck->isHeadphoneCue());

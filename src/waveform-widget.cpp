@@ -16,8 +16,8 @@
 #include <cmath>
 
 namespace {
-constexpr int kOverviewHeight = 15;
-constexpr double kZoomSeconds = 6.0; // 6 seconds visible for high-detail kick visibility
+constexpr int kOverviewHeight = 16;
+constexpr double kZoomSeconds = 4.0; // 4 seconds visible across width (~52 px per beat at 128 BPM for sharp kick visibility)
 }
 
 // ============================================================================
@@ -29,7 +29,7 @@ WaveformCanvas::WaveformCanvas(DeckPlayer *deck, bool is_deck_a, QWidget *parent
       deck_(deck),
       is_deck_a_(is_deck_a)
 {
-    setFixedHeight(68);
+    setFixedHeight(90);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setCursor(Qt::PointingHandCursor);
     setMouseTracking(true);
@@ -186,8 +186,9 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
 
     // 4. High-Resolution Scrolling Waveform (Every kick attack clearly visible!)
     if (duration > 0 && !detailed.empty()) {
-        const QColor theme_main = is_deck_a_ ? QColor(0, 215, 255) : QColor(255, 120, 0);
-        const QColor theme_core = is_deck_a_ ? QColor(0, 130, 200) : QColor(200, 75, 0);
+        const QColor theme_main = is_deck_a_ ? QColor(0, 225, 255) : QColor(255, 128, 0);
+        const QColor theme_core = is_deck_a_ ? QColor(0, 110, 180) : QColor(180, 60, 0);
+        const QColor theme_kick = is_deck_a_ ? QColor(180, 245, 255) : QColor(255, 220, 150);
 
         for (int x = 0; x < w; ++x) {
             const int64_t sample_time_ms = current + static_cast<int64_t>((x - playhead_x) * ms_per_pixel);
@@ -207,9 +208,15 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
             p.drawLine(x, center_y - bar_h, x, center_y + bar_h);
 
             // Bright core transient spike
-            if (bar_h > 2) {
+            if (bar_h > 4) {
                 p.setPen(QPen(theme_main, 1));
-                p.drawLine(x, center_y - bar_h / 2, x, center_y + bar_h / 2);
+                p.drawLine(x, center_y - bar_h * 2 / 3, x, center_y + bar_h * 2 / 3);
+            }
+
+            // Punchy kick core highlight
+            if (amp > 0.65f) {
+                p.setPen(QPen(theme_kick, 1));
+                p.drawLine(x, center_y - bar_h / 3, x, center_y + bar_h / 3);
             }
         }
     }
@@ -343,7 +350,7 @@ WaveformWidget::WaveformWidget(DeckPlayer *deck, bool is_deck_a, QWidget *parent
 
     // 1. Dedicated Top DISP Header Frame (Black background, zero overlap with waveform!)
     auto *header_frame = new QFrame(this);
-    header_frame->setFixedHeight(26);
+    header_frame->setFixedHeight(32);
     header_frame->setStyleSheet(QStringLiteral(
         "QFrame { background-color: #0c0f14; border: 1px solid #1e2532; border-radius: 3px; }"));
     auto *header_layout = new QHBoxLayout(header_frame);
@@ -352,33 +359,37 @@ WaveformWidget::WaveformWidget(DeckPlayer *deck, bool is_deck_a, QWidget *parent
 
     file_label_ = new QLabel(QStringLiteral("Empty Deck - Click Load"), header_frame);
     file_label_->setStyleSheet(
-        QStringLiteral("color: #d0d6e2; font-size: 10px; font-weight: bold; border: none; font-family: 'Segoe UI', sans-serif;"));
+        QStringLiteral("color: #d0d6e2; font-size: 11px; font-weight: bold; border: none; font-family: 'Segoe UI', sans-serif;"));
     header_layout->addWidget(file_label_, 1);
 
     time_label_ = new QLabel(QStringLiteral("00:00 / -00:00"), header_frame);
+    time_label_->setFixedWidth(120);
+    time_label_->setAlignment(Qt::AlignCenter);
     time_label_->setStyleSheet(
-        QStringLiteral("color: #00d2ff; font-size: 11px; font-weight: bold; font-family: monospace; border: none;"));
+        QStringLiteral("color: #00d2ff; font-size: 12px; font-weight: bold; font-family: monospace; border: none;"));
     header_layout->addWidget(time_label_);
 
     bpm_label_ = new QLabel(QStringLiteral("128.0 BPM"), header_frame);
+    bpm_label_->setFixedWidth(80);
+    bpm_label_->setAlignment(Qt::AlignCenter);
     const QString bpm_color = is_deck_a_ ? QStringLiteral("#00d2ff") : QStringLiteral("#ff7700");
     bpm_label_->setStyleSheet(QStringLiteral(
-        "color: %1; font-size: 11px; font-weight: bold; font-family: monospace; border: none;").arg(bpm_color));
+        "color: %1; font-size: 12px; font-weight: bold; font-family: monospace; border: none;").arg(bpm_color));
     bpm_label_->setToolTip(QStringLiteral("Track BPM. Click [edit] to type exact BPM."));
     header_layout->addWidget(bpm_label_);
 
     edit_bpm_btn_ = new QPushButton(QStringLiteral("edit"), header_frame);
-    edit_bpm_btn_->setFixedSize(30, 18);
+    edit_bpm_btn_->setFixedSize(36, 22);
     edit_bpm_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c222c; color: #a0abbd; border: 1px solid #2e3848; border-radius: 2px; font-size: 9px; font-weight: bold; } "
+        "QPushButton { background: #1c222c; color: #a0abbd; border: 1px solid #2e3848; border-radius: 2px; font-size: 10px; font-weight: bold; } "
         "QPushButton:hover { background: #2a3444; color: #fff; }"));
     edit_bpm_btn_->setToolTip(QStringLiteral("Manually edit exact BPM value"));
     header_layout->addWidget(edit_bpm_btn_);
 
     tap_btn_ = new QPushButton(QStringLiteral("TAP"), header_frame);
-    tap_btn_->setFixedSize(30, 18);
+    tap_btn_->setFixedSize(36, 22);
     tap_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c222c; color: #ffffff; border: 1px solid #2e3848; border-radius: 2px; font-size: 9px; font-weight: bold; } "
+        "QPushButton { background: #1c222c; color: #ffffff; border: 1px solid #2e3848; border-radius: 2px; font-size: 10px; font-weight: bold; } "
         "QPushButton:hover { background: #2a3444; } "
         "QPushButton:pressed { background: #0088aa; }"));
     tap_btn_->setToolTip(QStringLiteral("Tap along to beat to detect/set BPM"));
