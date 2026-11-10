@@ -219,12 +219,29 @@ A bővítmény három független szálon/környezetben dolgozik:
 ### 5. OBS Aktív Kimenet Választó *(KÉSZ)*
 * **Megvalósítás:** A felületről közvetlenül vezérelhető, hogy az OBS fő kimenetén a Master Mix, csak a Deck A vagy csak a Deck B jelenjen meg.
 
-### 6. MIDI Out / Hardveres LED visszajelzés (Prioritás: KÉNYELMI)
-* **Jelenlegi állapot:** A plugin jelenleg kizárólag MIDI IN-t olvas.
-* **Fejlesztési cél:** `midiOutOpen` és `midiOutShortMsg` megvalósítása a gombok és LED-ek hardveres visszajelzéséhez.
+### 6. Valós BPM Analízis, Kick Transient Detektálás & Hullámforma *(KÉSZ)*
+- Az `AudioAnalyzer` 22.05 kHz-es dekódolással és 180 Hz-es másodrendű aluláteresztő szűrővel elkülöníti a lábdob és basszus energiát a szintiktől/énekektől.
+- 500 Hz-es (2 ms) felbontású Onset Novelty görbe és autokorreláció 3 pontos parabolikus interpolációval (0.05 BPM pontosság).
+- A részletes hullámforma dinamikus burkológörbével dolgozik: a lábdobok támadása éles, magas csúcsokként (0.9 - 1.0) azonnal kiugrik a völgyekből.
 
-### 4. Átfogó Dokumentáció (`README.md`) *(KÉSZ)*
-* Elkészült a teljes körű `README.md` a rendszerarchitektúra, hardveres bekötés, Mermaid folyamatábra, valamint a build és telepítési lépések bemutatásával.
+### 7. OBS Videó Renderelés & 1080p DJ Vizualizáció *(KÉSZ)*
+- A `MIXER_EFFECT` shader megkapta a `ViewProj` projekciós mátrixot, kiküszöbölve a fekete képernyőt.
+- Amikor tisztán audió fájl (.wav, .mp3) van betöltve, a bővítmény automatikusan egy 1080p stúdió DJ vizualizációt generál forgó analóg lemezjátszóval, valós idejű spektrumanalizátorral, deck logóval, BPM és időkód kijelzéssel.
+
+### 8. Audió Útvonalválasztás és 3-sávos DSP Szűrés *(KÉSZ)*
+- `OBS_SOURCE_AUDIO` hozzáadva a kimeneti zászlókhoz, így a `VJ Master Output` megjelenik az OBS Hangkeresőben saját faderrel és kivezérlésjelzővel.
+- A privát `ffmpeg_source` közvetlen monitorozása letiltva (`OBS_MONITORING_TYPE_NONE`), megakadályozva a nyers hang közvetlen kimenetre kerülését.
+- A 3 sávos EQ és DJ Filter DSP csatornánként egyszer fut le, védve a szűrőállapotokat a torzítástól.
+- A GAIN trim potméter és a VOL fader független szorzóként működik.
+- A loop váltás legalább 250 ms-os időkülönbség-védelemmel van ellátva, megszüntetve a pufferürítés miatti akadozást.
+
+### 9. Valódi Matematikai DJ SYNC *(KÉSZ)*
+- A SYNC gomb most a cél deck tényleges effektív BPM értékét veszi át:
+  $$\text{Target Speed} = \text{std::clamp}\left(\text{round}\left(\frac{\text{Effective BPM}_{master}}{\text{Base BPM}_{slave}} \times 100.0\right), 50, 150\right)$$
+
+### 10. Felületi Stabilitás és Reszponzivitás *(KÉSZ)*
+- Rögzített szélességű időkód, BPM és Pitch Rate címkék (`setFixedWidth()`), amelyek megakadályozzák a kezelőfelület ugrálását és nyúlását a csúszkák húzásakor.
+- Megnövelt és kényelmesebb méretű Waveform Canvas (90px), `[edit]` és `[TAP]` gombok.
 
 ---
 
