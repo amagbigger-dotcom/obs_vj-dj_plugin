@@ -22,6 +22,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -737,22 +739,42 @@ void MixerWindow::buildMixerSection(QWidget *parent)
             QSlider **filter_slot = is_deck_a ? &flt_a_ : &flt_b_;
             QSlider **volume_slot = is_deck_a ? &vol_a_ : &vol_b_;
 
-            addControl(QStringLiteral("HI"), hi_slot, -100, 100, 0,
-                       QStringLiteral("EQ high band (UI control)"));
-            addControl(QStringLiteral("MID"), mid_slot, -100, 100, 0,
-                       QStringLiteral("EQ mid band (UI control)"));
-            addControl(QStringLiteral("LOW"), low_slot, -100, 100, 0,
-                       QStringLiteral("EQ low band (UI control)"));
-            addControl(QStringLiteral("FILTER"), filter_slot, -100, 100, 0,
-                       QStringLiteral("Filter (UI control)"));
+            QSlider *hi_slider = addControl(
+                QStringLiteral("HI"), hi_slot, -100, 100, 0,
+                QStringLiteral("EQ high band (Red tint: 0.0 - 2.0)"));
+            QSlider *mid_slider = addControl(
+                QStringLiteral("MID"), mid_slot, -100, 100, 0,
+                QStringLiteral("EQ mid band (Green tint: 0.0 - 2.0)"));
+            QSlider *low_slider = addControl(
+                QStringLiteral("LOW"), low_slot, -100, 100, 0,
+                QStringLiteral("EQ low band (Blue tint: 0.0 - 2.0)"));
+            QSlider *filter_slider = addControl(
+                QStringLiteral("FILTER"), filter_slot, -100, 100, 0,
+                QStringLiteral("Filter (Saturation: 0.0 - 2.0)"));
 
-            QSlider *volume_slider =
-                addControl(QStringLiteral("VOL"), volume_slot, 0, 100, 100,
-                           QStringLiteral("Deck channel volume"));
+            QSlider *volume_slider = addControl(
+                QStringLiteral("VOL"), volume_slot, 0, 100, 100,
+                QStringLiteral("Deck channel volume"));
 
             DeckPlayer *deck =
                 is_deck_a ? &decks_->deckA() : &decks_->deckB();
 
+            connect(hi_slider, &QSlider::valueChanged, this,
+                    [deck](int value) {
+                        deck->setRed(1.0f + static_cast<float>(value) / 100.0f);
+                    });
+            connect(mid_slider, &QSlider::valueChanged, this,
+                    [deck](int value) {
+                        deck->setGreen(1.0f + static_cast<float>(value) / 100.0f);
+                    });
+            connect(low_slider, &QSlider::valueChanged, this,
+                    [deck](int value) {
+                        deck->setBlue(1.0f + static_cast<float>(value) / 100.0f);
+                    });
+            connect(filter_slider, &QSlider::valueChanged, this,
+                    [deck](int value) {
+                        deck->setSaturation(1.0f + static_cast<float>(value) / 100.0f);
+                    });
             connect(volume_slider, &QSlider::valueChanged, this,
                     [deck](int value) {
                         deck->setVolume(static_cast<float>(value) / 100.0f);
@@ -798,9 +820,40 @@ void MixerWindow::refreshDeck(bool is_deck_a)
     if (rate_label)
         rate_label->setText(QStringLiteral("%1%").arg(deck.speed()));
 
-    if (pitch_slider && pitch_slider->value() != deck.speed()) {
+    if (pitch_slider && !pitch_slider->isSliderDown() && pitch_slider->value() != deck.speed()) {
         const QSignalBlocker blocker(pitch_slider);
         pitch_slider->setValue(deck.speed());
+    }
+
+    QSlider *hi_slider = is_deck_a ? hi_a_ : hi_b_;
+    QSlider *mid_slider = is_deck_a ? mid_a_ : mid_b_;
+    QSlider *low_slider = is_deck_a ? low_a_ : low_b_;
+    QSlider *filter_slider = is_deck_a ? flt_a_ : flt_b_;
+    QSlider *vol_slider = is_deck_a ? vol_a_ : vol_b_;
+
+    auto updateSliderFromFloat = [](QSlider *slider, float float_val) {
+        if (!slider || slider->isSliderDown())
+            return;
+        const int target_val = std::clamp(
+            static_cast<int>(std::lround((float_val - 1.0f) * 100.0f)), -100, 100);
+        if (slider->value() != target_val) {
+            const QSignalBlocker blocker(slider);
+            slider->setValue(target_val);
+        }
+    };
+
+    updateSliderFromFloat(hi_slider, deck.red());
+    updateSliderFromFloat(mid_slider, deck.green());
+    updateSliderFromFloat(low_slider, deck.blue());
+    updateSliderFromFloat(filter_slider, deck.saturation());
+
+    if (vol_slider && !vol_slider->isSliderDown()) {
+        const int vol_val = std::clamp(
+            static_cast<int>(std::lround(deck.volume() * 100.0f)), 0, 100);
+        if (vol_slider->value() != vol_val) {
+            const QSignalBlocker blocker(vol_slider);
+            vol_slider->setValue(vol_val);
+        }
     }
 
     if (play_button) {
@@ -821,7 +874,7 @@ void MixerWindow::refreshMixer()
     if (!decks_)
         return;
 
-    if (crossfader_) {
+    if (crossfader_ && !crossfader_->isSliderDown()) {
         const int value =
             static_cast<int>(decks_->crossfader() * 1000.0);
         if (crossfader_->value() != value) {
