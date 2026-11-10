@@ -94,7 +94,9 @@ jobs:
       - name: Configure CMake
         shell: pwsh
         run: |
-          cmake -B build -A x64 -DOBS_SDK_DIR="$env:RUNNER_TEMP/obs-sdk"
+          $ErrorActionPreference = 'Stop'
+
+          cmake -S . -B build -A x64 "-DOBS_SDK_DIR=$env:RUNNER_TEMP/obs-sdk"
           if ($LASTEXITCODE -ne 0) {
             throw "Plugin CMake configuration failed."
           }
@@ -102,7 +104,9 @@ jobs:
       - name: Build Plugin
         shell: pwsh
         run: |
-          cmake --build build --config Release
+          $ErrorActionPreference = 'Stop'
+
+          cmake --build build --config Release --parallel
           if ($LASTEXITCODE -ne 0) {
             throw "Plugin build failed."
           }
@@ -113,19 +117,42 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
 
-          $dll = Get-ChildItem -Path build -Recurse -File -Filter "obs-vj-mixer.dll" |
-            Select-Object -First 1
+          $preferredNames = @(
+            "obs-vj-mixer.dll",
+            "obs_vj-dj_plugin.dll"
+          )
 
-          if (-not $dll) {
-            Write-Host "DLL files found under build:"
-            Get-ChildItem -Path build -Recurse -File -Filter "*.dll" |
-              ForEach-Object { Write-Host $_.FullName }
+          $dll = $null
 
-            throw "obs-vj-mixer.dll was not found under the build directory."
+          foreach ($name in $preferredNames) {
+            $dll = Get-ChildItem -Path build -Recurse -File -Filter $name |
+              Select-Object -First 1
+
+            if ($dll) {
+              break
+            }
           }
 
-          "dll_path=$($dll.FullName)" >> $env:GITHUB_OUTPUT
-          Write-Host "Found plugin DLL: $($dll.FullName)"
+          if (-not $dll) {
+            $allDlls = @(Get-ChildItem -Path build -Recurse -File -Filter "*.dll")
+
+            Write-Host "DLL files found under build:"
+            if ($allDlls.Count -eq 0) {
+              Write-Host "No DLL files were produced."
+            } else {
+              $allDlls | ForEach-Object { Write-Host $_.FullName }
+            }
+
+            if ($allDlls.Count -eq 1) {
+              $dll = $allDlls[0]
+              Write-Host "Using the only DLL found: $($dll.FullName)"
+            } else {
+              throw "Could not uniquely locate the plugin DLL. Expected obs-vj-mixer.dll or obs_vj-dj_plugin.dll."
+            }
+          }
+
+          Write-Host "Plugin DLL found: $($dll.FullName)"
+          "dll_path=$($dll.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Upload Plugin DLL
         uses: actions/upload-artifact@v4
