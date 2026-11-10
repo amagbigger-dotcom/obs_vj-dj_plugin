@@ -149,22 +149,27 @@ A bővítmény három független szálon/környezetben dolgozik:
 
 * **`CMakeLists.txt`:** *(Kész)*
   - CMake 3.25+, C++17, Qt6 (Core, Gui, Widgets), libobs, obs-frontend-api.
-  - A `winmm` könyvtár hozzáadva a `target_link_libraries`-hez a Windows Multimedia API hívásokhoz.
+  - A `winmm` és Windows Media Foundation (`mfplat`, `mfreadwrite`, `mfuuid`, `propsys`) könyvtárak hozzáadva a `target_link_libraries`-hez.
   - Generált célpont: `obs-vj-mixer.dll`.
-* **`.github/workflows/build.yml`:** *(Kész)*
-  - Automatikus CI folyamat Windows Server 2022 runneren.
-  - Letölti és lefordítja az OBS Studio 33.0.1 SDK-t (`libobs`, `obs-frontend-api`).
-  - Qt 6.6.1-gyel és MSVC 2022-vel lefordítja a plugint.
-  - Kimeneti artifact: 1 db önálló `obs-vj-mixer.dll`.
-* **`src/plugin-main.cpp`:** *(Kész)*
-  - Modul belépési pont (`obs_module_load`, `obs_module_unload`).
-  - Regisztrálja az OBS forrásokat (`vdj_register_sources`).
-  - Inicializálja a globális motort (`init_deck_engine`), beindítja a MIDI figyelőt (`vdj_midi_init`), és hozzáadja az OBS Eszközök menüjébe a "Video DJ Mixer" ablaknyitó elemet.
+* **`src/audio-analyzer.hpp` & `src/audio-analyzer.cpp`:** *(Kész)*
+  - `AudioAnalyzer`: Aszinkron audio dekódolás (Windows Media Foundation SourceReader) háttérszálon.
+  - Valós hullámforma envelope számítás (600 csúcsérték bucket).
+  - Onset novelty curve energianövekmény és autokorrelációs valódi BPM detektálás (60–190 BPM tartomány, 125 BPM prior).
+  - Downbeat (Kick 1) leütés-detektálás a rács első taktusvonalának automatikus igazításához.
 * **`src/waveform-widget.hpp` & `src/waveform-widget.cpp`:** *(Kész)*
-  - `WaveformWidget`: Valós idejű zenei hullámforma és BPM kijelző widget.
-  - Dinamikus digitális BPM kijelzés, `TAP` tempó gomb és finomhangoló (`+`/`-`) gombok.
-  - Függőleges beatgrid ütemvonalak negyedenként és ütemenként (vastagabb sávok számozással).
-  - Folyamatosan gördülő hullámforma az aktuális lejátszási fej körül, loop szakasz kiemeléssel és interaktív pozíció-kereséssel (scrubbing).
+  - Traktor DJ Studio 2 stílusú kétrétegű kompakt widget:
+    - Felső részletes gördülő hullámforma valós audio csúcsokkal, ütemrácssal, számozott taktusvonalakkal és lejátszófejjel.
+    - Alsó arany áttekintő csík a teljes track hangerejével és loop kijelzéssel.
+    - DISP fejléc: Fájlnév, eltelt/hátralévő idő, dinamikus BPM és `[edit]` gomb azonnali pontos kézi beíráshoz.
+    - Jobb gombos húzás az ütemrács valós idejű csúsztatásához.
+* **`src/mixer-dock.hpp` & `src/mixer-dock.cpp`:** *(Kész)*
+  - Traktor DJ Studio 2 stílusú 3 oszlopos professzionális felület (`Deck A | Mixer | Deck B`):
+    - `DJSlider` potméterek dupla kattintásos azonnali reset funkcióval (0 dB / 100% / 50% center).
+    - `MOVE` szekció: `<<`, `SET 1`, `>>` gombok az ütemrács okamnali tolásához és az 1. ütem rögzítéséhez.
+    - `LOOP` mátrix (`1/2, 1, 2, 4, 8, 16, 32`) narancssárga aktív világítással.
+    - `TRANSPORT` szekció: `CUE ||`, `SET`, `CUE ▶`, és megvilágított sárga `PLAY` gomb.
+    - Kettős Hangkártya választó a fejlécben: Master Soundcard és Füles (Headphone / CUE).
+    - `[ 📺 ADD TO SCENE ]` gomb a VJ Master forrás azonnali jelenetbe helyezéséhez.
 * **`src/deck-engine.hpp` & `src/deck-engine.cpp`:** *(Kész)*
   - `DeckPlayer`: Privát `ffmpeg_source` kezelő. Támogatja a Play/Pause, CUE, seek, sebesség (50-150%), hangerő, atomi RGB és telítettségi értékek, BPM és kvantált ütemhelyes beat loop (1/2, 1, 2, 4, 8, 16, 32, 64 ütem) futtatását.
   - Tempóváltás pozíció-megőrzéssel (`pending_speed_seek_ms_`), amely megakadályozza, hogy a videó a legelejére ugorjon sebességállításkor.

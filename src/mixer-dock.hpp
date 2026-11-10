@@ -2,14 +2,43 @@
 
 #include <QDialog>
 #include <QWidget>
+#include <QSlider>
+#include <QMouseEvent>
+#include <QProgressBar>
+#include <vector>
 #include <obs.h>
 
 class DeckPair;
+class DeckPlayer;
 class WaveformWidget;
-class QSlider;
 class QLabel;
 class QPushButton;
 class QComboBox;
+
+// Custom slider that resets to its default value on double-click
+class DJSlider : public QSlider {
+    Q_OBJECT
+public:
+    explicit DJSlider(Qt::Orientation orientation, int default_val, QWidget *parent = nullptr)
+        : QSlider(orientation, parent), default_val_(default_val) {}
+
+    void setDefaultValue(int val) { default_val_ = val; }
+    int defaultValue() const { return default_val_; }
+
+protected:
+    void mouseDoubleClickEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            setValue(default_val_);
+            emit sliderMoved(default_val_);
+            event->accept();
+            return;
+        }
+        QSlider::mouseDoubleClickEvent(event);
+    }
+
+private:
+    int default_val_ = 0;
+};
 
 class MixerWindow final : public QDialog {
     Q_OBJECT
@@ -18,54 +47,74 @@ public:
     ~MixerWindow() override = default;
 
 private:
-    void buildDeckPanel(QWidget *parent, bool is_deck_a);
-    void buildMixerSection(QWidget *parent);
-    void loadAudioMonitoringDevices();
+    void buildTopBar(QVBoxLayout *main_layout);
+    QWidget *buildDeckPanel(bool is_deck_a);
+    QWidget *buildCenterMixerPanel();
+    void loadAudioDevices();
     void refreshDeck(bool is_deck_a);
     void refreshMixer();
     void updateObsOutputButtons(int mode);
-    static QString formatTime(qint64 ms);
+    void addToActiveScene();
 
     DeckPair *decks_ = nullptr;
-    WaveformWidget *waveform_a_ = nullptr;
-    WaveformWidget *waveform_b_ = nullptr;
 
-    QSlider *seek_a_ = nullptr;
-    QSlider *seek_b_ = nullptr;
-    QLabel *time_a_ = nullptr;
-    QLabel *time_b_ = nullptr;
+    // Deck A Widgets
+    WaveformWidget *waveform_a_ = nullptr;
     QPushButton *play_btn_a_ = nullptr;
-    QPushButton *play_btn_b_ = nullptr;
+    QPushButton *cue_btn_a_ = nullptr;
+    QPushButton *set_btn_a_ = nullptr;
+    QPushButton *cue_play_btn_a_ = nullptr;
+    QPushButton *loop_toggle_a_ = nullptr;
+    std::vector<QPushButton *> loop_btns_a_;
+    QLabel *grid_lbl_a_ = nullptr;
+    DJSlider *pitch_slider_a_ = nullptr;
     QLabel *rate_lbl_a_ = nullptr;
+    QPushButton *sync_btn_a_ = nullptr;
+
+    // Deck B Widgets
+    WaveformWidget *waveform_b_ = nullptr;
+    QPushButton *play_btn_b_ = nullptr;
+    QPushButton *cue_btn_b_ = nullptr;
+    QPushButton *set_btn_b_ = nullptr;
+    QPushButton *cue_play_btn_b_ = nullptr;
+    QPushButton *loop_toggle_b_ = nullptr;
+    std::vector<QPushButton *> loop_btns_b_;
+    QLabel *grid_lbl_b_ = nullptr;
+    DJSlider *pitch_slider_b_ = nullptr;
     QLabel *rate_lbl_b_ = nullptr;
-    QSlider *pitch_slider_a_ = nullptr;
-    QSlider *pitch_slider_b_ = nullptr;
-    QComboBox *loop_combo_a_ = nullptr;
-    QComboBox *loop_combo_b_ = nullptr;
+    QPushButton *sync_btn_b_ = nullptr;
+
+    // Center Mixer Controls
+    DJSlider *gain_a_ = nullptr;
+    DJSlider *hi_a_ = nullptr;
+    DJSlider *mid_a_ = nullptr;
+    DJSlider *low_a_ = nullptr;
+    DJSlider *flt_a_ = nullptr;
+    DJSlider *vol_a_ = nullptr;
+
+    DJSlider *gain_b_ = nullptr;
+    DJSlider *hi_b_ = nullptr;
+    DJSlider *mid_b_ = nullptr;
+    DJSlider *low_b_ = nullptr;
+    DJSlider *flt_b_ = nullptr;
+    DJSlider *vol_b_ = nullptr;
+
+    QProgressBar *meter_a_ = nullptr;
+    QProgressBar *meter_b_ = nullptr;
+
     QPushButton *hp_cue_a_btn_ = nullptr;
     QPushButton *hp_cue_b_btn_ = nullptr;
+    DJSlider *hp_vol_slider_ = nullptr;
+    DJSlider *hp_mix_slider_ = nullptr;
 
-    QSlider *hi_a_ = nullptr;
-    QSlider *mid_a_ = nullptr;
-    QSlider *low_a_ = nullptr;
-    QSlider *flt_a_ = nullptr;
-    QSlider *vol_a_ = nullptr;
+    DJSlider *crossfader_ = nullptr;
 
-    QSlider *hi_b_ = nullptr;
-    QSlider *mid_b_ = nullptr;
-    QSlider *low_b_ = nullptr;
-    QSlider *flt_b_ = nullptr;
-    QSlider *vol_b_ = nullptr;
-
-    QSlider *crossfader_ = nullptr;
+    // Top Bar Controls
     QLabel *midi_status_lbl_ = nullptr;
-    QComboBox *audio_monitor_devices_ = nullptr;
-
     QPushButton *obs_out_master_btn_ = nullptr;
     QPushButton *obs_out_deck_a_btn_ = nullptr;
     QPushButton *obs_out_deck_b_btn_ = nullptr;
-
-    QSlider *hp_vol_slider_ = nullptr;
-    QSlider *hp_mix_slider_ = nullptr;
-    QLabel *hp_mix_lbl_ = nullptr;
+    QPushButton *add_to_scene_btn_ = nullptr;
+    QComboBox *master_device_combo_ = nullptr;
+    QComboBox *headphone_device_combo_ = nullptr;
 };

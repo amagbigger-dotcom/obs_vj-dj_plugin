@@ -23,6 +23,7 @@ public:
 signals:
     void bpmChanged(double new_bpm);
     void seekRequested(double normalized_pos);
+    void gridOffsetChanged(int64_t new_offset_ms);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -32,6 +33,7 @@ protected:
 
 private:
     void handleTapTempo();
+    void handleEditBpm();
     void adjustBpm(double delta);
     double getEffectiveBpm() const;
 
@@ -40,19 +42,21 @@ private:
 
     QLabel *file_label_ = nullptr;
     QLabel *bpm_label_ = nullptr;
+    QLabel *time_label_ = nullptr;
+    QPushButton *edit_bpm_btn_ = nullptr;
     QPushButton *tap_btn_ = nullptr;
-    QPushButton *bpm_minus_btn_ = nullptr;
-    QPushButton *bpm_plus_btn_ = nullptr;
 
-    bool is_dragging_ = false;
+    bool is_dragging_seek_ = false;
+    bool is_sliding_grid_ = false;
+    int last_mouse_x_ = 0;
 
     // Tap tempo tracking
     QElapsedTimer tap_timer_;
     std::vector<qint64> tap_intervals_;
     qint64 last_tap_time_ms_ = 0;
 
-    // Visual envelope generation for track waveform
+    // Visual envelope generation fallback if unanalyzed
     void ensureWaveformSamples(int64_t duration_ms);
-    std::vector<float> waveform_samples_;
+    std::vector<float> fallback_samples_;
     int64_t cached_duration_ms_ = 0;
 };

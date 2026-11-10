@@ -1,4 +1,5 @@
 #include "deck-engine.hpp"
+#include "audio-analyzer.hpp"
 
 #include <obs-module.h>
 #include <algorithm>
@@ -81,6 +82,21 @@ void DeckPlayer::loadFile(const QString &path)
     loop_start_ms_.store(0, std::memory_order_relaxed);
     loop_end_ms_.store(0, std::memory_order_relaxed);
     cue_point_ms_.store(0, std::memory_order_relaxed);
+    grid_offset_ms_.store(0, std::memory_order_relaxed);
+
+    {
+        std::lock_guard<std::mutex> lock(waveform_mutex_);
+        waveform_samples_.clear();
+    }
+
+    // Launch real asynchronous audio decoding, BPM & downbeat analysis
+    AudioAnalyzer::analyzeFileAsync(path, [this](TrackAnalysisResult res) {
+        if (res.success) {
+            setBpm(res.detected_bpm);
+            setGridOffsetMs(res.grid_offset_ms);
+            setWaveformSamples(res.waveform_peaks);
+        }
+    });
 
     obs_source_media_restart(source_);
 }
@@ -195,6 +211,58 @@ double DeckPlayer::beatDurationMs() const noexcept
     return (eff > 1.0) ? (60000.0 / eff) : 500.0;
 }
 
+void DeckPlayer::setGridOffsetMs(int64_t offset_ms) noexcept
+{
+    grid_offset_ms_.store(offset_ms, std::memory_order_relaxed);
+}
+
+int64_t DeckPlayer::gridOffsetMs() const noexcept
+{
+    return grid_offset_ms_.load(std::memory_order_relaxed);
+}
+
+void DeckPlayer::nudgeGrid(int64_t delta_ms) noexcept
+{
+    const double beat_ms = beatDurationMs();
+    int64_t cur = grid_offset_ms_.load(std::memory_order_relaxed);
+    cur += delta_ms;
+    if (beat_ms > 20.0) {
+        const int64_t b_ms = static_cast<int64_t>(beat_ms);
+        cur = ((cur % b_ms) + b_ms) % b_ms;
+    }
+    grid_offset_ms_.store(cur, std::memory_order_relaxed);
+}
+
+void DeckPlayer::setGridAnchorAtCurrent() noexcept
+{
+    const int64_t now = currentTimeMs();
+    const double beat_ms = beatDurationMs();
+    int64_t offset = now;
+    if (beat_ms > 20.0) {
+        const int64_t b_ms = static_cast<int64_t>(beat_ms);
+        offset = ((now % b_ms) + b_ms) % b_ms;
+    }
+    grid_offset_ms_.store(offset, std::memory_order_relaxed);
+}
+
+void DeckPlayer::setWaveformSamples(const std::vector<float> &samples)
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    waveform_samples_ = samples;
+}
+
+std::vector<float> DeckPlayer::waveformSamples() const
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    return waveform_samples_;
+}
+
+bool DeckPlayer::hasAnalyzedWaveform() const
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    return !waveform_samples_.empty();
+}
+
 void DeckPlayer::setHeadphoneCue(bool cue) noexcept
 {
     headphone_cue_.store(cue, std::memory_order_relaxed);
@@ -293,11 +361,13 @@ void DeckPlayer::setLooping(bool enabled)
     const double beat_ms = beatDurationMs();
     const int64_t current = std::max<int64_t>(0, currentTimeMs());
 
-    // Quantize loop start to the nearest beat boundary
+    // Quantize loop start to the nearest beat boundary respecting grid offset
     int64_t start = current;
     if (beat_ms > 20.0) {
-        const int64_t quantized = static_cast<int64_t>(std::round(current / beat_ms) * beat_ms);
-        start = std::max<int64_t>(0, quantized);
+        const int64_t offset = gridOffsetMs();
+        const int64_t rel = current - offset;
+        const int64_t quantized_rel = static_cast<int64_t>(std::round(static_cast<double>(rel) / beat_ms) * beat_ms);
+        start = std::max<int64_t>(0, offset + quantized_rel);
     }
 
     const int64_t loop_length = std::max<int64_t>(

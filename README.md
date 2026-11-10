@@ -72,11 +72,12 @@ flowchart TD
 
     subgraph Plugin [obs-vj-mixer.dll]
         MidiDriver["MidiHandler (winmm.lib)\nmidiInOpen / Traktor S2 auto-detect"]
+        AudioAnalyzer["AudioAnalyzer (WMF)\nSourceReader PCM dekódolás\nValós BPM, Downbeat, Waveform"]
         
         subgraph Engine [Deck Engine]
             DeckA["DeckPlayer A\n(ffmpeg_source)"]
             DeckB["DeckPlayer B\n(ffmpeg_source)"]
-            DeckPairMgr["DeckPair Menedzser\nCrossfader & Audio Mix"]
+            DeckPairMgr["DeckPair Menedzser\nCrossfader, PFL Cue,\nAudio Routing"]
         end
 
         subgraph Rendering [Videó Renderelés & HLSL]
@@ -86,10 +87,10 @@ flowchart TD
         end
 
         subgraph GUI [Qt 6 Kezelőfelület]
-            MixerDlg["MixerWindow (QDialog)\nSötét Traktor téma"]
-            PrevMaster["VideoPreviewWidget (Master)"]
-            PrevA["VideoPreviewWidget (Deck A)"]
-            PrevB["VideoPreviewWidget (Deck B)"]
+            MixerDlg["MixerWindow (QDialog)\nTraktor DJ Studio 2 stílus\n3 oszlopos elrendezés"]
+            WaveA["WaveformWidget (Deck A)\nKétrétegű kompakt hullámforma"]
+            WaveB["WaveformWidget (Deck B)\nKétrétegű kompakt hullámforma"]
+            DJSliders["DJSlider potméterek\nDupla kattintásra azonnali reset"]
         end
     end
 

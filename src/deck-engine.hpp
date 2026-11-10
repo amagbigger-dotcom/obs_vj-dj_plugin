@@ -4,6 +4,8 @@
 #include <QString>
 #include <atomic>
 #include <cstdint>
+#include <vector>
+#include <mutex>
 
 class DeckPlayer final {
 public:
@@ -31,6 +33,15 @@ public:
     double bpm() const noexcept;
     double effectiveBpm() const noexcept;
     double beatDurationMs() const noexcept;
+
+    void setGridOffsetMs(int64_t offset_ms) noexcept;
+    int64_t gridOffsetMs() const noexcept;
+    void nudgeGrid(int64_t delta_ms) noexcept;
+    void setGridAnchorAtCurrent() noexcept;
+
+    void setWaveformSamples(const std::vector<float> &samples);
+    std::vector<float> waveformSamples() const;
+    bool hasAnalyzedWaveform() const;
 
     void setVolume(float volume);
     float volume() const noexcept;
@@ -73,6 +84,7 @@ private:
     std::atomic<int64_t> cue_point_ms_{0};
 
     std::atomic<double> base_bpm_{128.0};
+    std::atomic<int64_t> grid_offset_ms_{0};
     std::atomic<bool> headphone_cue_{false};
     std::atomic<int64_t> pending_speed_seek_ms_{-1};
 
@@ -84,6 +96,9 @@ private:
     std::atomic<float> green_{1.0f};
     std::atomic<float> blue_{1.0f};
     std::atomic<float> saturation_{1.0f};
+
+    mutable std::mutex waveform_mutex_;
+    std::vector<float> waveform_samples_;
 };
 
 using DeckEngine = DeckPlayer;

@@ -21,6 +21,8 @@ file(TO_CMAKE_PATH "${OBS_DIR}" OBS_DIR)
 
 set(SOURCES
     src/plugin-main.cpp
+    src/audio-analyzer.cpp
+    src/audio-analyzer.hpp
     src/deck-engine.cpp
     src/deck-engine.hpp
     src/waveform-widget.cpp
@@ -59,6 +61,10 @@ target_link_libraries(obs_vj-dj_plugin PRIVATE
     libobs
     obs-frontend-api
     winmm
+    mfplat
+    mfreadwrite
+    mfuuid
+    propsys
 )
 
 target_compile_definitions(obs_vj-dj_plugin PRIVATE

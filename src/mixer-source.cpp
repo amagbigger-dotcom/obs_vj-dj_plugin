@@ -121,7 +121,19 @@ static bool render_to_texture(gs_texrender_t *target,
     vec4 clear = {};
     gs_clear(GS_CLEAR_COLOR, &clear, 0.0f, 0);
 
+    const uint32_t src_w = obs_source_get_width(source);
+    const uint32_t src_h = obs_source_get_height(source);
+
+    gs_matrix_push();
+    if (src_w > 0 && src_h > 0 && (src_w != width || src_h != height)) {
+        const float sx = static_cast<float>(width) / static_cast<float>(src_w);
+        const float sy = static_cast<float>(height) / static_cast<float>(src_h);
+        gs_matrix_scale3f(sx, sy, 1.0f);
+    }
+
     obs_source_video_render(source);
+    gs_matrix_pop();
+
     gs_texrender_end(target);
 
     return true;
@@ -201,11 +213,13 @@ static void draw_mixer(void *data)
     if (!context || !decks || !context->effect)
         return;
 
-    const uint32_t width = obs_source_get_base_width(context->source);
-    const uint32_t height = obs_source_get_base_height(context->source);
+    uint32_t width = obs_source_get_width(context->source);
+    uint32_t height = obs_source_get_height(context->source);
 
-    if (width == 0 || height == 0)
-        return;
+    if (width == 0)
+        width = 1920;
+    if (height == 0)
+        height = 1080;
 
     DeckPlayer &deck_a = decks->deckA();
     DeckPlayer &deck_b = decks->deckB();
@@ -330,8 +344,13 @@ static void monitor_video_render(void *data, gs_effect_t *)
 
     deck.updateLoop();
 
-    const uint32_t width = obs_source_get_base_width(context->source);
-    const uint32_t height = obs_source_get_base_height(context->source);
+    uint32_t width = obs_source_get_width(context->source);
+    uint32_t height = obs_source_get_height(context->source);
+
+    if (width == 0)
+        width = 1920;
+    if (height == 0)
+        height = 1080;
 
     if (!render_to_texture(context->deck_a, deck.source(), width, height))
         return;
