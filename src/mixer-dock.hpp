@@ -5,6 +5,7 @@
 #include <QSlider>
 #include <QMouseEvent>
 #include <QProgressBar>
+#include <QVBoxLayout>
 #include <vector>
 #include <obs.h>
 

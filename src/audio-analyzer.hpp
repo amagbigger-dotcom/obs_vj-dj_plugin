@@ -19,3 +19,4 @@ public:
     static void analyzeFileAsync(const QString &file_path,
                                  std::function<void(TrackAnalysisResult)> callback);
 };
+

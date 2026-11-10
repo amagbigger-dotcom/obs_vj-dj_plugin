@@ -264,3 +264,4 @@ void AudioAnalyzer::analyzeFileAsync(const QString &file_path,
             callback(res);
     }).detach();
 }
+

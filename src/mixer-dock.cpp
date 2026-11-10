@@ -824,8 +824,10 @@ void MixerWindow::loadAudioDevices()
         },
         &ctx);
 
-    const char *current_id = obs_get_audio_monitoring_device_id();
-    if (current_id) {
+    const char *current_name = nullptr;
+    const char *current_id = nullptr;
+    obs_get_audio_monitoring_device(&current_name, &current_id);
+    if (current_id && *current_id) {
         const QString cur_str = QString::fromUtf8(current_id);
         const int idx_m = master_device_combo_->findData(cur_str);
         if (idx_m >= 0)
