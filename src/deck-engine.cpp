@@ -2,6 +2,7 @@
 #include "audio-analyzer.hpp"
 
 #include <obs-module.h>
+#include <util/platform.h>
 #include <QFileInfo>
 #include <algorithm>
 #include <cmath>
@@ -204,6 +205,15 @@ void DeckPlayer::setSpeed(int percent)
     if (!source_)
         return;
 
+    const auto now_tp = std::chrono::steady_clock::now();
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now_tp - last_speed_update_tp_).count();
+    if (elapsed < 60)
+        return;
+
+    last_speed_update_tp_ = now_tp;
+
+    const int64_t cur_pos = obs_source_media_get_time(source_);
+
     obs_data_t *settings = obs_source_get_settings(source_);
     if (!settings)
         return;
@@ -211,6 +221,14 @@ void DeckPlayer::setSpeed(int percent)
     obs_data_set_int(settings, "speed_percent", clamped);
     obs_source_update(source_, settings);
     obs_data_release(settings);
+
+    // If changing speed caused FFmpeg to reset or skip ahead, restore position
+    if (cur_pos > 0) {
+        const int64_t after_pos = obs_source_media_get_time(source_);
+        if (std::abs(after_pos - cur_pos) > 600) {
+            obs_source_media_set_time(source_, static_cast<uint64_t>(cur_pos));
+        }
+    }
 }
 
 int DeckPlayer::speed() const noexcept
@@ -345,13 +363,24 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
     const float g_low = eq_low_.load(std::memory_order_relaxed);
     const float f_val = filter_val_.load(std::memory_order_relaxed);
 
+    // Bit-perfect bypass when controls are centered (1.0 = 0 dB, filter = 0)
+    if (std::abs(g_hi - 1.0f) < 0.005f &&
+        std::abs(g_mid - 1.0f) < 0.005f &&
+        std::abs(g_low - 1.0f) < 0.005f &&
+        std::abs(f_val) < 0.005f) {
+        return;
+    }
+
     const size_t ch = channel_idx % 2;
     FilterState &st = dsp_states_[ch];
 
     const float sr = (sample_rate > 0) ? static_cast<float>(sample_rate) : 48000.0f;
-    // Low crossover at 300 Hz, High crossover at 3000 Hz
-    const float alpha_low = std::clamp(2.0f * 3.14159f * 300.0f / sr, 0.001f, 0.99f);
-    const float alpha_high = std::clamp(2.0f * 3.14159f * 3000.0f / sr, 0.001f, 0.99f);
+    // Crossovers at 260 Hz and 3200 Hz
+    const float w_low = 2.0f * 3.14159265f * 260.0f / sr;
+    const float alpha_low = std::clamp(w_low / (1.0f + w_low), 0.001f, 0.95f);
+
+    const float w_high = 2.0f * 3.14159265f * 3200.0f / sr;
+    const float alpha_high = std::clamp(w_high / (1.0f + w_high), 0.001f, 0.95f);
 
     for (size_t i = 0; i < num_frames; ++i) {
         const float in = channel_data[i];
@@ -368,15 +397,13 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
 
         // DJ Filter: Low-Pass when f_val < 0, High-Pass when f_val > 0
         if (f_val < -0.01f) {
-            // Cut highs progressively
-            const float cutoff = 300.0f + (1.0f + f_val) * 8000.0f;
-            const float a_lp = std::clamp(2.0f * 3.14159f * cutoff / sr, 0.01f, 0.99f);
+            const float cutoff = 300.0f + (1.0f + f_val) * 7500.0f;
+            const float a_lp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.01f, 0.95f);
             st.dj_lp += a_lp * (out - st.dj_lp);
             out = st.dj_lp;
         } else if (f_val > 0.01f) {
-            // Cut lows progressively
-            const float cutoff = 100.0f + f_val * 4000.0f;
-            const float a_hp = std::clamp(2.0f * 3.14159f * cutoff / sr, 0.01f, 0.99f);
+            const float cutoff = 100.0f + f_val * 3900.0f;
+            const float a_hp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.01f, 0.95f);
             st.dj_hp += a_hp * (out - st.dj_hp);
             out = out - st.dj_hp;
         }
@@ -849,7 +876,7 @@ void DeckPair::feedHeadphoneCue(int deck_idx, const float *const *channels, size
     audio_out.speakers = SPEAKERS_STEREO;
     audio_out.format = AUDIO_FORMAT_FLOAT;
     audio_out.samples_per_sec = 48000;
-    audio_out.timestamp = timestamp;
+    audio_out.timestamp = os_gettime_ns();
 
     obs_source_output_audio(cue_source_, &audio_out);
 }

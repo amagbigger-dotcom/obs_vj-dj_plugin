@@ -130,6 +130,7 @@ private:
 
     std::atomic<bool> is_loop_seeking_{false};
     std::chrono::steady_clock::time_point last_loop_seek_tp_{};
+    std::chrono::steady_clock::time_point last_speed_update_tp_{};
 
     struct FilterState {
         float lp = 0.0f;

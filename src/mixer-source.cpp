@@ -64,10 +64,10 @@ struct MixerSource {
     gs_effect_t *effect = nullptr;
     gs_texrender_t *deck_a = nullptr;
     gs_texrender_t *deck_b = nullptr;
-    gs_texrender_t *master_render = nullptr;
 };
 
 static const char *MIXER_EFFECT = R"(
+uniform float4x4 ViewProj;
 uniform texture2d image_a;
 uniform texture2d image_b;
 uniform float4 gains_a;
@@ -99,7 +99,7 @@ struct VertData {
 VertData VSDefault(VertData v)
 {
     VertData v_out;
-    v_out.pos = float4(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0, 0.0, 1.0);
+    v_out.pos = mul(float4(v.pos.xyz, 1.0), ViewProj);
     v_out.uv  = v.uv;
     return v_out;
 }
@@ -221,9 +221,6 @@ static void ensure_resources(MixerSource *context)
 
     if (!context->deck_b)
         context->deck_b = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
-
-    if (!context->master_render)
-        context->master_render = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
 }
 
 static bool render_to_texture(gs_texrender_t *target,
@@ -352,9 +349,6 @@ static void mixer_destroy(void *data)
     if (context->deck_b)
         gs_texrender_destroy(context->deck_b);
 
-    if (context->master_render)
-        gs_texrender_destroy(context->master_render);
-
     if (context->effect)
         gs_effect_destroy(context->effect);
 
@@ -427,36 +421,24 @@ static void draw_mixer(void *data)
         xfade = 0.0f;
     }
 
-    if (!context->master_render)
-        return;
+    struct matrix4 view_proj;
+    gs_matrix_get(&view_proj);
+    gs_eparam_t *vp = gs_effect_get_param_by_name(context->effect, "ViewProj");
+    if (vp)
+        gs_effect_set_matrix4(vp, &view_proj);
 
-    // Render composite effect into master_render offscreen target
-    if (gs_texrender_begin(context->master_render, width, height)) {
-        vec4 clear = {0.04f, 0.05f, 0.08f, 1.0f};
-        gs_clear(GS_CLEAR_COLOR, &clear, 0.0f, 0);
+    gs_eparam_t *param = nullptr;
+    if ((param = gs_effect_get_param_by_name(context->effect, "image_a")))
+        gs_effect_set_texture(param, texture_a);
 
-        gs_eparam_t *param = nullptr;
+    if ((param = gs_effect_get_param_by_name(context->effect, "image_b")))
+        gs_effect_set_texture(param, texture_b);
 
-        if ((param = gs_effect_get_param_by_name(context->effect, "image_a")))
-            gs_effect_set_texture(param, texture_a);
+    set_color_params(context, *color_a, *color_b, xfade,
+                     decks->transitionMode(), has_vid_a, has_vid_b);
 
-        if ((param = gs_effect_get_param_by_name(context->effect, "image_b")))
-            gs_effect_set_texture(param, texture_b);
-
-        set_color_params(context, *color_a, *color_b, xfade,
-                         decks->transitionMode(), has_vid_a, has_vid_b);
-
-        while (gs_effect_loop(context->effect, "Draw")) {
-            gs_draw_sprite(texture_a, 0, width, height);
-        }
-
-        gs_texrender_end(context->master_render);
-
-        // Draw composite master texture into the active OBS canvas / scene item
-        gs_texture_t *final_tex = gs_texrender_get_texture(context->master_render);
-        if (final_tex) {
-            obs_source_draw(final_tex, 0, 0, width, height, false);
-        }
+    while (gs_effect_loop(context->effect, "Draw")) {
+        gs_draw_sprite(texture_a, 0, width, height);
     }
 }
 
@@ -527,37 +509,28 @@ static void monitor_video_render(void *data, gs_effect_t *)
     if (!texture)
         return;
 
-    if (!context->master_render)
-        return;
+    struct matrix4 view_proj;
+    gs_matrix_get(&view_proj);
+    gs_eparam_t *vp = gs_effect_get_param_by_name(context->effect, "ViewProj");
+    if (vp)
+        gs_effect_set_matrix4(vp, &view_proj);
 
-    if (gs_texrender_begin(context->master_render, width, height)) {
-        vec4 clear = {0.04f, 0.05f, 0.08f, 1.0f};
-        gs_clear(GS_CLEAR_COLOR, &clear, 0.0f, 0);
+    gs_eparam_t *param = nullptr;
 
-        gs_eparam_t *param = nullptr;
+    if ((param = gs_effect_get_param_by_name(context->effect, "image_a")))
+        gs_effect_set_texture(param, texture);
 
-        if ((param = gs_effect_get_param_by_name(context->effect, "image_a")))
-            gs_effect_set_texture(param, texture);
+    if ((param = gs_effect_get_param_by_name(context->effect, "image_b")))
+        gs_effect_set_texture(param, texture);
 
-        if ((param = gs_effect_get_param_by_name(context->effect, "image_b")))
-            gs_effect_set_texture(param, texture);
+    const uint32_t src_w = deck.source() ? obs_source_get_width(deck.source()) : 0;
+    const uint32_t src_h = deck.source() ? obs_source_get_height(deck.source()) : 0;
+    const float has_vid = (src_w > 0 && src_h > 0) ? 1.0f : 0.0f;
 
-        const uint32_t src_w = deck.source() ? obs_source_get_width(deck.source()) : 0;
-        const uint32_t src_h = deck.source() ? obs_source_get_height(deck.source()) : 0;
-        const float has_vid = (src_w > 0 && src_h > 0) ? 1.0f : 0.0f;
+    set_color_params(context, deck, deck, 0.0f, 0, has_vid, has_vid);
 
-        set_color_params(context, deck, deck, 0.0f, 0, has_vid, has_vid);
-
-        while (gs_effect_loop(context->effect, "Draw")) {
-            gs_draw_sprite(texture, 0, width, height);
-        }
-
-        gs_texrender_end(context->master_render);
-
-        gs_texture_t *final_tex = gs_texrender_get_texture(context->master_render);
-        if (final_tex) {
-            obs_source_draw(final_tex, 0, 0, width, height, false);
-        }
+    while (gs_effect_loop(context->effect, "Draw")) {
+        gs_draw_sprite(texture, 0, width, height);
     }
 }
 
@@ -684,7 +657,7 @@ void vdj_register_sources(void)
     obs_source_info master = {};
     master.id = "vdj_master_mixer";
     master.type = OBS_SOURCE_TYPE_INPUT;
-    master.output_flags = OBS_SOURCE_VIDEO;
+    master.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_COMPOSITE;
     master.get_name = mixer_get_name;
     master.create = mixer_create;
     master.destroy = mixer_destroy;

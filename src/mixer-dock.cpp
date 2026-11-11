@@ -549,6 +549,9 @@ QWidget *MixerWindow::buildDeckPanel(bool is_deck_a)
         deck->setSpeed(val);
         rate_lbl->setText(QStringLiteral("%1%").arg(val));
     });
+    connect(pitch_slider, &QSlider::sliderReleased, this, [deck, pitch_slider]() {
+        deck->setSpeed(pitch_slider->value());
+    });
 
     layout->addLayout(tempo_row);
 
