@@ -101,7 +101,7 @@ struct VertData {
 VertData VSDefault(VertData v)
 {
     VertData v_out;
-    v_out.pos = float4(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0, 0.0, 1.0);
+    v_out.pos = mul(float4(v.pos.xyz, 1.0), ViewProj);
     v_out.uv  = v.uv;
     return v_out;
 }
@@ -236,6 +236,7 @@ static bool render_to_texture(gs_texrender_t *target,
     if (!gs_texrender_begin(target, width, height))
         return false;
 
+    gs_projection_push();
     gs_ortho(0.0f, static_cast<float>(width),
              0.0f, static_cast<float>(height),
              -100.0f, 100.0f);
@@ -262,6 +263,7 @@ static bool render_to_texture(gs_texrender_t *target,
         }
     }
 
+    gs_projection_pop();
     gs_texrender_end(target);
     return true;
 }

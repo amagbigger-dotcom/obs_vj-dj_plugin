@@ -145,6 +145,7 @@ private:
     std::atomic<bool> is_master_{false};
     std::atomic<bool> is_sync_{false};
     std::atomic<int64_t> pending_speed_seek_ms_{0};
+    std::atomic<bool> is_restarting_for_speed_{false};
     std::atomic<bool> is_loop_seeking_{false};
     std::chrono::steady_clock::time_point last_loop_seek_tp_{};
     std::chrono::steady_clock::time_point last_speed_update_tp_{};

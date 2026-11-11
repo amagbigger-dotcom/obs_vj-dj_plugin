@@ -481,6 +481,7 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
 
     // Convert offset windows to milliseconds (each window is 2ms at 500 Hz)
     result.grid_offset_ms = static_cast<int64_t>(best_offset * 2);
+    result.success = (result.detected_bpm > 30.0) && !result.overview_peaks.empty();
 
     // Save newly analyzed results to .vdj.json sidecar file
     saveCache(file_path, result);

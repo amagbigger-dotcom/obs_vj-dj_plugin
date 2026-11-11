@@ -223,25 +223,7 @@ void DeckPlayer::cue()
 void DeckPlayer::setSpeed(int percent)
 {
     const int clamped = std::clamp(percent, 50, 150);
-    const int old_speed = speed_percent_.exchange(clamped, std::memory_order_relaxed);
-    if (old_speed == clamped)
-        return;
-
-    if (!source_)
-        return;
-
-    const int64_t cur_pos = currentTimeMs();
-    if (cur_pos > 100) {
-        pending_speed_seek_ms_.store(cur_pos, std::memory_order_relaxed);
-    }
-
-    const auto now_tp = std::chrono::steady_clock::now();
-    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now_tp - last_speed_update_tp_).count();
-    if (elapsed < 160)
-        return;
-
-    last_speed_update_tp_ = now_tp;
-    applySpeedSettings(clamped);
+    speed_percent_.store(clamped, std::memory_order_relaxed);
 }
 
 void DeckPlayer::applySpeedSettings(int speed_percent)
@@ -249,16 +231,23 @@ void DeckPlayer::applySpeedSettings(int speed_percent)
     if (!source_)
         return;
 
-    const int64_t cur_pos = currentTimeMs();
-    if (cur_pos > 100) {
-        pending_speed_seek_ms_.store(cur_pos, std::memory_order_relaxed);
+    const int clamped = std::clamp(speed_percent, 50, 150);
+    speed_percent_.store(clamped, std::memory_order_relaxed);
+
+    // Only record new seek target if we aren't already waiting for a previous seek
+    if (pending_speed_seek_ms_.load(std::memory_order_relaxed) <= 0) {
+        const int64_t actual = obs_source_media_get_time(source_);
+        if (actual > 100) {
+            pending_speed_seek_ms_.store(actual, std::memory_order_relaxed);
+            is_restarting_for_speed_.store(true, std::memory_order_relaxed);
+        }
     }
 
     obs_data_t *settings = obs_source_get_settings(source_);
     if (!settings)
         return;
 
-    obs_data_set_int(settings, "speed_percent", speed_percent);
+    obs_data_set_int(settings, "speed_percent", clamped);
     obs_source_update(source_, settings);
     obs_data_release(settings);
 }
@@ -585,10 +574,13 @@ void DeckPlayer::updateLoop()
         const auto state = obs_source_media_get_state(source_);
         if (state == OBS_MEDIA_STATE_PLAYING || state == OBS_MEDIA_STATE_PAUSED) {
             const int64_t actual_pos = obs_source_media_get_time(source_);
-            if (actual_pos < seek_target - 300) {
+            if (is_restarting_for_speed_.load(std::memory_order_relaxed)) {
                 obs_source_media_set_time(source_, static_cast<uint64_t>(seek_target));
-            } else {
+                is_restarting_for_speed_.store(false, std::memory_order_relaxed);
+            } else if (actual_pos >= seek_target - 300) {
                 pending_speed_seek_ms_.store(0, std::memory_order_relaxed);
+            } else {
+                obs_source_media_set_time(source_, static_cast<uint64_t>(seek_target));
             }
         }
     }
@@ -657,14 +649,13 @@ int64_t DeckPlayer::currentTimeMs() const
         return 0;
 
     const int64_t pending = pending_speed_seek_ms_.load(std::memory_order_relaxed);
-    if (pending > 0) {
-        const int64_t actual = obs_source_media_get_time(source_);
-        if (actual < pending - 500) {
-            return pending;
-        }
+    const int64_t actual = obs_source_media_get_time(source_);
+
+    if (pending > 0 && actual < pending - 300) {
+        return pending;
     }
 
-    return std::max<int64_t>(0, obs_source_media_get_time(source_));
+    return std::max<int64_t>(0, actual);
 }
 
 int64_t DeckPlayer::durationMs() const
@@ -921,8 +912,9 @@ void DeckPair::updateSync()
             const int target_speed = std::clamp(
                 static_cast<int>(std::round((master_bpm / base_a) * 100.0)),
                 50, 150);
-            if (deck_a_.speed() != target_speed)
-                deck_a_.setSpeed(target_speed);
+            if (deck_a_.speed() != target_speed) {
+                deck_a_.applySpeedSettings(target_speed);
+            }
         }
     }
 
@@ -933,8 +925,9 @@ void DeckPair::updateSync()
             const int target_speed = std::clamp(
                 static_cast<int>(std::round((master_bpm / base_b) * 100.0)),
                 50, 150);
-            if (deck_b_.speed() != target_speed)
-                deck_b_.setSpeed(target_speed);
+            if (deck_b_.speed() != target_speed) {
+                deck_b_.applySpeedSettings(target_speed);
+            }
         }
     }
 }
