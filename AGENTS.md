@@ -243,6 +243,17 @@ A bővítmény három független szálon/környezetben dolgozik:
 - A `MOVE` szekcióban `<<` és `>>` finomhangoló gombok (10 ms) és valós idejű `GRID: Xms` kijelzés.
 - Minden EQ, Gain, Filter és Pitch potméter dupla kattintásra visszaugrik az alapértelmezett középpozícióba.
 
+### 11. Teljes Számanalízis és Oldalkocsi Leíró Fájl (`.vdj.json`) *(KÉSZ)*
+- A 240 mp-es korlát feloldva: a sáv teljes hosszát analizálja.
+- Első betöltéskor közvetlenül a médiafájl mellé lement egy kompakt `<fajl>.vdj.json` gyorsítótárat (BPM, downbeat eltolás, CUE pont, overview és részletes hullámforma csúcsok).
+- Ismételt betöltéskor 1 ms alatt, 0% CPU terheléssel tölti be az adatokat.
+- Felhasználói beállítások (kézi BPM editálás, `SET 1` vagy `<<`/`>>` rácsoltás, új CUE pont) automatikusan beleíródnak a JSON leíróba és megmaradnak a következő indításra.
+
+### 12. Kétirányú MIDI Clock & Traktor Központi Master Architektúra *(KÉSZ)*
+- **EXT SYNC (Bejövő MIDI órajel):** `0xF8` Tick és 24 PPQN számlálás, valós idejű BPM kalkuláció és szinkronizáció külső DAW-hoz / hardver szintetizátorhoz.
+- **SEND CLOCK (Kimenő MIDI órajel):** Független mikroszekundumos háttérszálon futó MIDI Clock (`0xF8`) generátor 24 PPQN sebességgel külső hardverek vagy fényvezérlők hajtásához.
+- **Vászon renderelés direkt UV projekcióval:** Direct3D 11 és OpenGL alatt közvetlen normalized clip-space koordináták (`v_out.pos = float4(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0, 0.0, 1.0);`), megszüntetve a fekete képernyő és uniform mátrix levágási hibát.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ
