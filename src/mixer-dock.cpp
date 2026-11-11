@@ -138,7 +138,7 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
     : QDialog(parent, Qt::Window),
       decks_(decks)
 {
-    setWindowTitle(QStringLiteral("TRAKTOR PRO • OBS Video DJ Mixer"));
+    setWindowTitle(QStringLiteral("OBS VJ/DJ Plugin"));
     resize(1140, 560);
     setStyleSheet(QString::fromUtf8(TRAKTOR_V2_STYLESHEET));
 
@@ -191,7 +191,7 @@ void MixerWindow::buildTopBar(QVBoxLayout *main_layout)
     top_bar->setSpacing(6);
 
     // Title / Brand
-    auto *title_lbl = new QLabel(QStringLiteral("TRAKTOR KONTROL S2 MK3 • OBS VIDEO DJ MIXER"), this);
+    auto *title_lbl = new QLabel(QStringLiteral("OBS VJ/DJ MIXER"), this);
     title_lbl->setStyleSheet(QStringLiteral("color: #00d2ff; font-weight: bold; font-size: 11px; letter-spacing: 1px;"));
     top_bar->addWidget(title_lbl);
 

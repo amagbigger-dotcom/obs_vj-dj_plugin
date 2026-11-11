@@ -579,8 +579,6 @@ void DeckPlayer::updateLoop()
                 is_restarting_for_speed_.store(false, std::memory_order_relaxed);
             } else if (actual_pos >= seek_target - 300) {
                 pending_speed_seek_ms_.store(0, std::memory_order_relaxed);
-            } else {
-                obs_source_media_set_time(source_, static_cast<uint64_t>(seek_target));
             }
         }
     }
@@ -1013,13 +1011,16 @@ void DeckPair::queueCueAudio(int deck_idx, const float *const *channels, size_t 
     const float hp_mix = headphone_mix_.load(std::memory_order_relaxed);
 
     const bool is_cue = (deck_idx == 0) ? deck_a_.isHeadphoneCue() : deck_b_.isHeadphoneCue();
+    if (!is_cue || hp_vol <= 0.001f)
+        return;
+
     const float ch_gain = (deck_idx == 0) ? deck_a_.gain() : deck_b_.gain();
     const float ch_vol = (deck_idx == 0) ? deck_a_.volume() : deck_b_.volume();
     const float xfade = static_cast<float>(crossfader_.load(std::memory_order_relaxed));
     const float xfade_gain = (deck_idx == 0) ? (1.0f - xfade) : xfade;
 
     // CUE factor (pre-fader) + Master factor (post-crossfader)
-    const float cue_factor = is_cue ? (1.0f - hp_mix) * ch_gain : 0.0f;
+    const float cue_factor = (1.0f - hp_mix) * ch_gain;
     const float master_factor = hp_mix * ch_gain * ch_vol * xfade_gain;
     const float total_factor = (cue_factor + master_factor) * hp_vol;
 

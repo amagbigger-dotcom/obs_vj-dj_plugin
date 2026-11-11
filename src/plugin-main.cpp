@@ -47,7 +47,7 @@ static void open_mixer_window(void *data)
 
 void init_mixer_dock()
 {
-    obs_frontend_add_tools_menu_item(QStringLiteral("Video DJ Mixer").toUtf8().constData(), open_mixer_window, nullptr);
+    obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ/DJ Mixer").toUtf8().constData(), open_mixer_window, nullptr);
 }
 
 void free_mixer_dock()

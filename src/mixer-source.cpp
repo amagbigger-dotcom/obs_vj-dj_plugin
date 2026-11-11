@@ -20,7 +20,7 @@ struct FilterData {
 
 static const char *filter_get_name(void *)
 {
-    return "VJ Deck Audio DSP Filter";
+    return "OBS VJ/DJ Deck Audio DSP Filter";
 }
 
 static void *filter_create(obs_data_t *settings, obs_source_t *source)
@@ -111,6 +111,7 @@ float4 colorize(float4 color, float4 gains, float saturation)
     color.rgb *= gains.rgb;
     float luma = dot(color.rgb, float3(0.2126, 0.7152, 0.0722));
     color.rgb = lerp(luma.xxx, color.rgb, saturation);
+    color.a = 1.0;
     return saturate(color);
 }
 
@@ -183,20 +184,19 @@ float4 PS(VertData v) : TARGET
         b = render_dj_visualizer(v.uv, time_b, is_playing_b, bpm_b, float3(1.0, 0.5, 0.0), gains_b, saturation_b);
     }
 
-    // 0: linear fade
-    // 1: horizontal wipe
-    // 2: additive blend
-    // 3: hard cut
-    if (transition_mode > 2.5)
-        return crossfade < 0.5 ? a : b;
+    float4 res;
+    if (transition_mode > 2.5) {
+        res = crossfade < 0.5 ? a : b;
+    } else if (transition_mode > 0.5 && transition_mode < 1.5) {
+        res = v.uv.x < crossfade ? b : a;
+    } else if (transition_mode > 1.5 && transition_mode < 2.5) {
+        res = saturate(a * (1.0 - crossfade) + b * crossfade);
+    } else {
+        res = lerp(a, b, crossfade);
+    }
 
-    if (transition_mode > 0.5 && transition_mode < 1.5)
-        return v.uv.x < crossfade ? b : a;
-
-    if (transition_mode > 1.5 && transition_mode < 2.5)
-        return saturate(a * (1.0 - crossfade) + b * crossfade);
-
-    return lerp(a, b, crossfade);
+    res.a = 1.0;
+    return res;
 }
 
 technique Draw {
@@ -236,17 +236,19 @@ static bool render_to_texture(gs_texrender_t *target,
     if (!gs_texrender_begin(target, width, height))
         return false;
 
-    gs_projection_push();
     gs_ortho(0.0f, static_cast<float>(width),
              0.0f, static_cast<float>(height),
              -100.0f, 100.0f);
 
-    vec4 clear = {0.0f, 0.0f, 0.0f, 0.0f};
+    vec4 clear = {0.0f, 0.0f, 0.0f, 1.0f};
     gs_clear(GS_CLEAR_COLOR, &clear, 0.0f, 0);
 
     if (source) {
         const uint32_t src_w = obs_source_get_width(source);
         const uint32_t src_h = obs_source_get_height(source);
+
+        gs_blend_state_push();
+        gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
 
         if (src_w > 0 && src_h > 0) {
             gs_matrix_push();
@@ -258,12 +260,12 @@ static bool render_to_texture(gs_texrender_t *target,
             obs_source_video_render(source);
             gs_matrix_pop();
         } else {
-            // Tick asynchronous frame pump even if size is not yet established
             obs_source_video_render(source);
         }
+
+        gs_blend_state_pop();
     }
 
-    gs_projection_pop();
     gs_texrender_end(target);
     return true;
 }
@@ -329,7 +331,7 @@ static void set_color_params(MixerSource *context,
 
 static const char *mixer_get_name(void *)
 {
-    return "Traktor S2 VJ Mixer Source";
+    return "OBS VJ/DJ Master Mixer";
 }
 
 static void *mixer_create(obs_data_t *, obs_source_t *source)
@@ -435,9 +437,14 @@ static void draw_mixer(void *data)
     set_color_params(context, *color_a, *color_b, xfade,
                      decks->transitionMode(), has_vid_a, has_vid_b);
 
+    gs_blend_state_push();
+    gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+
     while (gs_effect_loop(context->effect, "Draw")) {
         gs_draw_sprite(texture_a, 0, width, height);
     }
+
+    gs_blend_state_pop();
 }
 
 static void mixer_video_render(void *data, gs_effect_t *)
@@ -462,7 +469,7 @@ static uint32_t mixer_get_height(void *)
 
 static const char *monitor_get_name(void *)
 {
-    return "Traktor S2 Deck Monitor";
+    return "OBS VJ/DJ Deck Monitor";
 }
 
 static void *monitor_create(obs_data_t *, obs_source_t *source)
@@ -521,9 +528,14 @@ static void monitor_video_render(void *data, gs_effect_t *)
 
     set_color_params(context, deck, deck, 0.0f, 0, has_vid, has_vid);
 
+    gs_blend_state_push();
+    gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+
     while (gs_effect_loop(context->effect, "Draw")) {
         gs_draw_sprite(texture, 0, width, height);
     }
+
+    gs_blend_state_pop();
 }
 
 static void mixer_enum_active_sources(void *data, obs_source_enum_proc_t cb, void *param)
@@ -613,7 +625,35 @@ static void mixer_defaults(obs_data_t *settings)
 
 static const char *cue_get_name(void *)
 {
-    return "VJ Headphone CUE Monitor";
+    return "OBS VJ/DJ Headphone CUE";
+}
+
+static void mixer_video_tick(void *data, float seconds)
+{
+    auto *context = static_cast<MixerSource *>(data);
+    DeckPair *decks = vdj_decks();
+    if (!context || !decks)
+        return;
+
+    obs_source_t *source_a = decks->deckA().source();
+    obs_source_t *source_b = decks->deckB().source();
+
+    if (source_a)
+        obs_source_video_tick(source_a, seconds);
+    if (source_b)
+        obs_source_video_tick(source_b, seconds);
+}
+
+static void monitor_video_tick(void *data, float seconds)
+{
+    auto *context = static_cast<MixerSource *>(data);
+    DeckPair *decks = vdj_decks();
+    if (!context || !decks)
+        return;
+
+    obs_source_t *child = (context->channel == 0) ? decks->deckA().source() : decks->deckB().source();
+    if (child)
+        obs_source_video_tick(child, seconds);
 }
 
 static void *cue_create(obs_data_t *, obs_source_t *source)
@@ -653,6 +693,7 @@ void vdj_register_sources(void)
     master.get_name = mixer_get_name;
     master.create = mixer_create;
     master.destroy = mixer_destroy;
+    master.video_tick = mixer_video_tick;
     master.video_render = mixer_video_render;
     master.enum_active_sources = mixer_enum_active_sources;
     master.enum_all_sources = mixer_enum_all_sources;
@@ -669,6 +710,7 @@ void vdj_register_sources(void)
     deck_a.get_name = monitor_get_name;
     deck_a.create = monitor_create;
     deck_a.destroy = mixer_destroy;
+    deck_a.video_tick = monitor_video_tick;
     deck_a.video_render = monitor_video_render;
     deck_a.enum_active_sources = monitor_enum_active_sources;
     deck_a.enum_all_sources = monitor_enum_all_sources;
