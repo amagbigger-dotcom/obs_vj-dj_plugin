@@ -254,7 +254,7 @@ void MixerWindow::addToActiveScene()
 
     obs_scene_t *scene = obs_scene_from_source(scene_source);
     if (scene) {
-        obs_sceneitem_t *existing = obs_scene_find_source_exact(scene, "VJ Master Output");
+        obs_sceneitem_t *existing = obs_scene_find_source(scene, "VJ Master Output");
         if (!existing) {
             obs_source_t *master_src = obs_get_source_by_name("VJ Master Output");
             if (!master_src) {
