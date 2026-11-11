@@ -99,6 +99,8 @@ public:
     int64_t durationMs() const;
     bool isPlaying() const;
     bool isLooping() const noexcept;
+    bool hasVideo() const noexcept { return has_video_.load(std::memory_order_relaxed); }
+    void setHasVideo(bool v) noexcept { has_video_.store(v, std::memory_order_relaxed); }
 
     bool isMaster() const noexcept { return is_master_.load(std::memory_order_relaxed); }
     void setMaster(bool m) noexcept { is_master_.store(m, std::memory_order_relaxed); }
@@ -117,6 +119,7 @@ private:
     QString file_path_{};
 
     std::atomic<bool> looping_{false};
+    std::atomic<bool> has_video_{false};
     std::atomic<int> loop_beat_index_{3};
 
     std::atomic<int64_t> loop_start_ms_{0};

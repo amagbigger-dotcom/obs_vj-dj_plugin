@@ -394,13 +394,8 @@ static void draw_mixer(void *data)
     gs_texture_t *texture_b =
         rendered_b ? gs_texrender_get_texture(context->deck_b) : nullptr;
 
-    const uint32_t src_w_a = deck_a.source() ? obs_source_get_width(deck_a.source()) : 0;
-    const uint32_t src_h_a = deck_a.source() ? obs_source_get_height(deck_a.source()) : 0;
-    const float has_vid_a = (src_w_a > 0 && src_h_a > 0) ? 1.0f : 0.0f;
-
-    const uint32_t src_w_b = deck_b.source() ? obs_source_get_width(deck_b.source()) : 0;
-    const uint32_t src_h_b = deck_b.source() ? obs_source_get_height(deck_b.source()) : 0;
-    const float has_vid_b = (src_w_b > 0 && src_h_b > 0) ? 1.0f : 0.0f;
+    const float has_vid_a = deck_a.hasVideo() ? 1.0f : 0.0f;
+    const float has_vid_b = deck_b.hasVideo() ? 1.0f : 0.0f;
 
     const int output_mode = decks->obsOutputMode();
     const DeckPlayer *color_a = &deck_a;
@@ -410,6 +405,14 @@ static void draw_mixer(void *data)
         xfade = 0.0f;
     } else if (output_mode == 2) {
         xfade = 1.0f;
+    } else {
+        const bool loaded_a = !deck_a.filePath().isEmpty();
+        const bool loaded_b = !deck_b.filePath().isEmpty();
+        if (loaded_a && !loaded_b) {
+            xfade = 0.0f;
+        } else if (!loaded_a && loaded_b) {
+            xfade = 1.0f;
+        }
     }
 
     if (!texture_a && !texture_b)
@@ -522,9 +525,7 @@ static void monitor_video_render(void *data, gs_effect_t *)
     if ((param = gs_effect_get_param_by_name(context->effect, "image_b")))
         gs_effect_set_texture(param, texture);
 
-    const uint32_t src_w = deck.source() ? obs_source_get_width(deck.source()) : 0;
-    const uint32_t src_h = deck.source() ? obs_source_get_height(deck.source()) : 0;
-    const float has_vid = (src_w > 0 && src_h > 0) ? 1.0f : 0.0f;
+    const float has_vid = deck.hasVideo() ? 1.0f : 0.0f;
 
     set_color_params(context, deck, deck, 0.0f, 0, has_vid, has_vid);
 
@@ -685,7 +686,7 @@ void vdj_register_sources(void)
     obs_source_info master = {};
     master.id = "vdj_master_mixer";
     master.type = OBS_SOURCE_TYPE_INPUT;
-    master.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
+    master.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_COMPOSITE;
     master.get_name = mixer_get_name;
     master.create = mixer_create;
     master.destroy = mixer_destroy;
@@ -702,7 +703,7 @@ void vdj_register_sources(void)
     obs_source_info deck_a = {};
     deck_a.id = "vdj_deck_a_source";
     deck_a.type = OBS_SOURCE_TYPE_INPUT;
-    deck_a.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
+    deck_a.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_COMPOSITE;
     deck_a.get_name = monitor_get_name;
     deck_a.create = monitor_create;
     deck_a.destroy = mixer_destroy;

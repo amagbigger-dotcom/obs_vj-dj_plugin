@@ -568,6 +568,9 @@ QWidget *MixerWindow::buildDeckPanel(bool is_deck_a)
     });
 
     connect(pitch_slider, &QSlider::valueChanged, this, [deck, rate_lbl](int val) {
+        if (deck->isSync()) {
+            deck->setSync(false);
+        }
         deck->setSpeed(val);
         rate_lbl->setText(QStringLiteral("%1%").arg(val));
     });

@@ -82,6 +82,12 @@ void DeckPlayer::loadFile(const QString &path)
     setFilePath(path);
     setFileName(QFileInfo(path).fileName());
 
+    const QString ext = QFileInfo(path).suffix().toLower();
+    const bool is_vid = (ext == "mp4" || ext == "mkv" || ext == "mov" ||
+                         ext == "avi" || ext == "webm" || ext == "flv" ||
+                         ext == "wmv" || ext == "m4v" || ext == "ts");
+    has_video_.store(is_vid, std::memory_order_relaxed);
+
     obs_data_t *settings = obs_source_get_settings(source_);
     if (!settings)
         return;
@@ -575,8 +581,11 @@ void DeckPlayer::updateLoop()
         if (state == OBS_MEDIA_STATE_PLAYING || state == OBS_MEDIA_STATE_PAUSED) {
             const int64_t actual_pos = obs_source_media_get_time(source_);
             if (is_restarting_for_speed_.load(std::memory_order_relaxed)) {
-                obs_source_media_set_time(source_, static_cast<uint64_t>(seek_target));
-                is_restarting_for_speed_.store(false, std::memory_order_relaxed);
+                // Wait for FFmpeg to restart near 0 before seeking back to target
+                if (actual_pos < 300 || actual_pos < seek_target / 2) {
+                    obs_source_media_set_time(source_, static_cast<uint64_t>(seek_target));
+                    is_restarting_for_speed_.store(false, std::memory_order_relaxed);
+                }
             } else if (actual_pos >= seek_target - 300) {
                 pending_speed_seek_ms_.store(0, std::memory_order_relaxed);
             }
