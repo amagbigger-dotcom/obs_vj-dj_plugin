@@ -630,30 +630,26 @@ static const char *cue_get_name(void *)
 
 static void mixer_video_tick(void *data, float seconds)
 {
+    UNUSED_PARAMETER(seconds);
     auto *context = static_cast<MixerSource *>(data);
     DeckPair *decks = vdj_decks();
     if (!context || !decks)
         return;
 
-    obs_source_t *source_a = decks->deckA().source();
-    obs_source_t *source_b = decks->deckB().source();
-
-    if (source_a)
-        obs_source_video_tick(source_a, seconds);
-    if (source_b)
-        obs_source_video_tick(source_b, seconds);
+    decks->deckA().updateLoop();
+    decks->deckB().updateLoop();
 }
 
 static void monitor_video_tick(void *data, float seconds)
 {
+    UNUSED_PARAMETER(seconds);
     auto *context = static_cast<MixerSource *>(data);
     DeckPair *decks = vdj_decks();
     if (!context || !decks)
         return;
 
-    obs_source_t *child = (context->channel == 0) ? decks->deckA().source() : decks->deckB().source();
-    if (child)
-        obs_source_video_tick(child, seconds);
+    DeckPlayer &deck = (context->channel == 0) ? decks->deckA() : decks->deckB();
+    deck.updateLoop();
 }
 
 static void *cue_create(obs_data_t *, obs_source_t *source)
