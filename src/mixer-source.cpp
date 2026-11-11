@@ -408,6 +408,9 @@ static void draw_mixer(void *data)
         xfade = 1.0f;
     }
 
+    if (!texture_a && !texture_b)
+        return;
+
     if (!texture_a) {
         texture_a = texture_b;
         color_a = &deck_b;
@@ -656,7 +659,7 @@ void vdj_register_sources(void)
     obs_source_info master = {};
     master.id = "vdj_master_mixer";
     master.type = OBS_SOURCE_TYPE_INPUT;
-    master.output_flags = OBS_SOURCE_VIDEO;
+    master.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
     master.get_name = mixer_get_name;
     master.create = mixer_create;
     master.destroy = mixer_destroy;
@@ -672,7 +675,7 @@ void vdj_register_sources(void)
     obs_source_info deck_a = {};
     deck_a.id = "vdj_deck_a_source";
     deck_a.type = OBS_SOURCE_TYPE_INPUT;
-    deck_a.output_flags = OBS_SOURCE_VIDEO;
+    deck_a.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
     deck_a.get_name = monitor_get_name;
     deck_a.create = monitor_create;
     deck_a.destroy = mixer_destroy;

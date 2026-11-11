@@ -894,6 +894,7 @@ void DeckPair::queueCueAudio(int deck_idx, const float *const *channels, size_t 
 
 void DeckPair::cueWorkerLoop()
 {
+    uint64_t cue_next_timestamp = 0;
     while (cue_thread_running_.load(std::memory_order_relaxed)) {
         CuePacket pkt;
         {
@@ -909,15 +910,23 @@ void DeckPair::cueWorkerLoop()
             cue_queue_.pop();
         }
 
-        if (cue_source_ && pkt.frames > 0) {
+        if (cue_source_ && pkt.frames > 0 && !pkt.l.empty() && !pkt.r.empty()) {
             struct obs_source_audio audio_out = {};
             audio_out.data[0] = reinterpret_cast<uint8_t *>(pkt.l.data());
             audio_out.data[1] = reinterpret_cast<uint8_t *>(pkt.r.data());
             audio_out.frames = static_cast<uint32_t>(pkt.frames);
             audio_out.speakers = SPEAKERS_STEREO;
-            audio_out.format = AUDIO_FORMAT_FLOAT;
+            audio_out.format = AUDIO_FORMAT_FLOAT_PLANAR;
             audio_out.samples_per_sec = 48000;
-            audio_out.timestamp = os_gettime_ns();
+
+            const uint64_t now_ns = os_gettime_ns();
+            if (cue_next_timestamp == 0 ||
+                (now_ns > cue_next_timestamp && (now_ns - cue_next_timestamp) > 100000000ULL) ||
+                (cue_next_timestamp > now_ns && (cue_next_timestamp - now_ns) > 100000000ULL)) {
+                cue_next_timestamp = now_ns;
+            }
+            audio_out.timestamp = cue_next_timestamp;
+            cue_next_timestamp += static_cast<uint64_t>(pkt.frames) * 1000000000ULL / 48000ULL;
 
             obs_source_output_audio(cue_source_, &audio_out);
         }

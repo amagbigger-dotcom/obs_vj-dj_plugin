@@ -119,6 +119,5 @@ private:
     QPushButton *obs_out_deck_a_btn_ = nullptr;
     QPushButton *obs_out_deck_b_btn_ = nullptr;
     QPushButton *add_to_scene_btn_ = nullptr;
-    QComboBox *master_device_combo_ = nullptr;
     QComboBox *headphone_device_combo_ = nullptr;
 };

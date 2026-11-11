@@ -230,18 +230,11 @@ void MixerWindow::buildTopBar(QVBoxLayout *main_layout)
 
     top_bar->addStretch(1);
 
-    // Dual Soundcard Selectors
-    auto *master_card_lbl = new QLabel(QStringLiteral("MASTER:"), this);
-    master_card_lbl->setStyleSheet(QStringLiteral("font-weight: bold; font-size: 10px; color: #8da0b8;"));
-    master_device_combo_ = new QComboBox(this);
-    master_device_combo_->setMinimumWidth(130);
-    top_bar->addWidget(master_card_lbl);
-    top_bar->addWidget(master_device_combo_);
-
-    auto *hp_card_lbl = new QLabel(QStringLiteral("🎧 CUE:"), this);
+    // Headphone CUE Monitoring Soundcard Selector
+    auto *hp_card_lbl = new QLabel(QStringLiteral("🎧 CUE MONITOR:"), this);
     hp_card_lbl->setStyleSheet(QStringLiteral("font-weight: bold; font-size: 10px; color: #ffaa00;"));
     headphone_device_combo_ = new QComboBox(this);
-    headphone_device_combo_->setMinimumWidth(130);
+    headphone_device_combo_->setMinimumWidth(160);
     top_bar->addWidget(hp_card_lbl);
     top_bar->addWidget(headphone_device_combo_);
 
@@ -825,38 +818,28 @@ void MixerWindow::updateObsOutputButtons(int mode)
 
 void MixerWindow::loadAudioDevices()
 {
-    if (!master_device_combo_ || !headphone_device_combo_)
+    if (!headphone_device_combo_)
         return;
 
-    master_device_combo_->clear();
+    const QSignalBlocker blocker(headphone_device_combo_);
     headphone_device_combo_->clear();
-
-    struct EnumContext {
-        QComboBox *combo_master;
-        QComboBox *combo_hp;
-    } ctx = { master_device_combo_, headphone_device_combo_ };
 
     obs_enum_audio_monitoring_devices(
         [](void *param, const char *name, const char *id) -> bool {
-            auto *c = static_cast<EnumContext *>(param);
+            auto *cb = static_cast<QComboBox *>(param);
             const QString dev_name = QString::fromUtf8(name);
             const QString dev_id = QString::fromUtf8(id);
 
-            c->combo_master->addItem(dev_name, dev_id);
-            c->combo_hp->addItem(dev_name, dev_id);
+            cb->addItem(dev_name, dev_id);
             return true;
         },
-        &ctx);
+        headphone_device_combo_);
 
     const char *current_name = nullptr;
     const char *current_id = nullptr;
     obs_get_audio_monitoring_device(&current_name, &current_id);
     if (current_id && *current_id) {
         const QString cur_str = QString::fromUtf8(current_id);
-        const int idx_m = master_device_combo_->findData(cur_str);
-        if (idx_m >= 0)
-            master_device_combo_->setCurrentIndex(idx_m);
-
         const int idx_h = headphone_device_combo_->findData(cur_str);
         if (idx_h >= 0)
             headphone_device_combo_->setCurrentIndex(idx_h);
@@ -870,23 +853,6 @@ void MixerWindow::loadAudioDevices()
                 const QString name = headphone_device_combo_->itemText(index);
                 if (!id.isEmpty() && obs_audio_monitoring_available()) {
                     obs_set_audio_monitoring_device(name.toUtf8().constData(), id.toUtf8().constData());
-                }
-            });
-
-    connect(master_device_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            [this](int index) {
-                if (index < 0 || !master_device_combo_)
-                    return;
-                const QString id = master_device_combo_->itemData(index).toString();
-                obs_source_t *desktop = obs_get_output_source(0);
-                if (desktop) {
-                    obs_data_t *settings = obs_source_get_settings(desktop);
-                    if (settings) {
-                        obs_data_set_string(settings, "device_id", id.toUtf8().constData());
-                        obs_source_update(desktop, settings);
-                        obs_data_release(settings);
-                    }
-                    obs_source_release(desktop);
                 }
             });
 }
