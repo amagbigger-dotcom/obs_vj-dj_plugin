@@ -101,7 +101,7 @@ struct VertData {
 VertData VSDefault(VertData v)
 {
     VertData v_out;
-    v_out.pos = mul(float4(v.pos.xyz, 1.0), ViewProj);
+    v_out.pos = float4(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0, 0.0, 1.0);
     v_out.uv  = v.uv;
     return v_out;
 }

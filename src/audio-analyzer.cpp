@@ -19,9 +19,117 @@
 #include <numeric>
 #include <vector>
 #include <QFileInfo>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 namespace {
 constexpr size_t kOverviewBuckets = 500;
+}
+
+QString AudioAnalyzer::cacheFilePath(const QString &file_path)
+{
+    return file_path + QStringLiteral(".vdj.json");
+}
+
+bool AudioAnalyzer::loadCache(const QString &file_path, TrackAnalysisResult &out_res)
+{
+    const QString cache_path = cacheFilePath(file_path);
+    QFile file(cache_path);
+    if (!file.exists() || !file.open(QIODevice::ReadOnly))
+        return false;
+
+    const QByteArray data = file.readAll();
+    file.close();
+
+    QJsonParseError err;
+    const QJsonDocument doc = QJsonDocument::fromJson(data, &err);
+    if (doc.isNull() || !doc.isObject())
+        return false;
+
+    const QJsonObject root = doc.object();
+    out_res.detected_bpm = root.value(QStringLiteral("bpm")).toDouble(128.0);
+    out_res.grid_offset_ms = static_cast<int64_t>(root.value(QStringLiteral("grid_offset_ms")).toVariant().toLongLong());
+    out_res.cue_point_ms = static_cast<int64_t>(root.value(QStringLiteral("cue_point_ms")).toVariant().toLongLong());
+    out_res.duration_ms = static_cast<int64_t>(root.value(QStringLiteral("duration_ms")).toVariant().toLongLong());
+
+    const QJsonArray ov_arr = root.value(QStringLiteral("overview_peaks")).toArray();
+    out_res.overview_peaks.clear();
+    out_res.overview_peaks.reserve(ov_arr.size());
+    for (const auto &val : ov_arr) {
+        out_res.overview_peaks.push_back(static_cast<float>(val.toDouble(0.1)));
+    }
+
+    const QJsonArray det_arr = root.value(QStringLiteral("detailed_peaks")).toArray();
+    out_res.detailed_peaks.clear();
+    out_res.detailed_peaks.reserve(det_arr.size());
+    for (const auto &val : det_arr) {
+        out_res.detailed_peaks.push_back(static_cast<float>(val.toDouble(0.1)));
+    }
+
+    out_res.waveform_peaks = out_res.overview_peaks;
+    out_res.success = !out_res.overview_peaks.empty() && (out_res.detected_bpm > 30.0);
+    return out_res.success;
+}
+
+bool AudioAnalyzer::saveCache(const QString &file_path, const TrackAnalysisResult &res)
+{
+    if (!res.success)
+        return false;
+
+    const QString cache_path = cacheFilePath(file_path);
+    QJsonObject root;
+    root.insert(QStringLiteral("version"), 1);
+    root.insert(QStringLiteral("bpm"), res.detected_bpm);
+    root.insert(QStringLiteral("grid_offset_ms"), static_cast<qint64>(res.grid_offset_ms));
+    root.insert(QStringLiteral("cue_point_ms"), static_cast<qint64>(res.cue_point_ms));
+    root.insert(QStringLiteral("duration_ms"), static_cast<qint64>(res.duration_ms));
+
+    QJsonArray ov_arr;
+    for (float v : res.overview_peaks) {
+        ov_arr.append(std::round(v * 1000.0) / 1000.0);
+    }
+    root.insert(QStringLiteral("overview_peaks"), ov_arr);
+
+    QJsonArray det_arr;
+    for (float v : res.detailed_peaks) {
+        det_arr.append(std::round(v * 1000.0) / 1000.0);
+    }
+    root.insert(QStringLiteral("detailed_peaks"), det_arr);
+
+    QFile file(cache_path);
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+    file.close();
+    return true;
+}
+
+bool AudioAnalyzer::updateCacheUserEdits(const QString &file_path, double bpm, int64_t grid_offset_ms, int64_t cue_point_ms)
+{
+    const QString cache_path = cacheFilePath(file_path);
+    QFile file(cache_path);
+    QJsonObject root;
+    if (file.exists() && file.open(QIODevice::ReadOnly)) {
+        root = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+    }
+
+    if (bpm > 30.0)
+        root.insert(QStringLiteral("bpm"), bpm);
+    if (grid_offset_ms >= 0)
+        root.insert(QStringLiteral("grid_offset_ms"), static_cast<qint64>(grid_offset_ms));
+    if (cue_point_ms >= 0)
+        root.insert(QStringLiteral("cue_point_ms"), static_cast<qint64>(cue_point_ms));
+
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        file.close();
+        return true;
+    }
+    return false;
 }
 
 TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
@@ -29,8 +137,14 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     TrackAnalysisResult result;
     result.detected_bpm = 128.0;
     result.grid_offset_ms = 0;
+    result.cue_point_ms = 0;
     result.duration_ms = 0;
     result.success = false;
+
+    // 1. Instant check for existing .vdj.json sidecar cache file
+    if (loadCache(file_path, result)) {
+        return result;
+    }
 
 #ifdef _WIN32
     HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -62,7 +176,7 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         return result;
     }
 
-    // Try to get track total duration
+    // Read track total duration
     PROPVARIANT var;
     PropVariantInit(&var);
     if (SUCCEEDED(pReader->GetPresentationAttribute(MF_SOURCE_READER_MEDIASOURCE,
@@ -71,12 +185,11 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         PropVariantClear(&var);
     }
 
-    // Deselect all streams and select first audio stream
+    // Select first audio stream
     pReader->SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS, FALSE);
     pReader->SetStreamSelection(MF_SOURCE_READER_FIRST_AUDIO_STREAM, TRUE);
 
-    // Request uncompressed 16-bit PCM output.
-    // Try standard 44100 Hz mono first:
+    // Request uncompressed 16-bit PCM output at 44100 Hz mono
     IMFMediaType *pPartialType = nullptr;
     hr = MFCreateMediaType(&pPartialType);
     if (SUCCEEDED(hr)) {
@@ -90,7 +203,7 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         pPartialType->Release();
     }
 
-    // If 44100 mono was rejected by the demuxer, fallback to generic uncompressed PCM:
+    // Fallback to generic uncompressed PCM if 44100 mono was rejected
     if (FAILED(hr)) {
         hr = MFCreateMediaType(&pPartialType);
         if (SUCCEEDED(hr)) {
@@ -125,11 +238,12 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     if (sample_rate == 0) sample_rate = 44100;
     if (bits_per_sample == 0) bits_per_sample = 16;
 
-    // Read audio PCM samples (up to 240 seconds):
+    // Read full audio PCM samples (up to 12 minutes of audio)
     std::vector<float> mono_samples;
-    mono_samples.reserve(sample_rate * 120);
+    mono_samples.reserve(sample_rate * 240);
 
-    while (mono_samples.size() < static_cast<size_t>(sample_rate * 240)) {
+    const size_t max_total_samples = static_cast<size_t>(sample_rate * 720); // 12 minutes limit
+    while (mono_samples.size() < max_total_samples) {
         DWORD streamIndex = 0;
         DWORD flags = 0;
         LONGLONG llTimestamp = 0;
@@ -191,8 +305,11 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
 
     result.success = true;
     const size_t total_samples = mono_samples.size();
+    if (result.duration_ms <= 0 && sample_rate > 0) {
+        result.duration_ms = static_cast<int64_t>((static_cast<double>(total_samples) / static_cast<double>(sample_rate)) * 1000.0);
+    }
 
-    // 1. Overview Waveform (~500 points for full track strip)
+    // 1. Overview Waveform (500 points for full track strip)
     result.overview_peaks.resize(kOverviewBuckets, 0.05f);
     const size_t samples_per_bucket = std::max<size_t>(1, total_samples / kOverviewBuckets);
     for (size_t b = 0; b < kOverviewBuckets; ++b) {
@@ -228,16 +345,14 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         if (abs_f > max_full_all) max_full_all = abs_f;
     }
 
-    // 3. High-Resolution Detailed Waveform (100 points/sec, 10ms window)
-    // Normalized to global maximums with non-linear transient punch:
-    // Kicks punch sharply to 0.90 - 1.0, while valleys between beats drop down to 0.15 - 0.25!
-    const size_t samples_per_10ms = std::max<size_t>(1, static_cast<size_t>(sample_rate / 100));
-    const size_t num_detailed = total_samples / samples_per_10ms;
+    // 3. High-Resolution Detailed Waveform (50 points/sec, 20ms window)
+    const size_t samples_per_20ms = std::max<size_t>(1, static_cast<size_t>(sample_rate / 50));
+    const size_t num_detailed = total_samples / samples_per_20ms;
     result.detailed_peaks.resize(num_detailed, 0.05f);
 
     for (size_t w = 0; w < num_detailed; ++w) {
-        const size_t start = w * samples_per_10ms;
-        const size_t end = std::min(start + samples_per_10ms, total_samples);
+        const size_t start = w * samples_per_20ms;
+        const size_t end = std::min(start + samples_per_20ms, total_samples);
 
         float peak_kick = 0.0f;
         float peak_full = 0.0f;
@@ -248,17 +363,17 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
 
         const float norm_k = peak_kick / max_kick_all;
         const float norm_f = peak_full / max_full_all;
-
-        // Kick transients punch sharply using power law to eliminate flat block saturation
-        const float env = 0.18f * norm_f + 0.82f * std::pow(norm_k, 1.8f);
+        const float env = 0.20f * norm_f + 0.80f * std::pow(norm_k, 1.8f);
         result.detailed_peaks[w] = std::clamp(env, 0.06f, 1.0f);
     }
 
-    // 4. Onset Novelty Curve at 500 Hz (2 ms windows) for ultra-accurate BPM autocorrelation
+    // 4. Onset Novelty Curve at 500 Hz (2 ms windows) for BPM autocorrelation
     const size_t samples_per_2ms = std::max<size_t>(1, static_cast<size_t>(sample_rate / 500));
     const size_t num_onset_windows = total_samples / samples_per_2ms;
-    if (num_onset_windows < 500)
+    if (num_onset_windows < 500) {
+        saveCache(file_path, result);
         return result;
+    }
 
     std::vector<float> kick_energy(num_onset_windows, 0.0f);
     for (size_t w = 0; w < num_onset_windows; ++w) {
@@ -284,7 +399,7 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     constexpr int kMaxLag = 461; // ~65 BPM
 
     std::vector<double> autocorr(kMaxLag + 2, 0.0);
-    const size_t max_novelty_len = std::min<size_t>(novelty.size(), static_cast<size_t>(500 * 90)); // 90 seconds analysis
+    const size_t max_novelty_len = std::min<size_t>(novelty.size(), static_cast<size_t>(500 * 120)); // analyze up to 2 minutes
 
     int best_lag = 234; // 128 BPM
     double best_score = -1.0;
@@ -297,8 +412,8 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         }
 
         const double bpm = (60.0 * 500.0) / static_cast<double>(lag);
-        // Gaussian tempo prior centered at 128 BPM (sigma 38)
-        const double prior = std::exp(-std::pow(bpm - 128.0, 2.0) / (2.0 * 38.0 * 38.0));
+        // Wide prior centered at 126 BPM (sigma 42)
+        const double prior = std::exp(-std::pow(bpm - 126.0, 2.0) / (2.0 * 42.0 * 42.0));
         const double score = sum * prior;
         autocorr[lag] = score;
 
@@ -325,17 +440,33 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     const double detected_bpm = (60.0 * 500.0) / fine_lag;
     result.detected_bpm = std::round(detected_bpm * 10.0) / 10.0;
 
-    // 7. Downbeat (Kick 1) Anchor Alignment
+    // 7. Find highest energy drop / kick section for Downbeat (Kick 1) Anchor Alignment
     const int period = std::max(1, static_cast<int>(std::round(fine_lag)));
-    const size_t max_search_windows = std::min<size_t>(novelty.size() - period, static_cast<size_t>(500 * 25));
+    
+    // Find window with highest kick density across the track
+    size_t best_window_start = 0;
+    float max_density = -1.0f;
+    const size_t search_span = std::min<size_t>(novelty.size(), static_cast<size_t>(500 * 90));
+    const size_t chunk_size = 500 * 16; // 16 second window
+    for (size_t s = 0; s + chunk_size < search_span; s += (500 * 4)) {
+        float chunk_energy = 0.0f;
+        for (size_t i = s; i < s + chunk_size; ++i) {
+            chunk_energy += novelty[i];
+        }
+        if (chunk_energy > max_density) {
+            max_density = chunk_energy;
+            best_window_start = s;
+        }
+    }
 
     double best_offset_score = -1.0;
     int best_offset = 0;
+    const size_t align_end = std::min(best_window_start + chunk_size, novelty.size() - period);
 
-    for (int o = 0; o < period && o < static_cast<int>(max_search_windows); ++o) {
+    for (int o = 0; o < period; ++o) {
         double alignment = 0.0;
         int beats = 0;
-        for (size_t idx = o; idx + period < max_search_windows; idx += period) {
+        for (size_t idx = best_window_start + o; idx + period < align_end; idx += period) {
             alignment += novelty[idx];
             beats++;
         }
@@ -344,12 +475,15 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
 
         if (alignment > best_offset_score) {
             best_offset_score = alignment;
-            best_offset = o;
+            best_offset = (best_window_start + o) % period;
         }
     }
 
     // Convert offset windows to milliseconds (each window is 2ms at 500 Hz)
     result.grid_offset_ms = static_cast<int64_t>(best_offset * 2);
+
+    // Save newly analyzed results to .vdj.json sidecar file
+    saveCache(file_path, result);
 #endif
 
     return result;

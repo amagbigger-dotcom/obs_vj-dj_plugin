@@ -551,7 +551,7 @@ QWidget *MixerWindow::buildDeckPanel(bool is_deck_a)
     });
     connect(bend_minus, &QPushButton::released, this, [this, is_deck_a, deck]() {
         auto *sl = is_deck_a ? pitch_slider_a_ : pitch_slider_b_;
-        deck->setSpeed(sl->value());
+        deck->applySpeedSettings(sl->value());
     });
 
     connect(bend_plus, &QPushButton::pressed, this, [deck]() {
@@ -559,12 +559,12 @@ QWidget *MixerWindow::buildDeckPanel(bool is_deck_a)
     });
     connect(bend_plus, &QPushButton::released, this, [this, is_deck_a, deck]() {
         auto *sl = is_deck_a ? pitch_slider_a_ : pitch_slider_b_;
-        deck->setSpeed(sl->value());
+        deck->applySpeedSettings(sl->value());
     });
 
     connect(rst_pitch_btn, &QPushButton::clicked, this, [pitch_slider, deck]() {
         pitch_slider->setValue(100);
-        deck->setSpeed(100);
+        deck->applySpeedSettings(100);
     });
 
     connect(pitch_slider, &QSlider::valueChanged, this, [deck, rate_lbl](int val) {
@@ -572,7 +572,7 @@ QWidget *MixerWindow::buildDeckPanel(bool is_deck_a)
         rate_lbl->setText(QStringLiteral("%1%").arg(val));
     });
     connect(pitch_slider, &QSlider::sliderReleased, this, [deck, pitch_slider]() {
-        deck->setSpeed(pitch_slider->value());
+        deck->applySpeedSettings(pitch_slider->value());
     });
 
     layout->addLayout(tempo_row);
@@ -594,41 +594,82 @@ QWidget *MixerWindow::buildCenterMixerPanel()
     // 0. Traktor Master Clock & Tempo Section
     auto *clock_box = new QFrame(panel);
     clock_box->setStyleSheet(QStringLiteral("background: #0f1319; border: 1px solid #1f2733; border-radius: 3px; padding: 2px;"));
-    auto *clock_row = new QHBoxLayout(clock_box);
-    clock_row->setContentsMargins(4, 2, 4, 2);
-    clock_row->setSpacing(4);
+    auto *clock_vbox = new QVBoxLayout(clock_box);
+    clock_vbox->setContentsMargins(4, 2, 4, 2);
+    clock_vbox->setSpacing(3);
 
-    master_clock_btn_ = new QPushButton(QStringLiteral("MASTER CLOCK"), clock_box);
+    auto *clock_row1 = new QHBoxLayout();
+    clock_row1->setSpacing(4);
+
+    master_clock_btn_ = new QPushButton(QStringLiteral("MASTER"), clock_box);
     master_clock_btn_->setCheckable(true);
     master_clock_btn_->setFixedHeight(22);
     master_clock_btn_->setStyleSheet(QStringLiteral(
         "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 9px; padding: 1px 5px; } "
         "QPushButton:checked { background: #d97706; border: 1px solid #f59e0b; color: #fff; }"));
-    clock_row->addWidget(master_clock_btn_);
+    master_clock_btn_->setToolTip(QStringLiteral("Enable Central Master Clock mode"));
+    clock_row1->addWidget(master_clock_btn_);
+
+    master_clock_ext_btn_ = new QPushButton(QStringLiteral("EXT SYNC"), clock_box);
+    master_clock_ext_btn_->setCheckable(true);
+    master_clock_ext_btn_->setFixedHeight(22);
+    master_clock_ext_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 9px; padding: 1px 5px; } "
+        "QPushButton:checked { background: #0284c7; border: 1px solid #38bdf8; color: #fff; }"));
+    master_clock_ext_btn_->setToolTip(QStringLiteral("Sync Master Clock to incoming external MIDI Clock"));
+    clock_row1->addWidget(master_clock_ext_btn_);
+
+    master_clock_send_btn_ = new QPushButton(QStringLiteral("SEND CLOCK"), clock_box);
+    master_clock_send_btn_->setCheckable(true);
+    master_clock_send_btn_->setFixedHeight(22);
+    master_clock_send_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 9px; padding: 1px 5px; } "
+        "QPushButton:checked { background: #2e7d32; border: 1px solid #4caf50; color: #fff; }"));
+    master_clock_send_btn_->setToolTip(QStringLiteral("Transmit MIDI Clock (24 PPQN) to external MIDI hardware / software"));
+    clock_row1->addWidget(master_clock_send_btn_);
+
+    clock_vbox->addLayout(clock_row1);
+
+    auto *clock_row2 = new QHBoxLayout();
+    clock_row2->setSpacing(4);
 
     master_clock_bpm_lbl_ = new QLabel(QStringLiteral("128.00 BPM"), clock_box);
     master_clock_bpm_lbl_->setStyleSheet(QStringLiteral("font-family: monospace; font-size: 11px; font-weight: bold; color: #ffaa00;"));
-    clock_row->addWidget(master_clock_bpm_lbl_, 1, Qt::AlignCenter);
+    clock_row2->addWidget(master_clock_bpm_lbl_, 1, Qt::AlignCenter);
 
     master_clock_tap_btn_ = new QPushButton(QStringLiteral("TAP"), clock_box);
     master_clock_tap_btn_->setFixedSize(30, 22);
     master_clock_tap_btn_->setStyleSheet(QStringLiteral("background: #232b36; border: 1px solid #334050; color: #e0e6f0; font-size: 9px; font-weight: bold;"));
-    clock_row->addWidget(master_clock_tap_btn_);
+    clock_row2->addWidget(master_clock_tap_btn_);
 
     master_clock_minus_btn_ = new QPushButton(QStringLiteral("-"), clock_box);
     master_clock_minus_btn_->setFixedSize(22, 22);
     master_clock_minus_btn_->setStyleSheet(QStringLiteral("background: #232b36; border: 1px solid #334050; color: #e0e6f0; font-size: 11px; font-weight: bold;"));
-    clock_row->addWidget(master_clock_minus_btn_);
+    clock_row2->addWidget(master_clock_minus_btn_);
 
     master_clock_plus_btn_ = new QPushButton(QStringLiteral("+"), clock_box);
     master_clock_plus_btn_->setFixedSize(22, 22);
     master_clock_plus_btn_->setStyleSheet(QStringLiteral("background: #232b36; border: 1px solid #334050; color: #e0e6f0; font-size: 11px; font-weight: bold;"));
-    clock_row->addWidget(master_clock_plus_btn_);
+    clock_row2->addWidget(master_clock_plus_btn_);
+
+    clock_vbox->addLayout(clock_row2);
 
     layout->addWidget(clock_box);
 
     connect(master_clock_btn_, &QPushButton::clicked, this, [this]() {
         decks_->setMasterMode(DeckPair::MASTER_CLOCK);
+    });
+    connect(master_clock_ext_btn_, &QPushButton::clicked, this, [this]() {
+        if (decks_->masterMode() == DeckPair::MASTER_EXT_MIDI) {
+            decks_->setMasterMode(DeckPair::MASTER_CLOCK);
+        } else {
+            decks_->setMasterMode(DeckPair::MASTER_EXT_MIDI);
+        }
+    });
+    connect(master_clock_send_btn_, &QPushButton::clicked, this, [this]() {
+        const bool send = !vdj_midi_is_clock_send();
+        vdj_midi_set_clock_send(send);
+        master_clock_send_btn_->setChecked(send);
     });
     connect(master_clock_minus_btn_, &QPushButton::clicked, this, [this]() {
         decks_->setMasterClockBpm(decks_->masterClockBpm() - 0.1);
@@ -1025,6 +1066,22 @@ void MixerWindow::refreshMixer()
         if (master_clock_btn_->isChecked() != is_clock_m) {
             QSignalBlocker blocker(master_clock_btn_);
             master_clock_btn_->setChecked(is_clock_m);
+        }
+    }
+
+    if (master_clock_ext_btn_) {
+        const bool is_ext_m = (decks_->masterMode() == DeckPair::MASTER_EXT_MIDI);
+        if (master_clock_ext_btn_->isChecked() != is_ext_m) {
+            QSignalBlocker blocker(master_clock_ext_btn_);
+            master_clock_ext_btn_->setChecked(is_ext_m);
+        }
+    }
+
+    if (master_clock_send_btn_) {
+        const bool is_send = vdj_midi_is_clock_send();
+        if (master_clock_send_btn_->isChecked() != is_send) {
+            QSignalBlocker blocker(master_clock_send_btn_);
+            master_clock_send_btn_->setChecked(is_send);
         }
     }
 

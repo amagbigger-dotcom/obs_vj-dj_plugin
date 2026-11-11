@@ -24,6 +24,8 @@ public:
     void loadFile(const QString &path);
     QString fileName() const;
     void setFileName(const QString &name);
+    QString filePath() const;
+    void setFilePath(const QString &path);
 
     void togglePlayback();
     void setPlaying(bool playing);
@@ -34,6 +36,7 @@ public:
     void cue();
 
     void setSpeed(int percent);
+    void applySpeedSettings(int speed_percent);
     int speed() const noexcept;
 
     void setBpm(double bpm) noexcept;
@@ -45,6 +48,8 @@ public:
     int64_t gridOffsetMs() const noexcept;
     void nudgeGrid(int64_t delta_ms) noexcept;
     void setGridAnchorAtCurrent() noexcept;
+
+    void saveUserEdits();
 
     void setWaveformSamples(const std::vector<float> &overview, const std::vector<float> &detailed);
     std::vector<float> overviewSamples() const;
@@ -109,6 +114,7 @@ private:
 
     mutable std::mutex file_mutex_;
     QString file_name_{};
+    QString file_path_{};
 
     std::atomic<bool> looping_{false};
     std::atomic<int> loop_beat_index_{3};
@@ -191,7 +197,8 @@ public:
     enum MasterMode {
         MASTER_CLOCK = 0,
         MASTER_DECK_A = 1,
-        MASTER_DECK_B = 2
+        MASTER_DECK_B = 2,
+        MASTER_EXT_MIDI = 3
     };
 
     void setMasterMode(int mode) noexcept;

@@ -92,6 +92,8 @@ private:
 
     // Central Master Clock Controls
     QPushButton *master_clock_btn_ = nullptr;
+    QPushButton *master_clock_ext_btn_ = nullptr;
+    QPushButton *master_clock_send_btn_ = nullptr;
     QLabel *master_clock_bpm_lbl_ = nullptr;
     QPushButton *master_clock_tap_btn_ = nullptr;
     QPushButton *master_clock_minus_btn_ = nullptr;

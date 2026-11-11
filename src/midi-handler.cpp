@@ -11,13 +11,20 @@
 #include <cctype>
 #include <cstring>
 #include <string>
+#include <vector>
+#include <thread>
+#include <chrono>
 
 #pragma comment(lib, "winmm.lib")
 
 namespace {
 
 HMIDIIN g_midi_in = nullptr;
+HMIDIOUT g_midi_out = nullptr;
 std::atomic<bool> g_connected{false};
+std::atomic<bool> g_clock_send_enabled{false};
+std::atomic<bool> g_clock_thread_running{false};
+std::thread g_clock_thread;
 char g_device_name[MAXPNAMELEN] = {};
 
 std::string lowercase(std::string value)
@@ -36,8 +43,6 @@ bool is_target_device(const char *device_name)
 
     const std::string name = lowercase(device_name);
 
-    // A Traktor S2 nevét keressük, hogy ne nyisson meg véletlenül
-    // egy másik, nem ehhez a kiosztáshoz tartozó MIDI eszközt.
     return name.find("traktor") != std::string::npos &&
            name.find("s2") != std::string::npos;
 }
@@ -50,7 +55,7 @@ void handle_control_change(DeckPair *decks,
     if (!decks)
         return;
 
-    // A terv szerint a crossfader Ch 1 / CC 8.
+    // Crossfader Ch 1 / CC 8
     if (channel == 0 && controller == 8) {
         decks->setCrossfader(static_cast<double>(value) / 127.0);
         return;
@@ -101,14 +106,11 @@ void handle_note(DeckPair *decks,
         return;
 
     DeckPlayer *deck = nullptr;
-    DeckPlayer *other_deck = nullptr;
 
     if (channel == 0) {
         deck = &decks->deckA();
-        other_deck = &decks->deckB();
     } else if (channel == 1) {
         deck = &decks->deckB();
-        other_deck = &decks->deckA();
     } else {
         return;
     }
@@ -151,22 +153,97 @@ void CALLBACK midi_in_proc(HMIDIIN,
     const auto data2 =
         static_cast<unsigned char>((packed_message >> 16U) & 0xFFU);
 
-    const unsigned char message_type = status & 0xF0U;
-    const unsigned char channel = status & 0x0FU;
-
     DeckPair *decks = vdj_decks();
     if (!decks)
         return;
+
+    // MIDI System Real-Time Messages (Single byte: 0xF8 = Clock, 0xFA = Start, 0xFC = Stop)
+    if (status == 0xF8U) {
+        // Clock tick (24 ticks = 1 quarter note / beat)
+        static auto last_tick_tp = std::chrono::steady_clock::now();
+        static std::vector<int64_t> tick_intervals_us;
+        const auto now_tp = std::chrono::steady_clock::now();
+        const auto delta_us = std::chrono::duration_cast<std::chrono::microseconds>(now_tp - last_tick_tp).count();
+        last_tick_tp = now_tp;
+
+        if (delta_us > 1000 && delta_us < 100000) {
+            tick_intervals_us.push_back(delta_us);
+            if (tick_intervals_us.size() > 24)
+                tick_intervals_us.erase(tick_intervals_us.begin());
+
+            if (tick_intervals_us.size() >= 12) {
+                int64_t sum_us = 0;
+                for (int64_t interval : tick_intervals_us)
+                    sum_us += interval;
+                const double avg_tick_us = static_cast<double>(sum_us) / static_cast<double>(tick_intervals_us.size());
+                if (avg_tick_us > 100.0) {
+                    const double incoming_bpm = 60000000.0 / (avg_tick_us * 24.0);
+                    if (incoming_bpm >= 40.0 && incoming_bpm <= 300.0) {
+                        if (decks->masterMode() == DeckPair::MASTER_EXT_MIDI) {
+                            decks->setMasterClockBpm(std::round(incoming_bpm * 10.0) / 10.0);
+                        }
+                    }
+                }
+            }
+        }
+        return;
+    }
+
+    if (status == 0xFAU) { // MIDI Start
+        if (decks->masterMode() == DeckPair::MASTER_EXT_MIDI) {
+            if (decks->deckA().isSync()) decks->deckA().setPlaying(true);
+            if (decks->deckB().isSync()) decks->deckB().setPlaying(true);
+        }
+        return;
+    }
+
+    if (status == 0xFCU) { // MIDI Stop
+        if (decks->masterMode() == DeckPair::MASTER_EXT_MIDI) {
+            if (decks->deckA().isSync()) decks->deckA().setPlaying(false);
+            if (decks->deckB().isSync()) decks->deckB().setPlaying(false);
+        }
+        return;
+    }
+
+    const unsigned char message_type = status & 0xF0U;
+    const unsigned char channel = status & 0x0FU;
 
     if (message_type == 0xB0U) {
         handle_control_change(decks, channel, data1, data2);
         return;
     }
 
-    // A Note On 0 velocity MIDI szerint a Note Off megfelelője.
-    // Gombműveletet csak tényleges lenyomáskor indítunk.
+    // Note On with vel > 0
     if (message_type == 0x90U && data2 > 0)
         handle_note(decks, channel, data1);
+}
+
+void clock_sender_loop()
+{
+    while (g_clock_thread_running.load(std::memory_order_relaxed)) {
+        if (!g_clock_send_enabled.load(std::memory_order_relaxed) || !g_midi_out) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            continue;
+        }
+
+        DeckPair *decks = vdj_decks();
+        const double bpm = decks ? decks->effectiveMasterBpm() : 128.0;
+        const double eff_bpm = (bpm >= 30.0) ? bpm : 128.0;
+        const double tick_interval_us = 60000000.0 / (eff_bpm * 24.0);
+
+        const auto start_tp = std::chrono::steady_clock::now();
+        midiOutShortMsg(g_midi_out, 0xF8);
+
+        const auto target_tp = start_tp + std::chrono::microseconds(static_cast<int64_t>(tick_interval_us));
+        while (std::chrono::steady_clock::now() < target_tp && g_clock_thread_running.load(std::memory_order_relaxed)) {
+            const auto remaining_us = std::chrono::duration_cast<std::chrono::microseconds>(target_tp - std::chrono::steady_clock::now()).count();
+            if (remaining_us > 2000) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            } else {
+                std::this_thread::yield();
+            }
+        }
+    }
 }
 
 } // namespace
@@ -206,55 +283,62 @@ void vdj_midi_init()
         break;
     }
 
-    if (!found_target) {
-        blog(LOG_INFO,
-             "[obs-vj-mixer] Traktor Kontrol S2 MIDI input device not found.");
-        return;
+    if (found_target) {
+        MMRESULT result = midiInOpen(
+            &g_midi_in,
+            target_device_id,
+            reinterpret_cast<DWORD_PTR>(midi_in_proc),
+            0,
+            CALLBACK_FUNCTION);
+
+        if (result == MMSYSERR_NOERROR) {
+            result = midiInStart(g_midi_in);
+            if (result == MMSYSERR_NOERROR) {
+                g_connected.store(true, std::memory_order_relaxed);
+                blog(LOG_INFO, "[obs-vj-mixer] MIDI connected: %s", g_device_name);
+            } else {
+                midiInClose(g_midi_in);
+                g_midi_in = nullptr;
+                g_device_name[0] = '\0';
+            }
+        }
     }
 
-    MMRESULT result = midiInOpen(
-        &g_midi_in,
-        target_device_id,
-        reinterpret_cast<DWORD_PTR>(midi_in_proc),
-        0,
-        CALLBACK_FUNCTION);
-
-    if (result != MMSYSERR_NOERROR) {
-        g_midi_in = nullptr;
-        g_device_name[0] = '\0';
-        blog(LOG_WARNING,
-             "[obs-vj-mixer] Could not open Traktor S2 MIDI input (error %u).",
-             static_cast<unsigned int>(result));
-        return;
+    // Auto-connect to first available MIDI OUT or Traktor device
+    const UINT out_count = midiOutGetNumDevs();
+    for (UINT i = 0; i < out_count; ++i) {
+        MIDIOUTCAPSA caps = {};
+        if (midiOutGetDevCapsA(i, &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+            if (is_target_device(caps.szPname) || (i == 0 && !g_midi_out)) {
+                vdj_midi_open_output_device(static_cast<int>(i));
+            }
+        }
     }
 
-    result = midiInStart(g_midi_in);
-
-    if (result != MMSYSERR_NOERROR) {
-        midiInClose(g_midi_in);
-        g_midi_in = nullptr;
-        g_device_name[0] = '\0';
-        blog(LOG_WARNING,
-             "[obs-vj-mixer] Could not start Traktor S2 MIDI input (error %u).",
-             static_cast<unsigned int>(result));
-        return;
-    }
-
-    g_connected.store(true, std::memory_order_relaxed);
-    blog(LOG_INFO,
-         "[obs-vj-mixer] MIDI connected: %s",
-         g_device_name);
+    g_clock_thread_running.store(true, std::memory_order_relaxed);
+    g_clock_thread = std::thread(clock_sender_loop);
 }
 
 void vdj_midi_shutdown()
 {
     g_connected.store(false, std::memory_order_relaxed);
+    g_clock_send_enabled.store(false, std::memory_order_relaxed);
+    g_clock_thread_running.store(false, std::memory_order_relaxed);
+
+    if (g_clock_thread.joinable())
+        g_clock_thread.join();
 
     if (g_midi_in) {
         midiInStop(g_midi_in);
         midiInReset(g_midi_in);
         midiInClose(g_midi_in);
         g_midi_in = nullptr;
+    }
+
+    if (g_midi_out) {
+        midiOutReset(g_midi_out);
+        midiOutClose(g_midi_out);
+        g_midi_out = nullptr;
     }
 
     g_device_name[0] = '\0';
@@ -268,4 +352,42 @@ bool vdj_midi_is_connected()
 const char *vdj_midi_get_device_name()
 {
     return g_device_name;
+}
+
+void vdj_midi_set_clock_send(bool enable)
+{
+    g_clock_send_enabled.store(enable, std::memory_order_relaxed);
+}
+
+bool vdj_midi_is_clock_send()
+{
+    return g_clock_send_enabled.load(std::memory_order_relaxed);
+}
+
+std::vector<std::string> vdj_midi_get_output_devices()
+{
+    std::vector<std::string> devices;
+    const UINT count = midiOutGetNumDevs();
+    for (UINT i = 0; i < count; ++i) {
+        MIDIOUTCAPSA caps = {};
+        if (midiOutGetDevCapsA(i, &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+            devices.push_back(caps.szPname);
+        }
+    }
+    return devices;
+}
+
+bool vdj_midi_open_output_device(int device_id)
+{
+    if (g_midi_out) {
+        midiOutReset(g_midi_out);
+        midiOutClose(g_midi_out);
+        g_midi_out = nullptr;
+    }
+
+    if (device_id < 0)
+        return false;
+
+    MMRESULT res = midiOutOpen(&g_midi_out, static_cast<UINT>(device_id), 0, 0, CALLBACK_NULL);
+    return res == MMSYSERR_NOERROR;
 }

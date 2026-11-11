@@ -79,6 +79,7 @@ void DeckPlayer::loadFile(const QString &path)
     if (!source_ || path.isEmpty())
         return;
 
+    setFilePath(path);
     setFileName(QFileInfo(path).fileName());
 
     obs_data_t *settings = obs_source_get_settings(source_);
@@ -113,11 +114,14 @@ void DeckPlayer::loadFile(const QString &path)
         detailed_samples_.clear();
     }
 
-    // Launch real asynchronous audio decoding, BPM & downbeat analysis
+    // Launch real asynchronous audio decoding, BPM & downbeat analysis (instant from .vdj.json if cached)
     AudioAnalyzer::analyzeFileAsync(path, [this](TrackAnalysisResult res) {
         if (res.success) {
             setBpm(res.detected_bpm);
             setGridOffsetMs(res.grid_offset_ms);
+            if (res.cue_point_ms > 0) {
+                cue_point_ms_.store(res.cue_point_ms, std::memory_order_relaxed);
+            }
             setWaveformSamples(res.overview_peaks, res.detailed_peaks);
         }
     });
@@ -135,6 +139,26 @@ void DeckPlayer::setFileName(const QString &name)
 {
     std::lock_guard<std::mutex> lock(file_mutex_);
     file_name_ = name;
+}
+
+QString DeckPlayer::filePath() const
+{
+    std::lock_guard<std::mutex> lock(file_mutex_);
+    return file_path_;
+}
+
+void DeckPlayer::setFilePath(const QString &path)
+{
+    std::lock_guard<std::mutex> lock(file_mutex_);
+    file_path_ = path;
+}
+
+void DeckPlayer::saveUserEdits()
+{
+    const QString path = filePath();
+    if (path.isEmpty())
+        return;
+    AudioAnalyzer::updateCacheUserEdits(path, bpm(), gridOffsetMs(), cue_point_ms_.load(std::memory_order_relaxed));
 }
 
 void DeckPlayer::togglePlayback()
@@ -192,6 +216,7 @@ void DeckPlayer::cue()
 
         cue_point_ms_.store(now, std::memory_order_relaxed);
         obs_source_media_set_time(source_, static_cast<uint64_t>(now));
+        saveUserEdits();
     }
 }
 
@@ -205,14 +230,26 @@ void DeckPlayer::setSpeed(int percent)
     if (!source_)
         return;
 
+    const int64_t cur_pos = currentTimeMs();
+    if (cur_pos > 100) {
+        pending_speed_seek_ms_.store(cur_pos, std::memory_order_relaxed);
+    }
+
     const auto now_tp = std::chrono::steady_clock::now();
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now_tp - last_speed_update_tp_).count();
-    if (elapsed < 80)
+    if (elapsed < 160)
         return;
 
     last_speed_update_tp_ = now_tp;
+    applySpeedSettings(clamped);
+}
 
-    const int64_t cur_pos = obs_source_media_get_time(source_);
+void DeckPlayer::applySpeedSettings(int speed_percent)
+{
+    if (!source_)
+        return;
+
+    const int64_t cur_pos = currentTimeMs();
     if (cur_pos > 100) {
         pending_speed_seek_ms_.store(cur_pos, std::memory_order_relaxed);
     }
@@ -221,7 +258,7 @@ void DeckPlayer::setSpeed(int percent)
     if (!settings)
         return;
 
-    obs_data_set_int(settings, "speed_percent", clamped);
+    obs_data_set_int(settings, "speed_percent", speed_percent);
     obs_source_update(source_, settings);
     obs_data_release(settings);
 }
@@ -234,6 +271,7 @@ int DeckPlayer::speed() const noexcept
 void DeckPlayer::setBpm(double bpm) noexcept
 {
     base_bpm_.store(std::clamp(bpm, 40.0, 300.0), std::memory_order_relaxed);
+    saveUserEdits();
 }
 
 double DeckPlayer::bpm() const noexcept
@@ -274,6 +312,7 @@ void DeckPlayer::nudgeGrid(int64_t delta_ms) noexcept
         cur = ((cur % b_ms) + b_ms) % b_ms;
     }
     grid_offset_ms_.store(cur, std::memory_order_relaxed);
+    saveUserEdits();
 }
 
 void DeckPlayer::setGridAnchorAtCurrent() noexcept
@@ -286,6 +325,7 @@ void DeckPlayer::setGridAnchorAtCurrent() noexcept
         offset = ((now % b_ms) + b_ms) % b_ms;
     }
     grid_offset_ms_.store(offset, std::memory_order_relaxed);
+    saveUserEdits();
 }
 
 void DeckPlayer::setWaveformSamples(const std::vector<float> &overview, const std::vector<float> &detailed)
@@ -542,12 +582,12 @@ void DeckPlayer::updateLoop()
 
     const int64_t seek_target = pending_speed_seek_ms_.load(std::memory_order_relaxed);
     if (seek_target > 0) {
-        const int64_t actual_pos = obs_source_media_get_time(source_);
         const auto state = obs_source_media_get_state(source_);
         if (state == OBS_MEDIA_STATE_PLAYING || state == OBS_MEDIA_STATE_PAUSED) {
-            if (actual_pos < seek_target - 500) {
+            const int64_t actual_pos = obs_source_media_get_time(source_);
+            if (actual_pos < seek_target - 300) {
                 obs_source_media_set_time(source_, static_cast<uint64_t>(seek_target));
-            } else if (actual_pos >= seek_target - 200) {
+            } else {
                 pending_speed_seek_ms_.store(0, std::memory_order_relaxed);
             }
         }
@@ -803,7 +843,7 @@ float DeckPair::headphoneMix() const noexcept
 
 void DeckPair::setMasterMode(int mode) noexcept
 {
-    master_mode_.store(std::clamp(mode, 0, 2), std::memory_order_relaxed);
+    master_mode_.store(std::clamp(mode, 0, 3), std::memory_order_relaxed);
     if (mode == MASTER_DECK_A) {
         deck_a_.setMaster(true);
         deck_b_.setMaster(false);
