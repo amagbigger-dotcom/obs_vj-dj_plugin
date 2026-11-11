@@ -47,6 +47,9 @@ public:
     explicit MixerWindow(DeckPair *decks, QWidget *parent = nullptr);
     ~MixerWindow() override = default;
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 private:
     void buildTopBar(QVBoxLayout *main_layout);
     QWidget *buildDeckPanel(bool is_deck_a);

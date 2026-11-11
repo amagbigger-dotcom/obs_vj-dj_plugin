@@ -697,10 +697,18 @@ DeckPair::DeckPair()
 
     updateAudioMix();
     enableAudioMonitoring();
+
+    cue_thread_running_.store(true, std::memory_order_relaxed);
+    cue_thread_ = std::thread(&DeckPair::cueWorkerLoop, this);
 }
 
 DeckPair::~DeckPair()
 {
+    cue_thread_running_.store(false, std::memory_order_relaxed);
+    cue_cv_.notify_all();
+    if (cue_thread_.joinable())
+        cue_thread_.join();
+
     if (cue_source_) {
         obs_source_dec_active(cue_source_);
         obs_source_dec_showing(cue_source_);
@@ -743,6 +751,7 @@ int DeckPair::transitionMode() const noexcept
 void DeckPair::setObsOutputMode(int mode) noexcept
 {
     obs_output_mode_.store(std::clamp(mode, 0, 2), std::memory_order_relaxed);
+    updateAudioMix();
 }
 
 int DeckPair::obsOutputMode() const noexcept
@@ -822,10 +831,18 @@ int DeckPair::getLoopBeatIndex(int deck_index) const noexcept
 
 void DeckPair::updateAudioMix() noexcept
 {
-    const double x = crossfader();
-
-    deck_a_.setMixGain(static_cast<float>(1.0 - x));
-    deck_b_.setMixGain(static_cast<float>(x));
+    const int out_mode = obs_output_mode_.load(std::memory_order_relaxed);
+    if (out_mode == 1) {
+        deck_a_.setMixGain(1.0f);
+        deck_b_.setMixGain(0.0f);
+    } else if (out_mode == 2) {
+        deck_a_.setMixGain(0.0f);
+        deck_b_.setMixGain(1.0f);
+    } else {
+        const double x = crossfader();
+        deck_a_.setMixGain(static_cast<float>(1.0 - x));
+        deck_b_.setMixGain(static_cast<float>(x));
+    }
 }
 
 void DeckPair::enableAudioMonitoring() noexcept
@@ -834,7 +851,7 @@ void DeckPair::enableAudioMonitoring() noexcept
     deck_b_.enableAudioMonitoring();
 }
 
-void DeckPair::feedHeadphoneCue(int deck_idx, const float *const *channels, size_t frames, uint64_t timestamp)
+void DeckPair::queueCueAudio(int deck_idx, const float *const *channels, size_t frames)
 {
     if (!cue_source_ || !channels || !channels[0] || frames == 0)
         return;
@@ -856,29 +873,55 @@ void DeckPair::feedHeadphoneCue(int deck_idx, const float *const *channels, size
     if (total_factor <= 0.0001f)
         return;
 
-    thread_local std::vector<float> buf_l;
-    thread_local std::vector<float> buf_r;
-    buf_l.resize(frames);
-    buf_r.resize(frames);
-
+    CuePacket pkt;
+    pkt.l.resize(frames);
+    pkt.r.resize(frames);
     const float *in_l = channels[0];
     const float *in_r = channels[1] ? channels[1] : channels[0];
 
     for (size_t i = 0; i < frames; ++i) {
-        buf_l[i] = in_l[i] * total_factor;
-        buf_r[i] = in_r[i] * total_factor;
+        pkt.l[i] = in_l[i] * total_factor;
+        pkt.r[i] = in_r[i] * total_factor;
     }
+    pkt.frames = frames;
 
-    struct obs_source_audio audio_out = {};
-    audio_out.data[0] = reinterpret_cast<uint8_t *>(buf_l.data());
-    audio_out.data[1] = reinterpret_cast<uint8_t *>(buf_r.data());
-    audio_out.frames = static_cast<uint32_t>(frames);
-    audio_out.speakers = SPEAKERS_STEREO;
-    audio_out.format = AUDIO_FORMAT_FLOAT;
-    audio_out.samples_per_sec = 48000;
-    audio_out.timestamp = os_gettime_ns();
+    std::lock_guard<std::mutex> lock(cue_mutex_);
+    if (cue_queue_.size() > 15)
+        cue_queue_.pop();
+    cue_queue_.push(std::move(pkt));
+    cue_cv_.notify_one();
+}
 
-    obs_source_output_audio(cue_source_, &audio_out);
+void DeckPair::cueWorkerLoop()
+{
+    while (cue_thread_running_.load(std::memory_order_relaxed)) {
+        CuePacket pkt;
+        {
+            std::unique_lock<std::mutex> lock(cue_mutex_);
+            cue_cv_.wait_for(lock, std::chrono::milliseconds(20), [this]() {
+                return !cue_queue_.empty() || !cue_thread_running_.load(std::memory_order_relaxed);
+            });
+            if (!cue_thread_running_.load(std::memory_order_relaxed))
+                break;
+            if (cue_queue_.empty())
+                continue;
+            pkt = std::move(cue_queue_.front());
+            cue_queue_.pop();
+        }
+
+        if (cue_source_ && pkt.frames > 0) {
+            struct obs_source_audio audio_out = {};
+            audio_out.data[0] = reinterpret_cast<uint8_t *>(pkt.l.data());
+            audio_out.data[1] = reinterpret_cast<uint8_t *>(pkt.r.data());
+            audio_out.frames = static_cast<uint32_t>(pkt.frames);
+            audio_out.speakers = SPEAKERS_STEREO;
+            audio_out.format = AUDIO_FORMAT_FLOAT;
+            audio_out.samples_per_sec = 48000;
+            audio_out.timestamp = os_gettime_ns();
+
+            obs_source_output_audio(cue_source_, &audio_out);
+        }
+    }
 }
 
 DeckPair *vdj_decks() noexcept

@@ -4,6 +4,7 @@
 #include "midi-handler.hpp"
 
 #include <obs-frontend-api.h>
+#include <graphics/vec2.h>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QGridLayout>
@@ -173,6 +174,14 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
         refreshMixer();
     });
     timer->start(50);
+
+    addToActiveScene();
+}
+
+void MixerWindow::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    addToActiveScene();
 }
 
 void MixerWindow::buildTopBar(QVBoxLayout *main_layout)
@@ -261,7 +270,14 @@ void MixerWindow::addToActiveScene()
                 master_src = obs_source_create("vdj_master_mixer", "VJ Master Output", nullptr, nullptr);
             }
             if (master_src) {
-                obs_scene_add(scene, master_src);
+                obs_sceneitem_t *item = obs_scene_add(scene, master_src);
+                if (item) {
+                    obs_sceneitem_set_bounds_type(item, OBS_BOUNDS_SCALE_INNER);
+                    struct vec2 bounds = {1920.0f, 1080.0f};
+                    obs_sceneitem_set_bounds(item, &bounds);
+                    struct vec2 pos = {0.0f, 0.0f};
+                    obs_sceneitem_set_pos(item, &pos);
+                }
                 obs_source_release(master_src);
             }
         }

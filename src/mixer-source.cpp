@@ -52,9 +52,9 @@ static struct obs_audio_data *filter_audio(void *data, struct obs_audio_data *au
         }
     }
 
-    decks->feedHeadphoneCue(filter->deck_idx,
-                            reinterpret_cast<const float *const *>(audio->data),
-                            frames, audio->timestamp);
+    decks->queueCueAudio(filter->deck_idx,
+                         reinterpret_cast<const float *const *>(audio->data),
+                         frames);
 
     return audio;
 }
@@ -399,17 +399,14 @@ static void draw_mixer(void *data)
     const float has_vid_b = (src_w_b > 0 && src_h_b > 0) ? 1.0f : 0.0f;
 
     const int output_mode = decks->obsOutputMode();
-    if (output_mode == 1 && texture_a) {
-        obs_source_draw(texture_a, 0, 0, width, height, false);
-        return;
-    } else if (output_mode == 2 && texture_b) {
-        obs_source_draw(texture_b, 0, 0, width, height, false);
-        return;
-    }
-
     const DeckPlayer *color_a = &deck_a;
     const DeckPlayer *color_b = &deck_b;
     float xfade = static_cast<float>(decks->crossfader());
+    if (output_mode == 1) {
+        xfade = 0.0f;
+    } else if (output_mode == 2) {
+        xfade = 1.0f;
+    }
 
     if (!texture_a) {
         texture_a = texture_b;
@@ -659,7 +656,7 @@ void vdj_register_sources(void)
     obs_source_info master = {};
     master.id = "vdj_master_mixer";
     master.type = OBS_SOURCE_TYPE_INPUT;
-    master.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_COMPOSITE;
+    master.output_flags = OBS_SOURCE_VIDEO;
     master.get_name = mixer_get_name;
     master.create = mixer_create;
     master.destroy = mixer_destroy;

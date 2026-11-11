@@ -7,6 +7,9 @@
 #include <vector>
 #include <mutex>
 #include <chrono>
+#include <queue>
+#include <thread>
+#include <condition_variable>
 
 class DeckPlayer final {
 public:
@@ -160,7 +163,7 @@ public:
     obs_source_t *masterSource() const noexcept { return master_source_; }
     obs_source_t *cueSource() const noexcept { return cue_source_; }
 
-    void feedHeadphoneCue(int deck_idx, const float *const *channels, size_t frames, uint64_t timestamp);
+    void queueCueAudio(int deck_idx, const float *const *channels, size_t frames);
 
     void setCrossfader(double value) noexcept;
     double crossfader() const noexcept;
@@ -199,6 +202,19 @@ private:
     std::atomic<float> headphone_mix_{0.5f};
     std::atomic<int> loop_beat_idx_a_{3};
     std::atomic<int> loop_beat_idx_b_{3};
+
+    struct CuePacket {
+        std::vector<float> l;
+        std::vector<float> r;
+        size_t frames = 0;
+    };
+    std::mutex cue_mutex_;
+    std::condition_variable cue_cv_;
+    std::queue<CuePacket> cue_queue_;
+    std::thread cue_thread_;
+    std::atomic<bool> cue_thread_running_{false};
+
+    void cueWorkerLoop();
 };
 
 DeckPair *vdj_decks() noexcept;
