@@ -18,6 +18,9 @@ public:
 
     void refreshCanvas();
 
+    QSize sizeHint() const override { return QSize(400, 90); }
+    QSize minimumSizeHint() const override { return QSize(300, 80); }
+
 signals:
     void seekRequested(double normalized_pos);
     void gridOffsetChanged(int64_t new_offset_ms);

@@ -491,7 +491,7 @@ QWidget *MixerWindow::buildDeckPanel(bool is_deck_a)
     tempo_row->addWidget(bend_plus);
 
     auto *rate_lbl = new QLabel(QStringLiteral("100%"), panel);
-    rate_lbl->setFixedWidth(38);
+    rate_lbl->setFixedWidth(46);
     rate_lbl->setAlignment(Qt::AlignCenter);
     rate_lbl->setStyleSheet(QStringLiteral("font-weight: bold; font-size: 10px; font-family: monospace; color: #e0e6f0;"));
     tempo_row->addWidget(rate_lbl);
@@ -519,9 +519,9 @@ QWidget *MixerWindow::buildDeckPanel(bool is_deck_a)
 
     connect(sync_btn, &QPushButton::clicked, this, [this, is_deck_a]() {
         if (is_deck_a)
-            decks_->syncTempoAtoB();
-        else
             decks_->syncTempoBtoA();
+        else
+            decks_->syncTempoAtoB();
     });
 
     connect(bend_minus, &QPushButton::pressed, this, [deck]() {

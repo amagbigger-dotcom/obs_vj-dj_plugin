@@ -128,6 +128,7 @@ private:
     std::atomic<float> eq_low_{1.0f};
     std::atomic<float> filter_val_{0.0f};
 
+    std::atomic<bool> is_loop_seeking_{false};
     std::chrono::steady_clock::time_point last_loop_seek_tp_{};
 
     struct FilterState {
@@ -156,6 +157,9 @@ public:
     DeckPlayer &deckB() noexcept { return deck_b_; }
 
     obs_source_t *masterSource() const noexcept { return master_source_; }
+    obs_source_t *cueSource() const noexcept { return cue_source_; }
+
+    void feedHeadphoneCue(int deck_idx, const float *const *channels, size_t frames, uint64_t timestamp);
 
     void setCrossfader(double value) noexcept;
     double crossfader() const noexcept;
@@ -185,6 +189,7 @@ private:
     DeckPlayer deck_a_;
     DeckPlayer deck_b_;
     obs_source_t *master_source_ = nullptr;
+    obs_source_t *cue_source_ = nullptr;
 
     std::atomic<double> crossfader_{0.5};
     std::atomic<int> transition_mode_{0};

@@ -17,7 +17,7 @@
 
 namespace {
 constexpr int kOverviewHeight = 16;
-constexpr double kZoomSeconds = 4.0; // 4 seconds visible across width (~52 px per beat at 128 BPM for sharp kick visibility)
+constexpr double kZoomSeconds = 3.0; // 3 seconds visible across width (~70 px per beat at 128 BPM for sharp kick transient visibility)
 }
 
 // ============================================================================
