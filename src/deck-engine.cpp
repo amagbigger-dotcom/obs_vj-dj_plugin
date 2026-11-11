@@ -197,7 +197,9 @@ void DeckPlayer::cue()
 void DeckPlayer::setSpeed(int percent)
 {
     const int clamped = std::clamp(percent, 50, 150);
-    speed_percent_.store(clamped, std::memory_order_relaxed);
+    const int old_speed = speed_percent_.exchange(clamped, std::memory_order_relaxed);
+    if (old_speed == clamped)
+        return;
 
     if (!source_)
         return;

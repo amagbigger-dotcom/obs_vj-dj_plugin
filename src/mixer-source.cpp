@@ -135,9 +135,8 @@ float4 render_dj_visualizer(float2 uv, float time_sec, float is_playing, float b
     // Neon horizon grid background
     float2 grid_uv = float2(uv.x - 0.5, 1.0 - uv.y);
     float grid_persp = 0.12 / max(grid_uv.y, 0.02);
-    float2 grid_pos = float2(grid_uv.x * grid_persp * 8.0, grid_persp * 12.0 - time_sec * is_playing * 2.5);
-    float2 grid_lines = abs(frac(grid_pos - 0.5) - 0.5) / max(fwidth(grid_pos), 0.001);
-    float grid_val = 1.0 - min(min(grid_lines.x, grid_lines.y), 1.0);
+    float2 grid_pos = frac(float2(grid_uv.x * grid_persp * 8.0, grid_persp * 12.0 - time_sec * is_playing * 2.5));
+    float grid_val = step(0.92, grid_pos.x) + step(0.92, grid_pos.y);
     float grid_fade = smoothstep(0.0, 0.65, grid_uv.y) * 0.25;
 
     // Frequency spectrum bars along the bottom
@@ -203,8 +202,14 @@ technique Draw {
 
 static void ensure_resources(MixerSource *context)
 {
-    if (!context->effect)
-        context->effect = gs_effect_create(MIXER_EFFECT, nullptr, nullptr);
+    if (!context->effect) {
+        char *errors = nullptr;
+        context->effect = gs_effect_create(MIXER_EFFECT, "mixer_effect", &errors);
+        if (!context->effect) {
+            blog(LOG_ERROR, "[obs-vj-mixer] Failed to compile MIXER_EFFECT: %s", errors ? errors : "unknown error");
+            bfree(errors);
+        }
+    }
 
     if (!context->deck_a)
         context->deck_a = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
@@ -228,7 +233,7 @@ static bool render_to_texture(gs_texrender_t *target,
              0.0f, static_cast<float>(height),
              -100.0f, 100.0f);
 
-    vec4 clear = {0.05f, 0.07f, 0.1f, 1.0f};
+    vec4 clear = {0.0f, 0.0f, 0.0f, 0.0f};
     gs_clear(GS_CLEAR_COLOR, &clear, 0.0f, 0);
 
     if (source) {
@@ -244,6 +249,9 @@ static bool render_to_texture(gs_texrender_t *target,
             }
             obs_source_video_render(source);
             gs_matrix_pop();
+        } else {
+            // Tick asynchronous frame pump even if size is not yet established
+            obs_source_video_render(source);
         }
     }
 
@@ -623,7 +631,7 @@ void vdj_register_sources(void)
     master.id = "vdj_master_mixer";
     master.type = OBS_SOURCE_TYPE_INPUT;
     master.output_flags =
-        OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_COMPOSITE;
+        OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
     master.get_name = mixer_get_name;
     master.create = mixer_create;
     master.destroy = mixer_destroy;
@@ -640,7 +648,7 @@ void vdj_register_sources(void)
     deck_a.id = "vdj_deck_a_source";
     deck_a.type = OBS_SOURCE_TYPE_INPUT;
     deck_a.output_flags =
-        OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_COMPOSITE;
+        OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
     deck_a.get_name = monitor_get_name;
     deck_a.create = monitor_create;
     deck_a.destroy = mixer_destroy;

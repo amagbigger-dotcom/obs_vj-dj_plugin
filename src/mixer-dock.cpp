@@ -858,6 +858,17 @@ void MixerWindow::loadAudioDevices()
             [this](int index) {
                 if (index < 0 || !master_device_combo_)
                     return;
+                const QString id = master_device_combo_->itemData(index).toString();
+                obs_source_t *desktop = obs_get_output_source(0);
+                if (desktop) {
+                    obs_data_t *settings = obs_source_get_settings(desktop);
+                    if (settings) {
+                        obs_data_set_string(settings, "device_id", id.toUtf8().constData());
+                        obs_source_update(desktop, settings);
+                        obs_data_release(settings);
+                    }
+                    obs_source_release(desktop);
+                }
             });
 }
 
