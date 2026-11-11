@@ -1,6 +1,8 @@
 #include <obs-module.h>
 #include <graphics/graphics.h>
 #include <graphics/effect.h>
+#include <graphics/matrix4.h>
+#include <graphics/vec4.h>
 #include <media-io/audio-io.h>
 
 #include <cstring>
