@@ -95,6 +95,11 @@ public:
     bool isPlaying() const;
     bool isLooping() const noexcept;
 
+    bool isMaster() const noexcept { return is_master_.load(std::memory_order_relaxed); }
+    void setMaster(bool m) noexcept { is_master_.store(m, std::memory_order_relaxed); }
+    bool isSync() const noexcept { return is_sync_.load(std::memory_order_relaxed); }
+    void setSync(bool s) noexcept { is_sync_.store(s, std::memory_order_relaxed); }
+
 private:
     void applyAudioVolume() noexcept;
 
@@ -131,6 +136,9 @@ private:
     std::atomic<float> eq_low_{1.0f};
     std::atomic<float> filter_val_{0.0f};
 
+    std::atomic<bool> is_master_{false};
+    std::atomic<bool> is_sync_{false};
+    std::atomic<int64_t> pending_speed_seek_ms_{0};
     std::atomic<bool> is_loop_seeking_{false};
     std::chrono::steady_clock::time_point last_loop_seek_tp_{};
     std::chrono::steady_clock::time_point last_speed_update_tp_{};
@@ -180,6 +188,24 @@ public:
     void setHeadphoneMix(float m) noexcept;
     float headphoneMix() const noexcept;
 
+    enum MasterMode {
+        MASTER_CLOCK = 0,
+        MASTER_DECK_A = 1,
+        MASTER_DECK_B = 2
+    };
+
+    void setMasterMode(int mode) noexcept;
+    int masterMode() const noexcept;
+
+    void setMasterClockBpm(double bpm) noexcept;
+    double masterClockBpm() const noexcept;
+    double effectiveMasterBpm() const noexcept;
+
+    void setSync(int deck_idx, bool sync_enabled);
+    bool isSync(int deck_idx) const noexcept;
+    void setDeckMaster(int deck_idx);
+    void updateSync();
+
     void syncTempoAtoB();
     void syncTempoBtoA();
 
@@ -200,6 +226,8 @@ private:
     std::atomic<int> obs_output_mode_{0};
     std::atomic<float> headphone_volume_{1.0f};
     std::atomic<float> headphone_mix_{0.5f};
+    std::atomic<int> master_mode_{0};
+    std::atomic<double> master_clock_bpm_{128.0};
     std::atomic<int> loop_beat_idx_a_{3};
     std::atomic<int> loop_beat_idx_b_{3};
 

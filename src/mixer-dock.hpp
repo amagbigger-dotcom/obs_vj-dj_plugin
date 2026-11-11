@@ -73,6 +73,7 @@ private:
     QLabel *grid_lbl_a_ = nullptr;
     DJSlider *pitch_slider_a_ = nullptr;
     QLabel *rate_lbl_a_ = nullptr;
+    QPushButton *master_btn_a_ = nullptr;
     QPushButton *sync_btn_a_ = nullptr;
 
     // Deck B Widgets
@@ -86,7 +87,16 @@ private:
     QLabel *grid_lbl_b_ = nullptr;
     DJSlider *pitch_slider_b_ = nullptr;
     QLabel *rate_lbl_b_ = nullptr;
+    QPushButton *master_btn_b_ = nullptr;
     QPushButton *sync_btn_b_ = nullptr;
+
+    // Central Master Clock Controls
+    QPushButton *master_clock_btn_ = nullptr;
+    QLabel *master_clock_bpm_lbl_ = nullptr;
+    QPushButton *master_clock_tap_btn_ = nullptr;
+    QPushButton *master_clock_minus_btn_ = nullptr;
+    QPushButton *master_clock_plus_btn_ = nullptr;
+    std::vector<std::chrono::steady_clock::time_point> master_tap_times_;
 
     // Center Mixer Controls
     DJSlider *gain_a_ = nullptr;

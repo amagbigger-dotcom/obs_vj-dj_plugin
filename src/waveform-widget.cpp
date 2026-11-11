@@ -152,40 +152,7 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
         }
     }
 
-    // 3. Beat Grid Lines (Anchored precisely at grid_offset)
-    if (beat_ms > 10.0) {
-        const int64_t rel_start = start_ms - grid_offset;
-        const int64_t first_beat_idx = static_cast<int64_t>(std::floor(static_cast<double>(rel_start) / beat_ms));
-
-        for (int64_t b = first_beat_idx; ; ++b) {
-            const int64_t b_ms = grid_offset + static_cast<int64_t>(b * beat_ms);
-            if (b_ms > end_ms)
-                break;
-            if (b_ms < 0)
-                continue;
-            if (duration > 0 && b_ms > duration)
-                break;
-
-            const int bx = static_cast<int>((b_ms - current) / ms_per_pixel) + playhead_x;
-            if (bx < 0 || bx >= w)
-                continue;
-
-            const bool is_bar = (b % 4 == 0);
-            if (is_bar) {
-                p.setPen(QPen(QColor(255, 255, 255, 180), 1.5));
-                p.drawLine(bx, wave_top, bx, wave_bottom);
-
-                p.setFont(QFont(QStringLiteral("Segoe UI"), 7, QFont::Bold));
-                p.setPen(QColor(255, 255, 255, 210));
-                p.drawText(bx + 2, wave_top + 9, QString::number(b / 4 + 1));
-            } else {
-                p.setPen(QPen(QColor(130, 150, 180, 70), 1, Qt::DotLine));
-                p.drawLine(bx, wave_top + 2, bx, wave_bottom - 2);
-            }
-        }
-    }
-
-    // 4. High-Resolution Scrolling Waveform (Every kick attack clearly visible!)
+    // 3. High-Resolution Scrolling Waveform (Every kick attack clearly visible!)
     if (duration > 0 && !detailed.empty()) {
         const QColor theme_main = is_deck_a_ ? QColor(0, 225, 255) : QColor(255, 128, 0);
         const QColor theme_core = is_deck_a_ ? QColor(0, 110, 180) : QColor(180, 60, 0);
@@ -218,6 +185,44 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
             if (amp > 0.65f) {
                 p.setPen(QPen(theme_kick, 1));
                 p.drawLine(x, center_y - bar_h / 3, x, center_y + bar_h / 3);
+            }
+        }
+    }
+
+    // 4. Beat Grid Lines (Drawn ON TOP of waveform so every kick 1, 2, 3, 4 is clearly visible!)
+    if (beat_ms > 10.0) {
+        const int64_t rel_start = start_ms - grid_offset;
+        const int64_t first_beat_idx = static_cast<int64_t>(std::floor(static_cast<double>(rel_start) / beat_ms));
+
+        for (int64_t b = first_beat_idx; ; ++b) {
+            const int64_t b_ms = grid_offset + static_cast<int64_t>(b * beat_ms);
+            if (b_ms > end_ms)
+                break;
+            if (b_ms < 0)
+                continue;
+            if (duration > 0 && b_ms > duration)
+                break;
+
+            const int bx = static_cast<int>((b_ms - current) / ms_per_pixel) + playhead_x;
+            if (bx < 0 || bx >= w)
+                continue;
+
+            const int beat_in_bar = ((b % 4) + 4) % 4; // 0, 1, 2, 3
+            if (beat_in_bar == 0) {
+                // Downbeat (Bar 1) - Solid bright white bar marker with badge
+                p.setPen(QPen(QColor(255, 255, 255, 240), 2.0));
+                p.drawLine(bx, wave_top, bx, wave_bottom);
+
+                p.setFont(QFont(QStringLiteral("Segoe UI"), 7, QFont::Bold));
+                p.setPen(QColor(255, 255, 255, 255));
+                p.drawText(bx + 3, wave_top + 9, QString::number(b / 4 + 1));
+            } else {
+                // Beats 2, 3, 4 (Every kick!) - High contrast white line with top tick
+                p.setPen(QPen(QColor(255, 255, 255, 150), 1.0));
+                p.drawLine(bx, wave_top, bx, wave_bottom);
+
+                p.setPen(QPen(QColor(255, 255, 255, 220), 2.0));
+                p.drawLine(bx - 1, wave_top, bx + 1, wave_top);
             }
         }
     }

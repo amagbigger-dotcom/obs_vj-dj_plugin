@@ -207,12 +207,15 @@ void DeckPlayer::setSpeed(int percent)
 
     const auto now_tp = std::chrono::steady_clock::now();
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now_tp - last_speed_update_tp_).count();
-    if (elapsed < 60)
+    if (elapsed < 80)
         return;
 
     last_speed_update_tp_ = now_tp;
 
     const int64_t cur_pos = obs_source_media_get_time(source_);
+    if (cur_pos > 100) {
+        pending_speed_seek_ms_.store(cur_pos, std::memory_order_relaxed);
+    }
 
     obs_data_t *settings = obs_source_get_settings(source_);
     if (!settings)
@@ -221,14 +224,6 @@ void DeckPlayer::setSpeed(int percent)
     obs_data_set_int(settings, "speed_percent", clamped);
     obs_source_update(source_, settings);
     obs_data_release(settings);
-
-    // If changing speed caused FFmpeg to reset or skip ahead, restore position
-    if (cur_pos > 0) {
-        const int64_t after_pos = obs_source_media_get_time(source_);
-        if (std::abs(after_pos - cur_pos) > 600) {
-            obs_source_media_set_time(source_, static_cast<uint64_t>(cur_pos));
-        }
-    }
 }
 
 int DeckPlayer::speed() const noexcept
@@ -542,7 +537,23 @@ void DeckPlayer::setLooping(bool enabled)
 
 void DeckPlayer::updateLoop()
 {
-    if (!source_ || !isLooping()) {
+    if (!source_)
+        return;
+
+    const int64_t seek_target = pending_speed_seek_ms_.load(std::memory_order_relaxed);
+    if (seek_target > 0) {
+        const int64_t actual_pos = obs_source_media_get_time(source_);
+        const auto state = obs_source_media_get_state(source_);
+        if (state == OBS_MEDIA_STATE_PLAYING || state == OBS_MEDIA_STATE_PAUSED) {
+            if (actual_pos < seek_target - 500) {
+                obs_source_media_set_time(source_, static_cast<uint64_t>(seek_target));
+            } else if (actual_pos >= seek_target - 200) {
+                pending_speed_seek_ms_.store(0, std::memory_order_relaxed);
+            }
+        }
+    }
+
+    if (!isLooping()) {
         is_loop_seeking_.store(false, std::memory_order_relaxed);
         return;
     }
@@ -602,7 +613,18 @@ double DeckPlayer::position() const
 
 int64_t DeckPlayer::currentTimeMs() const
 {
-    return source_ ? obs_source_media_get_time(source_) : 0;
+    if (!source_)
+        return 0;
+
+    const int64_t pending = pending_speed_seek_ms_.load(std::memory_order_relaxed);
+    if (pending > 0) {
+        const int64_t actual = obs_source_media_get_time(source_);
+        if (actual < pending - 500) {
+            return pending;
+        }
+    }
+
+    return std::max<int64_t>(0, obs_source_media_get_time(source_));
 }
 
 int64_t DeckPlayer::durationMs() const
@@ -777,6 +799,104 @@ void DeckPair::setHeadphoneMix(float m) noexcept
 float DeckPair::headphoneMix() const noexcept
 {
     return headphone_mix_.load(std::memory_order_relaxed);
+}
+
+void DeckPair::setMasterMode(int mode) noexcept
+{
+    master_mode_.store(std::clamp(mode, 0, 2), std::memory_order_relaxed);
+    if (mode == MASTER_DECK_A) {
+        deck_a_.setMaster(true);
+        deck_b_.setMaster(false);
+    } else if (mode == MASTER_DECK_B) {
+        deck_a_.setMaster(false);
+        deck_b_.setMaster(true);
+    } else {
+        deck_a_.setMaster(false);
+        deck_b_.setMaster(false);
+    }
+    updateSync();
+}
+
+int DeckPair::masterMode() const noexcept
+{
+    return master_mode_.load(std::memory_order_relaxed);
+}
+
+void DeckPair::setMasterClockBpm(double bpm) noexcept
+{
+    master_clock_bpm_.store(std::clamp(bpm, 40.0, 300.0), std::memory_order_relaxed);
+    updateSync();
+}
+
+double DeckPair::masterClockBpm() const noexcept
+{
+    return master_clock_bpm_.load(std::memory_order_relaxed);
+}
+
+double DeckPair::effectiveMasterBpm() const noexcept
+{
+    const int mode = master_mode_.load(std::memory_order_relaxed);
+    if (mode == MASTER_DECK_A)
+        return deck_a_.effectiveBpm();
+    if (mode == MASTER_DECK_B)
+        return deck_b_.effectiveBpm();
+    return master_clock_bpm_.load(std::memory_order_relaxed);
+}
+
+void DeckPair::setSync(int deck_idx, bool sync_enabled)
+{
+    if (deck_idx == 0) {
+        deck_a_.setSync(sync_enabled);
+    } else {
+        deck_b_.setSync(sync_enabled);
+    }
+    updateSync();
+}
+
+bool DeckPair::isSync(int deck_idx) const noexcept
+{
+    return deck_idx == 0 ? deck_a_.isSync() : deck_b_.isSync();
+}
+
+void DeckPair::setDeckMaster(int deck_idx)
+{
+    if (deck_idx == 0) {
+        setMasterMode(MASTER_DECK_A);
+    } else {
+        setMasterMode(MASTER_DECK_B);
+    }
+}
+
+void DeckPair::updateSync()
+{
+    const int mode = master_mode_.load(std::memory_order_relaxed);
+    const double master_bpm = effectiveMasterBpm();
+    if (master_bpm < 20.0)
+        return;
+
+    // Deck A syncs to Master if Deck A is not Master
+    if (deck_a_.isSync() && mode != MASTER_DECK_A) {
+        const double base_a = deck_a_.bpm();
+        if (base_a > 10.0) {
+            const int target_speed = std::clamp(
+                static_cast<int>(std::round((master_bpm / base_a) * 100.0)),
+                50, 150);
+            if (deck_a_.speed() != target_speed)
+                deck_a_.setSpeed(target_speed);
+        }
+    }
+
+    // Deck B syncs to Master if Deck B is not Master
+    if (deck_b_.isSync() && mode != MASTER_DECK_B) {
+        const double base_b = deck_b_.bpm();
+        if (base_b > 10.0) {
+            const int target_speed = std::clamp(
+                static_cast<int>(std::round((master_bpm / base_b) * 100.0)),
+                50, 150);
+            if (deck_b_.speed() != target_speed)
+                deck_b_.setSpeed(target_speed);
+        }
+    }
 }
 
 void DeckPair::syncTempoAtoB()

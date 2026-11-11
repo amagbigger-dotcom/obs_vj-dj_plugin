@@ -138,7 +138,7 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
     : QDialog(parent, Qt::Window),
       decks_(decks)
 {
-    setWindowTitle(QStringLiteral("Traktor DJ Studio • OBS Video DJ Mixer"));
+    setWindowTitle(QStringLiteral("TRAKTOR PRO • OBS Video DJ Mixer"));
     resize(1140, 560);
     setStyleSheet(QString::fromUtf8(TRAKTOR_V2_STYLESHEET));
 
@@ -191,7 +191,7 @@ void MixerWindow::buildTopBar(QVBoxLayout *main_layout)
     top_bar->setSpacing(6);
 
     // Title / Brand
-    auto *title_lbl = new QLabel(QStringLiteral("TRAKTOR DJ • OBS VJ MIXER"), this);
+    auto *title_lbl = new QLabel(QStringLiteral("TRAKTOR KONTROL S2 MK3 • OBS VIDEO DJ MIXER"), this);
     title_lbl->setStyleSheet(QStringLiteral("color: #00d2ff; font-weight: bold; font-size: 11px; letter-spacing: 1px;"));
     top_bar->addWidget(title_lbl);
 
@@ -482,11 +482,20 @@ QWidget *MixerWindow::buildDeckPanel(bool is_deck_a)
     tempo_row->setContentsMargins(0, 0, 0, 0);
     tempo_row->setSpacing(4);
 
+    auto *master_btn = new QPushButton(QStringLiteral("MASTER"), panel);
+    master_btn->setCheckable(true);
+    master_btn->setFixedHeight(26);
+    master_btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #192733; border: 1px solid #224d6d; color: #8da0b8; font-weight: bold; font-size: 10px; } "
+        "QPushButton:checked { background: #d97706; border: 1px solid #f59e0b; color: #fff; }"));
+    tempo_row->addWidget(master_btn);
+
     auto *sync_btn = new QPushButton(QStringLiteral("SYNC"), panel);
+    sync_btn->setCheckable(true);
     sync_btn->setFixedHeight(26);
     sync_btn->setStyleSheet(QStringLiteral(
         "QPushButton { background: #192733; border: 1px solid #224d6d; color: #00d2ff; font-weight: bold; font-size: 10px; } "
-        "QPushButton:hover { background: #203548; color: #fff; }"));
+        "QPushButton:checked { background: #0284c7; border: 1px solid #38bdf8; color: #fff; }"));
     tempo_row->addWidget(sync_btn);
 
     auto *bend_minus = new QPushButton(QStringLiteral("^ -"), panel);
@@ -519,18 +528,22 @@ QWidget *MixerWindow::buildDeckPanel(bool is_deck_a)
     if (is_deck_a) {
         pitch_slider_a_ = pitch_slider;
         rate_lbl_a_ = rate_lbl;
+        master_btn_a_ = master_btn;
         sync_btn_a_ = sync_btn;
     } else {
         pitch_slider_b_ = pitch_slider;
         rate_lbl_b_ = rate_lbl;
+        master_btn_b_ = master_btn;
         sync_btn_b_ = sync_btn;
     }
 
+    connect(master_btn, &QPushButton::clicked, this, [this, is_deck_a]() {
+        decks_->setDeckMaster(is_deck_a ? 0 : 1);
+    });
+
     connect(sync_btn, &QPushButton::clicked, this, [this, is_deck_a]() {
-        if (is_deck_a)
-            decks_->syncTempoBtoA();
-        else
-            decks_->syncTempoAtoB();
+        const int idx = is_deck_a ? 0 : 1;
+        decks_->setSync(idx, !decks_->isSync(idx));
     });
 
     connect(bend_minus, &QPushButton::pressed, this, [deck]() {
@@ -577,6 +590,74 @@ QWidget *MixerWindow::buildCenterMixerPanel()
     auto *layout = new QVBoxLayout(panel);
     layout->setContentsMargins(6, 4, 6, 4);
     layout->setSpacing(4);
+
+    // 0. Traktor Master Clock & Tempo Section
+    auto *clock_box = new QFrame(panel);
+    clock_box->setStyleSheet(QStringLiteral("background: #0f1319; border: 1px solid #1f2733; border-radius: 3px; padding: 2px;"));
+    auto *clock_row = new QHBoxLayout(clock_box);
+    clock_row->setContentsMargins(4, 2, 4, 2);
+    clock_row->setSpacing(4);
+
+    master_clock_btn_ = new QPushButton(QStringLiteral("MASTER CLOCK"), clock_box);
+    master_clock_btn_->setCheckable(true);
+    master_clock_btn_->setFixedHeight(22);
+    master_clock_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 9px; padding: 1px 5px; } "
+        "QPushButton:checked { background: #d97706; border: 1px solid #f59e0b; color: #fff; }"));
+    clock_row->addWidget(master_clock_btn_);
+
+    master_clock_bpm_lbl_ = new QLabel(QStringLiteral("128.00 BPM"), clock_box);
+    master_clock_bpm_lbl_->setStyleSheet(QStringLiteral("font-family: monospace; font-size: 11px; font-weight: bold; color: #ffaa00;"));
+    clock_row->addWidget(master_clock_bpm_lbl_, 1, Qt::AlignCenter);
+
+    master_clock_tap_btn_ = new QPushButton(QStringLiteral("TAP"), clock_box);
+    master_clock_tap_btn_->setFixedSize(30, 22);
+    master_clock_tap_btn_->setStyleSheet(QStringLiteral("background: #232b36; border: 1px solid #334050; color: #e0e6f0; font-size: 9px; font-weight: bold;"));
+    clock_row->addWidget(master_clock_tap_btn_);
+
+    master_clock_minus_btn_ = new QPushButton(QStringLiteral("-"), clock_box);
+    master_clock_minus_btn_->setFixedSize(22, 22);
+    master_clock_minus_btn_->setStyleSheet(QStringLiteral("background: #232b36; border: 1px solid #334050; color: #e0e6f0; font-size: 11px; font-weight: bold;"));
+    clock_row->addWidget(master_clock_minus_btn_);
+
+    master_clock_plus_btn_ = new QPushButton(QStringLiteral("+"), clock_box);
+    master_clock_plus_btn_->setFixedSize(22, 22);
+    master_clock_plus_btn_->setStyleSheet(QStringLiteral("background: #232b36; border: 1px solid #334050; color: #e0e6f0; font-size: 11px; font-weight: bold;"));
+    clock_row->addWidget(master_clock_plus_btn_);
+
+    layout->addWidget(clock_box);
+
+    connect(master_clock_btn_, &QPushButton::clicked, this, [this]() {
+        decks_->setMasterMode(DeckPair::MASTER_CLOCK);
+    });
+    connect(master_clock_minus_btn_, &QPushButton::clicked, this, [this]() {
+        decks_->setMasterClockBpm(decks_->masterClockBpm() - 0.1);
+    });
+    connect(master_clock_plus_btn_, &QPushButton::clicked, this, [this]() {
+        decks_->setMasterClockBpm(decks_->masterClockBpm() + 0.1);
+    });
+    connect(master_clock_tap_btn_, &QPushButton::clicked, this, [this]() {
+        const auto now = std::chrono::steady_clock::now();
+        if (!master_tap_times_.empty()) {
+            const auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - master_tap_times_.back()).count();
+            if (diff > 2500)
+                master_tap_times_.clear();
+        }
+        master_tap_times_.push_back(now);
+        if (master_tap_times_.size() > 8)
+            master_tap_times_.erase(master_tap_times_.begin());
+        if (master_tap_times_.size() >= 3) {
+            double total_ms = 0.0;
+            for (size_t i = 1; i < master_tap_times_.size(); ++i) {
+                total_ms += std::chrono::duration_cast<std::chrono::milliseconds>(master_tap_times_[i] - master_tap_times_[i - 1]).count();
+            }
+            const double avg_ms = total_ms / static_cast<double>(master_tap_times_.size() - 1);
+            if (avg_ms > 200.0 && avg_ms < 1500.0) {
+                const double tapped_bpm = std::round((60000.0 / avg_ms) * 10.0) / 10.0;
+                decks_->setMasterClockBpm(tapped_bpm);
+            }
+        }
+    });
 
     // 1. FX Transition Selector
     auto *trans_row = new QHBoxLayout();
@@ -912,12 +993,44 @@ void MixerWindow::refreshDeck(bool is_deck_a)
     if (grid_lbl) {
         grid_lbl->setText(QStringLiteral("GRID: %1ms").arg(deck.gridOffsetMs()));
     }
+
+    auto *master_btn = is_deck_a ? master_btn_a_ : master_btn_b_;
+    if (master_btn) {
+        const bool is_m = is_deck_a ? (decks_->masterMode() == DeckPair::MASTER_DECK_A) : (decks_->masterMode() == DeckPair::MASTER_DECK_B);
+        if (master_btn->isChecked() != is_m) {
+            QSignalBlocker blocker(master_btn);
+            master_btn->setChecked(is_m);
+        }
+    }
+
+    auto *sync_btn = is_deck_a ? sync_btn_a_ : sync_btn_b_;
+    if (sync_btn) {
+        const bool is_s = decks_->isSync(is_deck_a ? 0 : 1);
+        if (sync_btn->isChecked() != is_s) {
+            QSignalBlocker blocker(sync_btn);
+            sync_btn->setChecked(is_s);
+        }
+    }
 }
 
 void MixerWindow::refreshMixer()
 {
     if (!decks_)
         return;
+
+    decks_->updateSync();
+
+    if (master_clock_btn_) {
+        const bool is_clock_m = (decks_->masterMode() == DeckPair::MASTER_CLOCK);
+        if (master_clock_btn_->isChecked() != is_clock_m) {
+            QSignalBlocker blocker(master_clock_btn_);
+            master_clock_btn_->setChecked(is_clock_m);
+        }
+    }
+
+    if (master_clock_bpm_lbl_) {
+        master_clock_bpm_lbl_->setText(QString::asprintf("%.2f BPM", decks_->effectiveMasterBpm()));
+    }
 
     if (crossfader_ && !crossfader_->isSliderDown()) {
         const int cf_val = static_cast<int>(decks_->crossfader() * 1000.0);

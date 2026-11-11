@@ -423,12 +423,6 @@ static void draw_mixer(void *data)
         xfade = 0.0f;
     }
 
-    struct matrix4 view_proj;
-    gs_matrix_get(&view_proj);
-    gs_eparam_t *vp = gs_effect_get_param_by_name(context->effect, "ViewProj");
-    if (vp)
-        gs_effect_set_matrix4(vp, &view_proj);
-
     gs_eparam_t *param = nullptr;
     if ((param = gs_effect_get_param_by_name(context->effect, "image_a")))
         gs_effect_set_texture(param, texture_a);
@@ -510,12 +504,6 @@ static void monitor_video_render(void *data, gs_effect_t *)
     gs_texture_t *texture = gs_texrender_get_texture(context->deck_a);
     if (!texture)
         return;
-
-    struct matrix4 view_proj;
-    gs_matrix_get(&view_proj);
-    gs_eparam_t *vp = gs_effect_get_param_by_name(context->effect, "ViewProj");
-    if (vp)
-        gs_effect_set_matrix4(vp, &view_proj);
 
     gs_eparam_t *param = nullptr;
 
