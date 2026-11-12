@@ -1,5 +1,4 @@
 #include "midi-handler.hpp"
-
 #include "deck-engine.hpp"
 
 #include <obs-module.h>
@@ -42,55 +41,29 @@ bool is_target_device(const char *device_name)
         return false;
 
     const std::string name = lowercase(device_name);
-
-    return name.find("traktor") != std::string::npos &&
-           name.find("s2") != std::string::npos;
+    return (name.find("traktor") != std::string::npos && name.find("s2") != std::string::npos) ||
+           name.find("s3") != std::string::npos ||
+           name.find("dj") != std::string::npos ||
+           name.find("midi") != std::string::npos;
 }
 
-void handle_control_change(DeckPair *decks,
+void handle_control_change(DeckPlayer *deck,
                            unsigned char channel,
                            unsigned char controller,
                            unsigned char value)
 {
-    if (!decks)
+    UNUSED_PARAMETER(channel);
+    if (!deck)
         return;
-
-    // Crossfader Ch 1 / CC 8
-    if (channel == 0 && controller == 8) {
-        decks->setCrossfader(static_cast<double>(value) / 127.0);
-        return;
-    }
-
-    DeckPlayer *deck = nullptr;
-
-    if (channel == 0) {
-        deck = &decks->deckA();
-    } else if (channel == 1) {
-        deck = &decks->deckB();
-    } else {
-        return;
-    }
 
     switch (controller) {
-    case 16:
-        deck->setEqHi(static_cast<float>(value) / 63.5f);
-        break;
-    case 17:
-        deck->setEqMid(static_cast<float>(value) / 63.5f);
-        break;
-    case 18:
-        deck->setEqLow(static_cast<float>(value) / 63.5f);
-        break;
-    case 19:
-        deck->setFilterVal((static_cast<float>(value) - 63.5f) / 63.5f);
-        break;
-    case 20:
+    case 20: // Volume Fader
         deck->setVolume(static_cast<float>(value) / 127.0f);
         break;
-    case 21: {
+    case 21: { // Tempo / Pitch
         const int speed =
             50 + static_cast<int>((static_cast<unsigned int>(value) * 100U) / 127U);
-        deck->setSpeed(speed);
+        deck->applySpeedSettings(speed);
         break;
     }
     default:
@@ -98,38 +71,23 @@ void handle_control_change(DeckPair *decks,
     }
 }
 
-void handle_note(DeckPair *decks,
+void handle_note(DeckPlayer *deck,
                  unsigned char channel,
                  unsigned char note)
 {
-    if (!decks)
+    UNUSED_PARAMETER(channel);
+    if (!deck)
         return;
-
-    DeckPlayer *deck = nullptr;
-
-    if (channel == 0) {
-        deck = &decks->deckA();
-    } else if (channel == 1) {
-        deck = &decks->deckB();
-    } else {
-        return;
-    }
 
     switch (note) {
-    case 35:
+    case 35: // Play / Pause toggle
         deck->togglePlayback();
         break;
-    case 36:
+    case 36: // Cue
         deck->cue();
         break;
-    case 37:
-        if (channel == 0)
-            decks->syncTempoBtoA();
-        else
-            decks->syncTempoAtoB();
-        break;
-    case 38:
-        deck->setHeadphoneCue(!deck->isHeadphoneCue());
+    case 37: // Sync
+        deck->setSync(!deck->isSync());
         break;
     default:
         break;
@@ -146,20 +104,14 @@ void CALLBACK midi_in_proc(HMIDIIN,
         return;
 
     const DWORD packed_message = static_cast<DWORD>(parameter);
-    const auto status =
-        static_cast<unsigned char>(packed_message & 0xFFU);
-    const auto data1 =
-        static_cast<unsigned char>((packed_message >> 8U) & 0xFFU);
-    const auto data2 =
-        static_cast<unsigned char>((packed_message >> 16U) & 0xFFU);
+    const auto status = static_cast<unsigned char>(packed_message & 0xFFU);
+    const auto data1 = static_cast<unsigned char>((packed_message >> 8U) & 0xFFU);
+    const auto data2 = static_cast<unsigned char>((packed_message >> 16U) & 0xFFU);
 
-    DeckPair *decks = vdj_decks();
-    if (!decks)
-        return;
+    DeckPlayer *deck = vj_active_deck();
 
-    // MIDI System Real-Time Messages (Single byte: 0xF8 = Clock, 0xFA = Start, 0xFC = Stop)
-    if (status == 0xF8U) {
-        // Clock tick (24 ticks = 1 quarter note / beat)
+    // MIDI System Real-Time Messages
+    if (status == 0xF8U) { // Clock tick
         static auto last_tick_tp = std::chrono::steady_clock::now();
         static std::vector<int64_t> tick_intervals_us;
         const auto now_tp = std::chrono::steady_clock::now();
@@ -171,7 +123,7 @@ void CALLBACK midi_in_proc(HMIDIIN,
             if (tick_intervals_us.size() > 24)
                 tick_intervals_us.erase(tick_intervals_us.begin());
 
-            if (tick_intervals_us.size() >= 12) {
+            if (tick_intervals_us.size() >= 12 && deck && deck->isSync()) {
                 int64_t sum_us = 0;
                 for (int64_t interval : tick_intervals_us)
                     sum_us += interval;
@@ -179,9 +131,7 @@ void CALLBACK midi_in_proc(HMIDIIN,
                 if (avg_tick_us > 100.0) {
                     const double incoming_bpm = 60000000.0 / (avg_tick_us * 24.0);
                     if (incoming_bpm >= 40.0 && incoming_bpm <= 300.0) {
-                        if (decks->masterMode() == DeckPair::MASTER_EXT_MIDI) {
-                            decks->setMasterClockBpm(std::round(incoming_bpm * 10.0) / 10.0);
-                        }
+                        deck->syncToBpm(incoming_bpm);
                     }
                 }
             }
@@ -190,18 +140,12 @@ void CALLBACK midi_in_proc(HMIDIIN,
     }
 
     if (status == 0xFAU) { // MIDI Start
-        if (decks->masterMode() == DeckPair::MASTER_EXT_MIDI) {
-            if (decks->deckA().isSync()) decks->deckA().setPlaying(true);
-            if (decks->deckB().isSync()) decks->deckB().setPlaying(true);
-        }
+        if (deck && deck->isSync()) deck->setPlaying(true);
         return;
     }
 
     if (status == 0xFCU) { // MIDI Stop
-        if (decks->masterMode() == DeckPair::MASTER_EXT_MIDI) {
-            if (decks->deckA().isSync()) decks->deckA().setPlaying(false);
-            if (decks->deckB().isSync()) decks->deckB().setPlaying(false);
-        }
+        if (deck && deck->isSync()) deck->setPlaying(false);
         return;
     }
 
@@ -209,13 +153,13 @@ void CALLBACK midi_in_proc(HMIDIIN,
     const unsigned char channel = status & 0x0FU;
 
     if (message_type == 0xB0U) {
-        handle_control_change(decks, channel, data1, data2);
+        handle_control_change(deck, channel, data1, data2);
         return;
     }
 
     // Note On with vel > 0
     if (message_type == 0x90U && data2 > 0)
-        handle_note(decks, channel, data1);
+        handle_note(deck, channel, data1);
 }
 
 void clock_sender_loop()
@@ -226,8 +170,8 @@ void clock_sender_loop()
             continue;
         }
 
-        DeckPair *decks = vdj_decks();
-        const double bpm = decks ? decks->effectiveMasterBpm() : 128.0;
+        DeckPlayer *deck = vj_active_deck();
+        const double bpm = deck ? deck->effectiveBpm() : 128.0;
         const double eff_bpm = (bpm >= 30.0) ? bpm : 128.0;
         const double tick_interval_us = 60000000.0 / (eff_bpm * 24.0);
 
@@ -268,19 +212,29 @@ void vdj_midi_init()
             continue;
         }
 
-        if (!is_target_device(capabilities.szPname))
-            continue;
+        if (is_target_device(capabilities.szPname)) {
+            target_device_id = device_id;
+            found_target = true;
+            std::strncpy(
+                g_device_name,
+                capabilities.szPname,
+                sizeof(g_device_name) - 1);
+            g_device_name[sizeof(g_device_name) - 1] = '\0';
+            break;
+        }
+    }
 
-        target_device_id = device_id;
-        found_target = true;
-
-        std::strncpy(
-            g_device_name,
-            capabilities.szPname,
-            sizeof(g_device_name) - 1);
-        g_device_name[sizeof(g_device_name) - 1] = '\0';
-
-        break;
+    if (!found_target && device_count > 0) {
+        MIDIINCAPSA capabilities = {};
+        if (midiInGetDevCapsA(0, &capabilities, sizeof(capabilities)) == MMSYSERR_NOERROR) {
+            target_device_id = 0;
+            found_target = true;
+            std::strncpy(
+                g_device_name,
+                capabilities.szPname,
+                sizeof(g_device_name) - 1);
+            g_device_name[sizeof(g_device_name) - 1] = '\0';
+        }
     }
 
     if (found_target) {
@@ -295,7 +249,7 @@ void vdj_midi_init()
             result = midiInStart(g_midi_in);
             if (result == MMSYSERR_NOERROR) {
                 g_connected.store(true, std::memory_order_relaxed);
-                blog(LOG_INFO, "[obs-vj-mixer] MIDI connected: %s", g_device_name);
+                blog(LOG_INFO, "[obs-vj-deck] MIDI connected: %s", g_device_name);
             } else {
                 midiInClose(g_midi_in);
                 g_midi_in = nullptr;
@@ -304,7 +258,7 @@ void vdj_midi_init()
         }
     }
 
-    // Auto-connect to first available MIDI OUT or Traktor device
+    // Auto-connect to first available MIDI OUT device
     const UINT out_count = midiOutGetNumDevs();
     for (UINT i = 0; i < out_count; ++i) {
         MIDIOUTCAPSA caps = {};

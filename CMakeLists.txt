@@ -25,11 +25,11 @@ set(SOURCES
     src/audio-analyzer.hpp
     src/deck-engine.cpp
     src/deck-engine.hpp
+    src/deck-source.cpp
+    src/deck-window.cpp
+    src/deck-window.hpp
     src/waveform-widget.cpp
     src/waveform-widget.hpp
-    src/mixer-source.cpp
-    src/mixer-dock.cpp
-    src/mixer-dock.hpp
     src/midi-handler.cpp
     src/midi-handler.hpp
 )

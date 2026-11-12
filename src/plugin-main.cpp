@@ -2,60 +2,60 @@
 #include <obs-frontend-api.h>
 #include <QWidget>
 #include "deck-engine.hpp"
+#include "deck-window.hpp"
 #include "midi-handler.hpp"
-#include "mixer-dock.hpp"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs_vj-dj_plugin", "en-US")
 
-static DeckPair *g_main_decks = nullptr;
-static MixerWindow *g_mixer_window = nullptr;
+static DeckPlayer *g_deck = nullptr;
+static DeckWindow *g_deck_window = nullptr;
 
 extern "C" {
-void vdj_register_sources(void);
+void vdj_register_deck_source(void);
 }
 
 void init_deck_engine()
 {
-    g_main_decks = new DeckPair();
-    vdj_set_decks(g_main_decks);
+    g_deck = new DeckPlayer("vj_deck_source", "OBS VJ Deck");
+    vdj_set_active_deck(g_deck);
     vdj_midi_init();
 }
 
 void free_deck_engine()
 {
     vdj_midi_shutdown();
-    vdj_set_decks(nullptr);
-    delete g_main_decks;
-    g_main_decks = nullptr;
+    vdj_set_active_deck(nullptr);
+    delete g_deck;
+    g_deck = nullptr;
 }
 
-static void open_mixer_window(void *data)
+static void open_deck_window(void *data)
 {
     UNUSED_PARAMETER(data);
-    if (!g_main_decks)
+    if (!g_deck)
         return;
-    
-    if (!g_mixer_window) {
+
+    if (!g_deck_window) {
         QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
-        g_mixer_window = new MixerWindow(g_main_decks, main_window);
+        g_deck_window = new DeckWindow(g_deck, main_window);
     }
-    g_mixer_window->show();
-    g_mixer_window->raise();
-    g_mixer_window->activateWindow();
+    g_deck_window->show();
+    g_deck_window->raise();
+    g_deck_window->activateWindow();
 }
 
-void init_mixer_dock()
+void init_deck_ui()
 {
-    obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ/DJ Mixer").toUtf8().constData(), open_mixer_window, nullptr);
+    obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Deck").toUtf8().constData(), open_deck_window, nullptr);
 }
 
-void free_mixer_dock()
+void free_deck_ui()
 {
-    if (g_mixer_window) {
-        g_mixer_window->close();
-        delete g_mixer_window;
-        g_mixer_window = nullptr;
+    if (g_deck_window) {
+        g_deck_window->close();
+        delete g_deck_window;
+        g_deck_window = nullptr;
     }
 }
 
@@ -63,18 +63,18 @@ extern "C" {
 
 bool obs_module_load(void)
 {
-    blog(LOG_INFO, "[obs_vj-dj_plugin] Modul betöltése indul...");
-    vdj_register_sources();
+    blog(LOG_INFO, "[obs_vj_deck] Modul betöltése indul...");
+    vdj_register_deck_source();
     init_deck_engine();
-    init_mixer_dock();
-    blog(LOG_INFO, "[obs_vj-dj_plugin] Sikeresen betöltve!");
+    init_deck_ui();
+    blog(LOG_INFO, "[obs_vj_deck] Sikeresen betöltve!");
     return true;
 }
 
 void obs_module_unload(void)
 {
-    blog(LOG_INFO, "[obs_vj-dj_plugin] Modul leállítása...");
-    free_mixer_dock();
+    blog(LOG_INFO, "[obs_vj_deck] Modul leállítása...");
+    free_deck_ui();
     free_deck_engine();
 }
 
