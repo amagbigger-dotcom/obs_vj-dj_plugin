@@ -249,11 +249,15 @@ void DeckPlayer::applySpeedSettings(int speed_percent)
     const int clamped = std::clamp(speed_percent, 50, 150);
     speed_percent_.store(clamped, std::memory_order_relaxed);
 
-    const int64_t actual = obs_source_media_get_time(source_);
-    if (actual > 200) {
-        pending_speed_seek_ms_.store(actual, std::memory_order_relaxed);
-        speed_restart_phase_.store(1, std::memory_order_relaxed);
-        speed_restart_tp_ = std::chrono::steady_clock::now();
+    // Only record a new seek target if NO restart is currently in flight
+    // AND the current time is valid (> 300ms)
+    if (speed_restart_phase_.load(std::memory_order_relaxed) == 0) {
+        const int64_t actual = obs_source_media_get_time(source_);
+        if (actual > 300) {
+            pending_speed_seek_ms_.store(actual, std::memory_order_relaxed);
+            speed_restart_phase_.store(1, std::memory_order_relaxed);
+            speed_restart_tp_ = std::chrono::steady_clock::now();
+        }
     }
 
     obs_data_t *settings = obs_source_get_settings(source_);
@@ -440,19 +444,40 @@ void DeckPlayer::updateLoop()
 
     // 1. Resume saved position after speed restart without jumping to 0:00
     const int restart_phase = speed_restart_phase_.load(std::memory_order_relaxed);
-    if (restart_phase == 1) {
+    if (restart_phase >= 1) {
+        const obs_media_state state = obs_source_media_get_state(source_);
         const int64_t seek_target = pending_speed_seek_ms_.load(std::memory_order_relaxed);
         const int64_t cur = obs_source_media_get_time(source_);
         const auto now = std::chrono::steady_clock::now();
         const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - speed_restart_tp_).count();
 
-        // When FFmpeg restarts, current time drops to near 0 (< 500ms and significantly less than seek_target)
-        if ((cur < 500 && cur < seek_target - 500) || elapsed_ms > 800) {
-            if (seek_target > 0) {
+        if (restart_phase == 1) {
+            // When FFmpeg finishes reloading, state becomes PLAYING and time resets to near 0 (< 800ms)
+            if (state == OBS_MEDIA_STATE_PLAYING && (cur < 800 || cur < seek_target / 2)) {
+                if (seek_target > 500) {
+                    obs_source_media_set_time(source_, static_cast<uint64_t>(seek_target));
+                    speed_restart_phase_.store(2, std::memory_order_relaxed);
+                    speed_restart_tp_ = now;
+                } else {
+                    speed_restart_phase_.store(0, std::memory_order_relaxed);
+                }
+            } else if (elapsed_ms > 1200) {
+                // Timeout fallback
+                if (seek_target > 500) {
+                    obs_source_media_set_time(source_, static_cast<uint64_t>(seek_target));
+                }
+                speed_restart_phase_.store(0, std::memory_order_relaxed);
+                pending_speed_seek_ms_.store(0, std::memory_order_relaxed);
+            }
+        } else if (restart_phase == 2) {
+            // Wait for seek to take effect
+            if (cur >= seek_target - 1500 || elapsed_ms > 350) {
+                speed_restart_phase_.store(0, std::memory_order_relaxed);
+                pending_speed_seek_ms_.store(0, std::memory_order_relaxed);
+            } else if (elapsed_ms > 120 && cur < 800) {
+                // Retry seek if it didn't register on first frame
                 obs_source_media_set_time(source_, static_cast<uint64_t>(seek_target));
             }
-            speed_restart_phase_.store(0, std::memory_order_relaxed);
-            pending_speed_seek_ms_.store(0, std::memory_order_relaxed);
         }
     }
 

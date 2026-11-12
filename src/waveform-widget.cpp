@@ -188,13 +188,17 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
         const QColor theme_core = is_deck_a_ ? QColor(0, 110, 180) : QColor(180, 60, 0);
         const QColor theme_kick = is_deck_a_ ? QColor(180, 245, 255) : QColor(255, 220, 150);
 
+        const double ms_per_sample = (detailed.size() > 0 && duration > 0)
+            ? (static_cast<double>(duration) / static_cast<double>(detailed.size()))
+            : 20.0;
+
         for (int x = 0; x < w; ++x) {
             const int64_t sample_time_ms = current + static_cast<int64_t>((x - playhead_x) * ms_per_pixel);
             if (sample_time_ms < 0 || sample_time_ms >= duration)
                 continue;
 
-            // Map sample_time_ms (10ms per sample) to detailed array index
-            const size_t sample_idx = static_cast<size_t>(sample_time_ms / 10);
+            // Dynamically map sample_time_ms across the full detailed buffer length
+            const size_t sample_idx = static_cast<size_t>(static_cast<double>(sample_time_ms) / ms_per_sample);
             if (sample_idx >= detailed.size())
                 continue;
 

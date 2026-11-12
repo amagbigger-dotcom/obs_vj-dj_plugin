@@ -85,7 +85,25 @@ static void deck_video_tick(void *data, float seconds)
 {
     UNUSED_PARAMETER(seconds);
     auto *context = static_cast<DeckSourceContext *>(data);
-    if (context && context->deck) {
+    if (!context)
+        return;
+
+    if (context->source) {
+        // Enforce all 6 audio tracks and monitor+output if OBS loaded 0 from JSON
+        const uint32_t mixers = obs_source_get_audio_mixers(context->source);
+        if (mixers == 0) {
+            obs_source_set_audio_mixers(context->source, 0x3F);
+            obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+        }
+
+        // Ensure audio capture callback is connected to player source
+        if (!context->audio_captured && context->deck && context->deck->source()) {
+            obs_source_add_audio_capture_callback(context->deck->source(), deck_audio_capture, context);
+            context->audio_captured = true;
+        }
+    }
+
+    if (context->deck) {
         context->deck->updateLoop();
     }
 }
@@ -104,7 +122,7 @@ static void deck_video_render(void *data, gs_effect_t *effect)
     const uint32_t sw = obs_source_get_width(media);
     const uint32_t sh = obs_source_get_height(media);
 
-    if (sw > 0 && sh > 0 && (sw != 1920 || sh != 1080)) {
+    if (sw > 0 && sh > 0) {
         gs_matrix_push();
         gs_matrix_scale3f(1920.0f / static_cast<float>(sw),
                           1080.0f / static_cast<float>(sh),

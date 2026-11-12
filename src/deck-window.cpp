@@ -2,6 +2,9 @@
 #include "deck-engine.hpp"
 #include "waveform-widget.hpp"
 
+#include <obs-frontend-api.h>
+#include <obs.h>
+
 #include <QFileDialog>
 #include <QDoubleValidator>
 #include <QDateTime>
@@ -150,6 +153,27 @@ void DeckWindow::setupUi()
     bpm_box->addWidget(bpm_edit_);
     bpm_box->addWidget(bpm_unit);
     top_bar->addLayout(bpm_box);
+
+    auto *fit_btn = new QPushButton(QStringLiteral("⛶ FIT 1080p"), this);
+    fit_btn->setStyleSheet(QStringLiteral("background: #1c2838; border: 1px solid #384c68; color: #88c0ff; font-size: 11px; padding: 4px 8px;"));
+    fit_btn->setToolTip(QStringLiteral("A videóképet azonnal a teljes 1080p OBS vászonhoz igazítja (Ctrl+F)"));
+    connect(fit_btn, &QPushButton::clicked, this, []() {
+        obs_source_t *scene_source = obs_frontend_get_current_scene();
+        if (!scene_source) return;
+        obs_scene_t *scene = obs_scene_from_source(scene_source);
+        if (scene) {
+            obs_sceneitem_t *item = obs_scene_find_source(scene, "OBS VJ Deck");
+            if (item) {
+                struct vec2 pos = {0.0f, 0.0f};
+                struct vec2 scale = {1.0f, 1.0f};
+                obs_sceneitem_set_pos(item, &pos);
+                obs_sceneitem_set_scale(item, &scale);
+                obs_sceneitem_set_bounds_type(item, OBS_BOUNDS_NONE);
+            }
+        }
+        obs_source_release(scene_source);
+    });
+    top_bar->addWidget(fit_btn);
 
     main_layout->addLayout(top_bar);
 
@@ -361,17 +385,13 @@ void DeckWindow::setupUi()
             .arg(diff >= 0 ? "+" : "")
             .arg(diff, 0, 'f', 1));
 
-        // Responsive speed update throttled to 250ms while dragging to preserve audio playback
+        // Debounced speed update: reset timer on every move so FFmpeg only reloads once user pauses/settles
         pending_throttle_speed_ = val;
-        if (!pitch_throttle_timer_->isActive()) {
-            pitch_throttle_timer_->start(250);
-        }
+        pitch_throttle_timer_->start(350);
     });
 
     connect(pitch_slider_, &QSlider::sliderReleased, this, [this]() {
-        if (pitch_throttle_timer_->isActive()) {
-            pitch_throttle_timer_->stop();
-        }
+        pitch_throttle_timer_->stop();
         if (deck_ && pitch_slider_) {
             deck_->applySpeedSettings(pitch_slider_->value());
         }

@@ -285,6 +285,12 @@ A bővítmény három független szálon/környezetben dolgozik:
 - **Magasabb, 32px-es Teljes Számanalízis Csík:** Az overview csík magassága megduplázódott (16px -> 32px), gazdag borostyán/arany hullámformával, kiemelt tranziensekkel és dropokkal, így a teljes zene felépítése azonnal áttekinthető és pontosan pozícionálható.
 - **Állítható Waveform Zoom és Természetes Sebesség:** A látható időtartam alapértelmezetten 3 másodpercről 6 másodpercre duplázódott (fele akkora látszólagos gördülési sebesség). A felületen `[−]` és `[+]` gombokkal, illetve közvetlenül az egérgörgővel fokozatmentesen zoomolható a gördülő hullámforma (2s - 16s tartományban).
 
+### 17. Dinamikus Hullámforma Illesztés, Tempó Pozícióvédelem és Automatikus Sáv-Hozzárendelés (Build #197) *(KÉSZ)*
+- **Dinamikus Hullámforma Mintavételezés:** A korábbi fix 10 ms-os indexelés helyett a `detailed_peaks` tömb méretéhez dinamikusan illeszkedő skálázás (`duration / detailed.size()`). Megszűnt az a hiba, hogy a szám felénél a gördülő hullámforma egyenes vonallá laposodott; most a teljes szám hosszában gazdag, élő csúcsok és völgyek láthatók bármely zoom szinten.
+- **Tempóváltás Pozíció-felülírás Elleni Védelme:** A csúszka mozgatása közbeni többszöri újraindulás kizárva: a rendszer csak akkor rögzít új seek pozíciót, ha épp nincs folyamatban lévő dekóder újraindítás, megelőzve a 0:08 körüli téves időkódok mentését. A sebességmódosítás 350 ms-os intelligens szünet/felengedés védelemmel stabilan egyetlen seekkel ugrik a pontos helyre.
+- **Automatikus Sáv- és Monitorozás Kényszerítés:** A `deck_video_tick` ellenőrzi az OBS forrás audio mixer sávjait. Ha az OBS korábbi mentésből 0 sávot töltött be (ez okozta a *"Nem hozzárendelt"* feliratot és a sárga felkiáltójelet), azonnal bekapcsolja mind a 6 sávot (`0x3F`) és a `MONITOR_AND_OUTPUT` módot, így a szintmérő azonnal életre kel.
+- **[ ⛶ FIT 1080p ] Vászonhoz Igazítás Gomb:** A felső sávba beépített azonnali gomb, amely a jelenetben található `OBS VJ Deck` forrást egyetlen kattintással (0, 0) pozícióra és 1.0 méretarányra állítja, kitöltve a teljes 1080p vásznat.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ
