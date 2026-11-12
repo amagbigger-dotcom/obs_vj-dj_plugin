@@ -3,7 +3,7 @@
 #include "waveform-widget.hpp"
 
 #include <QFileDialog>
-#include <QInputDialog>
+#include <QDoubleValidator>
 #include <QDateTime>
 #include <QSignalBlocker>
 #include <QGroupBox>
@@ -25,8 +25,8 @@ DeckWindow::DeckWindow(DeckPlayer *deck, QWidget *parent)
     : QDialog(parent), deck_(deck)
 {
     setWindowTitle(QStringLiteral("OBS VJ Deck"));
-    setMinimumSize(820, 480);
-    resize(860, 520);
+    setMinimumSize(820, 460);
+    resize(860, 480);
     setStyleSheet(QStringLiteral(
         "QDialog { background-color: #12151c; color: #e0e4ec; font-family: 'Segoe UI', Arial, sans-serif; }"
         "QLabel { color: #cfd6e4; font-size: 11px; }"
@@ -40,6 +40,14 @@ DeckWindow::DeckWindow(DeckPlayer *deck, QWidget *parent)
 
     setupUi();
 
+    pitch_throttle_timer_ = new QTimer(this);
+    pitch_throttle_timer_->setSingleShot(true);
+    connect(pitch_throttle_timer_, &QTimer::timeout, this, [this]() {
+        if (deck_) {
+            deck_->applySpeedSettings(pending_throttle_speed_);
+        }
+    });
+
     refresh_timer_ = new QTimer(this);
     connect(refresh_timer_, &QTimer::timeout, this, &DeckWindow::onRefresh);
     refresh_timer_->start(50);
@@ -47,6 +55,10 @@ DeckWindow::DeckWindow(DeckPlayer *deck, QWidget *parent)
 
 DeckWindow::~DeckWindow()
 {
+    if (pitch_throttle_timer_) {
+        pitch_throttle_timer_->stop();
+        delete pitch_throttle_timer_;
+    }
     if (refresh_timer_) {
         refresh_timer_->stop();
         delete refresh_timer_;
@@ -60,7 +72,7 @@ void DeckWindow::setupUi()
     main_layout->setSpacing(12);
 
     // ==========================================
-    // 1. TOP BAR: File, Time, BPM
+    // 1. TOP BAR: File, Time, In-Place Direct BPM
     // ==========================================
     auto *top_bar = new QHBoxLayout();
     top_bar->setSpacing(10);
@@ -82,23 +94,52 @@ void DeckWindow::setupUi()
     remaining_lbl_->setStyleSheet(QStringLiteral("font-family: 'Consolas', monospace; font-size: 20px; font-weight: bold; color: #ffaa00; background: #0a0e14; padding: 4px 10px; border: 1px solid #1c2a38; border-radius: 4px;"));
     top_bar->addWidget(remaining_lbl_);
 
-    bpm_lbl_ = new QLabel(QStringLiteral("128.00 BPM"), this);
-    bpm_lbl_->setStyleSheet(QStringLiteral("font-family: 'Consolas', monospace; font-size: 16px; font-weight: bold; color: #ffffff; background: #1a222e; padding: 4px 8px; border: 1px solid #2e3e54; border-radius: 4px;"));
-    top_bar->addWidget(bpm_lbl_);
+    // Direct in-place editable BPM input field (no popup window needed!)
+    auto *bpm_box = new QHBoxLayout();
+    bpm_box->setSpacing(4);
+    bpm_edit_ = new QLineEdit(QStringLiteral("128.00"), this);
+    bpm_edit_->setFixedWidth(80);
+    bpm_edit_->setAlignment(Qt::AlignCenter);
+    bpm_edit_->setStyleSheet(QStringLiteral(
+        "QLineEdit { background: #141b24; color: #00d2ff; font-family: 'Consolas', monospace; font-size: 15px; font-weight: bold; border: 1px solid #2e3e54; border-radius: 4px; padding: 4px 6px; }"
+        "QLineEdit:focus { border: 1px solid #00d2ff; background: #1c2635; color: #ffffff; }"
+    ));
+    bpm_edit_->setToolTip(QStringLiteral("Kattints ide a pontos BPM kézi beírásához (Enter: alkalmazás)"));
+    auto *bpm_val = new QDoubleValidator(40.0, 300.0, 2, bpm_edit_);
+    bpm_val->setNotation(QDoubleValidator::StandardNotation);
+    bpm_edit_->setValidator(bpm_val);
 
-    edit_bpm_btn_ = new QPushButton(QStringLiteral("EDIT"), this);
-    edit_bpm_btn_->setFixedWidth(45);
-    connect(edit_bpm_btn_, &QPushButton::clicked, this, &DeckWindow::editBpmDialog);
-    top_bar->addWidget(edit_bpm_btn_);
+    connect(bpm_edit_, &QLineEdit::returnPressed, this, [this]() {
+        bool ok = false;
+        const double val = bpm_edit_->text().toDouble(&ok);
+        if (ok && deck_) {
+            deck_->setBpm(val);
+        }
+        bpm_edit_->clearFocus();
+    });
+
+    connect(bpm_edit_, &QLineEdit::editingFinished, this, [this]() {
+        bool ok = false;
+        const double val = bpm_edit_->text().toDouble(&ok);
+        if (ok && deck_) {
+            deck_->setBpm(val);
+        }
+    });
+
+    auto *bpm_unit = new QLabel(QStringLiteral("BPM"), this);
+    bpm_unit->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 11px;"));
+    bpm_box->addWidget(bpm_edit_);
+    bpm_box->addWidget(bpm_unit);
+    top_bar->addLayout(bpm_box);
 
     main_layout->addLayout(top_bar);
 
     // ==========================================
-    // 2. WAVEFORM DISPLAY
+    // 2. CLEAN WAVEFORM CANVAS (No duplicate header!)
     // ==========================================
-    waveform_widget_ = new WaveformWidget(deck_, true, this);
-    waveform_widget_->setFixedHeight(140);
-    main_layout->addWidget(waveform_widget_);
+    waveform_canvas_ = new WaveformCanvas(deck_, true, this);
+    waveform_canvas_->setFixedHeight(110);
+    main_layout->addWidget(waveform_canvas_);
 
     // ==========================================
     // 3. BEATGRID & MOVE CONTROLS
@@ -186,7 +227,7 @@ void DeckWindow::setupUi()
     main_layout->addLayout(loop_bar);
 
     // ==========================================
-    // 5. TRANSPORT (CUE, PLAY, SYNC)
+    // 5. TRANSPORT (CUE, PLAY, SYNC, VOLUME)
     // ==========================================
     auto *transport_bar = new QHBoxLayout();
     transport_bar->setSpacing(10);
@@ -221,14 +262,14 @@ void DeckWindow::setupUi()
 
     transport_bar->addSpacing(20);
 
-    // Volume
-    auto *vol_lbl = new QLabel(QStringLiteral("VOL:"), this);
+    // Volume - Line-level calibrated (max 100% = unity line level, default 80% = clean line level)
+    auto *vol_lbl = new QLabel(QStringLiteral("LINE VOL:"), this);
     vol_lbl->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4;"));
     transport_bar->addWidget(vol_lbl);
 
     volume_slider_ = new QSlider(Qt::Horizontal, this);
     volume_slider_->setRange(0, 100);
-    volume_slider_->setValue(100);
+    volume_slider_->setValue(80);
     volume_slider_->setFixedWidth(140);
     connect(volume_slider_, &QSlider::valueChanged, this, [this](int val) {
         if (deck_) deck_->setVolume(static_cast<float>(val) / 100.0f);
@@ -239,7 +280,7 @@ void DeckWindow::setupUi()
     main_layout->addLayout(transport_bar);
 
     // ==========================================
-    // 6. TEMPO / PITCH FADER
+    // 6. CONTINUOUS REAL-TIME TEMPO / PITCH FADER
     // ==========================================
     auto *tempo_bar = new QHBoxLayout();
     tempo_bar->setSpacing(8);
@@ -259,6 +300,7 @@ void DeckWindow::setupUi()
     pitch_slider_->setRange(50, 150);
     pitch_slider_->setValue(100);
     pitch_slider_->setTracking(true);
+
     connect(pitch_slider_, &QSlider::valueChanged, this, [this](int val) {
         if (deck_) {
             if (deck_->isSync()) deck_->setSync(false);
@@ -269,8 +311,18 @@ void DeckWindow::setupUi()
             .arg(val)
             .arg(diff >= 0 ? "+" : "")
             .arg(diff, 0, 'f', 1));
+
+        // Real-time responsive speed update throttled to 80ms while dragging
+        pending_throttle_speed_ = val;
+        if (!pitch_throttle_timer_->isActive()) {
+            pitch_throttle_timer_->start(80);
+        }
     });
+
     connect(pitch_slider_, &QSlider::sliderReleased, this, [this]() {
+        if (pitch_throttle_timer_->isActive()) {
+            pitch_throttle_timer_->stop();
+        }
         if (deck_ && pitch_slider_) {
             deck_->applySpeedSettings(pitch_slider_->value());
         }
@@ -314,32 +366,16 @@ void DeckWindow::openFileDialog()
     }
 }
 
-void DeckWindow::editBpmDialog()
-{
-    if (!deck_) return;
-    bool ok = false;
-    const double cur_bpm = deck_->bpm();
-    const double new_bpm = QInputDialog::getDouble(
-        this,
-        QStringLiteral("Edit Deck BPM"),
-        QStringLiteral("BPM:"),
-        cur_bpm,
-        40.0,
-        300.0,
-        2,
-        &ok
-    );
-
-    if (ok) {
-        deck_->setBpm(new_bpm);
-    }
-}
-
 void DeckWindow::onRefresh()
 {
     if (!deck_) return;
 
-    // Track filename
+    // 1. Refresh Waveform Canvas continuously in real-time!
+    if (waveform_canvas_) {
+        waveform_canvas_->refreshCanvas();
+    }
+
+    // 2. Track filename
     const QString fn = deck_->fileName();
     if (!fn.isEmpty()) {
         if (file_lbl_->text() != fn) {
@@ -349,7 +385,7 @@ void DeckWindow::onRefresh()
         file_lbl_->setText(QStringLiteral("No Track Loaded"));
     }
 
-    // Timecodes
+    // 3. Timecodes
     const int64_t cur_ms = deck_->currentTimeMs();
     const int64_t dur_ms = deck_->durationMs();
     const int64_t rem_ms = std::max<int64_t>(0, dur_ms - cur_ms);
@@ -357,17 +393,19 @@ void DeckWindow::onRefresh()
     elapsed_lbl_->setText(formatTime(cur_ms));
     remaining_lbl_->setText(QStringLiteral("-%1").arg(formatTime(rem_ms)));
 
-    // BPM
-    const double eff_bpm = deck_->effectiveBpm();
-    bpm_lbl_->setText(QStringLiteral("%1 BPM").arg(eff_bpm, 0, 'f', 2));
+    // 4. In-Place BPM Field (only update if user is not currently typing into it)
+    if (bpm_edit_ && !bpm_edit_->hasFocus()) {
+        const double eff_bpm = deck_->effectiveBpm();
+        bpm_edit_->setText(QString::number(eff_bpm, 'f', 2));
+    }
 
-    // Beatgrid offset
+    // 5. Beatgrid offset
     const int64_t offset = deck_->gridOffsetMs();
     grid_offset_lbl_->setText(QStringLiteral("GRID: %1%2ms")
         .arg(offset >= 0 ? "+" : "")
         .arg(offset));
 
-    // Play button state
+    // 6. Play button state
     const bool is_playing = deck_->isPlaying();
     if (is_playing) {
         play_btn_->setText(QStringLiteral("⏸ PAUSE"));
@@ -377,13 +415,13 @@ void DeckWindow::onRefresh()
         play_btn_->setStyleSheet(QStringLiteral("background: #1e3a24; border: 2px solid #00cc44; font-size: 15px; font-weight: bold; color: #ffffff; border-radius: 6px;"));
     }
 
-    // Sync button state
+    // 7. Sync button state
     if (sync_btn_->isChecked() != deck_->isSync()) {
         QSignalBlocker b(sync_btn_);
         sync_btn_->setChecked(deck_->isSync());
     }
 
-    // Loop buttons highlight
+    // 8. Loop buttons highlight
     const bool looping = deck_->isLooping();
     const int loop_idx = deck_->loopBeatIndex();
     for (size_t i = 0; i < loop_btns_.size(); i++) {
@@ -394,7 +432,7 @@ void DeckWindow::onRefresh()
         }
     }
 
-    // Pitch slider synchronization (if user isn't dragging it)
+    // 9. Pitch slider synchronization (if user isn't dragging it)
     if (pitch_slider_ && !pitch_slider_->isSliderDown()) {
         const int spd = deck_->speed();
         if (pitch_slider_->value() != spd) {

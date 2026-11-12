@@ -2,14 +2,16 @@
 
 #include <QDialog>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QSlider>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <vector>
 
 class DeckPlayer;
-class WaveformWidget;
+class WaveformCanvas;
 
 class DeckWindow : public QDialog {
     Q_OBJECT
@@ -24,19 +26,19 @@ private slots:
 private:
     void setupUi();
     void openFileDialog();
-    void editBpmDialog();
 
     DeckPlayer *deck_ = nullptr;
     QTimer *refresh_timer_ = nullptr;
+    QTimer *pitch_throttle_timer_ = nullptr;
+    int pending_throttle_speed_ = 100;
 
     QLabel *file_lbl_ = nullptr;
     QLabel *elapsed_lbl_ = nullptr;
     QLabel *remaining_lbl_ = nullptr;
-    QLabel *bpm_lbl_ = nullptr;
-    QPushButton *edit_bpm_btn_ = nullptr;
+    QLineEdit *bpm_edit_ = nullptr;
     QPushButton *tap_bpm_btn_ = nullptr;
 
-    WaveformWidget *waveform_widget_ = nullptr;
+    WaveformCanvas *waveform_canvas_ = nullptr;
 
     // Move / Beatgrid
     QPushButton *grid_nudge_minus_ = nullptr;

@@ -30,6 +30,7 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
     obs_data_set_bool(settings, "close_when_inactive", false);
     obs_data_set_bool(settings, "restart_on_activate", false);
     obs_data_set_bool(settings, "clear_on_media_end", false);
+    obs_data_set_bool(settings, "hw_decode", true);
     obs_data_set_int(settings, "speed_percent", 100);
 
     source_ = obs_source_create_private("ffmpeg_source", source_name, settings);
@@ -44,7 +45,7 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
     obs_source_inc_active(source_);
     obs_source_set_audio_active(source_, true);
     obs_source_set_audio_mixers(source_, 0x3F);
-    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
 
     applyAudioVolume();
 }
@@ -84,6 +85,7 @@ void DeckPlayer::loadFile(const QString &path)
     obs_data_set_bool(settings, "close_when_inactive", false);
     obs_data_set_bool(settings, "restart_on_activate", false);
     obs_data_set_bool(settings, "clear_on_media_end", false);
+    obs_data_set_bool(settings, "hw_decode", true);
     obs_data_set_int(settings, "speed_percent", speed_percent_.load(std::memory_order_relaxed));
 
     obs_source_update(source_, settings);
@@ -91,7 +93,7 @@ void DeckPlayer::loadFile(const QString &path)
 
     obs_source_set_audio_active(source_, true);
     obs_source_set_audio_mixers(source_, 0x3F);
-    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
     applyAudioVolume();
 
     looping_.store(false, std::memory_order_relaxed);
@@ -368,7 +370,7 @@ bool DeckPlayer::hasAnalyzedWaveform() const
 
 void DeckPlayer::setVolume(float volume)
 {
-    volume_.store(std::clamp(volume, 0.0f, 2.0f), std::memory_order_relaxed);
+    volume_.store(std::clamp(volume, 0.0f, 1.0f), std::memory_order_relaxed);
     applyAudioVolume();
 }
 
@@ -437,18 +439,20 @@ void DeckPlayer::updateLoop()
 
     // 1. Resume saved position after speed restart
     if (is_restarting_for_speed_.load(std::memory_order_relaxed)) {
-        const int64_t seek_target = pending_speed_seek_ms_.load(std::memory_order_relaxed);
-        const int64_t cur = obs_source_media_get_time(source_);
-        if (cur < 300 || cur < seek_target / 2) {
-            obs_source_media_set_time(source_, static_cast<uint64_t>(seek_target));
+        const obs_media_state state = obs_source_media_get_state(source_);
+        if (state == OBS_MEDIA_STATE_PLAYING) {
+            const int64_t seek_target = pending_speed_seek_ms_.load(std::memory_order_relaxed);
+            const int64_t cur = obs_source_media_get_time(source_);
+            if (seek_target > 0 && (cur < 400 || cur < seek_target / 2)) {
+                obs_source_media_set_time(source_, static_cast<uint64_t>(seek_target));
+            }
             is_restarting_for_speed_.store(false, std::memory_order_relaxed);
             pending_speed_seek_ms_.store(0, std::memory_order_relaxed);
         }
     }
 
-    // 2. Seamless Auto-Loop execution
+    // 2. Seamless Auto-Loop execution with seek debounce
     if (!isLooping()) {
-        is_loop_seeking_.store(false, std::memory_order_relaxed);
         return;
     }
 
@@ -456,21 +460,16 @@ void DeckPlayer::updateLoop()
     const int64_t loop_end = loop_end_ms_.load(std::memory_order_relaxed);
     const int64_t loop_start = loop_start_ms_.load(std::memory_order_relaxed);
 
-    if (loop_end <= loop_start || current < loop_end) {
-        is_loop_seeking_.store(false, std::memory_order_relaxed);
+    if (loop_end <= loop_start) {
         return;
     }
 
-    if (!is_loop_seeking_.load(std::memory_order_relaxed)) {
+    const auto now = std::chrono::steady_clock::now();
+    const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_loop_seek_tp_).count();
+
+    if (current >= loop_end && elapsed_ms > 70) {
         obs_source_media_set_time(source_, static_cast<uint64_t>(loop_start));
-        is_loop_seeking_.store(true, std::memory_order_relaxed);
-        last_loop_seek_tp_ = std::chrono::steady_clock::now();
-    } else {
-        auto now = std::chrono::steady_clock::now();
-        auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_loop_seek_tp_).count();
-        if (diff > 120 && current < loop_end) {
-            is_loop_seeking_.store(false, std::memory_order_relaxed);
-        }
+        last_loop_seek_tp_ = now;
     }
 }
 

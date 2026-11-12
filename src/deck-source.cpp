@@ -19,6 +19,8 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
     context->source = source;
     context->deck = vj_active_deck();
 
+    obs_source_set_audio_mixers(source, 0x3F);
+
     if (settings && context->deck) {
         const char *file = obs_data_get_string(settings, "local_file");
         if (file && *file) {
@@ -121,7 +123,7 @@ void vdj_register_deck_source(void)
     obs_source_info deck_info = {};
     deck_info.id = "vj_deck";
     deck_info.type = OBS_SOURCE_TYPE_INPUT;
-    deck_info.output_flags = OBS_SOURCE_VIDEO;
+    deck_info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE;
     deck_info.get_name = deck_get_name;
     deck_info.create = deck_create;
     deck_info.destroy = deck_destroy;

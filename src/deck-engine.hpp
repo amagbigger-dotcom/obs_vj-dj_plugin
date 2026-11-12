@@ -104,7 +104,7 @@ private:
     std::atomic<int64_t> grid_offset_ms_{0};
 
     std::atomic<int> speed_percent_{100};
-    std::atomic<float> volume_{1.0f};
+    std::atomic<float> volume_{0.8f};
 
     std::atomic<bool> is_sync_{false};
     std::atomic<int64_t> pending_speed_seek_ms_{0};
