@@ -269,6 +269,14 @@ A bővítmény három független szálon/környezetben dolgozik:
 - **Akadásmentes Tempó / Pitch Fader:** A sebességcsúszka mozgatásakor nem hívódik folyamatosan a dekóder újraindítása, csak a felengedéskor (`sliderReleased`), a pozíció-megőrző logika pedig elkerüli a 0 ms-ra való visszaugrást.
 - **Önálló GUI Ablak (`DeckWindow`):** Dedikált lebegő dialógus a `Eszközök -> OBS VJ Deck` menüből teljes WaveformWidgettel, Beatgrid szerkesztővel (`<<`, `SET 1`, `>>`, `TAP`), Auto-Loop mátrixszal, és Transport gombokkal.
 
+### 15. Valós Idejű Élő Tempó, Hullámforma és Hangkeverő Javítások (Build #192) *(KÉSZ)*
+- **Folyamatos Gördülő Hullámforma:** Az `onRefresh()` időzítő minden 50 ms-ban frissíti a `WaveformCanvas`-t, így a lábdob tranziensek, ütemvonalak és a lejátszófej akadásmentesen és élőben gördülnek.
+- **Tiszta Egyrétegű Felület:** A duplikált "Empty Deck - Click Load" fejléc eltávolítva, a hullámforma közvetlenül jelenik meg teljes magasságban.
+- **Helyben Szerkeszthető BPM Mező:** Felugró ablakok nélkül közvetlenül a mezőre kattintva átírható a BPM (`QLineEdit` és Enter lenyomás).
+- **Vonalszintű Kalibrált Hangerő:** Megszüntetve a belső forrás párhuzamos direkt monitorozása; a hangerő 100%-nál is maximum 1.0f (0 dB vonalszint), az alapértelmezett érték 80% (tiszta vonalszint).
+- **Natív OBS Hangkeverő Integráció:** `output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE`, így az `OBS VJ Deck` megjelenik az OBS Hangkeverőjében.
+- **Folyamatos Élő Tempóállítás:** 80 ms-os folyamatos ütemező mozgatás közben, azonnal hallható zenei gyorsulással/lassulással, NVDEC GPU hardveres dekódolással (`hw_decode = true`) és Auto-Loop seek debounce védelemmel.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ
