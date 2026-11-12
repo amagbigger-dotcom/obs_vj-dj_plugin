@@ -262,6 +262,13 @@ A bővítmény három független szálon/környezetben dolgozik:
   - A fejhallgató CUE audiocsatorna (`queueCueAudio`) inaktív állapotban nulla adatot küld az OBS monitor forrásnak, így nem aktiválódik az OBS audio deduplikáció és puffer-késleltetés (`adding 64 milliseconds of audio buffering`).
 - **Névadás & Branding:** A felület, ablak és források hivatalos neve: **OBS VJ/DJ Plugin** és **OBS VJ/DJ Mixer**.
 
+### 14. Moduláris Standalone VJ Deck Architektúra (Build #190) *(KÉSZ)*
+- **Független Deck Koncepció:** A Deck kizárólag lejátszóként funkcionál, független attól, hogy melyik mixer-oldalra lesz majd bekötve.
+- **Közvetlen Vászon Renderelés (`vj_deck`):** Szabványos `OBS_SOURCE_VIDEO` forrás, amely `obs_source_video_render(media)` hívással azonnal és akadálytalanul kirajzolja a dekódolt videóképet a fő OBS vászonra (nincsenek texrender vagy shader köztes rétegek).
+- **Gyermek Forrás Kezelés:** `enum_active_sources` és `enum_all_sources` bekötve az audio és aktív állapotokhoz; `OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT` biztosítja a monitorozást.
+- **Akadásmentes Tempó / Pitch Fader:** A sebességcsúszka mozgatásakor nem hívódik folyamatosan a dekóder újraindítása, csak a felengedéskor (`sliderReleased`), a pozíció-megőrző logika pedig elkerüli a 0 ms-ra való visszaugrást.
+- **Önálló GUI Ablak (`DeckWindow`):** Dedikált lebegő dialógus a `Eszközök -> OBS VJ Deck` menüből teljes WaveformWidgettel, Beatgrid szerkesztővel (`<<`, `SET 1`, `>>`, `TAP`), Auto-Loop mátrixszal, és Transport gombokkal.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ
