@@ -28,11 +28,9 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
         return;
 
     uint32_t sample_rate = 48000;
-    enum speaker_layout speakers = SPEAKERS_STEREO;
     audio_t *audio = obs_get_audio();
     if (audio) {
         sample_rate = audio_output_get_sample_rate(audio);
-        speakers = audio_output_get_speakers(audio);
     }
 
     struct obs_source_audio out_audio = {};
@@ -40,7 +38,7 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
         out_audio.data[i] = audio_data->data[i];
     }
     out_audio.frames = audio_data->frames;
-    out_audio.speakers = speakers;
+    out_audio.speakers = SPEAKERS_STEREO;
     out_audio.format = AUDIO_FORMAT_FLOAT_PLANAR;
     out_audio.samples_per_sec = sample_rate;
     out_audio.timestamp = audio_data->timestamp;
