@@ -86,13 +86,32 @@ void DeckWindow::setupUi()
     file_lbl_->setStyleSheet(QStringLiteral("font-size: 13px; font-weight: bold; color: #00d2ff; padding-left: 6px;"));
     top_bar->addWidget(file_lbl_, 1);
 
-    elapsed_lbl_ = new QLabel(QStringLiteral("00:00.00"), this);
-    elapsed_lbl_->setStyleSheet(QStringLiteral("font-family: 'Consolas', monospace; font-size: 20px; font-weight: bold; color: #00ffaa; background: #0a0e14; padding: 4px 10px; border: 1px solid #1c2a38; border-radius: 4px;"));
-    top_bar->addWidget(elapsed_lbl_);
+    // Compact, sleek professional time display
+    auto *time_container = new QFrame(this);
+    time_container->setStyleSheet(QStringLiteral(
+        "QFrame { background: #0c1017; border: 1px solid #1e2838; border-radius: 4px; }"
+    ));
+    auto *time_layout = new QHBoxLayout(time_container);
+    time_layout->setContentsMargins(8, 2, 8, 2);
+    time_layout->setSpacing(6);
 
-    remaining_lbl_ = new QLabel(QStringLiteral("-00:00.00"), this);
-    remaining_lbl_->setStyleSheet(QStringLiteral("font-family: 'Consolas', monospace; font-size: 20px; font-weight: bold; color: #ffaa00; background: #0a0e14; padding: 4px 10px; border: 1px solid #1c2a38; border-radius: 4px;"));
-    top_bar->addWidget(remaining_lbl_);
+    auto *el_title = new QLabel(QStringLiteral("TIME"), time_container);
+    el_title->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #586884;"));
+    time_layout->addWidget(el_title);
+
+    elapsed_lbl_ = new QLabel(QStringLiteral("00:00.00"), time_container);
+    elapsed_lbl_->setStyleSheet(QStringLiteral("font-family: 'Consolas', monospace; font-size: 13px; font-weight: bold; color: #00ffaa;"));
+    time_layout->addWidget(elapsed_lbl_);
+
+    auto *rem_title = new QLabel(QStringLiteral("REMAIN"), time_container);
+    rem_title->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #586884; margin-left: 6px;"));
+    time_layout->addWidget(rem_title);
+
+    remaining_lbl_ = new QLabel(QStringLiteral("-00:00.00"), time_container);
+    remaining_lbl_->setStyleSheet(QStringLiteral("font-family: 'Consolas', monospace; font-size: 13px; font-weight: bold; color: #ffaa00;"));
+    time_layout->addWidget(remaining_lbl_);
+
+    top_bar->addWidget(time_container);
 
     // Direct in-place editable BPM input field (no popup window needed!)
     auto *bpm_box = new QHBoxLayout();
@@ -138,7 +157,7 @@ void DeckWindow::setupUi()
     // 2. CLEAN WAVEFORM CANVAS (No duplicate header!)
     // ==========================================
     waveform_canvas_ = new WaveformCanvas(deck_, true, this);
-    waveform_canvas_->setFixedHeight(110);
+    waveform_canvas_->setFixedHeight(135);
     main_layout->addWidget(waveform_canvas_);
 
     // ==========================================
@@ -173,6 +192,36 @@ void DeckWindow::setupUi()
     grid_offset_lbl_ = new QLabel(QStringLiteral("GRID: 0ms"), this);
     grid_offset_lbl_->setStyleSheet(QStringLiteral("color: #00ffaa; font-family: monospace; font-weight: bold; margin-left: 6px;"));
     move_bar->addWidget(grid_offset_lbl_);
+
+    move_bar->addSpacing(12);
+
+    auto *zoom_hdr = new QLabel(QStringLiteral("ZOOM:"), this);
+    zoom_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4;"));
+    move_bar->addWidget(zoom_hdr);
+
+    zoom_out_btn_ = new QPushButton(QStringLiteral("−"), this);
+    zoom_out_btn_->setFixedSize(26, 24);
+    zoom_out_btn_->setToolTip(QStringLiteral("Waveform kicsinyítés (szélesebb szakasz, lassabb gördülés)"));
+    connect(zoom_out_btn_, &QPushButton::clicked, this, [this]() {
+        if (waveform_canvas_) waveform_canvas_->zoomOut();
+    });
+    move_bar->addWidget(zoom_out_btn_);
+
+    zoom_lbl_ = new QLabel(QStringLiteral("6s"), this);
+    zoom_lbl_->setStyleSheet(QStringLiteral("color: #00d2ff; font-family: monospace; font-weight: bold; font-size: 11px;"));
+    move_bar->addWidget(zoom_lbl_);
+
+    zoom_in_btn_ = new QPushButton(QStringLiteral("+"), this);
+    zoom_in_btn_->setFixedSize(26, 24);
+    zoom_in_btn_->setToolTip(QStringLiteral("Waveform nagyítás (részletesebb nézet)"));
+    connect(zoom_in_btn_, &QPushButton::clicked, this, [this]() {
+        if (waveform_canvas_) waveform_canvas_->zoomIn();
+    });
+    move_bar->addWidget(zoom_in_btn_);
+
+    connect(waveform_canvas_, &WaveformCanvas::zoomChanged, this, [this](double sec) {
+        if (zoom_lbl_) zoom_lbl_->setText(QStringLiteral("%1s").arg(sec, 0, 'f', 0));
+    });
 
     move_bar->addStretch(1);
 
@@ -312,10 +361,10 @@ void DeckWindow::setupUi()
             .arg(diff >= 0 ? "+" : "")
             .arg(diff, 0, 'f', 1));
 
-        // Real-time responsive speed update throttled to 80ms while dragging
+        // Responsive speed update throttled to 250ms while dragging to preserve audio playback
         pending_throttle_speed_ = val;
         if (!pitch_throttle_timer_->isActive()) {
-            pitch_throttle_timer_->start(80);
+            pitch_throttle_timer_->start(250);
         }
     });
 

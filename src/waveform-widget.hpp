@@ -18,23 +18,31 @@ public:
 
     void refreshCanvas();
 
-    QSize sizeHint() const override { return QSize(400, 90); }
-    QSize minimumSizeHint() const override { return QSize(300, 80); }
+    double zoomSeconds() const noexcept { return zoom_seconds_; }
+    void setZoomSeconds(double sec);
+    void zoomIn();
+    void zoomOut();
+
+    QSize sizeHint() const override { return QSize(400, 135); }
+    QSize minimumSizeHint() const override { return QSize(300, 110); }
 
 signals:
     void seekRequested(double normalized_pos);
     void gridOffsetChanged(int64_t new_offset_ms);
+    void zoomChanged(double new_zoom_seconds);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
 
 private:
     DeckPlayer *deck_ = nullptr;
     bool is_deck_a_ = true;
 
+    double zoom_seconds_ = 6.0; // Default 6.0s (smoother, natural scrolling rate)
     bool is_dragging_seek_ = false;
     bool is_sliding_grid_ = false;
     int last_mouse_x_ = 0;

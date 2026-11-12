@@ -4,6 +4,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFrame>
@@ -16,8 +17,8 @@
 #include <cmath>
 
 namespace {
-constexpr int kOverviewHeight = 16;
-constexpr double kZoomSeconds = 3.0; // 3 seconds visible across width (~70 px per beat at 128 BPM for sharp kick transient visibility)
+constexpr int kOverviewHeight = 32;
+constexpr double kDefaultZoomSeconds = 6.0; // 6 seconds visible across width (smoother, natural scrolling rate)
 }
 
 // ============================================================================
@@ -27,13 +28,42 @@ constexpr double kZoomSeconds = 3.0; // 3 seconds visible across width (~70 px p
 WaveformCanvas::WaveformCanvas(DeckPlayer *deck, bool is_deck_a, QWidget *parent)
     : QWidget(parent),
       deck_(deck),
-      is_deck_a_(is_deck_a)
+      is_deck_a_(is_deck_a),
+      zoom_seconds_(kDefaultZoomSeconds)
 {
-    setFixedHeight(90);
+    setFixedHeight(135);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setCursor(Qt::PointingHandCursor);
     setMouseTracking(true);
-    setToolTip(QStringLiteral("Bal klikk: Pozíció keresés | Shift + Húzás vagy Jobb klikk: Ütemrács (Beatgrid) csúsztatása"));
+    setToolTip(QStringLiteral("Bal klikk: Pozíció keresés | Görgetés: Waveform Zoom | Shift + Húzás vagy Jobb klikk: Ütemrács"));
+}
+
+void WaveformCanvas::setZoomSeconds(double sec)
+{
+    zoom_seconds_ = std::clamp(sec, 2.0, 16.0);
+    emit zoomChanged(zoom_seconds_);
+    update();
+}
+
+void WaveformCanvas::zoomIn()
+{
+    setZoomSeconds(zoom_seconds_ - 1.0);
+}
+
+void WaveformCanvas::zoomOut()
+{
+    setZoomSeconds(zoom_seconds_ + 1.0);
+}
+
+void WaveformCanvas::wheelEvent(QWheelEvent *event)
+{
+    const int num_degrees = event->angleDelta().y();
+    if (num_degrees > 0) {
+        zoomIn();
+    } else if (num_degrees < 0) {
+        zoomOut();
+    }
+    event->accept();
 }
 
 void WaveformCanvas::refreshCanvas()
@@ -126,7 +156,7 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
 
     const double eff_bpm = deck_->effectiveBpm();
     const double beat_ms = (eff_bpm > 10.0) ? (60000.0 / eff_bpm) : 500.0;
-    const double visible_ms = kZoomSeconds * 1000.0;
+    const double visible_ms = zoom_seconds_ * 1000.0;
     const double ms_per_pixel = visible_ms / static_cast<double>(w);
 
     const int64_t start_ms = current - static_cast<int64_t>(playhead_x * ms_per_pixel);
@@ -238,24 +268,39 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
     marker_top.closeSubpath();
     p.fillPath(marker_top, QColor(255, 230, 0));
 
-    // 6. Track Overview Progress Strip (Amber / Gold)
+    // 6. Track Overview Progress Strip (Rich Amber/Gold dynamic waveform)
     const int ov_top = h - kOverviewHeight;
-    p.fillRect(0, ov_top, w, kOverviewHeight, QColor(12, 15, 20));
-    p.setPen(QColor(32, 38, 48));
+    p.fillRect(0, ov_top, w, kOverviewHeight, QColor(10, 13, 18));
+    p.setPen(QColor(36, 44, 56));
     p.drawRect(0, ov_top, w - 1, kOverviewHeight - 1);
 
     if (duration > 0 && !overview.empty()) {
         const double progress = std::clamp(static_cast<double>(current) / static_cast<double>(duration), 0.0, 1.0);
         const int prog_x = static_cast<int>(progress * w);
-
-        // Amber mini waveform
-        p.setPen(QColor(212, 160, 23, 160));
         const int ov_center_y = ov_top + kOverviewHeight / 2;
-        for (int ox = 0; ox < w; ox += 2) {
+
+        // Draw clear dynamic audio waveform across the full width
+        for (int ox = 0; ox < w; ++ox) {
             const double norm = static_cast<double>(ox) / static_cast<double>(w);
             const size_t s_idx = static_cast<size_t>(norm * (overview.size() - 1));
-            const int mini_h = static_cast<int>(overview[s_idx] * (kOverviewHeight / 2 - 1));
-            p.drawLine(ox, ov_center_y - mini_h, ox, ov_center_y + mini_h);
+            const float amp = overview[s_idx];
+            const int bar_h = static_cast<int>(amp * (kOverviewHeight / 2 - 2));
+
+            // Outer energy contour
+            p.setPen(QPen(QColor(160, 105, 15, 200), 1));
+            p.drawLine(ox, ov_center_y - bar_h, ox, ov_center_y + bar_h);
+
+            // Bright core transient spike for musical sections & drops
+            if (bar_h > 2) {
+                p.setPen(QPen(QColor(255, 195, 25, 240), 1));
+                p.drawLine(ox, ov_center_y - bar_h * 2 / 3, ox, ov_center_y + bar_h * 2 / 3);
+            }
+
+            // High energy / kick spikes
+            if (amp > 0.65f) {
+                p.setPen(QPen(QColor(255, 245, 160, 255), 1));
+                p.drawLine(ox, ov_center_y - bar_h / 3, ox, ov_center_y + bar_h / 3);
+            }
         }
 
         // Played progress tint
@@ -265,10 +310,10 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
         if (deck_->isLooping()) {
             const int lx_start = static_cast<int>((static_cast<double>(deck_->loopStartMs()) / duration) * w);
             const int lx_end = static_cast<int>((static_cast<double>(deck_->loopEndMs()) / duration) * w);
-            p.fillRect(lx_start, ov_top, std::max(2, lx_end - lx_start), kOverviewHeight, QColor(0, 255, 128, 180));
+            p.fillRect(lx_start, ov_top, std::max(3, lx_end - lx_start), kOverviewHeight, QColor(0, 255, 128, 180));
         }
 
-        // White position needle
+        // White position needle with top/bottom marker
         p.setPen(QPen(QColor(255, 255, 255), 2));
         p.drawLine(prog_x, ov_top, prog_x, ov_top + kOverviewHeight);
     }
@@ -310,7 +355,7 @@ void WaveformCanvas::mouseMoveEvent(QMouseEvent *event)
             // Scrub on scrolling wave
             const int64_t duration = deck_->durationMs();
             if (duration > 0) {
-                const double visible_ms = kZoomSeconds * 1000.0;
+                const double visible_ms = zoom_seconds_ * 1000.0;
                 const double ms_per_pixel = visible_ms / static_cast<double>(w);
                 const int delta_pixels = cur_x - (w / 2);
                 const int64_t target_ms = deck_->currentTimeMs() + static_cast<int64_t>(delta_pixels * ms_per_pixel);
@@ -324,7 +369,7 @@ void WaveformCanvas::mouseMoveEvent(QMouseEvent *event)
         // Drag to slide beatgrid!
         const int delta_x = cur_x - last_mouse_x_;
         if (delta_x != 0) {
-            const double visible_ms = kZoomSeconds * 1000.0;
+            const double visible_ms = zoom_seconds_ * 1000.0;
             const double ms_per_pixel = visible_ms / static_cast<double>(w);
             const int64_t delta_ms = static_cast<int64_t>(delta_x * ms_per_pixel);
             deck_->nudgeGrid(delta_ms);

@@ -45,6 +45,9 @@ private:
     QPushButton *grid_set1_btn_ = nullptr;
     QPushButton *grid_nudge_plus_ = nullptr;
     QLabel *grid_offset_lbl_ = nullptr;
+    QPushButton *zoom_out_btn_ = nullptr;
+    QLabel *zoom_lbl_ = nullptr;
+    QPushButton *zoom_in_btn_ = nullptr;
 
     // Loops
     std::vector<QPushButton *> loop_btns_;

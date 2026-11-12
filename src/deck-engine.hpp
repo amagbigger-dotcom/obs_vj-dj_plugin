@@ -108,7 +108,8 @@ private:
 
     std::atomic<bool> is_sync_{false};
     std::atomic<int64_t> pending_speed_seek_ms_{0};
-    std::atomic<bool> is_restarting_for_speed_{false};
+    std::atomic<int> speed_restart_phase_{0};
+    std::chrono::steady_clock::time_point speed_restart_tp_{};
     std::atomic<bool> is_loop_seeking_{false};
     std::chrono::steady_clock::time_point last_loop_seek_tp_{};
 

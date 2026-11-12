@@ -1,4 +1,6 @@
 #include <obs-module.h>
+#include <graphics/graphics.h>
+#include <graphics/matrix4.h>
 #include "deck-engine.hpp"
 
 extern "C" {
@@ -6,11 +8,25 @@ extern "C" {
 struct DeckSourceContext {
     obs_source_t *source = nullptr;
     DeckPlayer *deck = nullptr;
+    bool audio_captured = false;
 };
 
 static const char *deck_get_name(void *)
 {
     return "OBS VJ Deck";
+}
+
+static void deck_audio_capture(void *param, obs_source_t *source, const struct audio_data *audio_data, bool muted)
+{
+    UNUSED_PARAMETER(source);
+    if (muted || !audio_data)
+        return;
+
+    auto *context = static_cast<DeckSourceContext *>(param);
+    if (!context || !context->source)
+        return;
+
+    obs_source_output_audio(context->source, audio_data);
 }
 
 static void *deck_create(obs_data_t *settings, obs_source_t *source)
@@ -20,6 +36,12 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
     context->deck = vj_active_deck();
 
     obs_source_set_audio_mixers(source, 0x3F);
+    obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+
+    if (context->deck && context->deck->source()) {
+        obs_source_add_audio_capture_callback(context->deck->source(), deck_audio_capture, context);
+        context->audio_captured = true;
+    }
 
     if (settings && context->deck) {
         const char *file = obs_data_get_string(settings, "local_file");
@@ -32,7 +54,14 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
 
 static void deck_destroy(void *data)
 {
-    delete static_cast<DeckSourceContext *>(data);
+    auto *context = static_cast<DeckSourceContext *>(data);
+    if (context) {
+        if (context->audio_captured && context->deck && context->deck->source()) {
+            obs_source_remove_audio_capture_callback(context->deck->source(), deck_audio_capture, context);
+            context->audio_captured = false;
+        }
+        delete context;
+    }
 }
 
 static void deck_video_tick(void *data, float seconds)
@@ -52,30 +81,33 @@ static void deck_video_render(void *data, gs_effect_t *effect)
         return;
 
     obs_source_t *media = context->deck->source();
-    if (media) {
+    if (!media)
+        return;
+
+    const uint32_t sw = obs_source_get_width(media);
+    const uint32_t sh = obs_source_get_height(media);
+
+    if (sw > 0 && sh > 0 && (sw != 1920 || sh != 1080)) {
+        gs_matrix_push();
+        gs_matrix_scale3f(1920.0f / static_cast<float>(sw),
+                          1080.0f / static_cast<float>(sh),
+                          1.0f);
+        obs_source_video_render(media);
+        gs_matrix_pop();
+    } else {
         obs_source_video_render(media);
     }
 }
 
 static uint32_t deck_get_width(void *data)
 {
-    auto *context = static_cast<DeckSourceContext *>(data);
-    if (context && context->deck && context->deck->source()) {
-        const uint32_t w = obs_source_get_width(context->deck->source());
-        if (w > 0)
-            return w;
-    }
+    UNUSED_PARAMETER(data);
     return 1920;
 }
 
 static uint32_t deck_get_height(void *data)
 {
-    auto *context = static_cast<DeckSourceContext *>(data);
-    if (context && context->deck && context->deck->source()) {
-        const uint32_t h = obs_source_get_height(context->deck->source());
-        if (h > 0)
-            return h;
-    }
+    UNUSED_PARAMETER(data);
     return 1080;
 }
 

@@ -277,6 +277,14 @@ A bővítmény három független szálon/környezetben dolgozik:
 - **Natív OBS Hangkeverő Integráció:** `output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE`, így az `OBS VJ Deck` megjelenik az OBS Hangkeverőjében.
 - **Folyamatos Élő Tempóállítás:** 80 ms-os folyamatos ütemező mozgatás közben, azonnal hallható zenei gyorsulással/lassulással, NVDEC GPU hardveres dekódolással (`hw_decode = true`) és Auto-Loop seek debounce védelemmel.
 
+### 16. Audió Forwarding, Automatikus 1080p GPU Méretezés, Pozícióbiztos Tempó és Szélesebb Waveform (Build #193) *(KÉSZ)*
+- **Natív Audió Forwarding & Hangkeverő:** A `vj_deck` forrás `obs_source_add_audio_capture_callback` segítségével valós időben közvetíti a privát dekóder audió mintáit az OBS-nek (`obs_source_output_audio`). A forrás alapértelmezetten mind a 6 sávra hozzá van rendelve (`0x3F`), a monitorozás aktív (`MONITOR_AND_OUTPUT`), így a hangerőmérő ugrál és megszűnt a "Nem hozzárendelt hangforrás" figyelmeztetés.
+- **Automatikus 1080p GPU Méretezés:** A `deck_get_width` és `deck_get_height` fixen 1920x1080 felbontást ad vissza. A `deck_video_render` a forrás valós felbontásától függetlenül (720p, 1080p, 1440p, 4K) `gs_matrix_scale3f(1920/sw, 1080/sh, 1)` mátrix transzformációval automatikusan kitölti a standard vásznat. Nincs többé szükség kézi átméretezésre vagy jelenet-transzformációra.
+- **Pozícióbiztos Kétfázisú Tempóváltás:** A sebesség változtatásakor a lejátszási pozíció nem ugrik a szám elejére (0:00). A rendszer megvárja, míg az FFmpeg dekóder újraindulása után a pozíció 0 közelébe esik, és azonnal visszaugrik a mentett pozícióra. A csúszka mozgatása 250 ms-os védelemmel van ellátva az FFmpeg túlterhelés elkerülésére.
+- **Kompakt, Letisztult Időkijelzés:** A két óriási, feleslegesen nagy 20px-es doboz helyett egységes, professzionális és helytakarékos 13px-es időkijelző sáv (`TIME 00:00.00 | REMAIN -00:00.00`).
+- **Magasabb, 32px-es Teljes Számanalízis Csík:** Az overview csík magassága megduplázódott (16px -> 32px), gazdag borostyán/arany hullámformával, kiemelt tranziensekkel és dropokkal, így a teljes zene felépítése azonnal áttekinthető és pontosan pozícionálható.
+- **Állítható Waveform Zoom és Természetes Sebesség:** A látható időtartam alapértelmezetten 3 másodpercről 6 másodpercre duplázódott (fele akkora látszólagos gördülési sebesség). A felületen `[−]` és `[+]` gombokkal, illetve közvetlenül az egérgörgővel fokozatmentesen zoomolható a gördülő hullámforma (2s - 16s tartományban).
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ
