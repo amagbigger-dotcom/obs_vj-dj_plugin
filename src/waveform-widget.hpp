@@ -3,6 +3,7 @@
 #include <QWidget>
 #include <QString>
 #include <QElapsedTimer>
+#include <QWheelEvent>
 #include <vector>
 #include <cstdint>
 

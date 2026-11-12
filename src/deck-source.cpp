@@ -1,6 +1,7 @@
 #include <obs-module.h>
 #include <graphics/graphics.h>
 #include <graphics/matrix4.h>
+#include <media-io/audio-io.h>
 #include "deck-engine.hpp"
 
 extern "C" {
@@ -19,14 +20,32 @@ static const char *deck_get_name(void *)
 static void deck_audio_capture(void *param, obs_source_t *source, const struct audio_data *audio_data, bool muted)
 {
     UNUSED_PARAMETER(source);
-    if (muted || !audio_data)
+    if (muted || !audio_data || audio_data->frames == 0)
         return;
 
     auto *context = static_cast<DeckSourceContext *>(param);
     if (!context || !context->source)
         return;
 
-    obs_source_output_audio(context->source, audio_data);
+    uint32_t sample_rate = 48000;
+    enum speaker_layout speakers = SPEAKERS_STEREO;
+    audio_t *audio = obs_get_audio();
+    if (audio) {
+        sample_rate = audio_output_get_sample_rate(audio);
+        speakers = audio_output_get_speakers(audio);
+    }
+
+    struct obs_source_audio out_audio = {};
+    for (size_t i = 0; i < MAX_AV_PLANES; i++) {
+        out_audio.data[i] = audio_data->data[i];
+    }
+    out_audio.frames = audio_data->frames;
+    out_audio.speakers = speakers;
+    out_audio.format = AUDIO_FORMAT_FLOAT_PLANAR;
+    out_audio.samples_per_sec = sample_rate;
+    out_audio.timestamp = audio_data->timestamp;
+
+    obs_source_output_audio(context->source, &out_audio);
 }
 
 static void *deck_create(obs_data_t *settings, obs_source_t *source)
