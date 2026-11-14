@@ -49,6 +49,10 @@ bool AudioAnalyzer::loadCache(const QString &file_path, TrackAnalysisResult &out
         return false;
 
     const QJsonObject root = doc.object();
+    const int ver = root.value(QStringLiteral("version")).toInt(0);
+    if (ver < 2)
+        return false;
+
     out_res.detected_bpm = root.value(QStringLiteral("bpm")).toDouble(128.0);
     out_res.grid_offset_ms = static_cast<int64_t>(root.value(QStringLiteral("grid_offset_ms")).toVariant().toLongLong());
     out_res.cue_point_ms = static_cast<int64_t>(root.value(QStringLiteral("cue_point_ms")).toVariant().toLongLong());
@@ -80,7 +84,7 @@ bool AudioAnalyzer::saveCache(const QString &file_path, const TrackAnalysisResul
 
     const QString cache_path = cacheFilePath(file_path);
     QJsonObject root;
-    root.insert(QStringLiteral("version"), 1);
+    root.insert(QStringLiteral("version"), 2);
     root.insert(QStringLiteral("bpm"), res.detected_bpm);
     root.insert(QStringLiteral("grid_offset_ms"), static_cast<qint64>(res.grid_offset_ms));
     root.insert(QStringLiteral("cue_point_ms"), static_cast<qint64>(res.cue_point_ms));
@@ -142,8 +146,17 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     result.success = false;
 
     // 1. Instant check for existing .vdj.json sidecar cache file
-    if (loadCache(file_path, result)) {
-        return result;
+    extern bool vdj_is_track_in_library(const QString &file_path);
+    if (vdj_is_track_in_library(file_path)) {
+        if (loadCache(file_path, result)) {
+            return result;
+        }
+    } else {
+        // Not in tracklist: remove stale cache if present and always analyze fresh!
+        const QString c_path = cacheFilePath(file_path);
+        if (QFile::exists(c_path)) {
+            QFile::remove(c_path);
+        }
     }
 
 #ifdef _WIN32

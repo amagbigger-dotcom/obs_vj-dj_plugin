@@ -45,6 +45,7 @@ public:
 
     void setBpm(double bpm) noexcept;
     double bpm() const noexcept;
+    void setPlaybackBpm(double bpm) noexcept;
     double effectiveBpm() const noexcept;
     double beatDurationMs() const noexcept;
 
@@ -169,6 +170,7 @@ private:
     std::atomic<bool> is_master_{false};
     std::atomic<bool> is_sync_{false};
     std::atomic<double> target_sync_bpm_{128.0};
+    std::atomic<double> playback_bpm_{0.0};
     std::atomic<bool> pause_on_load_pending_{false};
     std::atomic<int64_t> pending_speed_seek_ms_{0};
     std::atomic<int> speed_restart_phase_{0};

@@ -386,6 +386,18 @@ A bővítmény három független szálon/környezetben dolgozik:
 - **BPM Analizátor Triola Harmonikus Javítás:**
   - Eltávolítva a 3/4-es keresztritmus miatti 109 BPM tévedés; tiszta oktáv-összegzés 130 BPM centrális priorral.
 
+### 23. Crossfader 100% Végponti Némulás Végleges Megszüntetése, Intelligens Snap BPM Léptetés, Tracklist Cache Életciklus & Tranzienstartó Waveform (Build #209) *(KÉSZ)*
+- **Crossfader 100%-os Végponti Némulás Teljes Kigyomlálása:**
+  - Eltávolítva a kéretlen `obs_frontend_release_tbar()` automatizmus a crossfaderből, amely a jobb szélső (100%) pozícióban Stúdió Mód jelenetváltást kényszerített ki és némította a forrásokat. A crossfader kizárólag a csatornák matematikai hang- és képi keverését végzi, garantált 100% hangerővel a B végponton.
+- **Intelligens Snap BPM Léptetés (`[ − ]` és `[ + ]`):**
+  - Az első kattintás az adott irányba eső legközelebbi tiszta tizedre kerekít (pl. 137.42 $\to$ `[+]` $\to$ 137.50, `[-]` $\to$ 137.40), a további kattintások pontosan 0.10 BPM-et lépnek. A felületen tiszta százados kijelzés (pl. 138.00 BPM).
+  - A szinkronizáció teljes lebegőpontos precizitással tárolja a céltempót, megelőzve az elcsúszást.
+- **Tracklist és Gyorsítótár (.vdj.json) Életciklus:**
+  - Version 2 gyorsítótár formátum automatikusan felülbírálja és újraelemzi a korábbi régi adatokat.
+  - A Tracklistből törölt számok `.vdj.json` gyorsítótárát a rendszer azonnal törli a merevlemezről; nem listázott fájlok betöltésekor mindig friss, tiszta analízis fut le.
+- **Tranzienstartó Waveform Csúcs-kirajzolás (Peak Max-Pooling):**
+  - A decimált mintavételezés helyett oszloponkénti maximális amplitúdó-keresés (`peak max-pooling`), így minden egyes lábdob (Kick 1, 2, 3, 4) borotvaéles függőleges tüskeként jelenik meg és tökéletesen illeszkedik a beatgridhez.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

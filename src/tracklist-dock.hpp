@@ -33,6 +33,7 @@ public:
     void deleteSelectedTrack();
     void loadLibraryJson();
     void saveLibraryJson();
+    const std::vector<TrackItem>& tracks() const { return tracks_; }
 
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
@@ -70,3 +71,4 @@ private:
 // Global accessor to import & load from anywhere (e.g. Deck window)
 void vdj_import_and_load(const QString &file_path, int deck_channel);
 void vdj_open_tracklist_window();
+bool vdj_is_track_in_library(const QString &file_path);

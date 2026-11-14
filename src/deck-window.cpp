@@ -436,17 +436,17 @@ void DeckWindow::setupUi()
 
     bend_minus_btn_ = new QPushButton(QStringLiteral("−"), this);
     bend_minus_btn_->setFixedSize(30, 28);
-    bend_minus_btn_->setToolTip(QStringLiteral("Tempo finomhangolás: −0.10 BPM"));
+    bend_minus_btn_->setToolTip(QStringLiteral("Tempo léptetés: első klikk kerekít tizedre, utána −0.10 BPM"));
     connect(bend_minus_btn_, &QPushButton::clicked, this, [this]() {
         if (!deck_) return;
         const double cur_eff = deck_->effectiveBpm();
-        const double target_bpm = std::round((cur_eff - 0.10) * 10.0) / 10.0;
-        if (std::abs(deck_->speed() - 100) <= 1) {
-            deck_->setBpm(target_bpm);
+        double target_bpm = 0.0;
+        if (std::abs(cur_eff - (std::round(cur_eff * 10.0) / 10.0)) < 0.005) {
+            target_bpm = (std::round(cur_eff * 10.0) - 1.0) / 10.0;
         } else {
-            const int target_spd = std::clamp(static_cast<int>(std::round((target_bpm / deck_->bpm()) * 100.0)), 50, 150);
-            deck_->applySpeedSettings(target_spd);
+            target_bpm = std::floor(cur_eff * 10.0) / 10.0;
         }
+        deck_->setPlaybackBpm(target_bpm);
     });
     tempo_bar->addWidget(bend_minus_btn_);
 
@@ -461,8 +461,9 @@ void DeckWindow::setupUi()
             deck_->setSpeed(val);
         }
         const double eff_bpm = deck_ ? deck_->effectiveBpm() : 128.0;
-        const int diff = val - 100;
-        pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+d%%)", eff_bpm, diff));
+        const double base_bpm = (deck_ && deck_->bpm() > 1.0) ? deck_->bpm() : 128.0;
+        const double diff_pct = (eff_bpm / base_bpm - 1.0) * 100.0;
+        pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+.1f%%)", eff_bpm, diff_pct));
 
         // Debounced speed update: reset timer on every move so FFmpeg only reloads once user pauses/settles
         pending_throttle_speed_ = val;
@@ -479,21 +480,21 @@ void DeckWindow::setupUi()
 
     bend_plus_btn_ = new QPushButton(QStringLiteral("+"), this);
     bend_plus_btn_->setFixedSize(30, 28);
-    bend_plus_btn_->setToolTip(QStringLiteral("Tempo finomhangolás: +0.10 BPM"));
+    bend_plus_btn_->setToolTip(QStringLiteral("Tempo léptetés: első klikk kerekít tizedre, utána +0.10 BPM"));
     connect(bend_plus_btn_, &QPushButton::clicked, this, [this]() {
         if (!deck_) return;
         const double cur_eff = deck_->effectiveBpm();
-        const double target_bpm = std::round((cur_eff + 0.10) * 10.0) / 10.0;
-        if (std::abs(deck_->speed() - 100) <= 1) {
-            deck_->setBpm(target_bpm);
+        double target_bpm = 0.0;
+        if (std::abs(cur_eff - (std::round(cur_eff * 10.0) / 10.0)) < 0.005) {
+            target_bpm = (std::round(cur_eff * 10.0) + 1.0) / 10.0;
         } else {
-            const int target_spd = std::clamp(static_cast<int>(std::round((target_bpm / deck_->bpm()) * 100.0)), 50, 150);
-            deck_->applySpeedSettings(target_spd);
+            target_bpm = std::ceil(cur_eff * 10.0) / 10.0;
         }
+        deck_->setPlaybackBpm(target_bpm);
     });
     tempo_bar->addWidget(bend_plus_btn_);
 
-    pitch_val_lbl_ = new QLabel(QStringLiteral("128.00 BPM (+0%)"), this);
+    pitch_val_lbl_ = new QLabel(QStringLiteral("128.00 BPM (+0.0%)"), this);
     pitch_val_lbl_->setStyleSheet(QStringLiteral("color: #00d2ff; font-family: monospace; font-weight: bold; width: 140px;"));
     pitch_val_lbl_->setFixedWidth(140);
     tempo_bar->addWidget(pitch_val_lbl_);
@@ -502,7 +503,10 @@ void DeckWindow::setupUi()
     pitch_reset_btn_->setStyleSheet(QStringLiteral("background: #2a3444; border-color: #48566e; color: #cfd6e4; font-size: 10px;"));
     connect(pitch_reset_btn_, &QPushButton::clicked, this, [this]() {
         if (pitch_slider_) pitch_slider_->setValue(100);
-        if (deck_) deck_->applySpeedSettings(100);
+        if (deck_) {
+            deck_->setPlaybackBpm(deck_->bpm());
+            deck_->applySpeedSettings(100);
+        }
     });
     tempo_bar->addWidget(pitch_reset_btn_);
 
@@ -654,8 +658,9 @@ void DeckWindow::onRefresh()
             pitch_slider_->setValue(spd);
         }
         const double eff_bpm = deck_->effectiveBpm();
-        const int diff = spd - 100;
-        pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+d%%)", eff_bpm, diff));
+        const double base_bpm = (deck_->bpm() > 1.0) ? deck_->bpm() : 128.0;
+        const double diff_pct = (eff_bpm / base_bpm - 1.0) * 100.0;
+        pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+.1f%%)", eff_bpm, diff_pct));
     }
 }
 

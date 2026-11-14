@@ -200,20 +200,23 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
 
         const double ms_per_sample = (detailed.size() > 0 && duration > 0)
             ? (static_cast<double>(duration) / static_cast<double>(detailed.size()))
-            : 20.0;
+            : 10.0;
 
         for (int x = 0; x < w; ++x) {
-            const int64_t sample_time_ms = current + static_cast<int64_t>((x - playhead_x) * ms_per_pixel);
-            if (sample_time_ms < 0 || sample_time_ms >= duration)
+            const int64_t t_start = current + static_cast<int64_t>((x - playhead_x) * ms_per_pixel);
+            const int64_t t_end = current + static_cast<int64_t>((x + 1 - playhead_x) * ms_per_pixel);
+            if (t_end < 0 || t_start >= duration)
                 continue;
 
-            // Dynamically map sample_time_ms across the full detailed buffer length
-            const size_t sample_idx = static_cast<size_t>(static_cast<double>(sample_time_ms) / ms_per_sample);
-            if (sample_idx >= detailed.size())
-                continue;
+            const size_t idx_start = static_cast<size_t>(std::clamp<double>(static_cast<double>(std::max<int64_t>(0, t_start)) / ms_per_sample, 0.0, static_cast<double>(detailed.size() - 1)));
+            const size_t idx_end = static_cast<size_t>(std::clamp<double>(static_cast<double>(std::min<int64_t>(duration - 1, t_end)) / ms_per_sample, 0.0, static_cast<double>(detailed.size() - 1)));
 
-            const float amp = detailed[sample_idx];
-            const int bar_h = static_cast<int>(amp * (wave_height / 2 - 2));
+            float peak_amp = 0.0f;
+            for (size_t s = idx_start; s <= idx_end; ++s) {
+                peak_amp = std::max(peak_amp, detailed[s]);
+            }
+
+            const int bar_h = static_cast<int>(peak_amp * (wave_height / 2 - 2));
 
             // Outer transient body
             p.setPen(QPen(theme_core, 1));
@@ -226,7 +229,7 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
             }
 
             // Punchy kick core highlight
-            if (amp > 0.65f) {
+            if (peak_amp > 0.60f) {
                 p.setPen(QPen(theme_kick, 1));
                 p.drawLine(x, center_y - bar_h / 3, x, center_y + bar_h / 3);
             }

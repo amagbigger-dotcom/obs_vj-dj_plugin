@@ -163,6 +163,7 @@ void DeckPlayer::loadFile(const QString &path)
     });
 
     // Do NOT auto-play on media load: initialize paused at 00:00 (CUE)
+    playback_bpm_.store(0.0, std::memory_order_relaxed);
     pause_on_load_pending_.store(true, std::memory_order_relaxed);
     obs_source_media_play_pause(source_, true);
     obs_source_media_set_time(source_, 0);
@@ -331,8 +332,24 @@ double DeckPlayer::bpm() const noexcept
     return base_bpm_.load(std::memory_order_relaxed);
 }
 
+void DeckPlayer::setPlaybackBpm(double target_bpm) noexcept
+{
+    const double clamped = std::clamp(target_bpm, 20.0, 300.0);
+    playback_bpm_.store(clamped, std::memory_order_relaxed);
+    is_sync_.store(false, std::memory_order_relaxed);
+    const double base = bpm();
+    if (base > 1.0) {
+        const int spd = std::clamp(static_cast<int>(std::round((clamped / base) * 100.0)), 50, 150);
+        applySpeedSettings(spd);
+    }
+}
+
 double DeckPlayer::effectiveBpm() const noexcept
 {
+    const double pb = playback_bpm_.load(std::memory_order_relaxed);
+    if (pb > 1.0) {
+        return pb;
+    }
     if (is_sync_.load(std::memory_order_relaxed) && !is_master_.load(std::memory_order_relaxed)) {
         return target_sync_bpm_.load(std::memory_order_relaxed);
     }
@@ -736,8 +753,9 @@ void DeckPlayer::syncToBpm(double target_bpm)
         static_cast<int>(std::round((target_bpm / base) * 100.0)),
         50, 150);
     applySpeedSettings(target_speed);
-    // Maintain sync flag even after applySpeedSettings
+    // Maintain sync flag and exact unrounded target bpm even after applySpeedSettings
     is_sync_.store(true, std::memory_order_relaxed);
+    playback_bpm_.store(target_bpm, std::memory_order_relaxed);
 }
 
 void DeckPlayer::syncPhase(int64_t beat_time_ms)
@@ -817,15 +835,6 @@ void DeckPair::setCrossfader(double value) noexcept
     const double clamped = std::clamp(value, 0.0, 1.0);
     crossfader_.store(clamped, std::memory_order_relaxed);
     updateAudioMix();
-
-    // Drive OBS Studio Mode scene transition T-Bar in real time
-    if (obs_frontend_preview_program_mode_active()) {
-        const int tbar_pos = std::clamp(static_cast<int>(std::round(clamped * 1023.0)), 0, 1023);
-        obs_frontend_set_tbar_position(tbar_pos);
-        if (tbar_pos <= 0 || tbar_pos >= 1023) {
-            obs_frontend_release_tbar();
-        }
-    }
 }
 
 double DeckPair::crossfader() const noexcept
