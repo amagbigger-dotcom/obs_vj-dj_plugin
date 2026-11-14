@@ -398,6 +398,24 @@ A bővítmény három független szálon/környezetben dolgozik:
 - **Tranzienstartó Waveform Csúcs-kirajzolás (Peak Max-Pooling):**
   - A decimált mintavételezés helyett oszloponkénti maximális amplitúdó-keresés (`peak max-pooling`), így minden egyes lábdob (Kick 1, 2, 3, 4) borotvaéles függőleges tüskeként jelenik meg és tökéletesen illeszkedik a beatgridhez.
 
+### 24. OBS Kilépési Crash Megszüntetése (0x38 Read AV), RAM Audió Motor & Akadozásmentes Loop, Zéró Autoplay, Fix Alsó Képernyő GUI & Kétnyelvű Kommentek (Build #210) *(KÉSZ)*
+- **OBS Kilépési Hiba Végleges Felszámolása (0x0000000000000038 Read AV):**
+  - Megszüntetve a libobs dupla felszabadítási hibája az OBS bezárásakor: a `vj_deck` és `vdj_master_mixer` forrásoknál `enum_active_sources = nullptr` és `enum_all_sources = nullptr`.
+  - A render ciklusból eltávolítva a párhuzamos aszinkron jelenetmódosítás (`obs_scene_add`), a `cue_source_` mutexszel védve, a dedikált audió szál szabályosan leáll kilépéskor.
+- **Kétnyelvű Kódkommentek és Funkcióleírások:**
+  - Minden kulcsfontosságú forrásfájlban (`audio-analyzer.cpp`, `deck-engine.cpp`, `deck-source.cpp`, `deck-window.cpp`, `mixer-dock.cpp`, `mixer-source.cpp`, `tracklist-dock.cpp`) az angol magyarázatok felett részletes, fekete-fehér magyar nyelvű kommentblokkok és függvényfejlécek kerültek elhelyezésre.
+- **RAM Alapú Varratmentes Beat Loop (Zero-Stutter RAM Audio Engine):**
+  - A WMF dekóder háttérben a teljes számot 44.1 kHz-es float sztereó PCM pufferré fejti fel a memóriában (`audio_pcm_l`, `audio_pcm_r`).
+  - A lejátszást egy dedikált, ultra-alacsony késleltetésű 10 ms-os audió szál végzi közvetlenül a RAM-ból (`obs_source_output_audio`), tört-interpolációval és 0.00 ms-os mintapontos visszaugrással, teljesen kiküszöbölve a merevlemezes/FFmpeg seek miatti 60-150 ms-os hangakadást.
+- **Zéró Automatikus Lejátszás (Zero Autoplay):**
+  - Fájl betöltésekor a deck garantáltan némán, CUE (00:00) pozícióban és megállítva (`user_playing_ = false`) vár, kizárólag a `PLAY` vagy `CUE` gomb explicit lenyomására indul el.
+- **Fix Méretű, Nem Nyújtható Alsó Képernyőfelület:**
+  - A 3 vezérlőablak (`Deck A`, `Mixer`, `Deck B`) fix méretű (`setFixedSize`), nem méretezhető át és automatikusan a képernyő alsó felére rendeződik (magasság: 480 px), teljesen szabadon hagyva a képernyő felső részét az OBS Studio vásznának.
+- **Tracklist Törlés & NVENC 1080p Újrakonvertálás:**
+  - Szám törlésekor a Tracklistből a gyorsítótár `.vdj.json` és a konvertált `_vj1080.mp4` fájl is törlésre kerül; jobb egérgombos menüben elérhető a kényszerített újrakonvertálás.
+- **Felső BPM Mező & TAP BPM Függetlenség:**
+  - A felső BPM beviteli mező az alapértelmezett rácstempót (`deck_->bpm()`) szerkeszti és jeleníti meg, az Enter billentyű elmenti az értéket anélkül, hogy megnyitná a fájldialógust.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ
