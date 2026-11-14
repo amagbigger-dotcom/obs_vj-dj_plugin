@@ -49,6 +49,14 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
     obs_source_output_audio(context->source, &out_audio);
 }
 
+static obs_source_t *g_obs_source_deck_a = nullptr;
+static obs_source_t *g_obs_source_deck_b = nullptr;
+
+obs_source_t *vdj_get_obs_source_deck(int channel)
+{
+    return (channel == 1) ? g_obs_source_deck_b : g_obs_source_deck_a;
+}
+
 static void *deck_create(obs_data_t *settings, obs_source_t *source)
 {
     auto *context = new DeckSourceContext();
@@ -57,6 +65,12 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
     context->deck = (context->deck_channel == 1) ? vj_deck_b() : vj_deck_a();
     if (!context->deck) {
         context->deck = vj_active_deck();
+    }
+
+    if (context->deck_channel == 1) {
+        g_obs_source_deck_b = source;
+    } else {
+        g_obs_source_deck_a = source;
     }
 
     obs_source_set_audio_mixers(source, 0x3F);
@@ -80,6 +94,11 @@ static void deck_destroy(void *data)
 {
     auto *context = static_cast<DeckSourceContext *>(data);
     if (context) {
+        if (g_obs_source_deck_a == context->source)
+            g_obs_source_deck_a = nullptr;
+        if (g_obs_source_deck_b == context->source)
+            g_obs_source_deck_b = nullptr;
+
         if (context->audio_captured && context->deck && context->deck->source()) {
             obs_source_remove_audio_capture_callback(context->deck->source(), deck_audio_capture, context);
             context->audio_captured = false;

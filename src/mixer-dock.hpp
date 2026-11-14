@@ -133,3 +133,5 @@ private:
     QPushButton *add_to_scene_btn_ = nullptr;
     QComboBox *headphone_device_combo_ = nullptr;
 };
+
+void vdj_open_mixer_window();

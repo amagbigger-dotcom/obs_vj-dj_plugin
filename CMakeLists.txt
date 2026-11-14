@@ -28,6 +28,9 @@ set(SOURCES
     src/deck-source.cpp
     src/deck-window.cpp
     src/deck-window.hpp
+    src/mixer-source.cpp
+    src/mixer-dock.cpp
+    src/mixer-dock.hpp
     src/waveform-widget.cpp
     src/waveform-widget.hpp
     src/video-converter.cpp

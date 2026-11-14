@@ -47,16 +47,36 @@ bool is_target_device(const char *device_name)
            name.find("midi") != std::string::npos;
 }
 
-void handle_control_change(DeckPlayer *deck,
-                           unsigned char channel,
+void handle_control_change(unsigned char channel,
                            unsigned char controller,
                            unsigned char value)
 {
-    UNUSED_PARAMETER(channel);
+    if (controller == 8) { // Master Crossfader (Global / Ch 1 CC 8)
+        if (vdj_decks()) {
+            vdj_decks()->setCrossfader(static_cast<double>(value) / 127.0);
+        }
+        return;
+    }
+
+    DeckPlayer *deck = (channel == 1) ? vj_deck_b() : vj_deck_a();
+    if (!deck)
+        deck = vj_active_deck();
     if (!deck)
         return;
 
     switch (controller) {
+    case 16: // HI (Red / High EQ): 0..127 -> 0.0..2.0
+        deck->setEqHi(static_cast<float>(value) / 63.5f);
+        break;
+    case 17: // MID (Green / Mid EQ): 0..127 -> 0.0..2.0
+        deck->setEqMid(static_cast<float>(value) / 63.5f);
+        break;
+    case 18: // LOW (Blue / Low EQ): 0..127 -> 0.0..2.0
+        deck->setEqLow(static_cast<float>(value) / 63.5f);
+        break;
+    case 19: // FILTER (Saturation / DJ Filter): 0..127 -> -1.0..+1.0
+        deck->setFilterVal((static_cast<float>(value) / 63.5f) - 1.0f);
+        break;
     case 20: // Volume Fader
         deck->setVolume(static_cast<float>(value) / 127.0f);
         break;
@@ -71,11 +91,12 @@ void handle_control_change(DeckPlayer *deck,
     }
 }
 
-void handle_note(DeckPlayer *deck,
-                 unsigned char channel,
+void handle_note(unsigned char channel,
                  unsigned char note)
 {
-    UNUSED_PARAMETER(channel);
+    DeckPlayer *deck = (channel == 1) ? vj_deck_b() : vj_deck_a();
+    if (!deck)
+        deck = vj_active_deck();
     if (!deck)
         return;
 
@@ -88,6 +109,9 @@ void handle_note(DeckPlayer *deck,
         break;
     case 37: // Sync
         deck->setSync(!deck->isSync());
+        break;
+    case 38: // Headphone Cue toggle
+        deck->setHeadphoneCue(!deck->isHeadphoneCue());
         break;
     default:
         break;
@@ -153,13 +177,13 @@ void CALLBACK midi_in_proc(HMIDIIN,
     const unsigned char channel = status & 0x0FU;
 
     if (message_type == 0xB0U) {
-        handle_control_change(deck, channel, data1, data2);
+        handle_control_change(channel, data1, data2);
         return;
     }
 
     // Note On with vel > 0
     if (message_type == 0x90U && data2 > 0)
-        handle_note(deck, channel, data1);
+        handle_note(channel, data1);
 }
 
 void clock_sender_loop()

@@ -3,6 +3,7 @@
 #include <QWidget>
 #include "deck-engine.hpp"
 #include "deck-window.hpp"
+#include "mixer-dock.hpp"
 #include "tracklist-dock.hpp"
 #include "midi-handler.hpp"
 
@@ -11,10 +12,12 @@ OBS_MODULE_USE_DEFAULT_LOCALE("obs_vj-dj_plugin", "en-US")
 
 static DeckPlayer *g_deck_a = nullptr;
 static DeckPlayer *g_deck_b = nullptr;
+static DeckPair *g_deck_pair = nullptr;
 static DeckWindow *g_deck_window = nullptr;
 
 extern "C" {
 void vdj_register_deck_source(void);
+void vdj_register_sources(void);
 }
 
 static void open_tracklist_menu(void *data)
@@ -38,6 +41,12 @@ static void open_deck_window(void *data)
     g_deck_window->activateWindow();
 }
 
+static void open_mixer_window(void *data)
+{
+    UNUSED_PARAMETER(data);
+    vdj_open_mixer_window();
+}
+
 void init_deck_engine()
 {
     g_deck_a = new DeckPlayer("vj_deck_source_a", "OBS VJ Deck A");
@@ -45,12 +54,20 @@ void init_deck_engine()
     vdj_set_deck_a(g_deck_a);
     vdj_set_deck_b(g_deck_b);
     vdj_set_active_deck(g_deck_a);
+
+    g_deck_pair = new DeckPair();
+    vdj_set_decks(g_deck_pair);
+
     vdj_midi_init();
 }
 
 void free_deck_engine()
 {
     vdj_midi_shutdown();
+    vdj_set_decks(nullptr);
+    delete g_deck_pair;
+    g_deck_pair = nullptr;
+
     vdj_set_active_deck(nullptr);
     vdj_set_deck_a(nullptr);
     vdj_set_deck_b(nullptr);
@@ -62,6 +79,7 @@ void free_deck_engine()
 
 void init_deck_ui()
 {
+    obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Mixer").toUtf8().constData(), open_mixer_window, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Deck").toUtf8().constData(), open_deck_window, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Tracklist").toUtf8().constData(), open_tracklist_menu, nullptr);
 }
@@ -79,17 +97,18 @@ extern "C" {
 
 bool obs_module_load(void)
 {
-    blog(LOG_INFO, "[obs_vj_deck] Modul betöltése indul...");
+    blog(LOG_INFO, "[obs_vj_mixer] Modul betöltése indul...");
     vdj_register_deck_source();
+    vdj_register_sources();
     init_deck_engine();
     init_deck_ui();
-    blog(LOG_INFO, "[obs_vj_deck] Sikeresen betöltve!");
+    blog(LOG_INFO, "[obs_vj_mixer] Sikeresen betöltve!");
     return true;
 }
 
 void obs_module_unload(void)
 {
-    blog(LOG_INFO, "[obs_vj_deck] Modul leállítása...");
+    blog(LOG_INFO, "[obs_vj_mixer] Modul leállítása...");
     free_deck_ui();
     free_deck_engine();
 }

@@ -367,8 +367,9 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         result.detailed_peaks[w] = std::clamp(env, 0.06f, 1.0f);
     }
 
-    // 4. Onset Novelty Curve at 500 Hz (2 ms windows) for BPM autocorrelation
+    // 4. Onset Novelty Curve at ~500 Hz (exact onset sample rate) for BPM autocorrelation
     const size_t samples_per_2ms = std::max<size_t>(1, static_cast<size_t>(sample_rate / 500));
+    const double onset_rate = static_cast<double>(sample_rate) / static_cast<double>(samples_per_2ms);
     const size_t num_onset_windows = total_samples / samples_per_2ms;
     if (num_onset_windows < 500) {
         saveCache(file_path, result);
@@ -411,7 +412,7 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
             sum += static_cast<double>(novelty[i]) * static_cast<double>(novelty[i + lag]);
         }
 
-        const double bpm = (60.0 * 500.0) / static_cast<double>(lag);
+        const double bpm = (60.0 * onset_rate) / static_cast<double>(lag);
         // Wide prior centered at 126 BPM (sigma 42)
         const double prior = std::exp(-std::pow(bpm - 126.0, 2.0) / (2.0 * 42.0 * 42.0));
         const double score = sum * prior;
@@ -437,8 +438,20 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         }
     }
 
-    const double detected_bpm = (60.0 * 500.0) / fine_lag;
-    result.detected_bpm = std::round(detected_bpm * 10.0) / 10.0;
+    const double detected_bpm = (60.0 * onset_rate) / fine_lag;
+    double final_bpm = detected_bpm;
+    const double nearest_int = std::round(detected_bpm);
+    if (std::abs(detected_bpm - nearest_int) <= 0.22) {
+        final_bpm = nearest_int;
+    } else {
+        const double nearest_half = std::round(detected_bpm * 2.0) / 2.0;
+        if (std::abs(detected_bpm - nearest_half) <= 0.08) {
+            final_bpm = nearest_half;
+        } else {
+            final_bpm = std::round(detected_bpm * 10.0) / 10.0;
+        }
+    }
+    result.detected_bpm = final_bpm;
 
     // 7. Find highest energy drop / kick section for Downbeat (Kick 1) Anchor Alignment
     const int period = std::max(1, static_cast<int>(std::round(fine_lag)));

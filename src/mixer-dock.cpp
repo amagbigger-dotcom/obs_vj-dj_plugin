@@ -2,6 +2,7 @@
 #include "deck-engine.hpp"
 #include "waveform-widget.hpp"
 #include "midi-handler.hpp"
+#include "tracklist-dock.hpp"
 
 #include <obs-frontend-api.h>
 #include <graphics/vec2.h>
@@ -134,11 +135,28 @@ QProgressBar::chunk {
 
 } // namespace
 
+static MixerWindow *g_mixer_window = nullptr;
+
+void vdj_open_mixer_window()
+{
+    DeckPair *decks = vdj_decks();
+    if (!decks)
+        return;
+
+    if (!g_mixer_window) {
+        QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
+        g_mixer_window = new MixerWindow(decks, main_window);
+    }
+    g_mixer_window->show();
+    g_mixer_window->raise();
+    g_mixer_window->activateWindow();
+}
+
 MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
     : QDialog(parent, Qt::Window),
       decks_(decks)
 {
-    setWindowTitle(QStringLiteral("OBS VJ/DJ Plugin"));
+    setWindowTitle(QStringLiteral("OBS VJ Mixer"));
     resize(1140, 560);
     setStyleSheet(QString::fromUtf8(TRAKTOR_V2_STYLESHEET));
 
@@ -228,6 +246,14 @@ void MixerWindow::buildTopBar(QVBoxLayout *main_layout)
     top_bar->addWidget(add_to_scene_btn_);
     connect(add_to_scene_btn_, &QPushButton::clicked, this, &MixerWindow::addToActiveScene);
 
+    auto *tracklist_btn = new QPushButton(QStringLiteral("📋 TRACKLIST"), this);
+    tracklist_btn->setStyleSheet(QStringLiteral("background: #1a222d; border: 1px solid #2d3b4d; color: #00d2ff; font-weight: bold; font-size: 10px;"));
+    tracklist_btn->setToolTip(QStringLiteral("Open Tracklist Library panel"));
+    top_bar->addWidget(tracklist_btn);
+    connect(tracklist_btn, &QPushButton::clicked, this, []() {
+        vdj_open_tracklist_window();
+    });
+
     top_bar->addStretch(1);
 
     // Headphone CUE Monitoring Soundcard Selector
@@ -306,7 +332,7 @@ QWidget *MixerWindow::buildDeckPanel(bool is_deck_a)
     load_btn->setStyleSheet(QStringLiteral("font-size: 10px; padding: 3px 6px; font-weight: bold;"));
     load_row->addWidget(load_btn);
 
-    connect(load_btn, &QPushButton::clicked, this, [this, deck, waveform]() {
+    connect(load_btn, &QPushButton::clicked, this, [this, is_deck_a, waveform]() {
         const QString path = QFileDialog::getOpenFileName(
             this,
             QStringLiteral("Select Media"),
@@ -314,7 +340,7 @@ QWidget *MixerWindow::buildDeckPanel(bool is_deck_a)
             QStringLiteral("Video/Audio (*.mp4 *.mkv *.mov *.avi *.webm *.mp3 *.wav);;All (*.*)"));
 
         if (!path.isEmpty()) {
-            deck->loadFile(path);
+            vdj_import_and_load(path, is_deck_a ? 0 : 1);
             waveform->updateTrackInfo(QFileInfo(path).fileName());
         }
     });
@@ -1098,6 +1124,38 @@ void MixerWindow::refreshMixer()
             QSignalBlocker blocker(crossfader_);
             crossfader_->setValue(cf_val);
         }
+    }
+
+    auto updateSliderFromVal = [](DJSlider *sl, int target_val) {
+        if (sl && !sl->isSliderDown()) {
+            if (std::abs(sl->value() - target_val) > 1) {
+                QSignalBlocker blocker(sl);
+                sl->setValue(target_val);
+            }
+        }
+    };
+
+    updateSliderFromVal(gain_a_, static_cast<int>((decks_->deckA().gain() - 1.0f) * 100.0f));
+    updateSliderFromVal(hi_a_, static_cast<int>((decks_->deckA().eqHi() - 1.0f) * 100.0f));
+    updateSliderFromVal(mid_a_, static_cast<int>((decks_->deckA().eqMid() - 1.0f) * 100.0f));
+    updateSliderFromVal(low_a_, static_cast<int>((decks_->deckA().eqLow() - 1.0f) * 100.0f));
+    updateSliderFromVal(flt_a_, static_cast<int>(decks_->deckA().filterVal() * 100.0f));
+    updateSliderFromVal(vol_a_, static_cast<int>(decks_->deckA().volume() * 100.0f));
+
+    updateSliderFromVal(gain_b_, static_cast<int>((decks_->deckB().gain() - 1.0f) * 100.0f));
+    updateSliderFromVal(hi_b_, static_cast<int>((decks_->deckB().eqHi() - 1.0f) * 100.0f));
+    updateSliderFromVal(mid_b_, static_cast<int>((decks_->deckB().eqMid() - 1.0f) * 100.0f));
+    updateSliderFromVal(low_b_, static_cast<int>((decks_->deckB().eqLow() - 1.0f) * 100.0f));
+    updateSliderFromVal(flt_b_, static_cast<int>(decks_->deckB().filterVal() * 100.0f));
+    updateSliderFromVal(vol_b_, static_cast<int>(decks_->deckB().volume() * 100.0f));
+
+    if (hp_cue_a_btn_ && hp_cue_a_btn_->isChecked() != decks_->deckA().isHeadphoneCue()) {
+        QSignalBlocker blocker(hp_cue_a_btn_);
+        hp_cue_a_btn_->setChecked(decks_->deckA().isHeadphoneCue());
+    }
+    if (hp_cue_b_btn_ && hp_cue_b_btn_->isChecked() != decks_->deckB().isHeadphoneCue()) {
+        QSignalBlocker blocker(hp_cue_b_btn_);
+        hp_cue_b_btn_->setChecked(decks_->deckB().isHeadphoneCue());
     }
 
     // Animate Peak Meters based on playing status and volume

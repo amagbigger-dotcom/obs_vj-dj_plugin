@@ -331,7 +331,7 @@ static void set_color_params(MixerSource *context,
 
 static const char *mixer_get_name(void *)
 {
-    return "OBS VJ/DJ Master Mixer";
+    return "OBS VJ Master Mixer";
 }
 
 static void *mixer_create(obs_data_t *, obs_source_t *source)
@@ -384,10 +384,15 @@ static void draw_mixer(void *data)
     deck_a.updateLoop();
     deck_b.updateLoop();
 
+    obs_source_t *src_a = vdj_get_obs_source_deck(0);
+    if (!src_a) src_a = deck_a.source();
+    obs_source_t *src_b = vdj_get_obs_source_deck(1);
+    if (!src_b) src_b = deck_b.source();
+
     const bool rendered_a =
-        render_to_texture(context->deck_a, deck_a.source(), width, height);
+        render_to_texture(context->deck_a, src_a, width, height);
     const bool rendered_b =
-        render_to_texture(context->deck_b, deck_b.source(), width, height);
+        render_to_texture(context->deck_b, src_b, width, height);
 
     gs_texture_t *texture_a =
         rendered_a ? gs_texrender_get_texture(context->deck_a) : nullptr;
@@ -470,75 +475,6 @@ static uint32_t mixer_get_height(void *)
     return 1080;
 }
 
-static const char *monitor_get_name(void *)
-{
-    return "OBS VJ/DJ Deck Monitor";
-}
-
-static void *monitor_create(obs_data_t *, obs_source_t *source)
-{
-    auto *context = new MixerSource();
-    context->source = source;
-
-    const char *id = obs_source_get_id(source);
-    context->channel =
-        (id && std::strcmp(id, "vdj_deck_b_source") == 0) ? 1 : 0;
-
-    return context;
-}
-
-static void monitor_video_render(void *data, gs_effect_t *)
-{
-    auto *context = static_cast<MixerSource *>(data);
-    DeckPair *decks = vdj_decks();
-
-    if (!context || !decks)
-        return;
-
-    ensure_resources(context);
-    if (!context->effect)
-        return;
-
-    DeckPlayer &deck =
-        context->channel == 0 ? decks->deckA() : decks->deckB();
-
-    uint32_t width = obs_source_get_width(context->source);
-    uint32_t height = obs_source_get_height(context->source);
-
-    if (width == 0)
-        width = 1920;
-    if (height == 0)
-        height = 1080;
-
-    if (!render_to_texture(context->deck_a, deck.source(), width, height))
-        return;
-
-    gs_texture_t *texture = gs_texrender_get_texture(context->deck_a);
-    if (!texture)
-        return;
-
-    gs_eparam_t *param = nullptr;
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "image_a")))
-        gs_effect_set_texture(param, texture);
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "image_b")))
-        gs_effect_set_texture(param, texture);
-
-    const float has_vid = deck.hasVideo() ? 1.0f : 0.0f;
-
-    set_color_params(context, deck, deck, 0.0f, 0, has_vid, has_vid);
-
-    gs_blend_state_push();
-    gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
-
-    while (gs_effect_loop(context->effect, "Draw")) {
-        gs_draw_sprite(texture, 0, width, height);
-    }
-
-    gs_blend_state_pop();
-}
-
 static void mixer_enum_active_sources(void *data, obs_source_enum_proc_t cb, void *param)
 {
     auto *context = static_cast<MixerSource *>(data);
@@ -571,36 +507,6 @@ static void mixer_enum_all_sources(void *data, obs_source_enum_proc_t cb, void *
         cb(parent, source_a, param);
     if (source_b)
         cb(parent, source_b, param);
-}
-
-static void monitor_enum_active_sources(void *data, obs_source_enum_proc_t cb, void *param)
-{
-    auto *context = static_cast<MixerSource *>(data);
-    DeckPair *decks = vdj_decks();
-    if (!context || !decks)
-        return;
-
-    obs_source_t *parent = context->source;
-    DeckPlayer &deck = (context->channel == 0) ? decks->deckA() : decks->deckB();
-    obs_source_t *child = deck.source();
-
-    if (child)
-        cb(parent, child, param);
-}
-
-static void monitor_enum_all_sources(void *data, obs_source_enum_proc_t cb, void *param)
-{
-    auto *context = static_cast<MixerSource *>(data);
-    DeckPair *decks = vdj_decks();
-    if (!context || !decks)
-        return;
-
-    obs_source_t *parent = context->source;
-    DeckPlayer &deck = (context->channel == 0) ? decks->deckA() : decks->deckB();
-    obs_source_t *child = deck.source();
-
-    if (child)
-        cb(parent, child, param);
 }
 
 static obs_properties_t *mixer_properties(void *)
@@ -641,18 +547,6 @@ static void mixer_video_tick(void *data, float seconds)
     decks->deckB().updateLoop();
 }
 
-static void monitor_video_tick(void *data, float seconds)
-{
-    UNUSED_PARAMETER(seconds);
-    auto *context = static_cast<MixerSource *>(data);
-    DeckPair *decks = vdj_decks();
-    if (!context || !decks)
-        return;
-
-    DeckPlayer &deck = (context->channel == 0) ? decks->deckA() : decks->deckB();
-    deck.updateLoop();
-}
-
 static void *cue_create(obs_data_t *, obs_source_t *source)
 {
     return source;
@@ -686,7 +580,7 @@ void vdj_register_sources(void)
     obs_source_info master = {};
     master.id = "vdj_master_mixer";
     master.type = OBS_SOURCE_TYPE_INPUT;
-    master.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_COMPOSITE;
+    master.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_COMPOSITE | OBS_SOURCE_DO_NOT_DUPLICATE;
     master.get_name = mixer_get_name;
     master.create = mixer_create;
     master.destroy = mixer_destroy;
@@ -699,27 +593,6 @@ void vdj_register_sources(void)
     master.get_properties = mixer_properties;
     master.get_defaults = mixer_defaults;
     obs_register_source_s(&master, sizeof(master));
-
-    obs_source_info deck_a = {};
-    deck_a.id = "vdj_deck_a_source";
-    deck_a.type = OBS_SOURCE_TYPE_INPUT;
-    deck_a.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_COMPOSITE;
-    deck_a.get_name = monitor_get_name;
-    deck_a.create = monitor_create;
-    deck_a.destroy = mixer_destroy;
-    deck_a.video_tick = monitor_video_tick;
-    deck_a.video_render = monitor_video_render;
-    deck_a.enum_active_sources = monitor_enum_active_sources;
-    deck_a.enum_all_sources = monitor_enum_all_sources;
-    deck_a.get_width = mixer_get_width;
-    deck_a.get_height = mixer_get_height;
-    obs_register_source_s(&deck_a, sizeof(deck_a));
-
-    obs_source_info deck_b = deck_a;
-    deck_b.id = "vdj_deck_b_source";
-    deck_b.enum_active_sources = monitor_enum_active_sources;
-    deck_b.enum_all_sources = monitor_enum_all_sources;
-    obs_register_source_s(&deck_b, sizeof(deck_b));
 }
 
 } // extern "C"
