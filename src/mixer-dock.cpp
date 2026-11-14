@@ -149,12 +149,13 @@ void vdj_open_mixer_window()
 }
 
 MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
-    : QDialog(parent, Qt::Window),
+    : QDialog(parent),
       decks_(decks)
 {
     setWindowTitle(QStringLiteral("OBS VJ Mixer"));
-    resize(430, 420);
-    setMinimumSize(380, 380);
+    // Fix nem nyújtható méret a képernyő alsó felében (Fixed Non-Resizable Center Mixer Layout)
+    setFixedSize(460, 480);
+    setWindowFlags(Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowMinimizeButtonHint);
     setStyleSheet(QString::fromUtf8(MIXER_STYLESHEET));
 
     auto *main_layout = new QVBoxLayout(this);
@@ -669,14 +670,6 @@ void MixerWindow::refreshMixer()
         }
     }
 
-    if (obs_frontend_preview_program_mode_active()) {
-        const int tbar_pos = std::clamp(static_cast<int>(std::round(decks_->crossfader() * 1023.0)), 0, 1023);
-        obs_frontend_set_tbar_position(tbar_pos);
-        if (tbar_pos <= 0 || tbar_pos >= 1023) {
-            obs_frontend_release_tbar();
-        }
-    }
-
     auto updateSliderFromVal = [](DJSlider *sl, QLabel *lbl, int target_val, auto formatFunc) {
         if (sl && !sl->isSliderDown()) {
             if (std::abs(sl->value() - target_val) > 1) {
@@ -771,4 +764,16 @@ void MixerWindow::refreshMixer()
             midi_status_lbl_->setStyleSheet(QStringLiteral("color: #ff5555; font-weight: bold; font-size: 10px;"));
         }
     }
+}
+
+// =============================================================================
+// Mixer ablak megjelenítése: Képernyő alsó közepére igazítás (Dock to Bottom Center)
+// =============================================================================
+void MixerWindow::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    const QRect screen_geom = QGuiApplication::primaryScreen()->availableGeometry();
+    const int y_pos = std::max(0, screen_geom.bottom() - 485);
+    const int x_pos = screen_geom.left() + 730;
+    move(x_pos, y_pos);
 }

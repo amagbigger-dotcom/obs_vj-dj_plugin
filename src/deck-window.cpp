@@ -29,8 +29,9 @@ DeckWindow::DeckWindow(DeckPlayer *deck, QWidget *parent)
     : QDialog(parent), deck_(deck)
 {
     setWindowTitle(QStringLiteral("OBS VJ Deck"));
-    setMinimumSize(820, 460);
-    resize(860, 480);
+    // Fix nem nyújtható méret a monitor alsó feléhez igazítva (Fixed Non-Resizable Layout for Lower Screen)
+    setFixedSize(710, 480);
+    setWindowFlags(Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowMinimizeButtonHint);
     setStyleSheet(QStringLiteral(
         "QDialog { background-color: #12151c; color: #e0e4ec; font-family: 'Segoe UI', Arial, sans-serif; }"
         "QLabel { color: #cfd6e4; font-size: 11px; }"
@@ -606,10 +607,10 @@ void DeckWindow::onRefresh()
     elapsed_lbl_->setText(formatTime(cur_ms));
     remaining_lbl_->setText(QStringLiteral("-%1").arg(formatTime(rem_ms)));
 
-    // 4. In-Place BPM Field (only update if user is not currently typing into it)
+    // 4. In-Place BPM mező: a zeneszám rács/alap BPM-ét mutatja (Track Grid Base BPM)
     if (bpm_edit_ && !bpm_edit_->hasFocus()) {
-        const double eff_bpm = deck_->effectiveBpm();
-        bpm_edit_->setText(QString::number(eff_bpm, 'f', 2));
+        const double base_b = deck_->bpm();
+        bpm_edit_->setText(QString::number(base_b, 'f', 2));
     }
 
     // 5. Beatgrid offset
@@ -664,6 +665,9 @@ void DeckWindow::onRefresh()
     }
 }
 
+// =============================================================================
+// Billentyűzetkezelés (Enter lenyomásakor BPM mentés, dialógus megnyitás blokkolása)
+// =============================================================================
 void DeckWindow::keyPressEvent(QKeyEvent *event)
 {
     if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
@@ -678,5 +682,25 @@ void DeckWindow::keyPressEvent(QKeyEvent *event)
         event->accept();
         return;
     }
+    if (event->key() == Qt::Key_Escape) {
+        if (bpm_edit_ && bpm_edit_->hasFocus()) {
+            bpm_edit_->clearFocus();
+            event->accept();
+            return;
+        }
+    }
     QDialog::keyPressEvent(event);
+}
+
+// =============================================================================
+// Ablak megjelenítése: Monitor alsó felébe pozicionálás (Dock to Bottom Half)
+// =============================================================================
+void DeckWindow::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    const QRect screen_geom = QGuiApplication::primaryScreen()->availableGeometry();
+    const int y_pos = std::max(0, screen_geom.bottom() - 485);
+    const bool is_b = (deck_ && deck_->side() == DeckPlayer::DeckSide::B);
+    const int x_pos = is_b ? (screen_geom.left() + 1195) : (screen_geom.left() + 15);
+    move(x_pos, y_pos);
 }

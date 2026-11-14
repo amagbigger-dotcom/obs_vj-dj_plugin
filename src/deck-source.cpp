@@ -71,6 +71,9 @@ technique Draw
 }
 )";
 
+// =============================================================================
+// Deck forrás kontextus és szálkezelés (Deck Source Context & Thread Management)
+// =============================================================================
 struct DeckSourceContext {
     obs_source_t *source = nullptr;
     DeckPlayer *deck = nullptr;
@@ -82,11 +85,8 @@ struct DeckSourceContext {
 
     uint64_t next_audio_ts = 0;
 
-    std::mutex bridge_mutex;
-    std::vector<float> loop_bridge_l;
-    std::vector<float> loop_bridge_r;
-    size_t bridge_play_idx = 0;
-    std::chrono::steady_clock::time_point last_audio_tp = std::chrono::steady_clock::now();
+    std::thread audio_thread;
+    std::atomic<bool> audio_thread_running{false};
 };
 
 static const char *deck_get_name(void *)
@@ -94,6 +94,9 @@ static const char *deck_get_name(void *)
     return "OBS VJ Deck";
 }
 
+// =============================================================================
+// FFmpeg audió rögzítés fallback (Audio Capture Callback for FFmpeg Fallback)
+// =============================================================================
 static void deck_audio_capture(void *param, obs_source_t *source, const struct audio_data *audio_data, bool muted)
 {
     UNUSED_PARAMETER(source);
@@ -102,6 +105,14 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
 
     auto *context = static_cast<DeckSourceContext *>(param);
     if (!context || !context->source || !context->deck)
+        return;
+
+    // Ha a RAM audio motor már betöltődött, ignoráljuk az FFmpeg audiót (RAM Audio takes precedence)
+    if (context->deck->hasAudioBuffer())
+        return;
+
+    // Ha a deck nincs lejátszásban, abszolút csend (No audio when paused / on media load)
+    if (!context->deck->isPlaying())
         return;
 
     uint32_t sample_rate = 48000;
@@ -128,42 +139,22 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
         buf_r[i] = in_r[i];
     }
 
-    // Apply 3-band EQ and DJ filter (tone shaping is pre-fader in DJ mixers)
+    // 3-sávos EQ és DJ Filter
     context->deck->processAudioDsp(buf_l.data(), frames, 0, sample_rate);
     context->deck->processAudioDsp(buf_r.data(), frames, 1, sample_rate);
 
-    // Queue for Headphone Cue (PFL / Pre-fade Listen with HP mix and HP volume)
+    // Fejhallgató CUE
     DeckPair *decks = vdj_decks();
     if (decks) {
         const float *channels[2] = {buf_l.data(), buf_r.data()};
         decks->queueCueAudio(context->deck_channel, channels, frames);
     }
 
-    // Calibrated line level: channel gain, volume fader, and crossfader mix gain applied to main output
     const float net_gain = ch_gain * ch_vol * mix_gain;
     for (size_t i = 0; i < frames; ++i) {
         buf_l[i] = std::clamp(buf_l[i] * net_gain, -1.2f, 1.2f);
         buf_r[i] = std::clamp(buf_r[i] * net_gain, -1.2f, 1.2f);
     }
-
-    // Capture loop buffer for seamless zero-gap loop wrapping
-    if (context->deck->isLooping()) {
-        std::lock_guard<std::mutex> lock(context->bridge_mutex);
-        const size_t max_bridge_frames = sample_rate * 16;
-        if (context->loop_bridge_l.size() + frames <= max_bridge_frames) {
-            context->loop_bridge_l.insert(context->loop_bridge_l.end(), buf_l.begin(), buf_l.end());
-            context->loop_bridge_r.insert(context->loop_bridge_r.end(), buf_r.begin(), buf_r.end());
-        }
-    } else {
-        if (!context->loop_bridge_l.empty()) {
-            std::lock_guard<std::mutex> lock(context->bridge_mutex);
-            context->loop_bridge_l.clear();
-            context->loop_bridge_r.clear();
-            context->bridge_play_idx = 0;
-        }
-    }
-
-    context->last_audio_tp = std::chrono::steady_clock::now();
 
     const uint64_t cur_time = os_gettime_ns();
     if (context->next_audio_ts == 0 ||
@@ -212,6 +203,76 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
     obs_source_set_audio_mixers(source, 0x3F);
     obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
 
+    // RAM Audio Engine szál indítása (Zero-Stutter Dedicated RAM Audio Thread)
+    context->audio_thread_running.store(true, std::memory_order_relaxed);
+    context->audio_thread = std::thread([context]() {
+        timeBeginPeriod(1);
+        const uint32_t sample_rate = 48000;
+        const size_t frames_per_tick = 480; // 10ms precíz időszelet 48kHz-en
+        std::vector<float> buf_l(frames_per_tick);
+        std::vector<float> buf_r(frames_per_tick);
+
+        while (context->audio_thread_running.load(std::memory_order_relaxed)) {
+            const auto tick_start = std::chrono::steady_clock::now();
+
+            if (context->deck && context->deck->hasAudioBuffer()) {
+                if (context->deck->isPlaying()) {
+                    context->deck->readAudioFrames(buf_l.data(), buf_r.data(), frames_per_tick, sample_rate);
+
+                    // 3-sávos EQ és DJ Filter
+                    context->deck->processAudioDsp(buf_l.data(), frames_per_tick, 0, sample_rate);
+                    context->deck->processAudioDsp(buf_r.data(), frames_per_tick, 1, sample_rate);
+
+                    // Fejhallgató CUE (PFL)
+                    DeckPair *decks = vdj_decks();
+                    if (decks) {
+                        const float *channels[2] = {buf_l.data(), buf_r.data()};
+                        decks->queueCueAudio(context->deck_channel, channels, frames_per_tick);
+                    }
+
+                    // Vonal szintű hangerő és crossfader
+                    const float ch_gain = context->deck->gain();
+                    const float ch_vol = context->deck->volume();
+                    const float mix_gain = context->deck->mixGain();
+                    const float net_gain = ch_gain * ch_vol * mix_gain;
+
+                    for (size_t i = 0; i < frames_per_tick; ++i) {
+                        buf_l[i] = std::clamp(buf_l[i] * net_gain, -1.2f, 1.2f);
+                        buf_r[i] = std::clamp(buf_r[i] * net_gain, -1.2f, 1.2f);
+                    }
+
+                    const uint64_t cur_time = os_gettime_ns();
+                    if (context->next_audio_ts == 0 ||
+                        std::abs(static_cast<int64_t>(cur_time - context->next_audio_ts)) > 100000000LL) {
+                        context->next_audio_ts = cur_time;
+                    }
+
+                    struct obs_source_audio out_audio = {};
+                    out_audio.data[0] = reinterpret_cast<uint8_t *>(buf_l.data());
+                    out_audio.data[1] = reinterpret_cast<uint8_t *>(buf_r.data());
+                    out_audio.frames = static_cast<uint32_t>(frames_per_tick);
+                    out_audio.speakers = SPEAKERS_STEREO;
+                    out_audio.format = AUDIO_FORMAT_FLOAT_PLANAR;
+                    out_audio.samples_per_sec = sample_rate;
+                    out_audio.timestamp = context->next_audio_ts;
+
+                    context->next_audio_ts += static_cast<uint64_t>(frames_per_tick) * 1000000000ULL / sample_rate;
+
+                    obs_source_output_audio(context->source, &out_audio);
+                } else {
+                    context->next_audio_ts = 0;
+                }
+            }
+
+            const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - tick_start).count();
+            const int sleep_us = 10000 - static_cast<int>(elapsed);
+            if (sleep_us > 1000) {
+                std::this_thread::sleep_for(std::chrono::microseconds(sleep_us));
+            }
+        }
+        timeEndPeriod(1);
+    });
+
     if (context->deck && context->deck->source()) {
         obs_source_add_audio_capture_callback(context->deck->source(), deck_audio_capture, context);
         context->audio_captured = true;
@@ -230,6 +291,11 @@ static void deck_destroy(void *data)
 {
     auto *context = static_cast<DeckSourceContext *>(data);
     if (context) {
+        context->audio_thread_running.store(false, std::memory_order_relaxed);
+        if (context->audio_thread.joinable()) {
+            context->audio_thread.join();
+        }
+
         if (g_obs_source_deck_a == context->source)
             g_obs_source_deck_a = nullptr;
         if (g_obs_source_deck_b == context->source)
@@ -539,8 +605,9 @@ void vdj_register_deck_source(void)
     deck_info.get_height = deck_get_height;
     deck_info.get_properties = deck_properties;
     deck_info.update = deck_update;
-    deck_info.enum_active_sources = deck_enum_active_sources;
-    deck_info.enum_all_sources = deck_enum_all_sources;
+    // A belső privát forrásokat nem enumeráljuk a jelenetgráfba a kilépéskori kettős felszabadítás elkerülésére (Prevent Double-Free on Exit)
+    deck_info.enum_active_sources = nullptr;
+    deck_info.enum_all_sources = nullptr;
     obs_register_source_s(&deck_info, sizeof(deck_info));
 
     obs_source_info deck_a_info = deck_info;

@@ -46,6 +46,9 @@ public:
     explicit MixerWindow(DeckPair *decks, QWidget *parent = nullptr);
     ~MixerWindow() override = default;
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 private:
     QWidget *buildChannelStrip(bool is_deck_a);
     QWidget *buildCenterMasterPanel();

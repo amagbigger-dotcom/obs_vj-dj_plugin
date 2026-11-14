@@ -145,12 +145,15 @@ void DeckPlayer::loadFile(const QString &path)
     grid_offset_ms_.store(0, std::memory_order_relaxed);
     file_changed_.store(true, std::memory_order_relaxed);
 
+    clearAudioBuffer();
+
     {
         std::lock_guard<std::mutex> lock(waveform_mutex_);
         overview_samples_.clear();
         detailed_samples_.clear();
     }
 
+    // Aszinkron audio analízis és PCM betöltés a memóriába (Async Audio Analysis & RAM PCM Buffer)
     AudioAnalyzer::analyzeFileAsync(path, [this](TrackAnalysisResult res) {
         if (res.success) {
             setBpm(res.detected_bpm);
@@ -159,10 +162,14 @@ void DeckPlayer::loadFile(const QString &path)
                 cue_point_ms_.store(res.cue_point_ms, std::memory_order_relaxed);
             }
             setWaveformSamples(res.overview_peaks, res.detailed_peaks);
+            if (!res.audio_pcm_l.empty() && !res.audio_pcm_r.empty()) {
+                setAudioBuffer(res.audio_pcm_l, res.audio_pcm_r, res.audio_sample_rate);
+            }
         }
     });
 
-    // Do NOT auto-play on media load: initialize paused at 00:00 (CUE)
+    // Betöltéskor NEM indul el automatikusan: 00:00 CUE pozícióban szünetel (Never Autoplay on Load)
+    user_playing_.store(false, std::memory_order_relaxed);
     playback_bpm_.store(0.0, std::memory_order_relaxed);
     pause_on_load_pending_.store(true, std::memory_order_relaxed);
     obs_source_media_play_pause(source_, true);
@@ -193,8 +200,13 @@ void DeckPlayer::setFilePath(const QString &path)
     file_path_ = path;
 }
 
+// =============================================================================
+// Lejátszásvezérlés (Transport Controls: Play, Pause, Cue)
+// =============================================================================
 void DeckPlayer::play()
 {
+    user_playing_.store(true, std::memory_order_relaxed);
+    pause_on_load_pending_.store(false, std::memory_order_relaxed);
     if (!source_)
         return;
     const obs_media_state state = obs_source_media_get_state(source_);
@@ -206,6 +218,7 @@ void DeckPlayer::play()
 
 void DeckPlayer::pause()
 {
+    user_playing_.store(false, std::memory_order_relaxed);
     if (!source_)
         return;
     if (obs_source_media_get_state(source_) == OBS_MEDIA_STATE_PLAYING)
@@ -214,15 +227,11 @@ void DeckPlayer::pause()
 
 void DeckPlayer::togglePlayback()
 {
-    if (!source_)
-        return;
-    const obs_media_state state = obs_source_media_get_state(source_);
-    if (state == OBS_MEDIA_STATE_PLAYING)
-        obs_source_media_play_pause(source_, true);
-    else if (state == OBS_MEDIA_STATE_PAUSED)
-        obs_source_media_play_pause(source_, false);
-    else
-        obs_source_media_restart(source_);
+    if (user_playing_.load(std::memory_order_relaxed)) {
+        pause();
+    } else {
+        play();
+    }
 }
 
 void DeckPlayer::setPlaying(bool playing)
@@ -235,25 +244,21 @@ void DeckPlayer::setPlaying(bool playing)
 
 bool DeckPlayer::isPlaying() const
 {
-    if (!source_)
-        return false;
-    return obs_source_media_get_state(source_) == OBS_MEDIA_STATE_PLAYING;
+    return user_playing_.load(std::memory_order_relaxed);
 }
 
 void DeckPlayer::cue()
 {
-    if (!source_)
-        return;
-
-    const obs_media_state state = obs_source_media_get_state(source_);
-    if (state == OBS_MEDIA_STATE_PLAYING) {
-        const int64_t cue = std::max<int64_t>(0, cue_point_ms_.load(std::memory_order_relaxed));
-        obs_source_media_play_pause(source_, true);
-        obs_source_media_set_time(source_, static_cast<uint64_t>(cue));
+    const int64_t cue = std::max<int64_t>(0, cue_point_ms_.load(std::memory_order_relaxed));
+    if (user_playing_.load(std::memory_order_relaxed)) {
+        // Lejátszás közben: CUE-ra ugrás és szüneteltetés (Jump to cue and pause)
+        pause();
+        seekMs(cue);
     } else {
-        const int64_t now = std::max<int64_t>(0, obs_source_media_get_time(source_));
+        // Álló helyzetben: új CUE pont rögzítése az aktuális pozíciónál (Set CUE at current)
+        const int64_t now = currentTimeMs();
         cue_point_ms_.store(now, std::memory_order_relaxed);
-        obs_source_media_set_time(source_, static_cast<uint64_t>(now));
+        seekMs(now);
         saveUserEdits();
     }
 }
@@ -266,8 +271,6 @@ void DeckPlayer::setCuePointMs(int64_t ms) noexcept
 
 void DeckPlayer::seek(double normalized_pos)
 {
-    if (!source_)
-        return;
     const int64_t dur = durationMs();
     if (dur <= 0)
         return;
@@ -277,9 +280,19 @@ void DeckPlayer::seek(double normalized_pos)
 
 void DeckPlayer::seekMs(int64_t ms)
 {
-    if (!source_ || ms < 0)
-        return;
-    obs_source_media_set_time(source_, static_cast<uint64_t>(ms));
+    const int64_t t = std::max<int64_t>(0, ms);
+    {
+        std::lock_guard<std::mutex> lock(audio_buf_mutex_);
+        if (audio_sample_rate_ > 0) {
+            playback_sample_pos_ = (static_cast<double>(t) * audio_sample_rate_) / 1000.0;
+            if (!audio_pcm_l_.empty() && playback_sample_pos_ >= audio_pcm_l_.size()) {
+                playback_sample_pos_ = static_cast<double>(audio_pcm_l_.size() - 1);
+            }
+        }
+    }
+    if (source_) {
+        obs_source_media_set_time(source_, static_cast<uint64_t>(t));
+    }
 }
 
 void DeckPlayer::setSpeed(int percent)
@@ -324,6 +337,7 @@ int DeckPlayer::speed() const noexcept
 void DeckPlayer::setBpm(double bpm) noexcept
 {
     base_bpm_.store(std::clamp(bpm, 40.0, 300.0), std::memory_order_relaxed);
+    playback_bpm_.store(0.0, std::memory_order_relaxed);
     saveUserEdits();
 }
 
@@ -673,14 +687,22 @@ void DeckPlayer::updateLoop()
     if (!source_)
         return;
 
-    // Catch asynchronous FFmpeg media load start and enforce pause at 00:00
-    if (pause_on_load_pending_.load(std::memory_order_relaxed)) {
+    // Ha a felhasználó nem nyomta meg a PLAY gombot, kényszerített szüneteltetés 00:00 CUE-nál (Enforce Pause)
+    if (!user_playing_.load(std::memory_order_relaxed)) {
         const obs_media_state st = obs_source_media_get_state(source_);
         if (st == OBS_MEDIA_STATE_PLAYING) {
             obs_source_media_play_pause(source_, true);
-            obs_source_media_set_time(source_, 0);
-            pause_on_load_pending_.store(false, std::memory_order_relaxed);
+            const int64_t cue = std::max<int64_t>(0, cue_point_ms_.load(std::memory_order_relaxed));
+            obs_source_media_set_time(source_, static_cast<uint64_t>(cue));
         }
+        return;
+    }
+
+    // Catch asynchronous FFmpeg media load start and enforce pause at 00:00
+    if (pause_on_load_pending_.load(std::memory_order_relaxed)) {
+        obs_source_media_play_pause(source_, true);
+        obs_source_media_set_time(source_, 0);
+        pause_on_load_pending_.store(false, std::memory_order_relaxed);
     }
 
     // 1. Resume saved position after speed restart without jumping to 0:00
@@ -788,6 +810,12 @@ double DeckPlayer::position() const
 
 int64_t DeckPlayer::currentTimeMs() const
 {
+    if (hasAudioBuffer()) {
+        std::lock_guard<std::mutex> lock(audio_buf_mutex_);
+        if (audio_sample_rate_ > 0) {
+            return static_cast<int64_t>((playback_sample_pos_ * 1000.0) / static_cast<double>(audio_sample_rate_));
+        }
+    }
     if (!source_)
         return 0;
     return obs_source_media_get_time(source_);
@@ -795,9 +823,115 @@ int64_t DeckPlayer::currentTimeMs() const
 
 int64_t DeckPlayer::durationMs() const
 {
+    if (hasAudioBuffer()) {
+        std::lock_guard<std::mutex> lock(audio_buf_mutex_);
+        if (audio_sample_rate_ > 0 && !audio_pcm_l_.empty()) {
+            return static_cast<int64_t>((static_cast<double>(audio_pcm_l_.size()) * 1000.0) / static_cast<double>(audio_sample_rate_));
+        }
+    }
     if (!source_)
         return 0;
     return obs_source_media_get_duration(source_);
+}
+
+// =============================================================================
+// RAM Audio Puffer metódusok (Zero-Stutter RAM Audio Engine Methods)
+// =============================================================================
+void DeckPlayer::setAudioBuffer(const std::vector<float> &l, const std::vector<float> &r, uint32_t sr)
+{
+    std::lock_guard<std::mutex> lock(audio_buf_mutex_);
+    audio_pcm_l_ = l;
+    audio_pcm_r_ = r;
+    audio_sample_rate_ = (sr > 0) ? sr : 44100;
+    const int64_t cur = (source_) ? obs_source_media_get_time(source_) : 0;
+    playback_sample_pos_ = (static_cast<double>(cur) * static_cast<double>(audio_sample_rate_)) / 1000.0;
+}
+
+bool DeckPlayer::hasAudioBuffer() const noexcept
+{
+    std::lock_guard<std::mutex> lock(audio_buf_mutex_);
+    return !audio_pcm_l_.empty() && !audio_pcm_r_.empty() && audio_sample_rate_ > 0;
+}
+
+void DeckPlayer::clearAudioBuffer()
+{
+    std::lock_guard<std::mutex> lock(audio_buf_mutex_);
+    audio_pcm_l_.clear();
+    audio_pcm_r_.clear();
+    playback_sample_pos_ = 0.0;
+}
+
+size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, uint32_t out_sr)
+{
+    if (!out_l || !out_r || frames == 0) return 0;
+    if (!user_playing_.load(std::memory_order_relaxed)) {
+        std::fill(out_l, out_l + frames, 0.0f);
+        std::fill(out_r, out_r + frames, 0.0f);
+        return frames;
+    }
+
+    std::lock_guard<std::mutex> lock(audio_buf_mutex_);
+    const size_t total_samples = audio_pcm_l_.size();
+    if (total_samples < 2 || audio_sample_rate_ == 0 || out_sr == 0) {
+        std::fill(out_l, out_l + frames, 0.0f);
+        std::fill(out_r, out_r + frames, 0.0f);
+        return frames;
+    }
+
+    const double eff_bpm = effectiveBpm();
+    const double b_bpm = bpm();
+    double speed_ratio = 1.0;
+    if (b_bpm > 10.0 && eff_bpm > 10.0) {
+        speed_ratio = eff_bpm / b_bpm;
+    } else {
+        speed_ratio = static_cast<double>(speed()) / 100.0;
+    }
+    speed_ratio = std::clamp(speed_ratio, 0.5, 2.0);
+
+    const double step = speed_ratio * (static_cast<double>(audio_sample_rate_) / static_cast<double>(out_sr));
+
+    const bool looping = looping_.load(std::memory_order_relaxed);
+    const int64_t loop_start_ms = loop_start_ms_.load(std::memory_order_relaxed);
+    const int64_t loop_end_ms = loop_end_ms_.load(std::memory_order_relaxed);
+    const double loop_start_sample = (static_cast<double>(loop_start_ms) * static_cast<double>(audio_sample_rate_)) / 1000.0;
+    const double loop_end_sample = (static_cast<double>(loop_end_ms) * static_cast<double>(audio_sample_rate_)) / 1000.0;
+
+    bool did_loop_wrap = false;
+
+    for (size_t i = 0; i < frames; ++i) {
+        if (looping && loop_end_sample > loop_start_sample + 100.0) {
+            if (playback_sample_pos_ >= loop_end_sample) {
+                // Varratmentes azonnali ugrás a loop elejére akadás nélkül (Zero-stutter wrap)
+                playback_sample_pos_ = loop_start_sample + (playback_sample_pos_ - loop_end_sample);
+                did_loop_wrap = true;
+            }
+        }
+
+        if (playback_sample_pos_ < 0.0) {
+            playback_sample_pos_ = 0.0;
+        }
+
+        size_t idx0 = static_cast<size_t>(playback_sample_pos_);
+        if (idx0 + 1 >= total_samples) {
+            out_l[i] = 0.0f;
+            out_r[i] = 0.0f;
+            user_playing_.store(false, std::memory_order_relaxed);
+            break;
+        }
+
+        const double frac = playback_sample_pos_ - static_cast<double>(idx0);
+        out_l[i] = static_cast<float>((1.0 - frac) * audio_pcm_l_[idx0] + frac * audio_pcm_l_[idx0 + 1]);
+        out_r[i] = static_cast<float>((1.0 - frac) * audio_pcm_r_[idx0] + frac * audio_pcm_r_[idx0 + 1]);
+
+        playback_sample_pos_ += step;
+    }
+
+    if (did_loop_wrap && source_) {
+        // A videó forrás háttérbeli igazítása a loop elejére (Sync video in background)
+        obs_source_media_set_time(source_, static_cast<uint64_t>(loop_start_ms));
+    }
+
+    return frames;
 }
 
 // -----------------------------------------------------------------------------
@@ -1035,15 +1169,35 @@ void DeckPair::updateAudioMix() noexcept
     }
 }
 
+obs_source_t *DeckPair::cueSource() const noexcept
+{
+    std::lock_guard<std::mutex> lock(cue_source_mutex_);
+    return cue_source_;
+}
+
+void DeckPair::setCueSource(obs_source_t *s) noexcept
+{
+    std::lock_guard<std::mutex> lock(cue_source_mutex_);
+    cue_source_ = s;
+}
+
 void DeckPair::enableAudioMonitoring() noexcept
 {
     if (vj_deck_a()) vj_deck_a()->enableAudioMonitoring();
     if (vj_deck_b()) vj_deck_b()->enableAudioMonitoring();
 }
 
+// =============================================================================
+// Fejhallgató CUE audió sorbaállítása (Headphone CUE Audio Queueing)
+// =============================================================================
 void DeckPair::queueCueAudio(int deck_idx, const float *const *channels, size_t frames)
 {
-    if (!cue_source_ || !channels || !channels[0] || frames == 0)
+    bool has_src = false;
+    {
+        std::lock_guard<std::mutex> lock(cue_source_mutex_);
+        has_src = (cue_source_ != nullptr);
+    }
+    if (!has_src || !channels || !channels[0] || frames == 0)
         return;
 
     const float hp_vol = headphone_volume_.load(std::memory_order_relaxed);
@@ -1088,6 +1242,9 @@ void DeckPair::queueCueAudio(int deck_idx, const float *const *channels, size_t 
     cue_cv_.notify_one();
 }
 
+// =============================================================================
+// Fejhallgató CUE háttérszál (Headphone CUE Background Streaming Thread)
+// =============================================================================
 void DeckPair::cueWorkerLoop()
 {
     uint64_t cue_next_timestamp = 0;
@@ -1106,7 +1263,13 @@ void DeckPair::cueWorkerLoop()
             cue_queue_.pop();
         }
 
-        if (cue_source_ && pkt.frames > 0 && !pkt.l.empty() && !pkt.r.empty()) {
+        obs_source_t *src = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(cue_source_mutex_);
+            src = cue_source_;
+        }
+
+        if (src && pkt.frames > 0 && !pkt.l.empty() && !pkt.r.empty()) {
             struct obs_source_audio audio_out = {};
             audio_out.data[0] = reinterpret_cast<uint8_t *>(pkt.l.data());
             audio_out.data[1] = reinterpret_cast<uint8_t *>(pkt.r.data());
@@ -1124,7 +1287,7 @@ void DeckPair::cueWorkerLoop()
             audio_out.timestamp = cue_next_timestamp;
             cue_next_timestamp += static_cast<uint64_t>(pkt.frames) * 1000000000ULL / 48000ULL;
 
-            obs_source_output_audio(cue_source_, &audio_out);
+            obs_source_output_audio(src, &audio_out);
         }
     }
 }

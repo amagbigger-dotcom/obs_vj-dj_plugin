@@ -415,99 +415,18 @@ static const char *cue_get_name(void *)
     return "OBS VJ Headphone CUE";
 }
 
+// =============================================================================
+// Videó tick ciklus (Renderelés előtti állapotfrissítés - Video Render Tick)
+// =============================================================================
 static void mixer_video_tick(void *data, float seconds)
 {
     UNUSED_PARAMETER(seconds);
-    auto *context = static_cast<MixerSource *>(data);
+    UNUSED_PARAMETER(data);
     DeckPair *decks = vdj_decks();
     if (decks) {
         decks->deckA().updateLoop();
         decks->deckB().updateLoop();
     }
-
-    if (!context || !context->source)
-        return;
-
-    // Periodically (every ~1 sec) ensure child sources exist under master mixer in active scene
-    static auto last_check_tp = std::chrono::steady_clock::now();
-    const auto now = std::chrono::steady_clock::now();
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_check_tp).count() < 1000)
-        return;
-    last_check_tp = now;
-
-    obs_source_t *scene_source = obs_frontend_get_current_scene();
-    if (!scene_source)
-        return;
-
-    obs_scene_t *scene = obs_scene_from_source(scene_source);
-    if (scene) {
-        const char *master_name = obs_source_get_name(context->source);
-        obs_sceneitem_t *master_item = obs_scene_find_source(scene, master_name);
-        if (master_item) {
-            // Master mixer is in this scene! Ensure Deck A, Deck B, and Headphone CUE are present underneath
-            obs_sceneitem_t *item_a = obs_scene_find_source(scene, "OBS VJ Deck A");
-            if (!item_a) {
-                obs_source_t *src_a = obs_get_source_by_name("OBS VJ Deck A");
-                if (!src_a) {
-                    obs_data_t *settings = obs_data_create();
-                    obs_data_set_int(settings, "deck_channel", 0);
-                    src_a = obs_source_create("vj_deck_a", "OBS VJ Deck A", settings, nullptr);
-                    obs_data_release(settings);
-                }
-                if (src_a) {
-                    obs_sceneitem_t *it = obs_scene_add(scene, src_a);
-                    if (it) {
-                        obs_sceneitem_set_order(it, OBS_ORDER_MOVE_BOTTOM);
-                        obs_sceneitem_set_visible(it, true);
-                    }
-                    obs_source_release(src_a);
-                }
-            } else {
-                obs_sceneitem_set_visible(item_a, true);
-            }
-
-            obs_sceneitem_t *item_b = obs_scene_find_source(scene, "OBS VJ Deck B");
-            if (!item_b) {
-                obs_source_t *src_b = obs_get_source_by_name("OBS VJ Deck B");
-                if (!src_b) {
-                    obs_data_t *settings = obs_data_create();
-                    obs_data_set_int(settings, "deck_channel", 1);
-                    src_b = obs_source_create("vj_deck_b", "OBS VJ Deck B", settings, nullptr);
-                    obs_data_release(settings);
-                }
-                if (src_b) {
-                    obs_sceneitem_t *it = obs_scene_add(scene, src_b);
-                    if (it) {
-                        obs_sceneitem_set_order(it, OBS_ORDER_MOVE_BOTTOM);
-                        obs_sceneitem_set_visible(it, true);
-                    }
-                    obs_source_release(src_b);
-                }
-            } else {
-                obs_sceneitem_set_visible(item_b, true);
-            }
-
-            obs_sceneitem_t *item_cue = obs_scene_find_source(scene, "OBS VJ Headphone CUE");
-            if (!item_cue) {
-                obs_source_t *src_cue = obs_get_source_by_name("OBS VJ Headphone CUE");
-                if (!src_cue) {
-                    src_cue = obs_source_create("vdj_headphone_cue", "OBS VJ Headphone CUE", nullptr, nullptr);
-                }
-                if (src_cue) {
-                    obs_source_set_monitoring_type(src_cue, OBS_MONITORING_TYPE_MONITOR_ONLY);
-                    obs_source_set_audio_mixers(src_cue, 0);
-                    obs_sceneitem_t *it = obs_scene_add(scene, src_cue);
-                    if (it) obs_sceneitem_set_order(it, OBS_ORDER_MOVE_BOTTOM);
-                    obs_source_release(src_cue);
-                }
-            }
-
-            // Always ensure Master Mixer is visible and stays on top of the visual stack
-            obs_sceneitem_set_visible(master_item, true);
-            obs_sceneitem_set_order(master_item, OBS_ORDER_MOVE_TOP);
-        }
-    }
-    obs_source_release(scene_source);
 }
 
 static obs_properties_t *cue_properties(void *)
@@ -574,8 +493,9 @@ void vdj_register_sources(void)
     master.update = mixer_update;
     master.video_tick = mixer_video_tick;
     master.video_render = mixer_video_render;
-    master.enum_active_sources = mixer_enum_active_sources;
-    master.enum_all_sources = mixer_enum_all_sources;
+    // A belső privát deck forrásokat nem enumeráljuk a jelenetbe a kettős törlés elkerülésére (Prevent Double-Free)
+    master.enum_active_sources = nullptr;
+    master.enum_all_sources = nullptr;
     master.get_width = mixer_get_width;
     master.get_height = mixer_get_height;
     master.get_properties = mixer_properties;

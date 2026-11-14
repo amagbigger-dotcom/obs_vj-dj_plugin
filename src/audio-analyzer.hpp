@@ -12,8 +12,11 @@ struct TrackAnalysisResult {
     int64_t cue_point_ms = 0;
     int64_t duration_ms = 0;
     std::vector<float> overview_peaks;   // ~500 points for full track overview strip
-    std::vector<float> detailed_peaks;   // 50 points/sec (20ms resolution) for compact high-res scrolling wave
+    std::vector<float> detailed_peaks;   // 100 points/sec (10ms resolution) for compact high-res scrolling wave
     std::vector<float> waveform_peaks;   // alias for overview
+    std::vector<float> audio_pcm_l;      // RAM stereo float PCM buffer (Left)
+    std::vector<float> audio_pcm_r;      // RAM stereo float PCM buffer (Right)
+    uint32_t audio_sample_rate = 44100;
 };
 
 class AudioAnalyzer {
@@ -26,4 +29,11 @@ public:
     static TrackAnalysisResult analyzeFile(const QString &file_path);
     static void analyzeFileAsync(const QString &file_path,
                                  std::function<void(TrackAnalysisResult)> callback);
+
+    static bool extractAudioOnly(const QString &file_path,
+                                 std::vector<float> &out_l,
+                                 std::vector<float> &out_r,
+                                 uint32_t &out_sr);
+    static void extractAudioOnlyAsync(const QString &file_path,
+                                      std::function<void(std::vector<float>, std::vector<float>, uint32_t)> callback);
 };

@@ -32,6 +32,13 @@ public:
     void setPlaying(bool playing);
     bool isPlaying() const;
 
+    // RAM Audio Puffer kezelés a varratmentes loophoz (RAM Audio Buffer for Seamless Looping)
+    void setAudioBuffer(const std::vector<float> &l, const std::vector<float> &r, uint32_t sr);
+    bool hasAudioBuffer() const noexcept;
+    void clearAudioBuffer();
+    size_t readAudioFrames(float *out_l, float *out_r, size_t frames, uint32_t out_sr);
+    bool isPauseOnLoadPending() const noexcept { return pause_on_load_pending_.load(std::memory_order_relaxed); }
+
     void cue();
     int64_t cuePointMs() const noexcept { return cue_point_ms_.load(std::memory_order_relaxed); }
     void setCuePointMs(int64_t ms) noexcept;
@@ -172,11 +179,19 @@ private:
     std::atomic<double> target_sync_bpm_{128.0};
     std::atomic<double> playback_bpm_{0.0};
     std::atomic<bool> pause_on_load_pending_{false};
+    std::atomic<bool> user_playing_{false};
     std::atomic<int64_t> pending_speed_seek_ms_{0};
     std::atomic<int> speed_restart_phase_{0};
     std::chrono::steady_clock::time_point speed_restart_tp_{};
     std::atomic<bool> is_loop_seeking_{false};
     std::chrono::steady_clock::time_point last_loop_seek_tp_{};
+
+    // RAM Audio Engine puffer és lejátszási mutató (Zero-stutter RAM playback buffer)
+    mutable std::mutex audio_buf_mutex_;
+    std::vector<float> audio_pcm_l_;
+    std::vector<float> audio_pcm_r_;
+    uint32_t audio_sample_rate_ = 44100;
+    double playback_sample_pos_ = 0.0;
 
     struct FilterState {
         float lp = 0.0f;
@@ -209,8 +224,8 @@ public:
 
     obs_source_t *masterSource() const noexcept { return master_source_; }
     void setMasterSource(obs_source_t *s) noexcept { master_source_ = s; }
-    obs_source_t *cueSource() const noexcept { return cue_source_; }
-    void setCueSource(obs_source_t *s) noexcept { cue_source_ = s; }
+    obs_source_t *cueSource() const noexcept;
+    void setCueSource(obs_source_t *s) noexcept;
 
     void queueCueAudio(int deck_idx, const float *const *channels, size_t frames);
 
@@ -259,6 +274,7 @@ public:
 
 private:
     obs_source_t *master_source_ = nullptr;
+    mutable std::mutex cue_source_mutex_;
     obs_source_t *cue_source_ = nullptr;
 
     std::atomic<double> crossfader_{0.5};

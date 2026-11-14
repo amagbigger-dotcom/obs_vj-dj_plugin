@@ -136,6 +136,9 @@ bool AudioAnalyzer::updateCacheUserEdits(const QString &file_path, double bpm, i
     return false;
 }
 
+// =============================================================================
+// Teljes fájl analízis és PCM audio kitöltés (Full File Analysis & PCM Decode)
+// =============================================================================
 TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
 {
     TrackAnalysisResult result;
@@ -143,16 +146,19 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     result.grid_offset_ms = 0;
     result.cue_point_ms = 0;
     result.duration_ms = 0;
+    result.audio_sample_rate = 44100;
     result.success = false;
 
-    // 1. Instant check for existing .vdj.json sidecar cache file
+    // 1. Gyorsítótár ellenőrzése (Check existing sidecar .vdj.json cache)
     extern bool vdj_is_track_in_library(const QString &file_path);
     if (vdj_is_track_in_library(file_path)) {
         if (loadCache(file_path, result)) {
+            // Gyorsítótár megléte esetén is betöltjük a sztereó RAM audio puffert a 0ms akadásmentes lejátszáshoz
+            extractAudioOnly(file_path, result.audio_pcm_l, result.audio_pcm_r, result.audio_sample_rate);
             return result;
         }
     } else {
-        // Not in tracklist: remove stale cache if present and always analyze fresh!
+        // Nem a tracklistben van: régi cache törlése és tiszta újraelemzés
         const QString c_path = cacheFilePath(file_path);
         if (QFile::exists(c_path)) {
             QFile::remove(c_path);
@@ -160,6 +166,7 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     }
 
 #ifdef _WIN32
+    // Windows Media Foundation dekódoló inicializálása
     HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     const bool co_initialized = SUCCEEDED(hr);
 
@@ -189,26 +196,26 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         return result;
     }
 
-    // Read track total duration
+    // Teljes időtartam lekérdezése (Read duration)
     PROPVARIANT var;
     PropVariantInit(&var);
     if (SUCCEEDED(pReader->GetPresentationAttribute(MF_SOURCE_READER_MEDIASOURCE,
                                                     MF_PD_DURATION, &var))) {
-        result.duration_ms = var.uhVal.QuadPart / 10000; // 100-nanosecond units to ms
+        result.duration_ms = var.uhVal.QuadPart / 10000; // 100-nanoszekundum -> ms
         PropVariantClear(&var);
     }
 
-    // Select first audio stream
+    // Első audió sáv kiválasztása (Select first audio stream)
     pReader->SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS, FALSE);
     pReader->SetStreamSelection(MF_SOURCE_READER_FIRST_AUDIO_STREAM, TRUE);
 
-    // Request uncompressed 16-bit PCM output at 44100 Hz mono
+    // Kétcsatornás (sztereó) 16-bites PCM kérés 44100 Hz-en
     IMFMediaType *pPartialType = nullptr;
     hr = MFCreateMediaType(&pPartialType);
     if (SUCCEEDED(hr)) {
         pPartialType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
         pPartialType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
-        pPartialType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 1);
+        pPartialType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 2);
         pPartialType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100);
         pPartialType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
 
@@ -216,7 +223,7 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         pPartialType->Release();
     }
 
-    // Fallback to generic uncompressed PCM if 44100 mono was rejected
+    // Általános dekódoló fallback ha a szigorú formátumot elutasította
     if (FAILED(hr)) {
         hr = MFCreateMediaType(&pPartialType);
         if (SUCCEEDED(hr)) {
@@ -235,8 +242,8 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         return result;
     }
 
-    // Query actual decoded audio format:
-    UINT32 channels = 1;
+    // Ténylegesen beállított formátum lekérése
+    UINT32 channels = 2;
     UINT32 sample_rate = 44100;
     UINT32 bits_per_sample = 16;
     IMFMediaType *pActualType = nullptr;
@@ -247,15 +254,18 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         pActualType->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &bits_per_sample);
         pActualType->Release();
     }
-    if (channels == 0) channels = 1;
+    if (channels == 0) channels = 2;
     if (sample_rate == 0) sample_rate = 44100;
     if (bits_per_sample == 0) bits_per_sample = 16;
+    result.audio_sample_rate = sample_rate;
 
-    // Read full audio PCM samples (up to 12 minutes of audio)
+    // Minták beolvasása memóriába (Read full audio PCM samples to RAM)
     std::vector<float> mono_samples;
     mono_samples.reserve(sample_rate * 240);
+    result.audio_pcm_l.reserve(sample_rate * 240);
+    result.audio_pcm_r.reserve(sample_rate * 240);
 
-    const size_t max_total_samples = static_cast<size_t>(sample_rate * 720); // 12 minutes limit
+    const size_t max_total_samples = static_cast<size_t>(sample_rate * 720); // Maximum 12 perc sávhossz
     while (mono_samples.size() < max_total_samples) {
         DWORD streamIndex = 0;
         DWORD flags = 0;
@@ -283,21 +293,21 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
                         const auto *pcm = reinterpret_cast<const int16_t *>(pAudioData);
                         const size_t num_frames = cbCurrentLength / (sizeof(int16_t) * channels);
                         for (size_t f = 0; f < num_frames; ++f) {
-                            float sum = 0.0f;
-                            for (size_t c = 0; c < channels; ++c) {
-                                sum += static_cast<float>(pcm[f * channels + c]) / 32768.0f;
-                            }
-                            mono_samples.push_back(sum / static_cast<float>(channels));
+                            const float sl = static_cast<float>(pcm[f * channels + 0]) / 32768.0f;
+                            const float sr = static_cast<float>(pcm[f * channels + (channels > 1 ? 1 : 0)]) / 32768.0f;
+                            result.audio_pcm_l.push_back(sl);
+                            result.audio_pcm_r.push_back(sr);
+                            mono_samples.push_back(0.5f * (sl + sr));
                         }
                     } else if (bits_per_sample == 32) {
                         const auto *flt = reinterpret_cast<const float *>(pAudioData);
                         const size_t num_frames = cbCurrentLength / (sizeof(float) * channels);
                         for (size_t f = 0; f < num_frames; ++f) {
-                            float sum = 0.0f;
-                            for (size_t c = 0; c < channels; ++c) {
-                                sum += flt[f * channels + c];
-                            }
-                            mono_samples.push_back(sum / static_cast<float>(channels));
+                            const float sl = flt[f * channels + 0];
+                            const float sr = flt[f * channels + (channels > 1 ? 1 : 0)];
+                            result.audio_pcm_l.push_back(sl);
+                            result.audio_pcm_r.push_back(sr);
+                            mono_samples.push_back(0.5f * (sl + sr));
                         }
                     }
                     pBuffer->Unlock();
@@ -527,6 +537,9 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     return result;
 }
 
+// =============================================================================
+// Aszinkron fájlelemzés indítása (Asynchronous File Analysis Worker)
+// =============================================================================
 void AudioAnalyzer::analyzeFileAsync(const QString &file_path,
                                      std::function<void(TrackAnalysisResult)> callback)
 {
@@ -534,5 +547,151 @@ void AudioAnalyzer::analyzeFileAsync(const QString &file_path,
         TrackAnalysisResult res = analyzeFile(file_path);
         if (callback)
             callback(res);
+    }).detach();
+}
+
+// =============================================================================
+// Gyors audio dekódolás memóriába (Fast RAM PCM Audio Extraction for Seamless Looping)
+// =============================================================================
+bool AudioAnalyzer::extractAudioOnly(const QString &file_path,
+                                     std::vector<float> &out_l,
+                                     std::vector<float> &out_r,
+                                     uint32_t &out_sr)
+{
+#ifdef _WIN32
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    const bool co_initialized = SUCCEEDED(hr);
+
+    hr = MFStartup(MF_VERSION);
+    if (FAILED(hr)) {
+        if (co_initialized) CoUninitialize();
+        return false;
+    }
+
+    IMFAttributes *pAttributes = nullptr;
+    hr = MFCreateAttributes(&pAttributes, 1);
+    if (SUCCEEDED(hr)) {
+        pAttributes->SetUINT32(MF_LOW_LATENCY, TRUE);
+    }
+
+    IMFSourceReader *pReader = nullptr;
+    const std::wstring wide_path = file_path.toStdWString();
+    hr = MFCreateSourceReaderFromURL(wide_path.c_str(), pAttributes, &pReader);
+    if (pAttributes) pAttributes->Release();
+
+    if (FAILED(hr) || !pReader) {
+        MFShutdown();
+        if (co_initialized) CoUninitialize();
+        return false;
+    }
+
+    pReader->SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS, FALSE);
+    pReader->SetStreamSelection(MF_SOURCE_READER_FIRST_AUDIO_STREAM, TRUE);
+
+    IMFMediaType *pPartialType = nullptr;
+    hr = MFCreateMediaType(&pPartialType);
+    if (SUCCEEDED(hr)) {
+        pPartialType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
+        pPartialType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
+        pPartialType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 2);
+        pPartialType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100);
+        pPartialType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
+        hr = pReader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, nullptr, pPartialType);
+        pPartialType->Release();
+    }
+
+    if (FAILED(hr)) {
+        pReader->Release();
+        MFShutdown();
+        if (co_initialized) CoUninitialize();
+        return false;
+    }
+
+    UINT32 channels = 2;
+    UINT32 sample_rate = 44100;
+    UINT32 bits_per_sample = 16;
+    IMFMediaType *pActualType = nullptr;
+    hr = pReader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, &pActualType);
+    if (SUCCEEDED(hr) && pActualType) {
+        pActualType->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &channels);
+        pActualType->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &sample_rate);
+        pActualType->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &bits_per_sample);
+        pActualType->Release();
+    }
+    if (channels == 0) channels = 2;
+    if (sample_rate == 0) sample_rate = 44100;
+    if (bits_per_sample == 0) bits_per_sample = 16;
+    out_sr = sample_rate;
+
+    out_l.clear();
+    out_r.clear();
+    out_l.reserve(sample_rate * 240);
+    out_r.reserve(sample_rate * 240);
+
+    const size_t max_total_samples = static_cast<size_t>(sample_rate * 720);
+    while (out_l.size() < max_total_samples) {
+        DWORD streamIndex = 0;
+        DWORD flags = 0;
+        LONGLONG llTimestamp = 0;
+        IMFSample *pSample = nullptr;
+
+        hr = pReader->ReadSample(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0,
+                                 &streamIndex, &flags, &llTimestamp, &pSample);
+
+        if (FAILED(hr) || (flags & MF_SOURCE_READERF_ENDOFSTREAM)) {
+            if (pSample) pSample->Release();
+            break;
+        }
+
+        if (pSample) {
+            IMFMediaBuffer *pBuffer = nullptr;
+            hr = pSample->ConvertToContiguousBuffer(&pBuffer);
+            if (SUCCEEDED(hr) && pBuffer) {
+                BYTE *pAudioData = nullptr;
+                DWORD cbCurrentLength = 0;
+                hr = pBuffer->Lock(&pAudioData, nullptr, &cbCurrentLength);
+                if (SUCCEEDED(hr) && pAudioData && cbCurrentLength >= sizeof(int16_t)) {
+                    if (bits_per_sample == 16) {
+                        const auto *pcm = reinterpret_cast<const int16_t *>(pAudioData);
+                        const size_t num_frames = cbCurrentLength / (sizeof(int16_t) * channels);
+                        for (size_t f = 0; f < num_frames; ++f) {
+                            out_l.push_back(static_cast<float>(pcm[f * channels + 0]) / 32768.0f);
+                            out_r.push_back(static_cast<float>(pcm[f * channels + (channels > 1 ? 1 : 0)]) / 32768.0f);
+                        }
+                    } else if (bits_per_sample == 32) {
+                        const auto *flt = reinterpret_cast<const float *>(pAudioData);
+                        const size_t num_frames = cbCurrentLength / (sizeof(float) * channels);
+                        for (size_t f = 0; f < num_frames; ++f) {
+                            out_l.push_back(flt[f * channels + 0]);
+                            out_r.push_back(flt[f * channels + (channels > 1 ? 1 : 0)]);
+                        }
+                    }
+                    pBuffer->Unlock();
+                }
+                pBuffer->Release();
+            }
+            pSample->Release();
+        }
+    }
+
+    pReader->Release();
+    MFShutdown();
+    if (co_initialized) CoUninitialize();
+    return !out_l.empty();
+#else
+    return false;
+#endif
+}
+
+void AudioAnalyzer::extractAudioOnlyAsync(const QString &file_path,
+                                         std::function<void(std::vector<float>, std::vector<float>, uint32_t)> callback)
+{
+    std::thread([file_path, callback]() {
+        std::vector<float> l, r;
+        uint32_t sr = 44100;
+        const bool ok = extractAudioOnly(file_path, l, r, sr);
+        if (ok && callback) {
+            callback(std::move(l), std::move(r), sr);
+        }
     }).detach();
 }

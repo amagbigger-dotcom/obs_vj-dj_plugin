@@ -299,11 +299,20 @@ void TracklistDock::deleteSelectedTrack()
     );
 
     if (res == QMessageBox::Yes) {
-        // Also delete the .vdj.json sidecar cache file so it never gets stale!
+        // 1. Delete the .vdj.json sidecar cache file so it never gets stale!
         const QString orig_cache = item.original_path + QStringLiteral(".vdj.json");
         const QString conv_cache = item.file_path + QStringLiteral(".vdj.json");
         if (QFile::exists(orig_cache)) QFile::remove(orig_cache);
         if (QFile::exists(conv_cache)) QFile::remove(conv_cache);
+
+        // 2. Delete the converted 1080p MP4 file from disk so re-adding truly re-converts!
+        if (item.file_path.endsWith(QStringLiteral("_vj1080.mp4")) && QFile::exists(item.file_path)) {
+            QFile::remove(item.file_path);
+        }
+        const QString lib_conv = QDir(library_dir_).filePath(QFileInfo(item.original_path).completeBaseName() + QStringLiteral("_vj1080.mp4"));
+        if (QFile::exists(lib_conv)) {
+            QFile::remove(lib_conv);
+        }
 
         tracks_.erase(tracks_.begin() + row);
         updateTable();
@@ -337,6 +346,8 @@ void TracklistDock::onCustomContextMenuRequested(const QPoint &pos)
     auto *act_a = menu.addAction(QStringLiteral("▶ Betöltés a DECK A-ba"));
     auto *act_b = menu.addAction(QStringLiteral("▶ Betöltés a DECK B-be"));
     menu.addSeparator();
+    auto *act_reconv = menu.addAction(QStringLiteral("🔄 Kényszerített újrakonvertálás (NVENC 1080p)"));
+    menu.addSeparator();
     auto *act_del = menu.addAction(QStringLiteral("🗑 Törlés a listából"));
 
     QAction *selected = menu.exec(table_->viewport()->mapToGlobal(pos));
@@ -344,6 +355,20 @@ void TracklistDock::onCustomContextMenuRequested(const QPoint &pos)
         loadTrackToDeck(row, 0);
     } else if (selected == act_b) {
         loadTrackToDeck(row, 1);
+    } else if (selected == act_reconv) {
+        auto &it = tracks_[row];
+        const QString lib_conv = QDir(library_dir_).filePath(QFileInfo(it.original_path).completeBaseName() + QStringLiteral("_vj1080.mp4"));
+        if (QFile::exists(lib_conv)) QFile::remove(lib_conv);
+        if (QFile::exists(it.file_path) && it.file_path.endsWith(QStringLiteral("_vj1080.mp4"))) QFile::remove(it.file_path);
+        const QString orig_cache = it.original_path + QStringLiteral(".vdj.json");
+        if (QFile::exists(orig_cache)) QFile::remove(orig_cache);
+
+        it.file_path = it.original_path;
+        it.is_converted = false;
+        it.status = QStringLiteral("Várakozik...");
+        conversion_queue_.push_back(row);
+        updateRow(row);
+        processNextConversion();
     } else if (selected == act_del) {
         deleteSelectedTrack();
     }
