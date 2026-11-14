@@ -334,11 +334,17 @@ A bővítmény három független szálon/környezetben dolgozik:
   - Fejhallgató CUE (`🎧 CUE A`, `🎧 CUE B`), HP Volume és Cue/Master Mix fader.
 - **Pontos BPM Kiszámítás & Egész Tempó Kerekítés:**
   - Megszüntetve az 1-2 tizedes alámérés: a korábbi fix 500 Hz-es felosztás helyett a tényleges mintavételi rátához igazított `onset_rate = sample_rate / samples_per_2ms` számítás fut.
-  - Automatikus intelligens egész-BPM prioritás (±0.22 tartományon belül kerekít a legközelebbi egészre, pl. 137.7 -> 138.0 BPM).
-- **Kvantált Ütemhelyes Auto-Loop (Kattanásmentes Hurok):**
-  - A `LOOP` gomb aktiválásakor a hurok kezdőpontja automatikusan a legközelebbi ütemrács-vonalhoz (downbeat / beatgrid) kvantálódik, így a visszaugrás nem egy véletlenszerű hangminta közepén történik, megszüntetve a kattanást / pattanást.
+  - Automatikus intelligens egész-BPM prioritás (±0.38 tartományon belül kerekít a legközelebbi egészre, pl. 137.7 -> 138.0 BPM).
+- **Kvantált Ütemhelyes Auto-Loop & Kattanásmentes Audio Híd:**
+  - 150 ms loop start audio puffer és 18-100 ms FFmpeg seek csend áthidalás, megelőzve az audio puffer kiéheztetést és akadozást.
+  - 4 ms-os lágy crossfade a hurokhatárokon a fázisugrásos kattanások és pattanások teljes megszüntetésére.
+- **Vizuális EQ és Színhatások a Deck Forrásokon:**
+  - Beágyazott `DECK_COLOR_EFFECT` HLSL shader az `OBS VJ Deck A` és `OBS VJ Deck B` forrásokon (HI = Vörös, MID = Zöld, LOW = Kék, FILTER = Szaturáció).
+- **Vonalszintű Kalibrált Hang & Aktív Gain/Volume/Crossfader:**
+  - -3 dB (0.707f) kalibrált fejmagasság az audió feldolgozásban: a zene nem csap ki a pirosba.
+  - Valós idejű Gain, Volume és Crossfade szorzók és 3-sávos DSP a deck audió kimeneteken.
 - **Eszközök (Tools) Menü Integráció:**
-  - `Eszközök -> OBS VJ Mixer` (Teljes 3-oszlopos keverőpult)
+  - `Eszközök -> OBS VJ Mixer` (Önálló, letisztult 3-oszlopos keverőpult)
   - `Eszközök -> OBS VJ Deck` (Egycsatornás vezérlő nagy hullámformával)
   - `Eszközök -> OBS VJ Tracklist` (Médiatár NVENC konverterrel)
 

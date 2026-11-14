@@ -528,7 +528,8 @@ void DeckPlayer::applyAudioVolume() noexcept
     if (source_) {
         const float total = gain_.load(std::memory_order_relaxed) *
                             volume_.load(std::memory_order_relaxed) *
-                            mix_gain_.load(std::memory_order_relaxed);
+                            mix_gain_.load(std::memory_order_relaxed) *
+                            0.707f;
         obs_source_set_volume(source_, std::clamp(total, 0.0f, 2.0f));
     }
 }

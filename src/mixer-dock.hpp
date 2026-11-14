@@ -11,7 +11,6 @@
 
 class DeckPair;
 class DeckPlayer;
-class WaveformWidget;
 class QLabel;
 class QPushButton;
 class QComboBox;
@@ -52,86 +51,51 @@ protected:
 
 private:
     void buildTopBar(QVBoxLayout *main_layout);
-    QWidget *buildDeckPanel(bool is_deck_a);
-    QWidget *buildCenterMixerPanel();
+    QWidget *buildChannelStrip(bool is_deck_a);
+    QWidget *buildCenterMasterPanel();
     void loadAudioDevices();
-    void refreshDeck(bool is_deck_a);
     void refreshMixer();
     void updateObsOutputButtons(int mode);
-    void addToActiveScene();
+    void addMasterToActiveScene();
+    void addCueToActiveScene();
 
     DeckPair *decks_ = nullptr;
 
-    // Deck A Widgets
-    WaveformWidget *waveform_a_ = nullptr;
-    QPushButton *play_btn_a_ = nullptr;
-    QPushButton *cue_btn_a_ = nullptr;
-    QPushButton *set_btn_a_ = nullptr;
-    QPushButton *cue_play_btn_a_ = nullptr;
-    QPushButton *loop_toggle_a_ = nullptr;
-    std::vector<QPushButton *> loop_btns_a_;
-    QLabel *grid_lbl_a_ = nullptr;
-    DJSlider *pitch_slider_a_ = nullptr;
-    QLabel *rate_lbl_a_ = nullptr;
-    QPushButton *master_btn_a_ = nullptr;
-    QPushButton *sync_btn_a_ = nullptr;
-
-    // Deck B Widgets
-    WaveformWidget *waveform_b_ = nullptr;
-    QPushButton *play_btn_b_ = nullptr;
-    QPushButton *cue_btn_b_ = nullptr;
-    QPushButton *set_btn_b_ = nullptr;
-    QPushButton *cue_play_btn_b_ = nullptr;
-    QPushButton *loop_toggle_b_ = nullptr;
-    std::vector<QPushButton *> loop_btns_b_;
-    QLabel *grid_lbl_b_ = nullptr;
-    DJSlider *pitch_slider_b_ = nullptr;
-    QLabel *rate_lbl_b_ = nullptr;
-    QPushButton *master_btn_b_ = nullptr;
-    QPushButton *sync_btn_b_ = nullptr;
-
-    // Central Master Clock Controls
-    QPushButton *master_clock_btn_ = nullptr;
-    QPushButton *master_clock_ext_btn_ = nullptr;
-    QPushButton *master_clock_send_btn_ = nullptr;
-    QLabel *master_clock_bpm_lbl_ = nullptr;
-    QPushButton *master_clock_tap_btn_ = nullptr;
-    QPushButton *master_clock_minus_btn_ = nullptr;
-    QPushButton *master_clock_plus_btn_ = nullptr;
-    std::vector<std::chrono::steady_clock::time_point> master_tap_times_;
-
-    // Center Mixer Controls
+    // Deck A Controls
     DJSlider *gain_a_ = nullptr;
     DJSlider *hi_a_ = nullptr;
     DJSlider *mid_a_ = nullptr;
     DJSlider *low_a_ = nullptr;
     DJSlider *flt_a_ = nullptr;
     DJSlider *vol_a_ = nullptr;
+    QProgressBar *meter_a_ = nullptr;
+    QPushButton *hp_cue_a_btn_ = nullptr;
 
+    // Deck B Controls
     DJSlider *gain_b_ = nullptr;
     DJSlider *hi_b_ = nullptr;
     DJSlider *mid_b_ = nullptr;
     DJSlider *low_b_ = nullptr;
     DJSlider *flt_b_ = nullptr;
     DJSlider *vol_b_ = nullptr;
-
-    QProgressBar *meter_a_ = nullptr;
     QProgressBar *meter_b_ = nullptr;
-
-    QPushButton *hp_cue_a_btn_ = nullptr;
     QPushButton *hp_cue_b_btn_ = nullptr;
+
+    // Center Master Controls
+    DJSlider *crossfader_ = nullptr;
+    QComboBox *trans_combo_ = nullptr;
     DJSlider *hp_vol_slider_ = nullptr;
     DJSlider *hp_mix_slider_ = nullptr;
-
-    DJSlider *crossfader_ = nullptr;
+    QComboBox *headphone_device_combo_ = nullptr;
 
     // Top Bar Controls
     QLabel *midi_status_lbl_ = nullptr;
     QPushButton *obs_out_master_btn_ = nullptr;
     QPushButton *obs_out_deck_a_btn_ = nullptr;
     QPushButton *obs_out_deck_b_btn_ = nullptr;
-    QPushButton *add_to_scene_btn_ = nullptr;
-    QComboBox *headphone_device_combo_ = nullptr;
+    QPushButton *add_master_btn_ = nullptr;
+    QPushButton *add_cue_btn_ = nullptr;
+    QPushButton *tracklist_btn_ = nullptr;
 };
 
 void vdj_open_mixer_window();

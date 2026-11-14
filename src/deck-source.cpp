@@ -2,9 +2,61 @@
 #include <graphics/graphics.h>
 #include <graphics/matrix4.h>
 #include <media-io/audio-io.h>
+#include <util/platform.h>
 #include "deck-engine.hpp"
 
+#include <vector>
+#include <mutex>
+#include <chrono>
+#include <algorithm>
+#include <cmath>
+
 extern "C" {
+
+static const char *DECK_COLOR_EFFECT = R"(
+uniform float4x4 ViewProj;
+uniform texture2d image;
+uniform float4 gains;
+uniform float saturation;
+
+sampler_state def_sampler {
+    Filter = Linear;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
+struct VertData {
+    float4 pos : POSITION;
+    float2 uv : TEXCOORD0;
+};
+
+VertData VSDefault(VertData v)
+{
+    VertData v_out;
+    v_out.pos = mul(float4(v.pos.xyz, 1.0), ViewProj);
+    v_out.uv  = v.uv;
+    return v_out;
+}
+
+float4 PSColorize(VertData v) : TARGET
+{
+    float4 col = image.Sample(def_sampler, v.uv);
+    col.rgb *= gains.rgb;
+    float luma = dot(col.rgb, float3(0.2126, 0.7152, 0.0722));
+    col.rgb = lerp(luma.xxx, col.rgb, saturation);
+    col.a = 1.0;
+    return saturate(col);
+}
+
+technique Draw
+{
+    pass
+    {
+        vertex_shader = VSDefault(v);
+        pixel_shader  = PSColorize(v);
+    }
+}
+)";
 
 struct DeckSourceContext {
     obs_source_t *source = nullptr;
@@ -13,6 +65,13 @@ struct DeckSourceContext {
     gs_texrender_t *freeze_tex = nullptr;
     bool has_frozen_frame = false;
     int deck_channel = 0;
+    gs_effect_t *color_effect = nullptr;
+
+    std::mutex bridge_mutex;
+    std::vector<float> loop_bridge_l;
+    std::vector<float> loop_bridge_r;
+    size_t bridge_play_idx = 0;
+    std::chrono::steady_clock::time_point last_audio_tp = std::chrono::steady_clock::now();
 };
 
 static const char *deck_get_name(void *)
@@ -27,7 +86,7 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
         return;
 
     auto *context = static_cast<DeckSourceContext *>(param);
-    if (!context || !context->source)
+    if (!context || !context->source || !context->deck)
         return;
 
     uint32_t sample_rate = 48000;
@@ -36,11 +95,71 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
         sample_rate = audio_output_get_sample_rate(audio);
     }
 
-    struct obs_source_audio out_audio = {};
-    for (size_t i = 0; i < MAX_AV_PLANES; i++) {
-        out_audio.data[i] = audio_data->data[i];
+    const size_t frames = audio_data->frames;
+    const float ch_gain = context->deck->gain();
+    const float ch_vol = context->deck->volume();
+    const float mix_gain = context->deck->mixGain();
+
+    // Calibrated line level: 0.707f (-3 dB headroom so 0 dBFS tracks never clip into red)
+    const float net_gain = ch_gain * ch_vol * mix_gain * 0.707f;
+
+    static thread_local std::vector<float> buf_l;
+    static thread_local std::vector<float> buf_r;
+    buf_l.resize(frames);
+    buf_r.resize(frames);
+
+    const float *in_l = reinterpret_cast<const float *>(audio_data->data[0]);
+    const float *in_r = audio_data->data[1] ? reinterpret_cast<const float *>(audio_data->data[1]) : in_l;
+
+    for (size_t i = 0; i < frames; ++i) {
+        buf_l[i] = in_l[i] * net_gain;
+        buf_r[i] = in_r[i] * net_gain;
     }
-    out_audio.frames = audio_data->frames;
+
+    // Apply 3-band EQ and DJ filter
+    context->deck->processAudioDsp(buf_l.data(), frames, 0, sample_rate);
+    context->deck->processAudioDsp(buf_r.data(), frames, 1, sample_rate);
+
+    // Queue for Headphone Cue (PFL / Pre-fade or Master mix)
+    DeckPair *decks = vdj_decks();
+    if (decks) {
+        const float *channels[2] = {buf_l.data(), buf_r.data()};
+        decks->queueCueAudio(context->deck_channel, channels, frames);
+    }
+
+    // Loop audio bridging: record first ~250 ms of loop
+    if (context->deck->isLooping()) {
+        const int64_t cur_ms = context->deck->currentTimeMs();
+        const int64_t l_start = context->deck->loopStartMs();
+        if (cur_ms >= l_start && cur_ms < l_start + 250) {
+            std::lock_guard<std::mutex> lock(context->bridge_mutex);
+            if (context->loop_bridge_l.size() < 12000) {
+                context->loop_bridge_l.insert(context->loop_bridge_l.end(), buf_l.begin(), buf_l.end());
+                context->loop_bridge_r.insert(context->loop_bridge_r.end(), buf_r.begin(), buf_r.end());
+            }
+        }
+        // Smooth 4 ms crossfade at loop boundary to eliminate pop/click
+        if (cur_ms >= l_start && cur_ms < l_start + 5) {
+            const size_t fade_samples = std::min<size_t>(frames, 192); // ~4 ms at 48k
+            for (size_t i = 0; i < fade_samples; ++i) {
+                const float t = static_cast<float>(i) / static_cast<float>(fade_samples);
+                buf_l[i] *= t;
+                buf_r[i] *= t;
+            }
+        }
+    } else {
+        std::lock_guard<std::mutex> lock(context->bridge_mutex);
+        context->loop_bridge_l.clear();
+        context->loop_bridge_r.clear();
+        context->bridge_play_idx = 0;
+    }
+
+    context->last_audio_tp = std::chrono::steady_clock::now();
+
+    struct obs_source_audio out_audio = {};
+    out_audio.data[0] = reinterpret_cast<uint8_t *>(buf_l.data());
+    out_audio.data[1] = reinterpret_cast<uint8_t *>(buf_r.data());
+    out_audio.frames = static_cast<uint32_t>(frames);
     out_audio.speakers = SPEAKERS_STEREO;
     out_audio.format = AUDIO_FORMAT_FLOAT_PLANAR;
     out_audio.samples_per_sec = sample_rate;
@@ -103,6 +222,12 @@ static void deck_destroy(void *data)
             obs_source_remove_audio_capture_callback(context->deck->source(), deck_audio_capture, context);
             context->audio_captured = false;
         }
+        if (context->color_effect) {
+            obs_enter_graphics();
+            gs_effect_destroy(context->color_effect);
+            context->color_effect = nullptr;
+            obs_leave_graphics();
+        }
         if (context->freeze_tex) {
             obs_enter_graphics();
             gs_texrender_destroy(context->freeze_tex);
@@ -137,6 +262,35 @@ static void deck_video_tick(void *data, float seconds)
 
     if (context->deck) {
         context->deck->updateLoop();
+
+        // Bridge loop silence gap during seek
+        if (context->deck->isLooping()) {
+            const auto now = std::chrono::steady_clock::now();
+            const auto silence_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - context->last_audio_tp).count();
+            if (silence_ms >= 18 && silence_ms < 100) {
+                std::lock_guard<std::mutex> lock(context->bridge_mutex);
+                const size_t avail = context->loop_bridge_l.size();
+                if (avail > 0 && context->bridge_play_idx < avail) {
+                    const size_t chunk_frames = std::min<size_t>(avail - context->bridge_play_idx, 960);
+                    if (chunk_frames > 0) {
+                        struct obs_source_audio bridge_audio = {};
+                        bridge_audio.data[0] = reinterpret_cast<uint8_t *>(context->loop_bridge_l.data() + context->bridge_play_idx);
+                        bridge_audio.data[1] = reinterpret_cast<uint8_t *>(context->loop_bridge_r.data() + context->bridge_play_idx);
+                        bridge_audio.frames = static_cast<uint32_t>(chunk_frames);
+                        bridge_audio.speakers = SPEAKERS_STEREO;
+                        bridge_audio.format = AUDIO_FORMAT_FLOAT_PLANAR;
+                        bridge_audio.samples_per_sec = 48000;
+                        bridge_audio.timestamp = os_gettime_ns();
+
+                        obs_source_output_audio(context->source, &bridge_audio);
+                        context->bridge_play_idx += chunk_frames;
+                    }
+                }
+            } else if (silence_ms < 18) {
+                std::lock_guard<std::mutex> lock(context->bridge_mutex);
+                context->bridge_play_idx = 0;
+            }
+        }
     }
 }
 
@@ -187,12 +341,39 @@ static void deck_video_render(void *data, gs_effect_t *effect)
         }
     }
 
-    // Render the texture to screen (frozen frame during speed changes, fresh frame normally)
+    // Render the texture to screen with color effect
     if (context->freeze_tex && context->has_frozen_frame) {
         gs_texture_t *tex = gs_texrender_get_texture(context->freeze_tex);
         if (tex) {
-            obs_source_draw(tex, 0, 0, 1920, 1080, false);
-            return;
+            if (!context->color_effect) {
+                context->color_effect = gs_effect_create(DECK_COLOR_EFFECT, "deck_color_effect", nullptr);
+            }
+            if (context->color_effect) {
+                gs_eparam_t *param = nullptr;
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "image")))
+                    gs_effect_set_texture(param, tex);
+
+                vec4 gains;
+                vec4_set(&gains, context->deck->red(), context->deck->green(), context->deck->blue(), 1.0f);
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "gains")))
+                    gs_effect_set_vec4(param, &gains);
+
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "saturation")))
+                    gs_effect_set_float(param, context->deck->saturation());
+
+                gs_blend_state_push();
+                gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+
+                while (gs_effect_loop(context->color_effect, "Draw")) {
+                    gs_draw_sprite(tex, 0, 1920, 1080);
+                }
+
+                gs_blend_state_pop();
+                return;
+            } else {
+                obs_source_draw(tex, 0, 0, 1920, 1080, false);
+                return;
+            }
         }
     }
 

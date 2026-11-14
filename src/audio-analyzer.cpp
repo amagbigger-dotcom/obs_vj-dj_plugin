@@ -441,7 +441,7 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     const double detected_bpm = (60.0 * onset_rate) / fine_lag;
     double final_bpm = detected_bpm;
     const double nearest_int = std::round(detected_bpm);
-    if (std::abs(detected_bpm - nearest_int) <= 0.22) {
+    if (std::abs(detected_bpm - nearest_int) <= 0.38) {
         final_bpm = nearest_int;
     } else {
         const double nearest_half = std::round(detected_bpm * 2.0) / 2.0;

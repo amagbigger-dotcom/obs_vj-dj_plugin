@@ -410,14 +410,6 @@ static void draw_mixer(void *data)
         xfade = 0.0f;
     } else if (output_mode == 2) {
         xfade = 1.0f;
-    } else {
-        const bool loaded_a = !deck_a.filePath().isEmpty();
-        const bool loaded_b = !deck_b.filePath().isEmpty();
-        if (loaded_a && !loaded_b) {
-            xfade = 0.0f;
-        } else if (!loaded_a && loaded_b) {
-            xfade = 1.0f;
-        }
     }
 
     if (!texture_a && !texture_b)
@@ -426,13 +418,9 @@ static void draw_mixer(void *data)
     if (!texture_a) {
         texture_a = texture_b;
         color_a = &deck_b;
-        color_b = &deck_b;
-        xfade = 1.0f;
     } else if (!texture_b) {
         texture_b = texture_a;
-        color_a = &deck_a;
         color_b = &deck_a;
-        xfade = 0.0f;
     }
 
     gs_eparam_t *param = nullptr;
