@@ -18,6 +18,9 @@ uniform float4x4 ViewProj;
 uniform texture2d image;
 uniform float4 gains;
 uniform float saturation;
+uniform float alpha;
+uniform float wipe_cutoff;
+uniform float is_deck_b;
 
 sampler_state def_sampler {
     Filter = Linear;
@@ -44,8 +47,18 @@ float4 PSColorize(VertData v) : TARGET
     col.rgb *= gains.rgb;
     float luma = dot(col.rgb, float3(0.2126, 0.7152, 0.0722));
     col.rgb = lerp(luma.xxx, col.rgb, saturation);
-    col.a = 1.0;
-    return saturate(col);
+    
+    float final_a = alpha;
+    if (wipe_cutoff >= 0.0) {
+        if (is_deck_b > 0.5) {
+            final_a *= smoothstep(wipe_cutoff - 0.005, wipe_cutoff + 0.005, v.uv.x);
+        } else {
+            final_a *= smoothstep(wipe_cutoff + 0.005, wipe_cutoff - 0.005, v.uv.x);
+        }
+    }
+    col.a = saturate(final_a);
+    col.rgb *= col.a;
+    return col;
 }
 
 technique Draw
@@ -66,6 +79,8 @@ struct DeckSourceContext {
     bool has_frozen_frame = false;
     int deck_channel = 0;
     gs_effect_t *color_effect = nullptr;
+
+    uint64_t next_audio_ts = 0;
 
     std::mutex bridge_mutex;
     std::vector<float> loop_bridge_l;
@@ -100,9 +115,6 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
     const float ch_vol = context->deck->volume();
     const float mix_gain = context->deck->mixGain();
 
-    // Calibrated line level with 0 dB unity gain at 100% volume
-    const float net_gain = ch_gain * ch_vol * mix_gain;
-
     static thread_local std::vector<float> buf_l;
     static thread_local std::vector<float> buf_r;
     buf_l.resize(frames);
@@ -112,22 +124,35 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
     const float *in_r = audio_data->data[1] ? reinterpret_cast<const float *>(audio_data->data[1]) : in_l;
 
     for (size_t i = 0; i < frames; ++i) {
-        buf_l[i] = in_l[i] * net_gain;
-        buf_r[i] = in_r[i] * net_gain;
+        buf_l[i] = in_l[i];
+        buf_r[i] = in_r[i];
     }
 
-    // Apply 3-band EQ and DJ filter
+    // Apply 3-band EQ and DJ filter (tone shaping is pre-fader in DJ mixers)
     context->deck->processAudioDsp(buf_l.data(), frames, 0, sample_rate);
     context->deck->processAudioDsp(buf_r.data(), frames, 1, sample_rate);
 
-    // Queue for Headphone Cue (PFL / Pre-fade or Master mix)
+    // Queue for Headphone Cue (PFL / Pre-fade Listen with HP mix and HP volume)
     DeckPair *decks = vdj_decks();
     if (decks) {
         const float *channels[2] = {buf_l.data(), buf_r.data()};
         decks->queueCueAudio(context->deck_channel, channels, frames);
     }
 
+    // Calibrated line level: channel gain, volume fader, and crossfader mix gain applied to main output
+    const float net_gain = ch_gain * ch_vol * mix_gain;
+    for (size_t i = 0; i < frames; ++i) {
+        buf_l[i] = std::clamp(buf_l[i] * net_gain, -1.2f, 1.2f);
+        buf_r[i] = std::clamp(buf_r[i] * net_gain, -1.2f, 1.2f);
+    }
+
     context->last_audio_tp = std::chrono::steady_clock::now();
+
+    const uint64_t cur_time = os_gettime_ns();
+    if (context->next_audio_ts == 0 ||
+        std::abs(static_cast<int64_t>(cur_time - context->next_audio_ts)) > 100000000LL) {
+        context->next_audio_ts = cur_time;
+    }
 
     struct obs_source_audio out_audio = {};
     out_audio.data[0] = reinterpret_cast<uint8_t *>(buf_l.data());
@@ -136,7 +161,9 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
     out_audio.speakers = SPEAKERS_STEREO;
     out_audio.format = AUDIO_FORMAT_FLOAT_PLANAR;
     out_audio.samples_per_sec = sample_rate;
-    out_audio.timestamp = audio_data->timestamp;
+    out_audio.timestamp = context->next_audio_ts;
+
+    context->next_audio_ts += static_cast<uint64_t>(frames) * 1000000000ULL / sample_rate;
 
     obs_source_output_audio(context->source, &out_audio);
 }
@@ -235,6 +262,9 @@ static void deck_video_tick(void *data, float seconds)
 
     if (context->deck) {
         context->deck->updateLoop();
+        if (context->deck->source()) {
+            obs_source_video_tick(context->deck->source(), seconds);
+        }
     }
 }
 
@@ -304,6 +334,17 @@ static void deck_video_render(void *data, gs_effect_t *effect)
 
                 if ((param = gs_effect_get_param_by_name(context->color_effect, "saturation")))
                     gs_effect_set_float(param, context->deck->saturation());
+
+                const bool is_b = (context->deck_channel == 1 || (context->deck && context->deck->side() == DeckPlayer::DeckSide::B));
+
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "alpha")))
+                    gs_effect_set_float(param, 1.0f);
+
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "wipe_cutoff")))
+                    gs_effect_set_float(param, -1.0f);
+
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "is_deck_b")))
+                    gs_effect_set_float(param, is_b ? 1.0f : 0.0f);
 
                 gs_blend_state_push();
                 gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
@@ -425,7 +466,7 @@ void vdj_register_deck_source(void)
     obs_source_info deck_info = {};
     deck_info.id = "vj_deck";
     deck_info.type = OBS_SOURCE_TYPE_INPUT;
-    deck_info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE;
+    deck_info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_DO_NOT_DUPLICATE;
     deck_info.get_name = deck_get_name;
     deck_info.create = deck_create;
     deck_info.destroy = deck_destroy;

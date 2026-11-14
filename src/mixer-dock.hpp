@@ -7,13 +7,13 @@
 #include <QProgressBar>
 #include <QVBoxLayout>
 #include <vector>
+#include <chrono>
 #include <obs.h>
 
 class DeckPair;
 class DeckPlayer;
 class QLabel;
 class QPushButton;
-class QComboBox;
 
 // Custom slider that resets to its default value on double-click
 class DJSlider : public QSlider {
@@ -46,19 +46,10 @@ public:
     explicit MixerWindow(DeckPair *decks, QWidget *parent = nullptr);
     ~MixerWindow() override = default;
 
-protected:
-    void showEvent(QShowEvent *event) override;
-
 private:
-    void buildTopBar(QVBoxLayout *main_layout);
     QWidget *buildChannelStrip(bool is_deck_a);
     QWidget *buildCenterMasterPanel();
-    void loadAudioDevices();
     void refreshMixer();
-    void updateObsOutputButtons(int mode);
-    void addMasterToActiveScene();
-    void addCueToActiveScene();
-    void addDeckSourceToActiveScene(bool is_deck_a);
 
     DeckPair *decks_ = nullptr;
 
@@ -77,7 +68,6 @@ private:
     QLabel *vol_val_a_ = nullptr;
     QProgressBar *meter_a_ = nullptr;
     QPushButton *hp_cue_a_btn_ = nullptr;
-    QPushButton *add_scene_a_btn_ = nullptr;
 
     // Deck B Controls
     DJSlider *gain_b_ = nullptr;
@@ -94,7 +84,6 @@ private:
     QLabel *vol_val_b_ = nullptr;
     QProgressBar *meter_b_ = nullptr;
     QPushButton *hp_cue_b_btn_ = nullptr;
-    QPushButton *add_scene_b_btn_ = nullptr;
 
     // Center Master Controls
     QPushButton *master_clock_btn_ = nullptr;
@@ -108,21 +97,14 @@ private:
 
     DJSlider *crossfader_ = nullptr;
     QLabel *cf_val_lbl_ = nullptr;
-    QComboBox *trans_combo_ = nullptr;
     DJSlider *hp_vol_slider_ = nullptr;
     QLabel *hp_vol_val_lbl_ = nullptr;
     DJSlider *hp_mix_slider_ = nullptr;
     QLabel *hp_mix_val_lbl_ = nullptr;
-    QComboBox *headphone_device_combo_ = nullptr;
 
-    // Top Bar Controls
+    // Bottom Bar Controls
     QLabel *midi_status_lbl_ = nullptr;
-    QPushButton *obs_out_master_btn_ = nullptr;
-    QPushButton *obs_out_deck_a_btn_ = nullptr;
-    QPushButton *obs_out_deck_b_btn_ = nullptr;
-    QPushButton *add_master_btn_ = nullptr;
-    QPushButton *add_cue_btn_ = nullptr;
-    QPushButton *tracklist_btn_ = nullptr;
+    QLabel *bottom_bpm_lbl_ = nullptr;
 };
 
 void vdj_open_mixer_window();

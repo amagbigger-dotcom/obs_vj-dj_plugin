@@ -153,21 +153,18 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
       decks_(decks)
 {
     setWindowTitle(QStringLiteral("OBS VJ Mixer"));
-    resize(780, 520);
-    setMinimumSize(720, 480);
+    resize(560, 460);
+    setMinimumSize(520, 420);
     setStyleSheet(QString::fromUtf8(MIXER_STYLESHEET));
 
     auto *main_layout = new QVBoxLayout(this);
-    main_layout->setContentsMargins(10, 8, 10, 8);
-    main_layout->setSpacing(8);
+    main_layout->setContentsMargins(6, 4, 6, 4);
+    main_layout->setSpacing(4);
 
-    // 1. Top Bar
-    buildTopBar(main_layout);
-
-    // 2. 3-Column DJ Mixer Area: Channel A | Center Master | Channel B
+    // 1. 3-Column DJ Mixer Area: Channel A | Center Master | Channel B
     auto *mixer_row = new QHBoxLayout();
     mixer_row->setContentsMargins(0, 0, 0, 0);
-    mixer_row->setSpacing(8);
+    mixer_row->setSpacing(6);
 
     QWidget *strip_a = buildChannelStrip(true);
     QWidget *center_master = buildCenterMasterPanel();
@@ -179,7 +176,7 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
 
     main_layout->addLayout(mixer_row, 1);
 
-    // 3. Bottom Bar: MIDI Status
+    // 2. Bottom Bar: MIDI Status and Master BPM
     auto *bottom_row = new QHBoxLayout();
     bottom_row->setContentsMargins(4, 0, 4, 0);
     midi_status_lbl_ = new QLabel(QStringLiteral("MIDI: Initializing..."), this);
@@ -187,13 +184,16 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
     bottom_row->addWidget(midi_status_lbl_);
     bottom_row->addStretch(1);
 
-    auto *clock_bpm_lbl = new QLabel(QStringLiteral("MASTER 128.0 BPM"), this);
-    clock_bpm_lbl->setStyleSheet(QStringLiteral("font-size: 10px; font-family: monospace; color: #ffaa00; font-weight: bold;"));
-    bottom_row->addWidget(clock_bpm_lbl);
+    bottom_bpm_lbl_ = new QLabel(QStringLiteral("MASTER 128.00 BPM"), this);
+    bottom_bpm_lbl_->setStyleSheet(QStringLiteral("font-size: 10px; font-family: monospace; color: #ffaa00; font-weight: bold;"));
+    bottom_row->addWidget(bottom_bpm_lbl_);
 
     main_layout->addLayout(bottom_row);
 
-    loadAudioDevices();
+    for (auto *btn : findChildren<QPushButton *>()) {
+        btn->setAutoDefault(false);
+        btn->setDefault(false);
+    }
 
     // 50ms GUI update loop
     auto *timer = new QTimer(this);
@@ -201,84 +201,18 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
     timer->start(50);
 }
 
-void MixerWindow::showEvent(QShowEvent *event)
-{
-    QDialog::showEvent(event);
-    loadAudioDevices();
-}
-
-void MixerWindow::buildTopBar(QVBoxLayout *main_layout)
-{
-    auto *top_bar = new QHBoxLayout();
-    top_bar->setContentsMargins(0, 0, 0, 0);
-    top_bar->setSpacing(6);
-
-    auto *title_lbl = new QLabel(QStringLiteral("OBS VJ MIXER"), this);
-    title_lbl->setStyleSheet(QStringLiteral("color: #00d2ff; font-weight: bold; font-size: 12px; letter-spacing: 1px;"));
-    top_bar->addWidget(title_lbl);
-
-    top_bar->addSpacing(8);
-
-    // OBS Output Selector
-    auto *out_lbl = new QLabel(QStringLiteral("OUT:"), this);
-    out_lbl->setStyleSheet(QStringLiteral("font-weight: bold; font-size: 10px; color: #8da0b8;"));
-    top_bar->addWidget(out_lbl);
-
-    obs_out_master_btn_ = new QPushButton(QStringLiteral("MASTER"), this);
-    obs_out_deck_a_btn_ = new QPushButton(QStringLiteral("DECK A"), this);
-    obs_out_deck_b_btn_ = new QPushButton(QStringLiteral("DECK B"), this);
-
-    obs_out_master_btn_->setCheckable(true);
-    obs_out_deck_a_btn_->setCheckable(true);
-    obs_out_deck_b_btn_->setCheckable(true);
-    obs_out_master_btn_->setChecked(true);
-
-    top_bar->addWidget(obs_out_master_btn_);
-    top_bar->addWidget(obs_out_deck_a_btn_);
-    top_bar->addWidget(obs_out_deck_b_btn_);
-
-    connect(obs_out_master_btn_, &QPushButton::clicked, this, [this]() { updateObsOutputButtons(0); });
-    connect(obs_out_deck_a_btn_, &QPushButton::clicked, this, [this]() { updateObsOutputButtons(1); });
-    connect(obs_out_deck_b_btn_, &QPushButton::clicked, this, [this]() { updateObsOutputButtons(2); });
-
-    top_bar->addStretch(1);
-
-    // Quick Scene Add Buttons
-    add_master_btn_ = new QPushButton(QStringLiteral("📺 + MASTER"), this);
-    add_master_btn_->setStyleSheet(QStringLiteral("background: #173324; border: 1px solid #2e7d32; color: #4caf50; font-size: 9px; font-weight: bold;"));
-    add_master_btn_->setToolTip(QStringLiteral("Add OBS VJ Master Mixer source to current scene"));
-    connect(add_master_btn_, &QPushButton::clicked, this, &MixerWindow::addMasterToActiveScene);
-    top_bar->addWidget(add_master_btn_);
-
-    add_cue_btn_ = new QPushButton(QStringLiteral("🎧 + CUE"), this);
-    add_cue_btn_->setStyleSheet(QStringLiteral("background: #332617; border: 1px solid #7d5a2e; color: #ffaa00; font-size: 9px; font-weight: bold;"));
-    add_cue_btn_->setToolTip(QStringLiteral("Add Headphone CUE monitor audio source to current scene"));
-    connect(add_cue_btn_, &QPushButton::clicked, this, &MixerWindow::addCueToActiveScene);
-    top_bar->addWidget(add_cue_btn_);
-
-    tracklist_btn_ = new QPushButton(QStringLiteral("📋 TRACKLIST"), this);
-    tracklist_btn_->setStyleSheet(QStringLiteral("background: #1a222d; border: 1px solid #2d3b4d; color: #00d2ff; font-size: 9px; font-weight: bold;"));
-    tracklist_btn_->setToolTip(QStringLiteral("Open Tracklist Library panel"));
-    connect(tracklist_btn_, &QPushButton::clicked, this, []() {
-        vdj_open_tracklist_window();
-    });
-    top_bar->addWidget(tracklist_btn_);
-
-    main_layout->addLayout(top_bar);
-}
-
 QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
 {
     const QString title = is_deck_a ? QStringLiteral("◄ DECK A") : QStringLiteral("DECK B ►");
     auto *panel = new QGroupBox(title, this);
     panel->setStyleSheet(QStringLiteral(
-        "QGroupBox { background: #151a22; border: 1px solid #232b38; border-radius: 4px; padding: 6px; } "
-        "QGroupBox::title { color: %1; font-weight: bold; font-size: 11px; }")
+        "QGroupBox { background: #151a22; border: 1px solid #232b38; border-radius: 4px; padding: 4px; } "
+        "QGroupBox::title { color: %1; font-weight: bold; font-size: 10px; }")
         .arg(is_deck_a ? QStringLiteral("#00d2ff") : QStringLiteral("#ff7700")));
 
     auto *layout = new QVBoxLayout(panel);
-    layout->setContentsMargins(8, 4, 8, 4);
-    layout->setSpacing(4);
+    layout->setContentsMargins(4, 2, 4, 2);
+    layout->setSpacing(3);
 
     DeckPlayer *deck = is_deck_a ? vj_deck_a() : vj_deck_b();
 
@@ -286,23 +220,23 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
                                         DJSlider **out_sl, QLabel **out_val_lbl,
                                         int def_val, auto setter, auto formatter) {
         auto *row = new QHBoxLayout();
-        row->setSpacing(6);
+        row->setSpacing(4);
         row->setContentsMargins(0, 1, 0, 1);
 
         auto *lbl = new QLabel(name, panel);
-        lbl->setFixedWidth(30);
-        lbl->setStyleSheet(QStringLiteral("font-size: 10px; font-weight: bold; color: %1;").arg(color));
+        lbl->setFixedWidth(28);
+        lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: %1;").arg(color));
 
         auto *sl = new DJSlider(Qt::Horizontal, def_val, panel);
         sl->setRange(-100, 100);
         sl->setValue(def_val);
-        sl->setFixedHeight(22);
+        sl->setFixedHeight(20);
         *out_sl = sl;
 
         auto *val_lbl = new QLabel(formatter(def_val), panel);
-        val_lbl->setFixedWidth(46);
+        val_lbl->setFixedWidth(42);
         val_lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        val_lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #8da0b8;"));
+        val_lbl->setStyleSheet(QStringLiteral("font-size: 8px; font-family: monospace; color: #8da0b8;"));
         *out_val_lbl = val_lbl;
 
         row->addWidget(lbl);
@@ -357,7 +291,7 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
                      [deck](float v) { if (deck) { deck->setFilterVal(v - 1.0f); deck->setSaturation(v); } }, flt_fmt);
     }
 
-    // 2. Buttons Row: Headphone CUE + Add to Scene
+    // 2. Buttons Row: Headphone CUE
     auto *btn_row = new QHBoxLayout();
     btn_row->setContentsMargins(0, 2, 0, 2);
     btn_row->setSpacing(4);
@@ -371,29 +305,14 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
         .arg(is_deck_a ? QStringLiteral("#00d2ff") : QStringLiteral("#ff7700"))
         .arg(is_deck_a ? QStringLiteral("#0088cc") : QStringLiteral("#cc5500")));
 
-    auto *scene_btn = new QPushButton(QStringLiteral("📺 + SCENE"), panel);
-    scene_btn->setFixedHeight(24);
-    scene_btn->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #17261d; border: 1px solid #244630; color: #4caf50; font-weight: bold; font-size: 9px; } "
-        "QPushButton:hover { background: #203829; border-color: #388e3c; color: #81c784; }"));
-    scene_btn->setToolTip(is_deck_a
-        ? QStringLiteral("Add OBS VJ Deck A source to current scene")
-        : QStringLiteral("Add OBS VJ Deck B source to current scene"));
-    connect(scene_btn, &QPushButton::clicked, this, [this, is_deck_a]() {
-        addDeckSourceToActiveScene(is_deck_a);
-    });
-
     btn_row->addWidget(cue_btn, 1);
-    btn_row->addWidget(scene_btn, 1);
     layout->addLayout(btn_row);
 
     if (is_deck_a) {
         hp_cue_a_btn_ = cue_btn;
-        add_scene_a_btn_ = scene_btn;
         connect(cue_btn, &QPushButton::toggled, this, [deck](bool chk) { if (deck) deck->setHeadphoneCue(chk); });
     } else {
         hp_cue_b_btn_ = cue_btn;
-        add_scene_b_btn_ = scene_btn;
         connect(cue_btn, &QPushButton::toggled, this, [deck](bool chk) { if (deck) deck->setHeadphoneCue(chk); });
     }
 
@@ -405,15 +324,15 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
     auto *vol_slider = new DJSlider(Qt::Vertical, 80, panel);
     vol_slider->setRange(0, 100);
     vol_slider->setValue(80);
-    vol_slider->setFixedHeight(120);
+    vol_slider->setFixedHeight(105);
     vol_slider->setToolTip(QStringLiteral("Channel Volume Fader (Default: 80% Unity Line Level)"));
 
     auto *meter = new QProgressBar(panel);
     meter->setOrientation(Qt::Vertical);
     meter->setRange(0, 100);
     meter->setValue(0);
-    meter->setFixedWidth(10);
-    meter->setFixedHeight(120);
+    meter->setFixedWidth(8);
+    meter->setFixedHeight(105);
     meter->setTextVisible(false);
 
     auto *vol_lbl = new QLabel(QStringLiteral("80%"), panel);
@@ -453,46 +372,46 @@ QWidget *MixerWindow::buildCenterMasterPanel()
 {
     auto *panel = new QGroupBox(QStringLiteral("MASTER & CROSSFADER"), this);
     panel->setStyleSheet(QStringLiteral(
-        "QGroupBox { background: #13171e; border: 1px solid #222936; border-radius: 4px; padding: 6px; } "
-        "QGroupBox::title { color: #8da0b8; font-weight: bold; font-size: 11px; }"));
+        "QGroupBox { background: #13171e; border: 1px solid #222936; border-radius: 4px; padding: 4px; } "
+        "QGroupBox::title { color: #8da0b8; font-weight: bold; font-size: 10px; }"));
 
     auto *layout = new QVBoxLayout(panel);
-    layout->setContentsMargins(6, 4, 6, 4);
-    layout->setSpacing(6);
+    layout->setContentsMargins(4, 2, 4, 2);
+    layout->setSpacing(4);
 
     // 0. Traktor Master Clock & Tempo Section
     auto *clock_box = new QFrame(panel);
-    clock_box->setStyleSheet(QStringLiteral("background: #0f1319; border: 1px solid #1f2733; border-radius: 3px; padding: 3px;"));
+    clock_box->setStyleSheet(QStringLiteral("background: #0f1319; border: 1px solid #1f2733; border-radius: 3px; padding: 2px;"));
     auto *clock_vbox = new QVBoxLayout(clock_box);
-    clock_vbox->setContentsMargins(4, 2, 4, 2);
-    clock_vbox->setSpacing(3);
+    clock_vbox->setContentsMargins(2, 2, 2, 2);
+    clock_vbox->setSpacing(2);
 
     auto *clock_row1 = new QHBoxLayout();
-    clock_row1->setSpacing(4);
+    clock_row1->setSpacing(3);
 
-    master_clock_btn_ = new QPushButton(QStringLiteral("MASTER CLOCK"), clock_box);
+    master_clock_btn_ = new QPushButton(QStringLiteral("MASTER"), clock_box);
     master_clock_btn_->setCheckable(true);
-    master_clock_btn_->setFixedHeight(22);
+    master_clock_btn_->setFixedHeight(20);
     master_clock_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 9px; padding: 1px 5px; } "
+        "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 8px; padding: 1px 3px; } "
         "QPushButton:checked { background: #d97706; border: 1px solid #f59e0b; color: #fff; }"));
     master_clock_btn_->setToolTip(QStringLiteral("Enable Central Master Clock mode"));
     clock_row1->addWidget(master_clock_btn_);
 
     master_clock_ext_btn_ = new QPushButton(QStringLiteral("EXT SYNC"), clock_box);
     master_clock_ext_btn_->setCheckable(true);
-    master_clock_ext_btn_->setFixedHeight(22);
+    master_clock_ext_btn_->setFixedHeight(20);
     master_clock_ext_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 9px; padding: 1px 5px; } "
+        "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 8px; padding: 1px 3px; } "
         "QPushButton:checked { background: #0284c7; border: 1px solid #38bdf8; color: #fff; }"));
     master_clock_ext_btn_->setToolTip(QStringLiteral("Sync Master Clock to incoming external MIDI Clock"));
     clock_row1->addWidget(master_clock_ext_btn_);
 
     master_clock_send_btn_ = new QPushButton(QStringLiteral("SEND CLOCK"), clock_box);
     master_clock_send_btn_->setCheckable(true);
-    master_clock_send_btn_->setFixedHeight(22);
+    master_clock_send_btn_->setFixedHeight(20);
     master_clock_send_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 9px; padding: 1px 5px; } "
+        "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 8px; padding: 1px 3px; } "
         "QPushButton:checked { background: #2e7d32; border: 1px solid #4caf50; color: #fff; }"));
     master_clock_send_btn_->setToolTip(QStringLiteral("Transmit MIDI Clock (24 PPQN) to external MIDI hardware / software"));
     clock_row1->addWidget(master_clock_send_btn_);
@@ -567,39 +486,16 @@ QWidget *MixerWindow::buildCenterMasterPanel()
         }
     });
 
-    // 1. Transition FX Selector
-    auto *trans_row = new QHBoxLayout();
-    auto *trans_lbl = new QLabel(QStringLiteral("FX:"), panel);
-    trans_lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #8da0b8;"));
-    trans_combo_ = new QComboBox(panel);
-    trans_combo_->addItem(QStringLiteral("Linear Fade"), 0);
-    trans_combo_->addItem(QStringLiteral("Horizontal Wipe"), 1);
-    trans_combo_->addItem(QStringLiteral("Additive Blend"), 2);
-    trans_combo_->addItem(QStringLiteral("Hard Cut"), 3);
-    trans_row->addWidget(trans_lbl);
-    trans_row->addWidget(trans_combo_, 1);
-    layout->addLayout(trans_row);
-
-    connect(trans_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
-        if (decks_ && trans_combo_) {
-            decks_->setTransitionMode(trans_combo_->currentData().toInt());
-        }
-    });
-
-    // 2. Headphone Monitoring Section
+    // 1. Headphone Monitoring Section
     auto *hp_box = new QFrame(panel);
     hp_box->setStyleSheet(QStringLiteral("background: #0f1218; border: 1px solid #1c232f; border-radius: 3px; padding: 4px;"));
     auto *hp_vbox = new QVBoxLayout(hp_box);
     hp_vbox->setContentsMargins(4, 2, 4, 2);
     hp_vbox->setSpacing(3);
 
-    auto *hp_dev_lbl = new QLabel(QStringLiteral("🎧 CUE MONITOR DEVICE:"), hp_box);
-    hp_dev_lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #ffaa00;"));
-    hp_vbox->addWidget(hp_dev_lbl);
-
-    headphone_device_combo_ = new QComboBox(hp_box);
-    headphone_device_combo_->setToolTip(QStringLiteral("Select headphone audio output device (soundcard)"));
-    hp_vbox->addWidget(headphone_device_combo_);
+    auto *hp_hdr_lbl = new QLabel(QStringLiteral("HEADPHONE MONITOR"), hp_box);
+    hp_hdr_lbl->setStyleSheet(QStringLiteral("font-size: 8px; font-weight: bold; color: #ffaa00;"));
+    hp_vbox->addWidget(hp_hdr_lbl);
 
     auto *hp_sl_row = new QHBoxLayout();
     hp_sl_row->setSpacing(6);
@@ -680,7 +576,7 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     crossfader_ = new DJSlider(Qt::Horizontal, 500, panel);
     crossfader_->setRange(0, 1000);
     crossfader_->setValue(500);
-    crossfader_->setFixedHeight(32);
+    crossfader_->setFixedHeight(28);
     crossfader_->setStyleSheet(QStringLiteral(
         "QSlider::groove:horizontal { height: 10px; background: #0c0f14; border: 1px solid #232b38; border-radius: 5px; } "
         "QSlider::handle:horizontal { background: #ffffff; width: 26px; margin: -6px 0; border-radius: 3px; border: 2px solid #0088aa; }"));
@@ -715,138 +611,16 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     return panel;
 }
 
-void MixerWindow::updateObsOutputButtons(int mode)
-{
-    if (decks_)
-        decks_->setObsOutputMode(mode);
-
-    obs_out_master_btn_->setChecked(mode == 0);
-    obs_out_deck_a_btn_->setChecked(mode == 1);
-    obs_out_deck_b_btn_->setChecked(mode == 2);
-}
-
-void MixerWindow::loadAudioDevices()
-{
-    if (!headphone_device_combo_)
-        return;
-
-    const QSignalBlocker blocker(headphone_device_combo_);
-    headphone_device_combo_->clear();
-
-    obs_enum_audio_monitoring_devices(
-        [](void *param, const char *name, const char *id) -> bool {
-            auto *cb = static_cast<QComboBox *>(param);
-            const QString dev_name = QString::fromUtf8(name);
-            const QString dev_id = QString::fromUtf8(id);
-            cb->addItem(dev_name, dev_id);
-            return true;
-        },
-        headphone_device_combo_);
-
-    const char *current_name = nullptr;
-    const char *current_id = nullptr;
-    obs_get_audio_monitoring_device(&current_name, &current_id);
-    if (current_id && *current_id) {
-        const QString cur_str = QString::fromUtf8(current_id);
-        const int idx_h = headphone_device_combo_->findData(cur_str);
-        if (idx_h >= 0)
-            headphone_device_combo_->setCurrentIndex(idx_h);
-    }
-
-    connect(headphone_device_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            [this](int index) {
-                if (index < 0 || !headphone_device_combo_)
-                    return;
-                const QString id = headphone_device_combo_->itemData(index).toString();
-                const QString name = headphone_device_combo_->itemText(index);
-                if (!id.isEmpty() && obs_audio_monitoring_available()) {
-                    obs_set_audio_monitoring_device(name.toUtf8().constData(), id.toUtf8().constData());
-                }
-            });
-}
-
-void MixerWindow::addMasterToActiveScene()
-{
-    obs_source_t *scene_source = obs_frontend_get_current_scene();
-    if (!scene_source)
-        return;
-
-    obs_scene_t *scene = obs_scene_from_source(scene_source);
-    if (scene) {
-        obs_source_t *master = obs_get_source_by_name("OBS VJ Master Mixer");
-        if (!master) {
-            master = obs_source_create("vdj_master_mixer", "OBS VJ Master Mixer", nullptr, nullptr);
-        }
-        if (master) {
-            obs_sceneitem_t *item = obs_scene_find_source(scene, "OBS VJ Master Mixer");
-            if (!item) {
-                obs_scene_add(scene, master);
-            }
-            obs_source_release(master);
-        }
-    }
-    obs_source_release(scene_source);
-}
-
-void MixerWindow::addCueToActiveScene()
-{
-    obs_source_t *scene_source = obs_frontend_get_current_scene();
-    if (!scene_source)
-        return;
-
-    obs_scene_t *scene = obs_scene_from_source(scene_source);
-    if (scene) {
-        obs_source_t *cue = obs_get_source_by_name("OBS VJ Headphone CUE");
-        if (!cue) {
-            cue = obs_source_create("vdj_headphone_cue", "OBS VJ Headphone CUE", nullptr, nullptr);
-        }
-        if (cue) {
-            obs_source_set_monitoring_type(cue, OBS_MONITORING_TYPE_MONITOR_ONLY);
-            obs_source_set_audio_mixers(cue, 0); // mute on main stream / recording tracks
-            obs_sceneitem_t *item = obs_scene_find_source(scene, "OBS VJ Headphone CUE");
-            if (!item) {
-                obs_scene_add(scene, cue);
-            }
-            obs_source_release(cue);
-        }
-    }
-    obs_source_release(scene_source);
-}
-
-void MixerWindow::addDeckSourceToActiveScene(bool is_deck_a)
-{
-    obs_source_t *scene_source = obs_frontend_get_current_scene();
-    if (!scene_source)
-        return;
-
-    obs_scene_t *scene = obs_scene_from_source(scene_source);
-    if (scene) {
-        const char *id = is_deck_a ? "vj_deck_a" : "vj_deck_b";
-        const char *name = is_deck_a ? "OBS VJ Deck A" : "OBS VJ Deck B";
-        obs_source_t *deck_src = obs_get_source_by_name(name);
-        if (!deck_src) {
-            obs_data_t *settings = obs_data_create();
-            obs_data_set_int(settings, "deck_channel", is_deck_a ? 0 : 1);
-            deck_src = obs_source_create(id, name, settings, nullptr);
-            obs_data_release(settings);
-        }
-        if (deck_src) {
-            obs_sceneitem_t *item = obs_scene_find_source(scene, name);
-            if (!item) {
-                obs_scene_add(scene, deck_src);
-            }
-            obs_source_release(deck_src);
-        }
-    }
-    obs_source_release(scene_source);
-}
-
 void MixerWindow::refreshMixer()
 {
     if (!decks_)
         return;
 
     decks_->updateSync();
+
+    if (bottom_bpm_lbl_) {
+        bottom_bpm_lbl_->setText(QString::asprintf("MASTER %.2f BPM", decks_->effectiveMasterBpm()));
+    }
 
     if (master_clock_btn_) {
         const bool is_clock_m = (decks_->masterMode() == DeckPair::MASTER_CLOCK);

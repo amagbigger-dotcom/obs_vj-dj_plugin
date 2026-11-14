@@ -82,6 +82,8 @@ void DeckWindow::setupUi()
     top_bar->setSpacing(10);
 
     auto *open_btn = new QPushButton(QStringLiteral("📂 OPEN MEDIA"), this);
+    open_btn->setAutoDefault(false);
+    open_btn->setDefault(false);
     open_btn->setStyleSheet(QStringLiteral("background: #0088cc; border: 1px solid #00aaff; color: #ffffff; font-size: 12px; padding: 6px 14px;"));
     connect(open_btn, &QPushButton::clicked, this, &DeckWindow::openFileDialog);
     top_bar->addWidget(open_btn);
@@ -441,6 +443,11 @@ void DeckWindow::setupUi()
     tempo_bar->addWidget(pitch_reset_btn_);
 
     main_layout->addLayout(tempo_bar);
+
+    for (auto *btn : findChildren<QPushButton *>()) {
+        btn->setAutoDefault(false);
+        btn->setDefault(false);
+    }
 }
 
 void DeckWindow::bindDeck(DeckPlayer *deck)

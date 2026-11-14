@@ -85,30 +85,14 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
     obs_source_inc_showing(source_);
     obs_source_inc_active(source_);
     obs_source_set_audio_active(source_, true);
-    obs_source_set_audio_mixers(source_, 0x3F);
+    obs_source_set_audio_mixers(source_, 0);
     obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
-
-    obs_data_t *filter_settings = obs_data_create();
-    if (filter_settings) {
-        obs_data_set_int(filter_settings, "deck_idx", is_deck_a_ ? 0 : 1);
-        eq_filter_ = obs_source_create_private("vdj_eq_filter", "Deck EQ Filter", filter_settings);
-        obs_data_release(filter_settings);
-        if (eq_filter_) {
-            obs_source_filter_add(source_, eq_filter_);
-        }
-    }
 
     applyAudioVolume();
 }
 
 DeckPlayer::~DeckPlayer()
 {
-    if (eq_filter_ && source_) {
-        obs_source_filter_remove(source_, eq_filter_);
-        obs_source_release(eq_filter_);
-        eq_filter_ = nullptr;
-    }
-
     if (source_) {
         obs_source_dec_active(source_);
         obs_source_dec_showing(source_);
@@ -149,7 +133,7 @@ void DeckPlayer::loadFile(const QString &path)
     obs_data_release(settings);
 
     obs_source_set_audio_active(source_, true);
-    obs_source_set_audio_mixers(source_, 0x3F);
+    obs_source_set_audio_mixers(source_, 0);
     obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
     applyAudioVolume();
 
@@ -509,7 +493,7 @@ void DeckPlayer::enableAudioMonitoring() noexcept
 {
     if (source_) {
         obs_source_set_audio_active(source_, true);
-        obs_source_set_audio_mixers(source_, 0x3F);
+        obs_source_set_audio_mixers(source_, 0);
     }
 }
 
@@ -526,10 +510,7 @@ bool DeckPlayer::isHeadphoneCue() const noexcept
 void DeckPlayer::applyAudioVolume() noexcept
 {
     if (source_) {
-        const float total = gain_.load(std::memory_order_relaxed) *
-                            volume_.load(std::memory_order_relaxed) *
-                            mix_gain_.load(std::memory_order_relaxed);
-        obs_source_set_volume(source_, std::clamp(total, 0.0f, 2.0f));
+        obs_source_set_volume(source_, 1.0f);
     }
 }
 
@@ -558,7 +539,7 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
     if (st.cur_mid < 0.001f) st.cur_mid = g_mid;
     if (st.cur_hi < 0.001f)  st.cur_hi  = g_hi;
 
-    const float smooth_rate = 0.005f; // ~1-2 ms smooth time
+    const float smooth_rate = 0.002f; // ~10 ms smooth time at 48kHz (imperceptible latency, zero crackle)
 
     for (size_t i = 0; i < num_frames; ++i) {
         const float in = channel_data[i];
@@ -578,21 +559,29 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
 
         float out = low_band * st.cur_low + mid_band * st.cur_mid + high_band * st.cur_hi;
 
-        if (st.cur_flt < -0.005f) {
-            const float cutoff = 250.0f + (1.0f + st.cur_flt) * 7500.0f;
-            const float a_lp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.005f, 0.95f);
+        // DJ Filter: continuous tracking prevents stale DC offsets and pops
+        if (st.cur_flt < -0.001f) {
+            // Low Pass: cutoff from ~18000 Hz down to 200 Hz
+            const float norm = 1.0f + st.cur_flt;
+            const float cutoff = 200.0f + norm * norm * 17800.0f;
+            const float a_lp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.001f, 0.95f);
             st.dj_lp += a_lp * (out - st.dj_lp);
-            const float wet = std::min(1.0f, -st.cur_flt * 3.0f);
-            out = (1.0f - wet) * out + wet * st.dj_lp;
-        } else if (st.cur_flt > 0.005f) {
-            const float cutoff = 150.0f + st.cur_flt * 3800.0f;
-            const float a_hp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.005f, 0.95f);
+            st.dj_hp = out;
+            out = st.dj_lp;
+        } else if (st.cur_flt > 0.001f) {
+            // High Pass: cutoff from ~20 Hz up to 8000 Hz
+            const float norm = st.cur_flt;
+            const float cutoff = 20.0f + norm * norm * 7980.0f;
+            const float a_hp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.001f, 0.95f);
             st.dj_hp += a_hp * (out - st.dj_hp);
-            const float wet = std::min(1.0f, st.cur_flt * 3.0f);
-            out = (1.0f - wet) * out + wet * (out - st.dj_hp);
+            st.dj_lp = out;
+            out = out - st.dj_hp;
+        } else {
+            st.dj_lp = out;
+            st.dj_hp = 0.0f;
         }
 
-        channel_data[i] = std::clamp(out, -1.5f, 1.5f);
+        channel_data[i] = std::clamp(out, -1.2f, 1.2f);
     }
 }
 

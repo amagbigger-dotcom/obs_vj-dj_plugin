@@ -1,4 +1,6 @@
 #include <obs-module.h>
+#include <obs-frontend-api.h>
+#include <obs-scene.h>
 #include <graphics/graphics.h>
 #include <graphics/effect.h>
 #include <graphics/matrix4.h>
@@ -78,14 +80,6 @@ uniform float saturation_a;
 uniform float saturation_b;
 uniform float crossfade;
 uniform float transition_mode;
-uniform float time_a;
-uniform float time_b;
-uniform float is_playing_a;
-uniform float is_playing_b;
-uniform float bpm_a;
-uniform float bpm_b;
-uniform float has_video_a;
-uniform float has_video_b;
 
 sampler_state def_sampler {
     Filter = Linear;
@@ -115,83 +109,23 @@ float4 colorize(float4 color, float4 gains, float saturation)
     return saturate(color);
 }
 
-// Procedural DJ VJ Studio Visualizer for audio files (.wav, .mp3)
-float4 render_dj_visualizer(float2 uv, float time_sec, float is_playing, float bpm, float3 theme_color, float4 gains, float saturation)
-{
-    float2 center = float2(0.5, 0.5);
-    float2 p = (uv - center) * float2(1.77777, 1.0);
-    float dist = length(p);
-    float angle = atan2(p.y, p.x);
-
-    // Rotating vinyl turntable
-    float eff_bpm = max(bpm, 60.0);
-    float rot_speed = is_playing * (eff_bpm / 60.0) * 1.8;
-    float a_rot = angle + time_sec * rot_speed;
-
-    // Turntable vinyl body (radius 0.38)
-    float vinyl_mask = smoothstep(0.40, 0.395, dist) * smoothstep(0.06, 0.065, dist);
-    float vinyl_grooves = sin(dist * 220.0) * 0.08 * vinyl_mask;
-    float vinyl_sheen = pow(abs(cos(a_rot * 2.0)), 8.0) * 0.28 * vinyl_mask;
-
-    // Center vinyl label (radius 0.12)
-    float label_mask = smoothstep(0.12, 0.118, dist) * smoothstep(0.03, 0.032, dist);
-    float3 label_color = theme_color * 0.9;
-
-    // Spindle hole
-    float spindle = smoothstep(0.032, 0.03, dist);
-
-    // Neon horizon grid background
-    float2 grid_uv = float2(uv.x - 0.5, 1.0 - uv.y);
-    float grid_persp = 0.12 / max(grid_uv.y, 0.02);
-    float2 grid_pos = frac(float2(grid_uv.x * grid_persp * 8.0, grid_persp * 12.0 - time_sec * is_playing * 2.5));
-    float grid_val = step(0.92, grid_pos.x) + step(0.92, grid_pos.y);
-    float grid_fade = smoothstep(0.0, 0.65, grid_uv.y) * 0.25;
-
-    // Frequency spectrum bars along the bottom
-    float bar_x = frac(uv.x * 28.0);
-    float bar_idx = floor(uv.x * 28.0);
-    float bar_height = 0.08 + 0.18 * abs(sin(bar_idx * 1.35 + time_sec * 6.0 * is_playing));
-    float bar_mask = step(bar_x, 0.75) * step(1.0 - uv.y, bar_height) * step(0.02, 1.0 - uv.y);
-
-    // Composite
-    float3 col = float3(0.04, 0.05, 0.08); // Dark studio background
-    col += theme_color * grid_val * grid_fade;
-    col += float3(0.09, 0.09, 0.11) * vinyl_mask + vinyl_grooves + vinyl_sheen;
-    col = lerp(col, label_color, label_mask);
-    col = lerp(col, float3(0.85, 0.85, 0.85), spindle);
-    col += theme_color * bar_mask * 0.85;
-
-    // Outer glow ring
-    float ring = smoothstep(0.015, 0.0, abs(dist - 0.40));
-    col += theme_color * ring * 0.7;
-
-    return colorize(float4(col, 1.0), gains, saturation);
-}
-
 float4 PS(VertData v) : TARGET
 {
-    float4 a;
-    if (has_video_a > 0.5) {
-        a = colorize(image_a.Sample(def_sampler, v.uv), gains_a, saturation_a);
-    } else {
-        a = render_dj_visualizer(v.uv, time_a, is_playing_a, bpm_a, float3(0.0, 0.82, 1.0), gains_a, saturation_a);
-    }
-
-    float4 b;
-    if (has_video_b > 0.5) {
-        b = colorize(image_b.Sample(def_sampler, v.uv), gains_b, saturation_b);
-    } else {
-        b = render_dj_visualizer(v.uv, time_b, is_playing_b, bpm_b, float3(1.0, 0.5, 0.0), gains_b, saturation_b);
-    }
+    float4 a = colorize(image_a.Sample(def_sampler, v.uv), gains_a, saturation_a);
+    float4 b = colorize(image_b.Sample(def_sampler, v.uv), gains_b, saturation_b);
 
     float4 res;
     if (transition_mode > 2.5) {
+        // Hard Cut
         res = crossfade < 0.5 ? a : b;
     } else if (transition_mode > 0.5 && transition_mode < 1.5) {
+        // Horizontal Wipe
         res = v.uv.x < (1.0 - crossfade) ? a : b;
     } else if (transition_mode > 1.5 && transition_mode < 2.5) {
+        // Additive Blend
         res = saturate(a * (1.0 - crossfade) + b * crossfade);
     } else {
+        // Linear Fade / Crossfade
         res = lerp(a, b, crossfade);
     }
 
@@ -274,9 +208,7 @@ static void set_color_params(MixerSource *context,
                              const DeckPlayer &deck_a,
                              const DeckPlayer &deck_b,
                              float crossfade,
-                             int transition_mode,
-                             float has_vid_a,
-                             float has_vid_b)
+                             int transition_mode)
 {
     gs_eparam_t *param = nullptr;
 
@@ -303,30 +235,6 @@ static void set_color_params(MixerSource *context,
 
     if ((param = gs_effect_get_param_by_name(context->effect, "transition_mode")))
         gs_effect_set_float(param, static_cast<float>(transition_mode));
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "time_a")))
-        gs_effect_set_float(param, static_cast<float>(deck_a.currentTimeMs()) / 1000.0f);
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "time_b")))
-        gs_effect_set_float(param, static_cast<float>(deck_b.currentTimeMs()) / 1000.0f);
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "is_playing_a")))
-        gs_effect_set_float(param, deck_a.isPlaying() ? 1.0f : 0.0f);
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "is_playing_b")))
-        gs_effect_set_float(param, deck_b.isPlaying() ? 1.0f : 0.0f);
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "bpm_a")))
-        gs_effect_set_float(param, static_cast<float>(deck_a.effectiveBpm()));
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "bpm_b")))
-        gs_effect_set_float(param, static_cast<float>(deck_b.effectiveBpm()));
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "has_video_a")))
-        gs_effect_set_float(param, has_vid_a);
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "has_video_b")))
-        gs_effect_set_float(param, has_vid_b);
 }
 
 static const char *mixer_get_name(void *)
@@ -384,8 +292,13 @@ static void draw_mixer(void *data)
     deck_a.updateLoop();
     deck_b.updateLoop();
 
-    obs_source_t *src_a = deck_a.source();
-    obs_source_t *src_b = deck_b.source();
+    obs_source_t *src_a = vdj_get_obs_source_deck(0);
+    if (!src_a)
+        src_a = deck_a.source();
+
+    obs_source_t *src_b = vdj_get_obs_source_deck(1);
+    if (!src_b)
+        src_b = deck_b.source();
 
     const bool rendered_a =
         render_to_texture(context->deck_a, src_a, width, height);
@@ -396,9 +309,6 @@ static void draw_mixer(void *data)
         rendered_a ? gs_texrender_get_texture(context->deck_a) : nullptr;
     gs_texture_t *texture_b =
         rendered_b ? gs_texrender_get_texture(context->deck_b) : nullptr;
-
-    const float has_vid_a = deck_a.hasVideo() ? 1.0f : 0.0f;
-    const float has_vid_b = deck_b.hasVideo() ? 1.0f : 0.0f;
 
     const int output_mode = decks->obsOutputMode();
     const DeckPlayer *color_a = &deck_a;
@@ -429,7 +339,7 @@ static void draw_mixer(void *data)
         gs_effect_set_texture(param, texture_b);
 
     set_color_params(context, *color_a, *color_b, xfade,
-                     decks->transitionMode(), has_vid_a, has_vid_b);
+                     decks->transitionMode());
 
     gs_blend_state_push();
     gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
@@ -523,8 +433,87 @@ static const char *cue_get_name(void *)
 
 static void mixer_video_tick(void *data, float seconds)
 {
-    UNUSED_PARAMETER(seconds);
-    UNUSED_PARAMETER(data);
+    auto *context = static_cast<MixerSource *>(data);
+    DeckPair *decks = vdj_decks();
+    if (decks) {
+        obs_source_t *sa = decks->deckA().source();
+        obs_source_t *sb = decks->deckB().source();
+        if (sa) obs_source_video_tick(sa, seconds);
+        if (sb) obs_source_video_tick(sb, seconds);
+    }
+
+    if (!context || !context->source)
+        return;
+
+    // Periodically (every ~1 sec) ensure child sources exist under master mixer in active scene
+    static uint64_t last_check_ts = 0;
+    const uint64_t cur_ts = os_gettime_ns();
+    if (cur_ts - last_check_ts < 1000000000ULL)
+        return;
+    last_check_ts = cur_ts;
+
+    obs_source_t *scene_source = obs_frontend_get_current_scene();
+    if (!scene_source)
+        return;
+
+    obs_scene_t *scene = obs_scene_from_source(scene_source);
+    if (scene) {
+        const char *master_name = obs_source_get_name(context->source);
+        obs_sceneitem_t *master_item = obs_scene_find_source(scene, master_name);
+        if (master_item) {
+            // Master mixer is in this scene! Ensure Deck A, Deck B, and Headphone CUE are present underneath
+            obs_sceneitem_t *item_a = obs_scene_find_source(scene, "OBS VJ Deck A");
+            if (!item_a) {
+                obs_source_t *src_a = obs_get_source_by_name("OBS VJ Deck A");
+                if (!src_a) {
+                    obs_data_t *settings = obs_data_create();
+                    obs_data_set_int(settings, "deck_channel", 0);
+                    src_a = obs_source_create("vj_deck_a", "OBS VJ Deck A", settings, nullptr);
+                    obs_data_release(settings);
+                }
+                if (src_a) {
+                    obs_sceneitem_t *it = obs_scene_add(scene, src_a);
+                    if (it) obs_sceneitem_set_order(it, OBS_ORDER_MOVE_BOTTOM);
+                    obs_source_release(src_a);
+                }
+            }
+
+            obs_sceneitem_t *item_b = obs_scene_find_source(scene, "OBS VJ Deck B");
+            if (!item_b) {
+                obs_source_t *src_b = obs_get_source_by_name("OBS VJ Deck B");
+                if (!src_b) {
+                    obs_data_t *settings = obs_data_create();
+                    obs_data_set_int(settings, "deck_channel", 1);
+                    src_b = obs_source_create("vj_deck_b", "OBS VJ Deck B", settings, nullptr);
+                    obs_data_release(settings);
+                }
+                if (src_b) {
+                    obs_sceneitem_t *it = obs_scene_add(scene, src_b);
+                    if (it) obs_sceneitem_set_order(it, OBS_ORDER_MOVE_BOTTOM);
+                    obs_source_release(src_b);
+                }
+            }
+
+            obs_sceneitem_t *item_cue = obs_scene_find_source(scene, "OBS VJ Headphone CUE");
+            if (!item_cue) {
+                obs_source_t *src_cue = obs_get_source_by_name("OBS VJ Headphone CUE");
+                if (!src_cue) {
+                    src_cue = obs_source_create("vdj_headphone_cue", "OBS VJ Headphone CUE", nullptr, nullptr);
+                }
+                if (src_cue) {
+                    obs_source_set_monitoring_type(src_cue, OBS_MONITORING_TYPE_MONITOR_ONLY);
+                    obs_source_set_audio_mixers(src_cue, 0);
+                    obs_sceneitem_t *it = obs_scene_add(scene, src_cue);
+                    if (it) obs_sceneitem_set_order(it, OBS_ORDER_MOVE_BOTTOM);
+                    obs_source_release(src_cue);
+                }
+            }
+
+            // Always ensure Master Mixer stays on top
+            obs_sceneitem_set_order(master_item, OBS_ORDER_MOVE_TOP);
+        }
+    }
+    obs_source_release(scene_source);
 }
 
 static bool enum_audio_devices_cb(void *param, const char *name, const char *id)
@@ -601,7 +590,7 @@ void vdj_register_sources(void)
     obs_source_info master = {};
     master.id = "vdj_master_mixer";
     master.type = OBS_SOURCE_TYPE_INPUT;
-    master.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_COMPOSITE | OBS_SOURCE_DO_NOT_DUPLICATE;
+    master.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_DO_NOT_DUPLICATE;
     master.get_name = mixer_get_name;
     master.create = mixer_create;
     master.destroy = mixer_destroy;
