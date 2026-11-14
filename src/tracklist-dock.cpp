@@ -9,6 +9,9 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QFileDialog>
+#include <QMessageBox>
+#include <QShortcut>
+#include <QMenu>
 #include <QStandardPaths>
 #include <QFileInfo>
 #include <QDir>
@@ -19,6 +22,34 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QUrl>
+
+static TracklistDock *g_tracklist_instance = nullptr;
+
+void vdj_open_tracklist_window()
+{
+    if (!g_tracklist_instance) {
+        QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
+        g_tracklist_instance = new TracklistDock(main_window);
+    }
+    g_tracklist_instance->show();
+    g_tracklist_instance->raise();
+    g_tracklist_instance->activateWindow();
+}
+
+void vdj_import_and_load(const QString &file_path, int deck_channel)
+{
+    if (!g_tracklist_instance) {
+        QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
+        g_tracklist_instance = new TracklistDock(main_window);
+    }
+    g_tracklist_instance->addFile(file_path, deck_channel);
+}
+
+static bool isAudioOnlyFile(const QString &ext)
+{
+    const QString e = ext.toLower();
+    return (e == "mp3" || e == "wav" || e == "flac" || e == "aac" || e == "ogg" || e == "m4a" || e == "wma");
+}
 
 static QString formatDuration(int64_t ms)
 {
@@ -34,6 +65,7 @@ static QString formatDuration(int64_t ms)
 TracklistDock::TracklistDock(QWidget *parent)
     : QDialog(parent)
 {
+    g_tracklist_instance = this;
     setWindowTitle(QStringLiteral("OBS VJ Tracklist - Médiatár & 1080p Konverter"));
     setMinimumSize(880, 500);
     resize(940, 560);
@@ -70,16 +102,21 @@ TracklistDock::TracklistDock(QWidget *parent)
     });
 
     connect(converter_, &VideoConverter::conversionFinished, this, [this](const QString &out_path, bool success, const QString &err) {
-        Q_UNUSED(err);
         if (active_conversion_idx_ >= 0 && active_conversion_idx_ < static_cast<int>(tracks_.size())) {
             auto &item = tracks_[active_conversion_idx_];
+            const int deck_target = item.target_deck_after_conv;
             if (success) {
                 item.file_path = out_path;
                 item.is_converted = true;
                 item.status = QStringLiteral("Ready");
                 analyzeTrackAudio(active_conversion_idx_);
+
+                if (deck_target >= 0) {
+                    loadTrackToDeck(active_conversion_idx_, deck_target);
+                }
             } else {
-                item.status = QStringLiteral("Error");
+                item.status = QStringLiteral("Hiba: %1").arg(err);
+                blog(LOG_WARNING, "[obs_vj_tracklist] Conversion failed: %s", err.toUtf8().constData());
             }
             updateRow(active_conversion_idx_);
             saveLibraryJson();
@@ -103,6 +140,9 @@ TracklistDock::TracklistDock(QWidget *parent)
 
 TracklistDock::~TracklistDock()
 {
+    if (g_tracklist_instance == this) {
+        g_tracklist_instance = nullptr;
+    }
     saveLibraryJson();
     if (status_timer_) {
         status_timer_->stop();
@@ -134,17 +174,17 @@ void TracklistDock::setupUi()
     connect(browse_btn, &QPushButton::clicked, this, &TracklistDock::onBrowseFolder);
     top_bar->addWidget(browse_btn);
 
-    auto *import_btn = new QPushButton(QStringLiteral("⚡ IMPORT 1080p (NVENC)"), this);
+    auto *import_btn = new QPushButton(QStringLiteral("⚡ IMPORT MEDIA"), this);
     import_btn->setStyleSheet(QStringLiteral("background: #0088cc; border: 1px solid #00aaff; color: #ffffff; padding: 5px 12px; font-size: 11px;"));
-    import_btn->setToolTip(QStringLiteral("Videók behúzása és automatikus átalakítása 1080p All-Intra formátumra az RTX 3060-nal"));
+    import_btn->setToolTip(QStringLiteral("Médiafájlok behúzása: a rendszer automatikusan észleli a formátumot, és csak a videókat alakítja 1080p-re az RTX 3060-nal"));
     connect(import_btn, &QPushButton::clicked, this, &TracklistDock::onImportButtonClicked);
     top_bar->addWidget(import_btn);
 
-    auto *direct_btn = new QPushButton(QStringLiteral("+ HOZZÁADÁS (DIREKT)"), this);
-    direct_btn->setStyleSheet(QStringLiteral("background: #1c2635; border: 1px solid #385070; color: #cfd6e4; padding: 5px 10px; font-size: 11px;"));
-    direct_btn->setToolTip(QStringLiteral("Videó vagy audió hozzáadása átalakítás nélkül"));
-    connect(direct_btn, &QPushButton::clicked, this, &TracklistDock::onAddDirectButtonClicked);
-    top_bar->addWidget(direct_btn);
+    auto *del_btn = new QPushButton(QStringLiteral("🗑 TÖRLÉS"), this);
+    del_btn->setStyleSheet(QStringLiteral("background: #3a1c1c; border: 1px solid #703838; color: #ff8888; padding: 5px 10px; font-size: 11px;"));
+    del_btn->setToolTip(QStringLiteral("Kijelölt szám törlése a listából (Delete gomb)"));
+    connect(del_btn, &QPushButton::clicked, this, &TracklistDock::deleteSelectedTrack);
+    top_bar->addWidget(del_btn);
 
     main_layout->addLayout(top_bar);
 
@@ -152,7 +192,7 @@ void TracklistDock::setupUi()
     auto *status_bar = new QHBoxLayout();
     status_bar->setSpacing(8);
 
-    status_lbl_ = new QLabel(QStringLiteral("Húzz ide tetszőleges videót vagy dalt az azonnali betöltéshez és konvertáláshoz."), this);
+    status_lbl_ = new QLabel(QStringLiteral("Húzz ide tetszőleges videót vagy dalt. Az új videókat az RTX 3060 automatikusan 1080p All-Intra formátumra készíti elő."), this);
     status_lbl_->setStyleSheet(QStringLiteral("color: #7f8fa4; font-size: 11px;"));
     status_bar->addWidget(status_lbl_, 1);
 
@@ -186,6 +226,7 @@ void TracklistDock::setupUi()
     table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table_->verticalHeader()->setVisible(false);
     table_->setShowGrid(true);
+    table_->setContextMenuPolicy(Qt::CustomContextMenu);
 
     table_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     table_->setColumnWidth(0, 48);
@@ -205,6 +246,11 @@ void TracklistDock::setupUi()
     table_->setColumnWidth(5, 175);
 
     connect(table_, &QTableWidget::cellDoubleClicked, this, &TracklistDock::onTableItemDoubleClicked);
+    connect(table_, &QTableWidget::customContextMenuRequested, this, &TracklistDock::onCustomContextMenuRequested);
+
+    // Keyboard shortcut: Delete key
+    auto *del_shortcut = new QShortcut(QKeySequence::Delete, table_);
+    connect(del_shortcut, &QShortcut::activated, this, &TracklistDock::deleteSelectedTrack);
 
     main_layout->addWidget(table_, 1);
 }
@@ -227,25 +273,63 @@ void TracklistDock::onImportButtonClicked()
 {
     const QStringList files = QFileDialog::getOpenFileNames(
         this,
-        QStringLiteral("Videók kiválasztása 1080p All-Intra konvertáláshoz"),
+        QStringLiteral("Médiafájlok kiválasztása"),
         QString(),
-        QStringLiteral("Video Files (*.mp4 *.mkv *.mov *.avi *.webm *.flv *.ts);;All Files (*.*)")
+        QStringLiteral("Media Files (*.mp4 *.mkv *.mov *.avi *.webm *.flv *.ts *.mp3 *.wav *.flac *.aac);;All Files (*.*)")
     );
     for (const auto &f : files) {
-        addFile(f, true);
+        addFile(f, -1);
     }
 }
 
-void TracklistDock::onAddDirectButtonClicked()
+void TracklistDock::deleteSelectedTrack()
 {
-    const QStringList files = QFileDialog::getOpenFileNames(
+    const int row = table_->currentRow();
+    if (row < 0 || row >= static_cast<int>(tracks_.size())) {
+        return;
+    }
+
+    const auto &item = tracks_[row];
+    const auto res = QMessageBox::question(
         this,
-        QStringLiteral("Médiafájlok hozzáadása (konvertálás nélkül)"),
-        QString(),
-        QStringLiteral("Media Files (*.mp4 *.mkv *.mov *.avi *.webm *.mp3 *.wav *.flac *.aac);;All Files (*.*)")
+        QStringLiteral("Track törlése a listából"),
+        QStringLiteral("Biztosan törölni szeretnéd a listából a következőt:\n\n\"%1\"?").arg(item.title),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No
     );
-    for (const auto &f : files) {
-        addFile(f, false);
+
+    if (res == QMessageBox::Yes) {
+        tracks_.erase(tracks_.begin() + row);
+        updateTable();
+        saveLibraryJson();
+    }
+}
+
+void TracklistDock::onCustomContextMenuRequested(const QPoint &pos)
+{
+    const int row = table_->rowAt(pos.y());
+    if (row < 0 || row >= static_cast<int>(tracks_.size())) {
+        return;
+    }
+
+    QMenu menu(this);
+    menu.setStyleSheet(QStringLiteral(
+        "QMenu { background-color: #1a2230; color: #ffffff; border: 1px solid #2e3e54; }"
+        "QMenu::item:selected { background-color: #0088cc; }"
+    ));
+
+    auto *act_a = menu.addAction(QStringLiteral("▶ Betöltés a DECK A-ba"));
+    auto *act_b = menu.addAction(QStringLiteral("▶ Betöltés a DECK B-be"));
+    menu.addSeparator();
+    auto *act_del = menu.addAction(QStringLiteral("🗑 Törlés a listából"));
+
+    QAction *selected = menu.exec(table_->viewport()->mapToGlobal(pos));
+    if (selected == act_a) {
+        loadTrackToDeck(row, 0);
+    } else if (selected == act_b) {
+        loadTrackToDeck(row, 1);
+    } else if (selected == act_del) {
+        deleteSelectedTrack();
     }
 }
 
@@ -269,20 +353,23 @@ void TracklistDock::dropEvent(QDropEvent *event)
     for (const auto &u : urls) {
         const QString path = u.toLocalFile();
         if (!path.isEmpty() && QFileInfo::exists(path)) {
-            addFile(path, true);
+            addFile(path, -1);
         }
     }
     event->acceptProposedAction();
 }
 
-void TracklistDock::addFile(const QString &path, bool auto_convert)
+void TracklistDock::addFile(const QString &path, int target_deck)
 {
     const QFileInfo fi(path);
     if (!fi.exists()) return;
 
-    // Check duplicate
-    for (const auto &t : tracks_) {
-        if (t.original_path == path || t.file_path == path) {
+    // Check if already in list
+    for (size_t i = 0; i < tracks_.size(); i++) {
+        if (tracks_[i].original_path == path || tracks_[i].file_path == path) {
+            if (target_deck >= 0) {
+                loadTrackToDeck(static_cast<int>(i), target_deck);
+            }
             return;
         }
     }
@@ -291,24 +378,66 @@ void TracklistDock::addFile(const QString &path, bool auto_convert)
     item.title = fi.completeBaseName();
     item.original_path = path;
     item.file_path = path;
-    item.is_converted = false;
     item.played = false;
+    item.target_deck_after_conv = target_deck;
 
-    if (auto_convert) {
-        item.status = QStringLiteral("Várakozik...");
-        tracks_.push_back(item);
-        const int idx = static_cast<int>(tracks_.size()) - 1;
-        conversion_queue_.push_back(idx);
-        updateTable();
-        processNextConversion();
-    } else {
+    const QString ext = fi.suffix().toLower();
+    const bool is_audio = isAudioOnlyFile(ext);
+
+    // 1. Audio-only files do not need video conversion
+    if (is_audio) {
+        item.is_converted = true;
         item.status = QStringLiteral("Ready");
         tracks_.push_back(item);
         const int idx = static_cast<int>(tracks_.size()) - 1;
         updateTable();
         analyzeTrackAudio(idx);
         saveLibraryJson();
+        if (target_deck >= 0) {
+            loadTrackToDeck(idx, target_deck);
+        }
+        return;
     }
+
+    // 2. Check if already a converted 1080p VJ file
+    if (path.endsWith(QStringLiteral("_vj1080.mp4"))) {
+        item.is_converted = true;
+        item.status = QStringLiteral("Ready");
+        tracks_.push_back(item);
+        const int idx = static_cast<int>(tracks_.size()) - 1;
+        updateTable();
+        analyzeTrackAudio(idx);
+        saveLibraryJson();
+        if (target_deck >= 0) {
+            loadTrackToDeck(idx, target_deck);
+        }
+        return;
+    }
+
+    // 3. Check if converted version already exists in library_dir_
+    const QString existing_conv = QDir(library_dir_).filePath(fi.completeBaseName() + QStringLiteral("_vj1080.mp4"));
+    if (QFileInfo::exists(existing_conv)) {
+        item.file_path = existing_conv;
+        item.is_converted = true;
+        item.status = QStringLiteral("Ready");
+        tracks_.push_back(item);
+        const int idx = static_cast<int>(tracks_.size()) - 1;
+        updateTable();
+        analyzeTrackAudio(idx);
+        saveLibraryJson();
+        if (target_deck >= 0) {
+            loadTrackToDeck(idx, target_deck);
+        }
+        return;
+    }
+
+    // 4. Requires NVENC 1080p conversion
+    item.status = QStringLiteral("Várakozik...");
+    tracks_.push_back(item);
+    const int idx = static_cast<int>(tracks_.size()) - 1;
+    conversion_queue_.push_back(idx);
+    updateTable();
+    processNextConversion();
 }
 
 void TracklistDock::processNextConversion()
@@ -334,10 +463,17 @@ void TracklistDock::processNextConversion()
         progress_bar_->setVisible(true);
     }
     if (status_lbl_) {
-        status_lbl_->setText(QStringLiteral("Konvertálás folyamatban (RTX 3060 NVENC 1080p): %1").arg(item.title));
+        status_lbl_->setText(QStringLiteral("Konvertálás (RTX 3060 NVENC 1080p): %1").arg(item.title));
     }
 
-    converter_->convertTo1080p(item.original_path, library_dir_);
+    const bool started = converter_->convertTo1080p(item.original_path, library_dir_);
+    if (!started) {
+        item.status = QStringLiteral("Nem indítható");
+        updateRow(active_conversion_idx_);
+        active_conversion_idx_ = -1;
+        if (progress_bar_) progress_bar_->setVisible(false);
+        processNextConversion();
+    }
 }
 
 void TracklistDock::analyzeTrackAudio(int track_index)
@@ -376,7 +512,6 @@ void TracklistDock::updateRow(int row)
         table_->setItem(row, 0, st_item);
     }
 
-    // Check if active on Deck A or Deck B
     const QString fn = item.file_path;
     bool is_deck_a = (vj_deck_a() && vj_deck_a()->filePath() == fn && vj_deck_a()->isPlaying());
     bool is_deck_b = (vj_deck_b() && vj_deck_b()->filePath() == fn && vj_deck_b()->isPlaying());
@@ -436,7 +571,7 @@ void TracklistDock::updateRow(int row)
         table_->setItem(row, 4, fmt_item);
     }
     if (item.is_converted) {
-        fmt_item->setText(QStringLiteral("1080p VJ"));
+        fmt_item->setText(isAudioOnlyFile(QFileInfo(item.file_path).suffix()) ? QStringLiteral("Audio") : QStringLiteral("1080p VJ"));
         fmt_item->setForeground(QColor(0, 255, 136));
     } else {
         fmt_item->setText(item.status);
@@ -572,9 +707,14 @@ void TracklistDock::loadLibraryJson()
                 item.duration_ms = obj[QStringLiteral("duration_ms")].toInteger();
                 item.is_converted = obj[QStringLiteral("is_converted")].toBool();
                 item.played = obj[QStringLiteral("played")].toBool();
-                item.status = obj[QStringLiteral("status")].toString(QStringLiteral("Ready"));
+                QString st = obj[QStringLiteral("status")].toString(QStringLiteral("Ready"));
+                // Reset any stuck conversion status from previous crash/restart
+                if (st.startsWith(QStringLiteral("Conv")) || st == QStringLiteral("Várakozik...")) {
+                    st = QStringLiteral("Ready");
+                }
+                item.status = st;
 
-                if (QFileInfo::exists(item.file_path)) {
+                if (QFileInfo::exists(item.file_path) || QFileInfo::exists(item.original_path)) {
                     tracks_.push_back(item);
                 }
             }

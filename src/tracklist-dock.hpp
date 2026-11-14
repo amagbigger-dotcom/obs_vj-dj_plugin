@@ -19,6 +19,7 @@ struct TrackItem {
     bool is_converted = false;
     bool played = false;
     QString status = QStringLiteral("Ready");
+    int target_deck_after_conv = -1; // -1 = none, 0 = A, 1 = B
 };
 
 class TracklistDock : public QDialog {
@@ -28,7 +29,8 @@ public:
     explicit TracklistDock(QWidget *parent = nullptr);
     ~TracklistDock() override;
 
-    void addFile(const QString &path, bool auto_convert = true);
+    void addFile(const QString &path, int target_deck = -1);
+    void deleteSelectedTrack();
     void loadLibraryJson();
     void saveLibraryJson();
 
@@ -40,9 +42,9 @@ protected:
 private slots:
     void onBrowseFolder();
     void onImportButtonClicked();
-    void onAddDirectButtonClicked();
     void onRefreshStatus();
     void onTableItemDoubleClicked(int row, int column);
+    void onCustomContextMenuRequested(const QPoint &pos);
 
 private:
     void setupUi();
@@ -64,3 +66,7 @@ private:
     QTableWidget *table_ = nullptr;
     QTimer *status_timer_ = nullptr;
 };
+
+// Global accessor to import & load from anywhere (e.g. Deck window)
+void vdj_import_and_load(const QString &file_path, int deck_channel);
+void vdj_open_tracklist_window();

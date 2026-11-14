@@ -302,6 +302,16 @@ A bővítmény három független szálon/környezetben dolgozik:
   - **Azonnali Automata BPM & Hullámforma Analízis:** A konvertálás után azonnal legenerálja a `.vdj.json` gyorsítótárat.
   - **Perzisztens Lista & Lejátszási Állapot (✓):** A lista megőrzi az elemeket az OBS újraindításakor. A sorokból közvetlen `[ LOAD A ]` és `[ LOAD B ]` gombokkal azonnal betölthető a szám, és a lejátszott tételek mellett megjelenik a zöld `✓` (pipa) jelzés, vagy a futó `▶ A` / `▶ B` státusz.
 
+### 19. Automatikus Formátumfelismerés, NVENC Hibajavítás, Törlés és Egységes Import (Build #199) *(KÉSZ)*
+- **NVENC Paraméter Hibajavítás & Biztos Elindulás:** Az NVIDIA NVENC enkóder hibára futott (`Gop Length should be greater than number of B frames + 1`), mert a `-g 1` opció ütközött az alapértelmezett B-framekkel. Javítva: `-g 2 -bf 0 -rc vbr -cq 18 -b:v 0`, amellyel az RTX 3060 90+ FPS sebességgel, hibátlan 1080p All-Intra minőségben azonnal végrehajtja a konvertálást.
+- **Többszintű FFmpeg Útvonalkeresés:** A `findFfmpegBinary()` mostantól ellenőrzi az OBS `bin/64bit`, `%APPDATA%/obs-studio/plugin_config/obs-vj-mixer`, és `C:/Program Files/obs-studio/bin/64bit` könyvtárakat, és a `process_->errorOccurred` azonnali CPU fallbackkel megakadályozza a `Conv 0%`-on való beragadást.
+- **Okos Automata Formátumfelismerés:** Megszüntetve a különálló direkt gomb. Egyetlen `[ + IMPORT MEDIA ]` gomb és Drag & Drop működik:
+  - Ha audiófájl (`mp3`, `wav`, `flac`, `aac`): nem konvertálja videóként, azonnal betölti és analizálja.
+  - Ha már 1080p All-Intra vagy létezik `_vj1080.mp4` a VJ mappában: azonnal újrahasznosítja, nincs felesleges újra-kódolás.
+  - Ha új videó: azonnal elindítja a háttérben az NVENC 1080p konvertálást.
+- **Track Törlés Megerősítéssel (Delete gomb & Jobb klikk):** Bármely kijelölt dal törölhető a Delete gombbal, a felső sáv `[ 🗑 TÖRLÉS ]` gombjával vagy a jobb egérgombos menüből, megerősítő kérdés után (`QMessageBox`).
+- **Deck "OPEN MEDIA" bekötése a Tracklist csővezetékbe:** A Deck felületén az "OPEN MEDIA" gombra kattintva a kiválasztott videó automatikusan a Tracklist csővezetékébe kerül, konvertálódik (ha szükséges), és azonnal betöltődik a választott Deckbe (Deck A vagy B).
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

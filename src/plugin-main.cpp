@@ -12,21 +12,9 @@ OBS_MODULE_USE_DEFAULT_LOCALE("obs_vj-dj_plugin", "en-US")
 static DeckPlayer *g_deck_a = nullptr;
 static DeckPlayer *g_deck_b = nullptr;
 static DeckWindow *g_deck_window = nullptr;
-static TracklistDock *g_tracklist_window = nullptr;
 
 extern "C" {
 void vdj_register_deck_source(void);
-}
-
-void vdj_open_tracklist_window()
-{
-    if (!g_tracklist_window) {
-        QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
-        g_tracklist_window = new TracklistDock(main_window);
-    }
-    g_tracklist_window->show();
-    g_tracklist_window->raise();
-    g_tracklist_window->activateWindow();
 }
 
 static void open_tracklist_menu(void *data)
@@ -84,11 +72,6 @@ void free_deck_ui()
         g_deck_window->close();
         delete g_deck_window;
         g_deck_window = nullptr;
-    }
-    if (g_tracklist_window) {
-        g_tracklist_window->close();
-        delete g_tracklist_window;
-        g_tracklist_window = nullptr;
     }
 }
 

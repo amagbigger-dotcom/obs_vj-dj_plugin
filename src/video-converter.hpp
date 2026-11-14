@@ -29,6 +29,7 @@ private slots:
 
 private:
     void startWithArguments(const QStringList &args);
+    void startCpuFallback();
 
     QProcess *process_ = nullptr;
     bool is_converting_ = false;

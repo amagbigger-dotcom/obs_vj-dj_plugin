@@ -475,14 +475,15 @@ void DeckWindow::openFileDialog()
 {
     const QString path = QFileDialog::getOpenFileName(
         this,
-        QStringLiteral("Open Video or Audio Media"),
+        QStringLiteral("Média megnyitása"),
         QString(),
         QStringLiteral("Media Files (*.mp4 *.mkv *.mov *.avi *.webm *.mp3 *.wav *.flac *.aac);;All Files (*.*)")
     );
 
-    if (!path.isEmpty() && deck_) {
-        deck_->loadFile(path);
-        fitTo1080p();
+    if (!path.isEmpty()) {
+        extern void vdj_import_and_load(const QString &file_path, int deck_channel);
+        const int channel = (deck_ && deck_->side() == DeckPlayer::DeckSide::B) ? 1 : 0;
+        vdj_import_and_load(path, channel);
     }
 }
 
