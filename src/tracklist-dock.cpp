@@ -301,7 +301,7 @@ void TracklistDock::deleteSelectedTrack()
     if (res == QMessageBox::Yes) {
         // Also delete the .vdj.json sidecar cache file so it never gets stale!
         const QString orig_cache = item.original_path + QStringLiteral(".vdj.json");
-        const QString conv_cache = item.converted_path + QStringLiteral(".vdj.json");
+        const QString conv_cache = item.file_path + QStringLiteral(".vdj.json");
         if (QFile::exists(orig_cache)) QFile::remove(orig_cache);
         if (QFile::exists(conv_cache)) QFile::remove(conv_cache);
 
@@ -315,7 +315,7 @@ bool vdj_is_track_in_library(const QString &file_path)
 {
     if (!g_tracklist_instance) return false;
     for (const auto &t : g_tracklist_instance->tracks()) {
-        if (t.original_path == file_path || t.converted_path == file_path)
+        if (t.original_path == file_path || t.file_path == file_path)
             return true;
     }
     return false;
