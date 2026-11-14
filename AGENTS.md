@@ -312,6 +312,36 @@ A bővítmény három független szálon/környezetben dolgozik:
 - **Track Törlés Megerősítéssel (Delete gomb & Jobb klikk):** Bármely kijelölt dal törölhető a Delete gombbal, a felső sáv `[ 🗑 TÖRLÉS ]` gombjával vagy a jobb egérgombos menüből, megerősítő kérdés után (`QMessageBox`).
 - **Deck "OPEN MEDIA" bekötése a Tracklist csővezetékbe:** A Deck felületén az "OPEN MEDIA" gombra kattintva a kiválasztott videó automatikusan a Tracklist csővezetékébe kerül, konvertálódik (ha szükséges), és azonnal betöltődik a választott Deckbe (Deck A vagy B).
 
+### 20. Teljes 2-Deck VJ Mixer Integráció, Pontos BPM & Kvantált Loop (Build #200) *(KÉSZ)*
+- **Három Hivatalos OBS Forrás:**
+  - `OBS VJ Deck A` (`vj_deck_a`): Deck A (Bal oldal) videó és audió forrása. A felhasználó az OBS jelenetekben közvetlenül OBS szűrőket (pl. színkorrekció, blur, stílus-effektek) tehet a Deck A forrásra.
+  - `OBS VJ Deck B` (`vj_deck_b`): Deck B (Jobb oldal) videó és audió forrása, amely szintén egyedileg effektezhető az OBS-ben.
+  - `OBS VJ Master Mixer` (`vdj_master_mixer`): A végső kompozit kimenet, amely a jelenet tetején elhelyezve a Crossfader és az Átmeneti Mód (Fade, Wipe, Additive, Cut) szerint összefűzi a Deck A és B videóját és audióját. Ha a Deck A/B forrás már létezik az OBS jelenetben szűrőkkel, a Master Mixer az effektezett képet fűzi össze!
+- **Fix Bal (Deck A) és Jobb (Deck B) Oldali Kiosztás:**
+  - A Mixer ablakban a Bal oldal fixen Deck A, a Jobb oldal fixen Deck B.
+  - A Tracklistből a `[ LOAD A ]` a Deck A-ba, a `[ LOAD B ]` a Deck B-be tölt.
+  - A Deck ablakban a `[ DECK A ]` / `[ DECK B ]` váltógombokkal azonnal átkapcsolható a kijelzés.
+- **Kétcsatornás Vizuális & Audió EQ Potméterek (Oldalanként 4 potméter):**
+  - `HI`: Vörös (Red) színerősítés ($0.0 - 2.0$) + Magas audió sáv (> 3200 Hz).
+  - `MID`: Zöld (Green) színerősítés ($0.0 - 2.0$) + Közép audió sáv (260 Hz - 3200 Hz).
+  - `LOW`: Kék (Blue) színerősítés ($0.0 - 2.0$) + Mély audió sáv (< 260 Hz).
+  - `FILTER`: Színtelítettség ($0.0 - 2.0$, Rec.709 luma) + Kétirányú DJ Szűrő (Low-Pass balra, High-Pass jobbra).
+  - Dupla kattintás minden potméteren azonnal visszaállítja az alapértelmezett semleges (0 dB / 1.0f) állapotot.
+- **Csatornánkénti Bemeneti Gain, Hangerő Féder és Központi Master Crossfader:**
+  - Független `GAIN` és `VOL` csúszkák oldalanként.
+  - Központi nagyméretű `CROSSFADER`, amely valós időben vezérli a videó shader átmenetet és az audió master keverési arányát.
+  - 4-féle átmenet választható: Linear Fade, Horizontal Wipe, Additive Blend, Hard Cut.
+  - Fejhallgató CUE (`🎧 CUE A`, `🎧 CUE B`), HP Volume és Cue/Master Mix fader.
+- **Pontos BPM Kiszámítás & Egész Tempó Kerekítés:**
+  - Megszüntetve az 1-2 tizedes alámérés: a korábbi fix 500 Hz-es felosztás helyett a tényleges mintavételi rátához igazított `onset_rate = sample_rate / samples_per_2ms` számítás fut.
+  - Automatikus intelligens egész-BPM prioritás (±0.22 tartományon belül kerekít a legközelebbi egészre, pl. 137.7 -> 138.0 BPM).
+- **Kvantált Ütemhelyes Auto-Loop (Kattanásmentes Hurok):**
+  - A `LOOP` gomb aktiválásakor a hurok kezdőpontja automatikusan a legközelebbi ütemrács-vonalhoz (downbeat / beatgrid) kvantálódik, így a visszaugrás nem egy véletlenszerű hangminta közepén történik, megszüntetve a kattanást / pattanást.
+- **Eszközök (Tools) Menü Integráció:**
+  - `Eszközök -> OBS VJ Mixer` (Teljes 3-oszlopos keverőpult)
+  - `Eszközök -> OBS VJ Deck` (Egycsatornás vezérlő nagy hullámformával)
+  - `Eszközök -> OBS VJ Tracklist` (Médiatár NVENC konverterrel)
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ
