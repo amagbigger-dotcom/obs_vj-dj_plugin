@@ -153,18 +153,18 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
       decks_(decks)
 {
     setWindowTitle(QStringLiteral("OBS VJ Mixer"));
-    resize(560, 460);
-    setMinimumSize(520, 420);
+    resize(430, 420);
+    setMinimumSize(380, 380);
     setStyleSheet(QString::fromUtf8(MIXER_STYLESHEET));
 
     auto *main_layout = new QVBoxLayout(this);
-    main_layout->setContentsMargins(6, 4, 6, 4);
-    main_layout->setSpacing(4);
+    main_layout->setContentsMargins(4, 3, 4, 3);
+    main_layout->setSpacing(3);
 
     // 1. 3-Column DJ Mixer Area: Channel A | Center Master | Channel B
     auto *mixer_row = new QHBoxLayout();
     mixer_row->setContentsMargins(0, 0, 0, 0);
-    mixer_row->setSpacing(6);
+    mixer_row->setSpacing(4);
 
     QWidget *strip_a = buildChannelStrip(true);
     QWidget *center_master = buildCenterMasterPanel();
@@ -224,17 +224,17 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
         row->setContentsMargins(0, 1, 0, 1);
 
         auto *lbl = new QLabel(name, panel);
-        lbl->setFixedWidth(28);
+        lbl->setFixedWidth(24);
         lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: %1;").arg(color));
 
         auto *sl = new DJSlider(Qt::Horizontal, def_val, panel);
         sl->setRange(-100, 100);
         sl->setValue(def_val);
-        sl->setFixedHeight(20);
+        sl->setFixedHeight(18);
         *out_sl = sl;
 
         auto *val_lbl = new QLabel(formatter(def_val), panel);
-        val_lbl->setFixedWidth(42);
+        val_lbl->setFixedWidth(36);
         val_lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
         val_lbl->setStyleSheet(QStringLiteral("font-size: 8px; font-family: monospace; color: #8da0b8;"));
         *out_val_lbl = val_lbl;
@@ -324,7 +324,7 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
     auto *vol_slider = new DJSlider(Qt::Vertical, 80, panel);
     vol_slider->setRange(0, 100);
     vol_slider->setValue(80);
-    vol_slider->setFixedHeight(105);
+    vol_slider->setFixedHeight(95);
     vol_slider->setToolTip(QStringLiteral("Channel Volume Fader (Default: 80% Unity Line Level)"));
 
     auto *meter = new QProgressBar(panel);
@@ -332,7 +332,7 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
     meter->setRange(0, 100);
     meter->setValue(0);
     meter->setFixedWidth(8);
-    meter->setFixedHeight(105);
+    meter->setFixedHeight(95);
     meter->setTextVisible(false);
 
     auto *vol_lbl = new QLabel(QStringLiteral("80%"), panel);
@@ -666,6 +666,14 @@ void MixerWindow::refreshMixer()
                 cf_val_lbl_->setText(QString::asprintf("%d%% | B %d%% ►", pct_a, pct_b));
                 cf_val_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #ff7700; font-weight: bold;"));
             }
+        }
+    }
+
+    if (obs_frontend_preview_program_mode_active()) {
+        const int tbar_pos = std::clamp(static_cast<int>(std::round(decks_->crossfader() * 1023.0)), 0, 1023);
+        obs_frontend_set_tbar_position(tbar_pos);
+        if (tbar_pos <= 0 || tbar_pos >= 1023) {
+            obs_frontend_release_tbar();
         }
     }
 

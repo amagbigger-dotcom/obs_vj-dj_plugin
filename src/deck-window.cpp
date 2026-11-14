@@ -10,6 +10,7 @@
 #include <QDateTime>
 #include <QSignalBlocker>
 #include <QGroupBox>
+#include <QKeyEvent>
 
 static QString formatTime(int64_t ms)
 {
@@ -119,17 +120,30 @@ void DeckWindow::setupUi()
 
     top_bar->addWidget(time_container);
 
-    // Direct in-place editable BPM input field (no popup window needed!)
+    // Direct in-place editable BPM input field with exact 0.1 BPM stepping buttons
     auto *bpm_box = new QHBoxLayout();
-    bpm_box->setSpacing(4);
+    bpm_box->setSpacing(2);
+
+    bpm_minus_btn_ = new QPushButton(QStringLiteral("−"), this);
+    bpm_minus_btn_->setFixedSize(22, 26);
+    bpm_minus_btn_->setStyleSheet(QStringLiteral("background: #1c2635; border: 1px solid #2e3e54; color: #00d2ff; font-size: 13px; font-weight: bold; border-radius: 3px; padding: 0;"));
+    bpm_minus_btn_->setToolTip(QStringLiteral("BPM finomhangolás: −0.1 BPM"));
+    connect(bpm_minus_btn_, &QPushButton::clicked, this, [this]() {
+        if (deck_) {
+            const double new_bpm = std::round((deck_->bpm() - 0.1) * 10.0) / 10.0;
+            deck_->setBpm(new_bpm);
+        }
+    });
+    bpm_box->addWidget(bpm_minus_btn_);
+
     bpm_edit_ = new QLineEdit(QStringLiteral("128.00"), this);
-    bpm_edit_->setFixedWidth(80);
+    bpm_edit_->setFixedWidth(70);
     bpm_edit_->setAlignment(Qt::AlignCenter);
     bpm_edit_->setStyleSheet(QStringLiteral(
-        "QLineEdit { background: #141b24; color: #00d2ff; font-family: 'Consolas', monospace; font-size: 15px; font-weight: bold; border: 1px solid #2e3e54; border-radius: 4px; padding: 4px 6px; }"
+        "QLineEdit { background: #141b24; color: #00d2ff; font-family: 'Consolas', monospace; font-size: 14px; font-weight: bold; border: 1px solid #2e3e54; border-radius: 4px; padding: 3px 4px; }"
         "QLineEdit:focus { border: 1px solid #00d2ff; background: #1c2635; color: #ffffff; }"
     ));
-    bpm_edit_->setToolTip(QStringLiteral("Kattints ide a pontos BPM kézi beírásához (Enter: alkalmazás)"));
+    bpm_edit_->setToolTip(QStringLiteral("BPM kézi beírása (Enter: alkalmazás, [−]/[+] gombok: 0.1 BPM finomhangolás)"));
     auto *bpm_val = new QDoubleValidator(40.0, 300.0, 2, bpm_edit_);
     bpm_val->setNotation(QDoubleValidator::StandardNotation);
     bpm_edit_->setValidator(bpm_val);
@@ -151,9 +165,22 @@ void DeckWindow::setupUi()
         }
     });
 
-    auto *bpm_unit = new QLabel(QStringLiteral("BPM"), this);
-    bpm_unit->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 11px;"));
     bpm_box->addWidget(bpm_edit_);
+
+    bpm_plus_btn_ = new QPushButton(QStringLiteral("+"), this);
+    bpm_plus_btn_->setFixedSize(22, 26);
+    bpm_plus_btn_->setStyleSheet(QStringLiteral("background: #1c2635; border: 1px solid #2e3e54; color: #00d2ff; font-size: 13px; font-weight: bold; border-radius: 3px; padding: 0;"));
+    bpm_plus_btn_->setToolTip(QStringLiteral("BPM finomhangolás: +0.1 BPM"));
+    connect(bpm_plus_btn_, &QPushButton::clicked, this, [this]() {
+        if (deck_) {
+            const double new_bpm = std::round((deck_->bpm() + 0.1) * 10.0) / 10.0;
+            deck_->setBpm(new_bpm);
+        }
+    });
+    bpm_box->addWidget(bpm_plus_btn_);
+
+    auto *bpm_unit = new QLabel(QStringLiteral("BPM"), this);
+    bpm_unit->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 10px; margin-left: 2px;"));
     bpm_box->addWidget(bpm_unit);
     top_bar->addLayout(bpm_box);
 
@@ -595,4 +622,21 @@ void DeckWindow::onRefresh()
                 .arg(diff, 0, 'f', 1));
         }
     }
+}
+
+void DeckWindow::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
+        if (bpm_edit_ && bpm_edit_->hasFocus()) {
+            bool ok = false;
+            const double val = bpm_edit_->text().toDouble(&ok);
+            if (ok && deck_) {
+                deck_->setBpm(val);
+            }
+            bpm_edit_->clearFocus();
+        }
+        event->accept();
+        return;
+    }
+    QDialog::keyPressEvent(event);
 }

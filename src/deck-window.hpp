@@ -23,6 +23,9 @@ public:
     void bindDeck(DeckPlayer *deck);
     void fitTo1080p();
 
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+
 private slots:
     void onRefresh();
 
@@ -43,7 +46,9 @@ private:
     QLabel *file_lbl_ = nullptr;
     QLabel *elapsed_lbl_ = nullptr;
     QLabel *remaining_lbl_ = nullptr;
+    QPushButton *bpm_minus_btn_ = nullptr;
     QLineEdit *bpm_edit_ = nullptr;
+    QPushButton *bpm_plus_btn_ = nullptr;
     QPushButton *tap_bpm_btn_ = nullptr;
 
     WaveformCanvas *waveform_canvas_ = nullptr;

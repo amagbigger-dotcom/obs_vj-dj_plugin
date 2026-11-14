@@ -2,6 +2,7 @@
 #include "audio-analyzer.hpp"
 
 #include <obs-module.h>
+#include <obs-frontend-api.h>
 #include <util/platform.h>
 #include <algorithm>
 #include <cmath>
@@ -161,7 +162,9 @@ void DeckPlayer::loadFile(const QString &path)
         }
     });
 
-    obs_source_media_restart(source_);
+    // Do NOT auto-play on media load: initialize paused at 00:00 (CUE)
+    obs_source_media_play_pause(source_, true);
+    obs_source_media_set_time(source_, 0);
 }
 
 QString DeckPlayer::fileName() const
@@ -281,6 +284,7 @@ void DeckPlayer::setSpeed(int percent)
 {
     const int clamped = std::clamp(percent, 50, 150);
     speed_percent_.store(clamped, std::memory_order_relaxed);
+    is_sync_.store(false, std::memory_order_relaxed);
 }
 
 void DeckPlayer::applySpeedSettings(int speed_percent)
@@ -290,6 +294,7 @@ void DeckPlayer::applySpeedSettings(int speed_percent)
 
     const int clamped = std::clamp(speed_percent, 50, 150);
     speed_percent_.store(clamped, std::memory_order_relaxed);
+    is_sync_.store(false, std::memory_order_relaxed);
 
     if (speed_restart_phase_.load(std::memory_order_relaxed) == 0) {
         const int64_t actual = obs_source_media_get_time(source_);
@@ -327,6 +332,9 @@ double DeckPlayer::bpm() const noexcept
 
 double DeckPlayer::effectiveBpm() const noexcept
 {
+    if (is_sync_.load(std::memory_order_relaxed) && !is_master_.load(std::memory_order_relaxed)) {
+        return target_sync_bpm_.load(std::memory_order_relaxed);
+    }
     const double b = bpm();
     const double spd = static_cast<double>(speed()) / 100.0;
     return b * spd;
@@ -710,10 +718,15 @@ void DeckPlayer::syncToBpm(double target_bpm)
     if (base < 10.0 || target_bpm < 10.0)
         return;
 
+    target_sync_bpm_.store(target_bpm, std::memory_order_relaxed);
+    is_sync_.store(true, std::memory_order_relaxed);
+
     const int target_speed = std::clamp(
         static_cast<int>(std::round((target_bpm / base) * 100.0)),
         50, 150);
     applySpeedSettings(target_speed);
+    // Maintain sync flag even after applySpeedSettings
+    is_sync_.store(true, std::memory_order_relaxed);
 }
 
 void DeckPlayer::syncPhase(int64_t beat_time_ms)
@@ -790,8 +803,18 @@ DeckPlayer &DeckPair::deckB() noexcept
 
 void DeckPair::setCrossfader(double value) noexcept
 {
-    crossfader_.store(std::clamp(value, 0.0, 1.0), std::memory_order_relaxed);
+    const double clamped = std::clamp(value, 0.0, 1.0);
+    crossfader_.store(clamped, std::memory_order_relaxed);
     updateAudioMix();
+
+    // Drive OBS Studio Mode scene transition T-Bar in real time
+    if (obs_frontend_preview_program_mode_active()) {
+        const int tbar_pos = std::clamp(static_cast<int>(std::round(clamped * 1023.0)), 0, 1023);
+        obs_frontend_set_tbar_position(tbar_pos);
+        if (tbar_pos <= 0 || tbar_pos >= 1023) {
+            obs_frontend_release_tbar();
+        }
+    }
 }
 
 double DeckPair::crossfader() const noexcept

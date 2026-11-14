@@ -472,9 +472,14 @@ static void mixer_video_tick(void *data, float seconds)
                 }
                 if (src_a) {
                     obs_sceneitem_t *it = obs_scene_add(scene, src_a);
-                    if (it) obs_sceneitem_set_order(it, OBS_ORDER_MOVE_BOTTOM);
+                    if (it) {
+                        obs_sceneitem_set_order(it, OBS_ORDER_MOVE_BOTTOM);
+                        obs_sceneitem_set_visible(it, false);
+                    }
                     obs_source_release(src_a);
                 }
+            } else {
+                obs_sceneitem_set_visible(item_a, false);
             }
 
             obs_sceneitem_t *item_b = obs_scene_find_source(scene, "OBS VJ Deck B");
@@ -488,9 +493,14 @@ static void mixer_video_tick(void *data, float seconds)
                 }
                 if (src_b) {
                     obs_sceneitem_t *it = obs_scene_add(scene, src_b);
-                    if (it) obs_sceneitem_set_order(it, OBS_ORDER_MOVE_BOTTOM);
+                    if (it) {
+                        obs_sceneitem_set_order(it, OBS_ORDER_MOVE_BOTTOM);
+                        obs_sceneitem_set_visible(it, false);
+                    }
                     obs_source_release(src_b);
                 }
+            } else {
+                obs_sceneitem_set_visible(item_b, false);
             }
 
             obs_sceneitem_t *item_cue = obs_scene_find_source(scene, "OBS VJ Headphone CUE");
@@ -508,7 +518,8 @@ static void mixer_video_tick(void *data, float seconds)
                 }
             }
 
-            // Always ensure Master Mixer stays on top
+            // Always ensure Master Mixer is visible and stays on top of the visual stack
+            obs_sceneitem_set_visible(master_item, true);
             obs_sceneitem_set_order(master_item, OBS_ORDER_MOVE_TOP);
         }
     }

@@ -168,6 +168,7 @@ private:
 
     std::atomic<bool> is_master_{false};
     std::atomic<bool> is_sync_{false};
+    std::atomic<double> target_sync_bpm_{128.0};
     std::atomic<int64_t> pending_speed_seek_ms_{0};
     std::atomic<int> speed_restart_phase_{0};
     std::chrono::steady_clock::time_point speed_restart_tp_{};
