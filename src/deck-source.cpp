@@ -100,8 +100,8 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
     const float ch_vol = context->deck->volume();
     const float mix_gain = context->deck->mixGain();
 
-    // Calibrated line level: 0.707f (-3 dB headroom so 0 dBFS tracks never clip into red)
-    const float net_gain = ch_gain * ch_vol * mix_gain * 0.707f;
+    // Calibrated line level with 0 dB unity gain at 100% volume
+    const float net_gain = ch_gain * ch_vol * mix_gain;
 
     static thread_local std::vector<float> buf_l;
     static thread_local std::vector<float> buf_r;
@@ -125,33 +125,6 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
     if (decks) {
         const float *channels[2] = {buf_l.data(), buf_r.data()};
         decks->queueCueAudio(context->deck_channel, channels, frames);
-    }
-
-    // Loop audio bridging: record first ~250 ms of loop
-    if (context->deck->isLooping()) {
-        const int64_t cur_ms = context->deck->currentTimeMs();
-        const int64_t l_start = context->deck->loopStartMs();
-        if (cur_ms >= l_start && cur_ms < l_start + 250) {
-            std::lock_guard<std::mutex> lock(context->bridge_mutex);
-            if (context->loop_bridge_l.size() < 12000) {
-                context->loop_bridge_l.insert(context->loop_bridge_l.end(), buf_l.begin(), buf_l.end());
-                context->loop_bridge_r.insert(context->loop_bridge_r.end(), buf_r.begin(), buf_r.end());
-            }
-        }
-        // Smooth 4 ms crossfade at loop boundary to eliminate pop/click
-        if (cur_ms >= l_start && cur_ms < l_start + 5) {
-            const size_t fade_samples = std::min<size_t>(frames, 192); // ~4 ms at 48k
-            for (size_t i = 0; i < fade_samples; ++i) {
-                const float t = static_cast<float>(i) / static_cast<float>(fade_samples);
-                buf_l[i] *= t;
-                buf_r[i] *= t;
-            }
-        }
-    } else {
-        std::lock_guard<std::mutex> lock(context->bridge_mutex);
-        context->loop_bridge_l.clear();
-        context->loop_bridge_r.clear();
-        context->bridge_play_idx = 0;
     }
 
     context->last_audio_tp = std::chrono::steady_clock::now();
@@ -262,35 +235,6 @@ static void deck_video_tick(void *data, float seconds)
 
     if (context->deck) {
         context->deck->updateLoop();
-
-        // Bridge loop silence gap during seek
-        if (context->deck->isLooping()) {
-            const auto now = std::chrono::steady_clock::now();
-            const auto silence_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - context->last_audio_tp).count();
-            if (silence_ms >= 18 && silence_ms < 100) {
-                std::lock_guard<std::mutex> lock(context->bridge_mutex);
-                const size_t avail = context->loop_bridge_l.size();
-                if (avail > 0 && context->bridge_play_idx < avail) {
-                    const size_t chunk_frames = std::min<size_t>(avail - context->bridge_play_idx, 960);
-                    if (chunk_frames > 0) {
-                        struct obs_source_audio bridge_audio = {};
-                        bridge_audio.data[0] = reinterpret_cast<uint8_t *>(context->loop_bridge_l.data() + context->bridge_play_idx);
-                        bridge_audio.data[1] = reinterpret_cast<uint8_t *>(context->loop_bridge_r.data() + context->bridge_play_idx);
-                        bridge_audio.frames = static_cast<uint32_t>(chunk_frames);
-                        bridge_audio.speakers = SPEAKERS_STEREO;
-                        bridge_audio.format = AUDIO_FORMAT_FLOAT_PLANAR;
-                        bridge_audio.samples_per_sec = 48000;
-                        bridge_audio.timestamp = os_gettime_ns();
-
-                        obs_source_output_audio(context->source, &bridge_audio);
-                        context->bridge_play_idx += chunk_frames;
-                    }
-                }
-            } else if (silence_ms < 18) {
-                std::lock_guard<std::mutex> lock(context->bridge_mutex);
-                context->bridge_play_idx = 0;
-            }
-        }
     }
 }
 

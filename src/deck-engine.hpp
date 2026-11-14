@@ -179,6 +179,10 @@ private:
         float hp = 0.0f;
         float dj_lp = 0.0f;
         float dj_hp = 0.0f;
+        float cur_low = 1.0f;
+        float cur_mid = 1.0f;
+        float cur_hi = 1.0f;
+        float cur_flt = 0.0f;
     } dsp_states_[2];
 
     mutable std::mutex waveform_mutex_;

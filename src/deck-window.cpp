@@ -354,6 +354,23 @@ void DeckWindow::setupUi()
     });
     transport_bar->addWidget(sync_btn_);
 
+    master_btn_ = new QPushButton(QStringLiteral("MASTER"), this);
+    master_btn_->setMinimumSize(80, 48);
+    master_btn_->setCheckable(true);
+    master_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c2634; border: 2px solid #385070; font-size: 13px; font-weight: bold; color: #78a0d0; border-radius: 6px; }"
+        "QPushButton:checked { background: #d97706; border-color: #f59e0b; color: #ffffff; }"
+    ));
+    connect(master_btn_, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        DeckPair *decks = vdj_decks();
+        if (decks) {
+            const int ch = (deck_->side() == DeckPlayer::DeckSide::B) ? 1 : 0;
+            decks->setDeckMaster(ch);
+        }
+    });
+    transport_bar->addWidget(master_btn_);
+
     transport_bar->addStretch(1);
     main_layout->addLayout(transport_bar);
 
@@ -536,7 +553,12 @@ void DeckWindow::onRefresh()
         play_btn_->setStyleSheet(QStringLiteral("background: #1e3a24; border: 2px solid #00cc44; font-size: 15px; font-weight: bold; color: #ffffff; border-radius: 6px;"));
     }
 
-    // 7. Sync button state
+    // 7. Master & Sync button states
+    const bool is_m = deck_->isMaster();
+    if (master_btn_->isChecked() != is_m) {
+        QSignalBlocker b(master_btn_);
+        master_btn_->setChecked(is_m);
+    }
     if (sync_btn_->isChecked() != deck_->isSync()) {
         QSignalBlocker b(sync_btn_);
         sync_btn_->setChecked(deck_->isSync());

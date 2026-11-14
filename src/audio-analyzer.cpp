@@ -395,27 +395,39 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         novelty[w] = (diff > 0.0f) ? diff : 0.0f;
     }
 
-    // 5. Autocorrelation over 65 to 185 BPM at 500 Hz
-    constexpr int kMinLag = 162; // ~185 BPM
-    constexpr int kMaxLag = 461; // ~65 BPM
+    // 5. Autocorrelation over 65 to 190 BPM with Harmonic Enhancement
+    constexpr int kMinLag = 158; // ~190 BPM
+    constexpr int kMaxLag = 465; // ~65 BPM
+    const int max_search_lag = kMaxLag * 2 + 4;
 
-    std::vector<double> autocorr(kMaxLag + 2, 0.0);
+    std::vector<double> raw_corr(max_search_lag + 1, 0.0);
     const size_t max_novelty_len = std::min<size_t>(novelty.size(), static_cast<size_t>(500 * 120)); // analyze up to 2 minutes
 
-    int best_lag = 234; // 128 BPM
-    double best_score = -1.0;
-
-    for (int lag = kMinLag; lag <= kMaxLag; ++lag) {
+    for (int lag = kMinLag / 2; lag <= max_search_lag; ++lag) {
+        if (static_cast<size_t>(lag) >= max_novelty_len) break;
         double sum = 0.0;
         const size_t count = max_novelty_len - lag;
         for (size_t i = 0; i < count; ++i) {
             sum += static_cast<double>(novelty[i]) * static_cast<double>(novelty[i + lag]);
         }
+        raw_corr[lag] = (count > 0) ? (sum / static_cast<double>(count)) : 0.0;
+    }
+
+    std::vector<double> autocorr(kMaxLag + 2, 0.0);
+    int best_lag = 234; // 128 BPM
+    double best_score = -1.0;
+
+    for (int lag = kMinLag; lag <= kMaxLag; ++lag) {
+        // Harmonic summation reinforces true fundamental beat and suppresses 5/4, 3/4 cross-rhythms
+        double score = raw_corr[lag];
+        if (lag * 2 <= max_search_lag) score += 0.6 * raw_corr[lag * 2];
+        if (lag / 2 >= kMinLag / 2)   score += 0.4 * raw_corr[lag / 2];
+        if (lag * 3 <= max_search_lag) score += 0.25 * raw_corr[lag * 3];
 
         const double bpm = (60.0 * onset_rate) / static_cast<double>(lag);
-        // Wide prior centered at 126 BPM (sigma 42)
-        const double prior = std::exp(-std::pow(bpm - 126.0, 2.0) / (2.0 * 42.0 * 42.0));
-        const double score = sum * prior;
+        // Wide DJ prior centered at 128 BPM (sigma 40)
+        const double prior = std::exp(-std::pow(bpm - 128.0, 2.0) / (2.0 * 40.0 * 40.0));
+        score *= prior;
         autocorr[lag] = score;
 
         if (score > best_score) {
@@ -441,11 +453,11 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     const double detected_bpm = (60.0 * onset_rate) / fine_lag;
     double final_bpm = detected_bpm;
     const double nearest_int = std::round(detected_bpm);
-    if (std::abs(detected_bpm - nearest_int) <= 0.38) {
+    if (std::abs(detected_bpm - nearest_int) <= 0.42) {
         final_bpm = nearest_int;
     } else {
         const double nearest_half = std::round(detected_bpm * 2.0) / 2.0;
-        if (std::abs(detected_bpm - nearest_half) <= 0.08) {
+        if (std::abs(detected_bpm - nearest_half) <= 0.12) {
             final_bpm = nearest_half;
         } else {
             final_bpm = std::round(detected_bpm * 10.0) / 10.0;

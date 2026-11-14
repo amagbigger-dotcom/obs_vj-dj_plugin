@@ -64,7 +64,7 @@ QPushButton:checked {
     border-color: #00d2ff;
 }
 QSlider::groove:horizontal {
-    height: 6px;
+    height: 7px;
     background: #0d1015;
     border: 1px solid #202733;
     border-radius: 3px;
@@ -75,29 +75,30 @@ QSlider::sub-page:horizontal {
 }
 QSlider::handle:horizontal {
     background: #cdd5e2;
-    width: 14px;
+    width: 16px;
     margin: -5px 0;
-    border-radius: 2px;
+    border-radius: 3px;
     border: 1px solid #6c798e;
 }
 QSlider::handle:horizontal:hover {
     background: #ffffff;
 }
 QSlider::groove:vertical {
-    width: 6px;
+    width: 8px;
     background: #0d1015;
     border: 1px solid #202733;
-    border-radius: 3px;
+    border-radius: 4px;
 }
 QSlider::sub-page:vertical {
     background: #1c232e;
-    border-radius: 3px;
+    border-radius: 4px;
 }
 QSlider::handle:vertical {
     background: #cdd5e2;
-    height: 14px;
-    margin: 0 -5px;
-    border-radius: 2px;
+    height: 18px;
+    width: 22px;
+    margin: 0 -7px;
+    border-radius: 3px;
     border: 1px solid #6c798e;
 }
 QSlider::handle:vertical:hover {
@@ -152,7 +153,8 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
       decks_(decks)
 {
     setWindowTitle(QStringLiteral("OBS VJ Mixer"));
-    resize(580, 480);
+    resize(780, 520);
+    setMinimumSize(720, 480);
     setStyleSheet(QString::fromUtf8(MIXER_STYLESHEET));
 
     auto *main_layout = new QVBoxLayout(this);
@@ -275,48 +277,91 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
         .arg(is_deck_a ? QStringLiteral("#00d2ff") : QStringLiteral("#ff7700")));
 
     auto *layout = new QVBoxLayout(panel);
-    layout->setContentsMargins(6, 4, 6, 4);
+    layout->setContentsMargins(8, 4, 8, 4);
     layout->setSpacing(4);
 
     DeckPlayer *deck = is_deck_a ? vj_deck_a() : vj_deck_b();
 
-    auto addSliderRow = [panel, layout](const QString &name, const QString &color, DJSlider **out_sl, int def_val, auto setter) {
+    auto addSliderRow = [panel, layout](const QString &name, const QString &color,
+                                        DJSlider **out_sl, QLabel **out_val_lbl,
+                                        int def_val, auto setter, auto formatter) {
         auto *row = new QHBoxLayout();
-        row->setSpacing(4);
+        row->setSpacing(6);
+        row->setContentsMargins(0, 1, 0, 1);
+
         auto *lbl = new QLabel(name, panel);
-        lbl->setFixedWidth(28);
-        lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: %1;").arg(color));
+        lbl->setFixedWidth(30);
+        lbl->setStyleSheet(QStringLiteral("font-size: 10px; font-weight: bold; color: %1;").arg(color));
 
         auto *sl = new DJSlider(Qt::Horizontal, def_val, panel);
         sl->setRange(-100, 100);
         sl->setValue(def_val);
+        sl->setFixedHeight(22);
         *out_sl = sl;
+
+        auto *val_lbl = new QLabel(formatter(def_val), panel);
+        val_lbl->setFixedWidth(46);
+        val_lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        val_lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #8da0b8;"));
+        *out_val_lbl = val_lbl;
 
         row->addWidget(lbl);
         row->addWidget(sl, 1);
+        row->addWidget(val_lbl);
         layout->addLayout(row);
 
-        QObject::connect(sl, &QSlider::valueChanged, sl, [setter](int val) {
+        QObject::connect(sl, &QSlider::valueChanged, sl, [setter, val_lbl, formatter](int val) {
             setter(1.0f + static_cast<float>(val) / 100.0f);
+            val_lbl->setText(formatter(val));
         });
     };
 
-    // 1. GAIN
+    auto gain_fmt = [](int v) {
+        if (v == 0) return QStringLiteral("0.0 dB");
+        const float lin = 1.0f + static_cast<float>(v) / 100.0f;
+        const float db = 20.0f * std::log10(std::max(0.01f, lin));
+        return QString::asprintf("%+.1f dB", db);
+    };
+    auto rgb_fmt = [](int v) {
+        if (v == 0) return QStringLiteral("1.00");
+        return QString::asprintf("%.2f", 1.0f + static_cast<float>(v) / 100.0f);
+    };
+    auto flt_fmt = [](int v) {
+        if (v == 0) return QStringLiteral("FLAT");
+        if (v < 0) return QString::asprintf("LPF %d%%", -v);
+        return QString::asprintf("HPF %d%%", v);
+    };
+
+    // 1. GAIN, HI (Red), MID (Green), LOW (Blue), FLT (Saturation)
     if (is_deck_a) {
-        addSliderRow(QStringLiteral("GAIN"), QStringLiteral("#8da0b8"), &gain_a_, 0, [deck](float v) { if (deck) deck->setGain(v); });
-        addSliderRow(QStringLiteral("HI"), QStringLiteral("#ff4444"), &hi_a_, 0, [deck](float v) { if (deck) deck->setEqHi(v); });
-        addSliderRow(QStringLiteral("MID"), QStringLiteral("#00ff88"), &mid_a_, 0, [deck](float v) { if (deck) deck->setEqMid(v); });
-        addSliderRow(QStringLiteral("LOW"), QStringLiteral("#4488ff"), &low_a_, 0, [deck](float v) { if (deck) deck->setEqLow(v); });
-        addSliderRow(QStringLiteral("FLT"), QStringLiteral("#ffaa00"), &flt_a_, 0, [deck](float v) { if (deck) deck->setFilterVal(v - 1.0f); });
+        addSliderRow(QStringLiteral("GAIN"), QStringLiteral("#8da0b8"), &gain_a_, &gain_val_a_, 0,
+                     [deck](float v) { if (deck) deck->setGain(v); }, gain_fmt);
+        addSliderRow(QStringLiteral("HI"), QStringLiteral("#ff4444"), &hi_a_, &hi_val_a_, 0,
+                     [deck](float v) { if (deck) { deck->setEqHi(v); deck->setRed(v); } }, rgb_fmt);
+        addSliderRow(QStringLiteral("MID"), QStringLiteral("#00ff88"), &mid_a_, &mid_val_a_, 0,
+                     [deck](float v) { if (deck) { deck->setEqMid(v); deck->setGreen(v); } }, rgb_fmt);
+        addSliderRow(QStringLiteral("LOW"), QStringLiteral("#4488ff"), &low_a_, &low_val_a_, 0,
+                     [deck](float v) { if (deck) { deck->setEqLow(v); deck->setBlue(v); } }, rgb_fmt);
+        addSliderRow(QStringLiteral("FLT"), QStringLiteral("#ffaa00"), &flt_a_, &flt_val_a_, 0,
+                     [deck](float v) { if (deck) { deck->setFilterVal(v - 1.0f); deck->setSaturation(v); } }, flt_fmt);
     } else {
-        addSliderRow(QStringLiteral("GAIN"), QStringLiteral("#8da0b8"), &gain_b_, 0, [deck](float v) { if (deck) deck->setGain(v); });
-        addSliderRow(QStringLiteral("HI"), QStringLiteral("#ff4444"), &hi_b_, 0, [deck](float v) { if (deck) deck->setEqHi(v); });
-        addSliderRow(QStringLiteral("MID"), QStringLiteral("#00ff88"), &mid_b_, 0, [deck](float v) { if (deck) deck->setEqMid(v); });
-        addSliderRow(QStringLiteral("LOW"), QStringLiteral("#4488ff"), &low_b_, 0, [deck](float v) { if (deck) deck->setEqLow(v); });
-        addSliderRow(QStringLiteral("FLT"), QStringLiteral("#ffaa00"), &flt_b_, 0, [deck](float v) { if (deck) deck->setFilterVal(v - 1.0f); });
+        addSliderRow(QStringLiteral("GAIN"), QStringLiteral("#8da0b8"), &gain_b_, &gain_val_b_, 0,
+                     [deck](float v) { if (deck) deck->setGain(v); }, gain_fmt);
+        addSliderRow(QStringLiteral("HI"), QStringLiteral("#ff4444"), &hi_b_, &hi_val_b_, 0,
+                     [deck](float v) { if (deck) { deck->setEqHi(v); deck->setRed(v); } }, rgb_fmt);
+        addSliderRow(QStringLiteral("MID"), QStringLiteral("#00ff88"), &mid_b_, &mid_val_b_, 0,
+                     [deck](float v) { if (deck) { deck->setEqMid(v); deck->setGreen(v); } }, rgb_fmt);
+        addSliderRow(QStringLiteral("LOW"), QStringLiteral("#4488ff"), &low_b_, &low_val_b_, 0,
+                     [deck](float v) { if (deck) { deck->setEqLow(v); deck->setBlue(v); } }, rgb_fmt);
+        addSliderRow(QStringLiteral("FLT"), QStringLiteral("#ffaa00"), &flt_b_, &flt_val_b_, 0,
+                     [deck](float v) { if (deck) { deck->setFilterVal(v - 1.0f); deck->setSaturation(v); } }, flt_fmt);
     }
 
-    // 2. Headphone CUE button
+    // 2. Buttons Row: Headphone CUE + Add to Scene
+    auto *btn_row = new QHBoxLayout();
+    btn_row->setContentsMargins(0, 2, 0, 2);
+    btn_row->setSpacing(4);
+
     auto *cue_btn = new QPushButton(is_deck_a ? QStringLiteral("🎧 CUE A") : QStringLiteral("🎧 CUE B"), panel);
     cue_btn->setCheckable(true);
     cue_btn->setFixedHeight(24);
@@ -325,13 +370,30 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
         "QPushButton:checked { background: %2; color: #fff; border-color: %1; }")
         .arg(is_deck_a ? QStringLiteral("#00d2ff") : QStringLiteral("#ff7700"))
         .arg(is_deck_a ? QStringLiteral("#0088cc") : QStringLiteral("#cc5500")));
-    layout->addWidget(cue_btn);
+
+    auto *scene_btn = new QPushButton(QStringLiteral("📺 + SCENE"), panel);
+    scene_btn->setFixedHeight(24);
+    scene_btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #17261d; border: 1px solid #244630; color: #4caf50; font-weight: bold; font-size: 9px; } "
+        "QPushButton:hover { background: #203829; border-color: #388e3c; color: #81c784; }"));
+    scene_btn->setToolTip(is_deck_a
+        ? QStringLiteral("Add OBS VJ Deck A source to current scene")
+        : QStringLiteral("Add OBS VJ Deck B source to current scene"));
+    connect(scene_btn, &QPushButton::clicked, this, [this, is_deck_a]() {
+        addDeckSourceToActiveScene(is_deck_a);
+    });
+
+    btn_row->addWidget(cue_btn, 1);
+    btn_row->addWidget(scene_btn, 1);
+    layout->addLayout(btn_row);
 
     if (is_deck_a) {
         hp_cue_a_btn_ = cue_btn;
+        add_scene_a_btn_ = scene_btn;
         connect(cue_btn, &QPushButton::toggled, this, [deck](bool chk) { if (deck) deck->setHeadphoneCue(chk); });
     } else {
         hp_cue_b_btn_ = cue_btn;
+        add_scene_b_btn_ = scene_btn;
         connect(cue_btn, &QPushButton::toggled, this, [deck](bool chk) { if (deck) deck->setHeadphoneCue(chk); });
     }
 
@@ -354,23 +416,32 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
     meter->setFixedHeight(120);
     meter->setTextVisible(false);
 
+    auto *vol_lbl = new QLabel(QStringLiteral("80%"), panel);
+    vol_lbl->setAlignment(Qt::AlignCenter);
+    vol_lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #8da0b8;"));
+
     if (is_deck_a) {
         vol_a_ = vol_slider;
         meter_a_ = meter;
-        connect(vol_slider, &QSlider::valueChanged, this, [deck](int val) {
+        vol_val_a_ = vol_lbl;
+        connect(vol_slider, &QSlider::valueChanged, this, [this, deck](int val) {
             if (deck) deck->setVolume(static_cast<float>(val) / 100.0f);
+            if (vol_val_a_) vol_val_a_->setText(QString::asprintf("%d%%", val));
         });
     } else {
         vol_b_ = vol_slider;
         meter_b_ = meter;
-        connect(vol_slider, &QSlider::valueChanged, this, [deck](int val) {
+        vol_val_b_ = vol_lbl;
+        connect(vol_slider, &QSlider::valueChanged, this, [this, deck](int val) {
             if (deck) deck->setVolume(static_cast<float>(val) / 100.0f);
+            if (vol_val_b_) vol_val_b_->setText(QString::asprintf("%d%%", val));
         });
     }
 
     fader_meter_row->addStretch(1);
     fader_meter_row->addWidget(vol_slider);
     fader_meter_row->addWidget(meter);
+    fader_meter_row->addWidget(vol_lbl);
     fader_meter_row->addStretch(1);
 
     layout->addLayout(fader_meter_row);
@@ -388,6 +459,113 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     auto *layout = new QVBoxLayout(panel);
     layout->setContentsMargins(6, 4, 6, 4);
     layout->setSpacing(6);
+
+    // 0. Traktor Master Clock & Tempo Section
+    auto *clock_box = new QFrame(panel);
+    clock_box->setStyleSheet(QStringLiteral("background: #0f1319; border: 1px solid #1f2733; border-radius: 3px; padding: 3px;"));
+    auto *clock_vbox = new QVBoxLayout(clock_box);
+    clock_vbox->setContentsMargins(4, 2, 4, 2);
+    clock_vbox->setSpacing(3);
+
+    auto *clock_row1 = new QHBoxLayout();
+    clock_row1->setSpacing(4);
+
+    master_clock_btn_ = new QPushButton(QStringLiteral("MASTER CLOCK"), clock_box);
+    master_clock_btn_->setCheckable(true);
+    master_clock_btn_->setFixedHeight(22);
+    master_clock_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 9px; padding: 1px 5px; } "
+        "QPushButton:checked { background: #d97706; border: 1px solid #f59e0b; color: #fff; }"));
+    master_clock_btn_->setToolTip(QStringLiteral("Enable Central Master Clock mode"));
+    clock_row1->addWidget(master_clock_btn_);
+
+    master_clock_ext_btn_ = new QPushButton(QStringLiteral("EXT SYNC"), clock_box);
+    master_clock_ext_btn_->setCheckable(true);
+    master_clock_ext_btn_->setFixedHeight(22);
+    master_clock_ext_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 9px; padding: 1px 5px; } "
+        "QPushButton:checked { background: #0284c7; border: 1px solid #38bdf8; color: #fff; }"));
+    master_clock_ext_btn_->setToolTip(QStringLiteral("Sync Master Clock to incoming external MIDI Clock"));
+    clock_row1->addWidget(master_clock_ext_btn_);
+
+    master_clock_send_btn_ = new QPushButton(QStringLiteral("SEND CLOCK"), clock_box);
+    master_clock_send_btn_->setCheckable(true);
+    master_clock_send_btn_->setFixedHeight(22);
+    master_clock_send_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1a222d; border: 1px solid #2d3b4d; color: #8da0b8; font-weight: bold; font-size: 9px; padding: 1px 5px; } "
+        "QPushButton:checked { background: #2e7d32; border: 1px solid #4caf50; color: #fff; }"));
+    master_clock_send_btn_->setToolTip(QStringLiteral("Transmit MIDI Clock (24 PPQN) to external MIDI hardware / software"));
+    clock_row1->addWidget(master_clock_send_btn_);
+
+    clock_vbox->addLayout(clock_row1);
+
+    auto *clock_row2 = new QHBoxLayout();
+    clock_row2->setSpacing(4);
+
+    master_clock_minus_btn_ = new QPushButton(QStringLiteral("−"), clock_box);
+    master_clock_minus_btn_->setFixedSize(22, 22);
+    master_clock_minus_btn_->setStyleSheet(QStringLiteral("background: #232b36; border: 1px solid #334050; color: #e0e6f0; font-size: 11px; font-weight: bold;"));
+    clock_row2->addWidget(master_clock_minus_btn_);
+
+    master_clock_bpm_lbl_ = new QLabel(QStringLiteral("128.00 BPM"), clock_box);
+    master_clock_bpm_lbl_->setAlignment(Qt::AlignCenter);
+    master_clock_bpm_lbl_->setStyleSheet(QStringLiteral("font-size: 12px; font-family: monospace; font-weight: bold; color: #ffaa00;"));
+    clock_row2->addWidget(master_clock_bpm_lbl_, 1);
+
+    master_clock_plus_btn_ = new QPushButton(QStringLiteral("+"), clock_box);
+    master_clock_plus_btn_->setFixedSize(22, 22);
+    master_clock_plus_btn_->setStyleSheet(QStringLiteral("background: #232b36; border: 1px solid #334050; color: #e0e6f0; font-size: 11px; font-weight: bold;"));
+    clock_row2->addWidget(master_clock_plus_btn_);
+
+    master_clock_tap_btn_ = new QPushButton(QStringLiteral("TAP"), clock_box);
+    master_clock_tap_btn_->setFixedSize(32, 22);
+    master_clock_tap_btn_->setStyleSheet(QStringLiteral("background: #1c2634; border: 1px solid #385070; color: #00d2ff; font-size: 9px; font-weight: bold;"));
+    clock_row2->addWidget(master_clock_tap_btn_);
+
+    clock_vbox->addLayout(clock_row2);
+    layout->addWidget(clock_box);
+
+    connect(master_clock_btn_, &QPushButton::clicked, this, [this]() {
+        if (decks_) decks_->setMasterMode(DeckPair::MASTER_CLOCK);
+    });
+    connect(master_clock_ext_btn_, &QPushButton::clicked, this, [this]() {
+        if (!decks_) return;
+        if (decks_->masterMode() == DeckPair::MASTER_EXT_MIDI) {
+            decks_->setMasterMode(DeckPair::MASTER_CLOCK);
+        } else {
+            decks_->setMasterMode(DeckPair::MASTER_EXT_MIDI);
+        }
+    });
+    connect(master_clock_send_btn_, &QPushButton::clicked, this, [this]() {
+        const bool send = !vdj_midi_is_clock_send();
+        vdj_midi_set_clock_send(send);
+        master_clock_send_btn_->setChecked(send);
+    });
+    connect(master_clock_minus_btn_, &QPushButton::clicked, this, [this]() {
+        if (decks_) decks_->setMasterClockBpm(decks_->masterClockBpm() - 0.1);
+    });
+    connect(master_clock_plus_btn_, &QPushButton::clicked, this, [this]() {
+        if (decks_) decks_->setMasterClockBpm(decks_->masterClockBpm() + 0.1);
+    });
+    connect(master_clock_tap_btn_, &QPushButton::clicked, this, [this]() {
+        const auto now = std::chrono::steady_clock::now();
+        if (!master_tap_times_.empty()) {
+            const auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - master_tap_times_.back()).count();
+            if (diff > 2500)
+                master_tap_times_.clear();
+        }
+        master_tap_times_.push_back(now);
+        while (master_tap_times_.size() > 8)
+            master_tap_times_.erase(master_tap_times_.begin());
+        if (master_tap_times_.size() >= 3 && decks_) {
+            const auto total_ms = std::chrono::duration_cast<std::chrono::milliseconds>(master_tap_times_.back() - master_tap_times_.front()).count();
+            const double avg_ms = static_cast<double>(total_ms) / static_cast<double>(master_tap_times_.size() - 1);
+            if (avg_ms > 150.0) {
+                const double tap_bpm = 60000.0 / avg_ms;
+                decks_->setMasterClockBpm(tap_bpm);
+            }
+        }
+    });
 
     // 1. Transition FX Selector
     auto *trans_row = new QHBoxLayout();
@@ -424,26 +602,38 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     hp_vbox->addWidget(headphone_device_combo_);
 
     auto *hp_sl_row = new QHBoxLayout();
-    hp_sl_row->setSpacing(4);
+    hp_sl_row->setSpacing(6);
 
     auto *hp_vol_vbox = new QVBoxLayout();
+    auto *hp_vol_hdr = new QHBoxLayout();
     auto *hp_vol_lbl = new QLabel(QStringLiteral("HP VOL"), hp_box);
-    hp_vol_lbl->setAlignment(Qt::AlignCenter);
     hp_vol_lbl->setStyleSheet(QStringLiteral("font-size: 8px; font-weight: bold; color: #8da0b8;"));
+    hp_vol_val_lbl_ = new QLabel(QStringLiteral("100%"), hp_box);
+    hp_vol_val_lbl_->setStyleSheet(QStringLiteral("font-size: 8px; font-family: monospace; color: #ffaa00;"));
+    hp_vol_hdr->addWidget(hp_vol_lbl);
+    hp_vol_hdr->addStretch();
+    hp_vol_hdr->addWidget(hp_vol_val_lbl_);
+
     hp_vol_slider_ = new DJSlider(Qt::Horizontal, 100, hp_box);
     hp_vol_slider_->setRange(0, 100);
     hp_vol_slider_->setValue(100);
-    hp_vol_vbox->addWidget(hp_vol_lbl);
+    hp_vol_vbox->addLayout(hp_vol_hdr);
     hp_vol_vbox->addWidget(hp_vol_slider_);
 
     auto *hp_mix_vbox = new QVBoxLayout();
+    auto *hp_mix_hdr = new QHBoxLayout();
     auto *hp_mix_lbl = new QLabel(QStringLiteral("CUE / PGM"), hp_box);
-    hp_mix_lbl->setAlignment(Qt::AlignCenter);
     hp_mix_lbl->setStyleSheet(QStringLiteral("font-size: 8px; font-weight: bold; color: #8da0b8;"));
+    hp_mix_val_lbl_ = new QLabel(QStringLiteral("50/50"), hp_box);
+    hp_mix_val_lbl_->setStyleSheet(QStringLiteral("font-size: 8px; font-family: monospace; color: #ffaa00;"));
+    hp_mix_hdr->addWidget(hp_mix_lbl);
+    hp_mix_hdr->addStretch();
+    hp_mix_hdr->addWidget(hp_mix_val_lbl_);
+
     hp_mix_slider_ = new DJSlider(Qt::Horizontal, 50, hp_box);
     hp_mix_slider_->setRange(0, 100);
     hp_mix_slider_->setValue(50);
-    hp_mix_vbox->addWidget(hp_mix_lbl);
+    hp_mix_vbox->addLayout(hp_mix_hdr);
     hp_mix_vbox->addWidget(hp_mix_slider_);
 
     hp_sl_row->addLayout(hp_vol_vbox);
@@ -454,9 +644,11 @@ QWidget *MixerWindow::buildCenterMasterPanel()
 
     connect(hp_vol_slider_, &QSlider::valueChanged, this, [this](int v) {
         if (decks_) decks_->setHeadphoneVolume(static_cast<float>(v) / 100.0f);
+        if (hp_vol_val_lbl_) hp_vol_val_lbl_->setText(QString::asprintf("%d%%", v));
     });
     connect(hp_mix_slider_, &QSlider::valueChanged, this, [this](int v) {
         if (decks_) decks_->setHeadphoneMix(static_cast<float>(v) / 100.0f);
+        if (hp_mix_val_lbl_) hp_mix_val_lbl_->setText(QString::asprintf("%d/%d", 100 - v, v));
     });
 
     layout->addStretch(1);
@@ -480,20 +672,42 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     cf_hdr->addWidget(cf_b);
     cf_box->addLayout(cf_hdr);
 
+    cf_val_lbl_ = new QLabel(QStringLiteral("◄ 50% | 50% ►"), panel);
+    cf_val_lbl_->setAlignment(Qt::AlignCenter);
+    cf_val_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #8da0b8; font-weight: bold;"));
+    cf_box->addWidget(cf_val_lbl_);
+
     crossfader_ = new DJSlider(Qt::Horizontal, 500, panel);
     crossfader_->setRange(0, 1000);
     crossfader_->setValue(500);
-    crossfader_->setFixedHeight(30);
+    crossfader_->setFixedHeight(32);
     crossfader_->setStyleSheet(QStringLiteral(
         "QSlider::groove:horizontal { height: 10px; background: #0c0f14; border: 1px solid #232b38; border-radius: 5px; } "
         "QSlider::handle:horizontal { background: #ffffff; width: 26px; margin: -6px 0; border-radius: 3px; border: 2px solid #0088aa; }"));
     crossfader_->setToolTip(QStringLiteral("Master Crossfader (Double-click resets to 50/50 center)"));
     cf_box->addWidget(crossfader_);
 
-    connect(crossfader_, &QSlider::valueChanged, this, [this](int val) {
+    auto updateCfLabel = [this](int val) {
+        if (!cf_val_lbl_) return;
+        const int pct_b = val / 10;
+        const int pct_a = 100 - pct_b;
+        if (val == 500) {
+            cf_val_lbl_->setText(QStringLiteral("◄ 50% | 50% ►"));
+            cf_val_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #8da0b8; font-weight: bold;"));
+        } else if (val < 500) {
+            cf_val_lbl_->setText(QString::asprintf("◄ A %d%% | %d%%", pct_a, pct_b));
+            cf_val_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #00d2ff; font-weight: bold;"));
+        } else {
+            cf_val_lbl_->setText(QString::asprintf("%d%% | B %d%% ►", pct_a, pct_b));
+            cf_val_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #ff7700; font-weight: bold;"));
+        }
+    };
+
+    connect(crossfader_, &QSlider::valueChanged, this, [this, updateCfLabel](int val) {
         if (decks_) {
             decks_->setCrossfader(static_cast<double>(val) / 1000.0);
         }
+        updateCfLabel(val);
     });
 
     layout->addLayout(cf_box);
@@ -599,6 +813,34 @@ void MixerWindow::addCueToActiveScene()
     obs_source_release(scene_source);
 }
 
+void MixerWindow::addDeckSourceToActiveScene(bool is_deck_a)
+{
+    obs_source_t *scene_source = obs_frontend_get_current_scene();
+    if (!scene_source)
+        return;
+
+    obs_scene_t *scene = obs_scene_from_source(scene_source);
+    if (scene) {
+        const char *id = is_deck_a ? "vj_deck_a" : "vj_deck_b";
+        const char *name = is_deck_a ? "OBS VJ Deck A" : "OBS VJ Deck B";
+        obs_source_t *deck_src = obs_get_source_by_name(name);
+        if (!deck_src) {
+            obs_data_t *settings = obs_data_create();
+            obs_data_set_int(settings, "deck_channel", is_deck_a ? 0 : 1);
+            deck_src = obs_source_create(id, name, settings, nullptr);
+            obs_data_release(settings);
+        }
+        if (deck_src) {
+            obs_sceneitem_t *item = obs_scene_find_source(scene, name);
+            if (!item) {
+                obs_scene_add(scene, deck_src);
+            }
+            obs_source_release(deck_src);
+        }
+    }
+    obs_source_release(scene_source);
+}
+
 void MixerWindow::refreshMixer()
 {
     if (!decks_)
@@ -606,36 +848,114 @@ void MixerWindow::refreshMixer()
 
     decks_->updateSync();
 
+    if (master_clock_btn_) {
+        const bool is_clock_m = (decks_->masterMode() == DeckPair::MASTER_CLOCK);
+        if (master_clock_btn_->isChecked() != is_clock_m) {
+            QSignalBlocker blocker(master_clock_btn_);
+            master_clock_btn_->setChecked(is_clock_m);
+        }
+    }
+    if (master_clock_ext_btn_) {
+        const bool is_ext_m = (decks_->masterMode() == DeckPair::MASTER_EXT_MIDI);
+        if (master_clock_ext_btn_->isChecked() != is_ext_m) {
+            QSignalBlocker blocker(master_clock_ext_btn_);
+            master_clock_ext_btn_->setChecked(is_ext_m);
+        }
+    }
+    if (master_clock_send_btn_) {
+        const bool is_send = vdj_midi_is_clock_send();
+        if (master_clock_send_btn_->isChecked() != is_send) {
+            QSignalBlocker blocker(master_clock_send_btn_);
+            master_clock_send_btn_->setChecked(is_send);
+        }
+    }
+    if (master_clock_bpm_lbl_) {
+        master_clock_bpm_lbl_->setText(QString::asprintf("%.2f BPM", decks_->effectiveMasterBpm()));
+    }
+
     if (crossfader_ && !crossfader_->isSliderDown()) {
         const int cf_val = static_cast<int>(decks_->crossfader() * 1000.0);
         if (std::abs(crossfader_->value() - cf_val) > 2) {
             QSignalBlocker blocker(crossfader_);
             crossfader_->setValue(cf_val);
         }
+        if (cf_val_lbl_) {
+            const int pct_b = cf_val / 10;
+            const int pct_a = 100 - pct_b;
+            if (cf_val == 500) {
+                cf_val_lbl_->setText(QStringLiteral("◄ 50% | 50% ►"));
+                cf_val_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #8da0b8; font-weight: bold;"));
+            } else if (cf_val < 500) {
+                cf_val_lbl_->setText(QString::asprintf("◄ A %d%% | %d%%", pct_a, pct_b));
+                cf_val_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #00d2ff; font-weight: bold;"));
+            } else {
+                cf_val_lbl_->setText(QString::asprintf("%d%% | B %d%% ►", pct_a, pct_b));
+                cf_val_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #ff7700; font-weight: bold;"));
+            }
+        }
     }
 
-    auto updateSliderFromVal = [](DJSlider *sl, int target_val) {
+    auto updateSliderFromVal = [](DJSlider *sl, QLabel *lbl, int target_val, auto formatFunc) {
         if (sl && !sl->isSliderDown()) {
             if (std::abs(sl->value() - target_val) > 1) {
                 QSignalBlocker blocker(sl);
                 sl->setValue(target_val);
             }
         }
+        if (lbl && sl) {
+            lbl->setText(formatFunc(sl->value()));
+        }
     };
 
-    updateSliderFromVal(gain_a_, static_cast<int>((decks_->deckA().gain() - 1.0f) * 100.0f));
-    updateSliderFromVal(hi_a_, static_cast<int>((decks_->deckA().eqHi() - 1.0f) * 100.0f));
-    updateSliderFromVal(mid_a_, static_cast<int>((decks_->deckA().eqMid() - 1.0f) * 100.0f));
-    updateSliderFromVal(low_a_, static_cast<int>((decks_->deckA().eqLow() - 1.0f) * 100.0f));
-    updateSliderFromVal(flt_a_, static_cast<int>(decks_->deckA().filterVal() * 100.0f));
-    updateSliderFromVal(vol_a_, static_cast<int>(decks_->deckA().volume() * 100.0f));
+    auto gain_fmt = [](int v) {
+        if (v == 0) return QStringLiteral("0.0 dB");
+        const float lin = 1.0f + static_cast<float>(v) / 100.0f;
+        const float db = 20.0f * std::log10(std::max(0.01f, lin));
+        return QString::asprintf("%+.1f dB", db);
+    };
+    auto rgb_fmt = [](int v) {
+        if (v == 0) return QStringLiteral("1.00");
+        return QString::asprintf("%.2f", 1.0f + static_cast<float>(v) / 100.0f);
+    };
+    auto flt_fmt = [](int v) {
+        if (v == 0) return QStringLiteral("FLAT");
+        if (v < 0) return QString::asprintf("LPF %d%%", -v);
+        return QString::asprintf("HPF %d%%", v);
+    };
 
-    updateSliderFromVal(gain_b_, static_cast<int>((decks_->deckB().gain() - 1.0f) * 100.0f));
-    updateSliderFromVal(hi_b_, static_cast<int>((decks_->deckB().eqHi() - 1.0f) * 100.0f));
-    updateSliderFromVal(mid_b_, static_cast<int>((decks_->deckB().eqMid() - 1.0f) * 100.0f));
-    updateSliderFromVal(low_b_, static_cast<int>((decks_->deckB().eqLow() - 1.0f) * 100.0f));
-    updateSliderFromVal(flt_b_, static_cast<int>(decks_->deckB().filterVal() * 100.0f));
-    updateSliderFromVal(vol_b_, static_cast<int>(decks_->deckB().volume() * 100.0f));
+    updateSliderFromVal(gain_a_, gain_val_a_, static_cast<int>((decks_->deckA().gain() - 1.0f) * 100.0f), gain_fmt);
+    updateSliderFromVal(hi_a_, hi_val_a_, static_cast<int>((decks_->deckA().eqHi() - 1.0f) * 100.0f), rgb_fmt);
+    updateSliderFromVal(mid_a_, mid_val_a_, static_cast<int>((decks_->deckA().eqMid() - 1.0f) * 100.0f), rgb_fmt);
+    updateSliderFromVal(low_a_, low_val_a_, static_cast<int>((decks_->deckA().eqLow() - 1.0f) * 100.0f), rgb_fmt);
+    updateSliderFromVal(flt_a_, flt_val_a_, static_cast<int>(decks_->deckA().filterVal() * 100.0f), flt_fmt);
+
+    if (vol_a_ && !vol_a_->isSliderDown()) {
+        const int target_vol = static_cast<int>(decks_->deckA().volume() * 100.0f);
+        if (std::abs(vol_a_->value() - target_vol) > 1) {
+            QSignalBlocker blocker(vol_a_);
+            vol_a_->setValue(target_vol);
+        }
+    }
+    if (vol_val_a_ && vol_a_) {
+        vol_val_a_->setText(QString::asprintf("%d%%", vol_a_->value()));
+    }
+
+    updateSliderFromVal(gain_b_, gain_val_b_, static_cast<int>((decks_->deckB().gain() - 1.0f) * 100.0f), gain_fmt);
+    updateSliderFromVal(hi_b_, hi_val_b_, static_cast<int>((decks_->deckB().eqHi() - 1.0f) * 100.0f), rgb_fmt);
+    updateSliderFromVal(mid_b_, mid_val_b_, static_cast<int>((decks_->deckB().eqMid() - 1.0f) * 100.0f), rgb_fmt);
+    updateSliderFromVal(low_b_, low_val_b_, static_cast<int>((decks_->deckB().eqLow() - 1.0f) * 100.0f), rgb_fmt);
+    updateSliderFromVal(flt_b_, flt_val_b_, static_cast<int>(decks_->deckB().filterVal() * 100.0f), flt_fmt);
+
+    if (vol_b_ && !vol_b_->isSliderDown()) {
+        const int target_vol = static_cast<int>(decks_->deckB().volume() * 100.0f);
+        if (std::abs(vol_b_->value() - target_vol) > 1) {
+            QSignalBlocker blocker(vol_b_);
+            vol_b_->setValue(target_vol);
+        }
+    }
+    if (vol_val_b_ && vol_b_) {
+        vol_val_b_->setText(QString::asprintf("%d%%", vol_b_->value()));
+    }
 
     if (hp_cue_a_btn_ && hp_cue_a_btn_->isChecked() != decks_->deckA().isHeadphoneCue()) {
         QSignalBlocker blocker(hp_cue_a_btn_);

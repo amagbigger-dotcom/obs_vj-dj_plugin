@@ -188,7 +188,7 @@ float4 PS(VertData v) : TARGET
     if (transition_mode > 2.5) {
         res = crossfade < 0.5 ? a : b;
     } else if (transition_mode > 0.5 && transition_mode < 1.5) {
-        res = v.uv.x < crossfade ? b : a;
+        res = v.uv.x < (1.0 - crossfade) ? a : b;
     } else if (transition_mode > 1.5 && transition_mode < 2.5) {
         res = saturate(a * (1.0 - crossfade) + b * crossfade);
     } else {
@@ -384,10 +384,8 @@ static void draw_mixer(void *data)
     deck_a.updateLoop();
     deck_b.updateLoop();
 
-    obs_source_t *src_a = vdj_get_obs_source_deck(0);
-    if (!src_a) src_a = deck_a.source();
-    obs_source_t *src_b = vdj_get_obs_source_deck(1);
-    if (!src_b) src_b = deck_b.source();
+    obs_source_t *src_a = deck_a.source();
+    obs_source_t *src_b = deck_b.source();
 
     const bool rendered_a =
         render_to_texture(context->deck_a, src_a, width, height);
@@ -520,28 +518,61 @@ static void mixer_defaults(obs_data_t *settings)
 
 static const char *cue_get_name(void *)
 {
-    return "OBS VJ/DJ Headphone CUE";
+    return "OBS VJ Headphone CUE";
 }
 
 static void mixer_video_tick(void *data, float seconds)
 {
     UNUSED_PARAMETER(seconds);
-    auto *context = static_cast<MixerSource *>(data);
-    DeckPair *decks = vdj_decks();
-    if (!context || !decks)
-        return;
-
-    decks->deckA().updateLoop();
-    decks->deckB().updateLoop();
+    UNUSED_PARAMETER(data);
 }
 
-static void *cue_create(obs_data_t *, obs_source_t *source)
+static bool enum_audio_devices_cb(void *param, const char *name, const char *id)
 {
+    obs_property_t *prop = static_cast<obs_property_t *>(param);
+    obs_property_list_add_string(prop, name, id);
+    return true;
+}
+
+static obs_properties_t *cue_properties(void *)
+{
+    obs_properties_t *props = obs_properties_create();
+    obs_property_t *dev_list = obs_properties_add_list(
+        props, "monitoring_device", "CUE Headphone Soundcard / Device",
+        OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_property_list_add_string(dev_list, "Default Monitoring Device", "default");
+    obs_enum_audio_monitoring_devices(enum_audio_devices_cb, dev_list);
+    return props;
+}
+
+static void cue_update(void *data, obs_data_t *settings)
+{
+    UNUSED_PARAMETER(data);
+    if (!settings) return;
+    const char *dev = obs_data_get_string(settings, "monitoring_device");
+    if (dev && *dev && strcmp(dev, "default") != 0) {
+        obs_set_audio_monitoring_device(dev, dev);
+    }
+}
+
+static void *cue_create(obs_data_t *settings, obs_source_t *source)
+{
+    DeckPair *decks = vdj_decks();
+    if (decks) {
+        decks->setCueSource(source);
+    }
+    obs_source_set_audio_mixers(source, 0); // Mute on main stream / recording tracks
+    obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_ONLY); // Send to headphones
+    cue_update(source, settings);
     return source;
 }
 
 static void cue_destroy(void *)
 {
+    DeckPair *decks = vdj_decks();
+    if (decks) {
+        decks->setCueSource(nullptr);
+    }
 }
 
 void vdj_register_sources(void)
@@ -563,6 +594,8 @@ void vdj_register_sources(void)
     cue_info.get_name = cue_get_name;
     cue_info.create = cue_create;
     cue_info.destroy = cue_destroy;
+    cue_info.get_properties = cue_properties;
+    cue_info.update = cue_update;
     obs_register_source_s(&cue_info, sizeof(cue_info));
 
     obs_source_info master = {};

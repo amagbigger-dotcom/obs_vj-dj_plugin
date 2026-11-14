@@ -528,8 +528,7 @@ void DeckPlayer::applyAudioVolume() noexcept
     if (source_) {
         const float total = gain_.load(std::memory_order_relaxed) *
                             volume_.load(std::memory_order_relaxed) *
-                            mix_gain_.load(std::memory_order_relaxed) *
-                            0.707f;
+                            mix_gain_.load(std::memory_order_relaxed);
         obs_source_set_volume(source_, std::clamp(total, 0.0f, 2.0f));
     }
 }
@@ -544,13 +543,6 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
     const float g_low = eq_low_.load(std::memory_order_relaxed);
     const float f_val = filter_val_.load(std::memory_order_relaxed);
 
-    if (std::abs(g_hi - 1.0f) < 0.005f &&
-        std::abs(g_mid - 1.0f) < 0.005f &&
-        std::abs(g_low - 1.0f) < 0.005f &&
-        std::abs(f_val) < 0.005f) {
-        return;
-    }
-
     const size_t ch = channel_idx % 2;
     FilterState &st = dsp_states_[ch];
 
@@ -561,8 +553,21 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
     const float w_high = 2.0f * 3.14159265f * 3200.0f / sr;
     const float alpha_high = std::clamp(w_high / (1.0f + w_high), 0.001f, 0.95f);
 
+    // Initialize smoothed values on first block
+    if (st.cur_low < 0.001f) st.cur_low = g_low;
+    if (st.cur_mid < 0.001f) st.cur_mid = g_mid;
+    if (st.cur_hi < 0.001f)  st.cur_hi  = g_hi;
+
+    const float smooth_rate = 0.005f; // ~1-2 ms smooth time
+
     for (size_t i = 0; i < num_frames; ++i) {
         const float in = channel_data[i];
+
+        // Smooth parameters per sample to eliminate all zipper noise & crackle
+        st.cur_low += (g_low - st.cur_low) * smooth_rate;
+        st.cur_mid += (g_mid - st.cur_mid) * smooth_rate;
+        st.cur_hi  += (g_hi  - st.cur_hi)  * smooth_rate;
+        st.cur_flt += (f_val - st.cur_flt) * smooth_rate;
 
         st.lp += alpha_low * (in - st.lp);
         st.hp += alpha_high * (in - st.hp);
@@ -571,18 +576,20 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
         const float high_band = in - st.hp;
         const float mid_band = in - low_band - high_band;
 
-        float out = low_band * g_low + mid_band * g_mid + high_band * g_hi;
+        float out = low_band * st.cur_low + mid_band * st.cur_mid + high_band * st.cur_hi;
 
-        if (f_val < -0.01f) {
-            const float cutoff = 300.0f + (1.0f + f_val) * 7500.0f;
-            const float a_lp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.01f, 0.95f);
+        if (st.cur_flt < -0.005f) {
+            const float cutoff = 250.0f + (1.0f + st.cur_flt) * 7500.0f;
+            const float a_lp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.005f, 0.95f);
             st.dj_lp += a_lp * (out - st.dj_lp);
-            out = st.dj_lp;
-        } else if (f_val > 0.01f) {
-            const float cutoff = 100.0f + f_val * 3900.0f;
-            const float a_hp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.01f, 0.95f);
+            const float wet = std::min(1.0f, -st.cur_flt * 3.0f);
+            out = (1.0f - wet) * out + wet * st.dj_lp;
+        } else if (st.cur_flt > 0.005f) {
+            const float cutoff = 150.0f + st.cur_flt * 3800.0f;
+            const float a_hp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.005f, 0.95f);
             st.dj_hp += a_hp * (out - st.dj_hp);
-            out = out - st.dj_hp;
+            const float wet = std::min(1.0f, st.cur_flt * 3.0f);
+            out = (1.0f - wet) * out + wet * (out - st.dj_hp);
         }
 
         channel_data[i] = std::clamp(out, -1.5f, 1.5f);
@@ -702,7 +709,7 @@ void DeckPlayer::updateLoop()
     const auto now = std::chrono::steady_clock::now();
     const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_loop_seek_tp_).count();
 
-    if (current >= loop_end && elapsed_ms > 70) {
+    if (current >= loop_end && elapsed_ms > 120) {
         obs_source_media_set_time(source_, static_cast<uint64_t>(loop_start));
         last_loop_seek_tp_ = now;
     }
@@ -974,8 +981,25 @@ void DeckPair::updateAudioMix() noexcept
         db->setMixGain(1.0f);
     } else {
         const double x = crossfader_.load(std::memory_order_relaxed);
-        da->setMixGain(static_cast<float>(1.0 - x));
-        db->setMixGain(static_cast<float>(x));
+        float gain_a = 1.0f;
+        float gain_b = 1.0f;
+        if (x > 0.5) {
+            // As x goes from 0.5 to 1.0: Deck A fades smoothly from 1.0 to 0.0 using cosine
+            const double t = (x - 0.5) * 2.0;
+            gain_a = static_cast<float>(std::cos(t * 1.5707963267948966));
+            gain_b = 1.0f;
+        } else if (x < 0.5) {
+            // As x goes from 0.0 to 0.5: Deck B rises smoothly from 0.0 to 1.0 using sine
+            const double t = x * 2.0;
+            gain_a = 1.0f;
+            gain_b = static_cast<float>(std::sin(t * 1.5707963267948966));
+        } else {
+            // Exactly at center 50/50: BOTH decks are at 100% full line level (1.0f)!
+            gain_a = 1.0f;
+            gain_b = 1.0f;
+        }
+        da->setMixGain(gain_a);
+        db->setMixGain(gain_b);
     }
 }
 

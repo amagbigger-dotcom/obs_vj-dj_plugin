@@ -65,18 +65,30 @@ void handle_control_change(unsigned char channel,
         return;
 
     switch (controller) {
-    case 16: // HI (Red / High EQ): 0..127 -> 0.0..2.0
-        deck->setEqHi(static_cast<float>(value) / 63.5f);
+    case 16: { // HI (Red / High EQ): 0..127 -> 0.0..2.0
+        const float v = static_cast<float>(value) / 63.5f;
+        deck->setEqHi(v);
+        deck->setRed(v);
         break;
-    case 17: // MID (Green / Mid EQ): 0..127 -> 0.0..2.0
-        deck->setEqMid(static_cast<float>(value) / 63.5f);
+    }
+    case 17: { // MID (Green / Mid EQ): 0..127 -> 0.0..2.0
+        const float v = static_cast<float>(value) / 63.5f;
+        deck->setEqMid(v);
+        deck->setGreen(v);
         break;
-    case 18: // LOW (Blue / Low EQ): 0..127 -> 0.0..2.0
-        deck->setEqLow(static_cast<float>(value) / 63.5f);
+    }
+    case 18: { // LOW (Blue / Low EQ): 0..127 -> 0.0..2.0
+        const float v = static_cast<float>(value) / 63.5f;
+        deck->setEqLow(v);
+        deck->setBlue(v);
         break;
-    case 19: // FILTER (Saturation / DJ Filter): 0..127 -> -1.0..+1.0
-        deck->setFilterVal((static_cast<float>(value) / 63.5f) - 1.0f);
+    }
+    case 19: { // FILTER (Saturation / DJ Filter): 0..127 -> -1.0..+1.0 audio & 0.0..2.0 saturation
+        const float v = static_cast<float>(value) / 63.5f;
+        deck->setFilterVal(v - 1.0f);
+        deck->setSaturation(v);
         break;
+    }
     case 20: // Volume Fader
         deck->setVolume(static_cast<float>(value) / 127.0f);
         break;

@@ -64,6 +64,7 @@ private:
     QPushButton *cue_btn_ = nullptr;
     QPushButton *play_btn_ = nullptr;
     QPushButton *sync_btn_ = nullptr;
+    QPushButton *master_btn_ = nullptr;
 
     // Tempo
     QSlider *pitch_slider_ = nullptr;
