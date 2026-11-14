@@ -564,7 +564,7 @@ void MixerWindow::addMasterToActiveScene()
             master = obs_source_create("vdj_master_mixer", "OBS VJ Master Mixer", nullptr, nullptr);
         }
         if (master) {
-            obs_sceneitem_t *item = obs_scene_find_source_exact(scene, "OBS VJ Master Mixer");
+            obs_sceneitem_t *item = obs_scene_find_source(scene, "OBS VJ Master Mixer");
             if (!item) {
                 obs_scene_add(scene, master);
             }
@@ -589,7 +589,7 @@ void MixerWindow::addCueToActiveScene()
         if (cue) {
             obs_source_set_monitoring_type(cue, OBS_MONITORING_TYPE_MONITOR_ONLY);
             obs_source_set_audio_mixers(cue, 0); // mute on main stream / recording tracks
-            obs_sceneitem_t *item = obs_scene_find_source_exact(scene, "OBS VJ Headphone CUE");
+            obs_sceneitem_t *item = obs_scene_find_source(scene, "OBS VJ Headphone CUE");
             if (!item) {
                 obs_scene_add(scene, cue);
             }
