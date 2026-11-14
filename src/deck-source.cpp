@@ -335,6 +335,7 @@ static void deck_destroy(void *data)
 // =============================================================================
 static void deck_video_tick(void *data, float seconds)
 {
+    UNUSED_PARAMETER(seconds);
     auto *context = static_cast<DeckSourceContext *>(data);
     if (!context)
         return;
@@ -350,10 +351,6 @@ static void deck_video_tick(void *data, float seconds)
 
     if (context->deck) {
         context->deck->updateLoop();
-        obs_source_t *media = context->deck->source();
-        if (media) {
-            obs_source_video_tick(media, seconds);
-        }
     }
 }
 
@@ -565,8 +562,8 @@ void vdj_register_deck_source(void)
     deck_info.get_height = deck_get_height;
     deck_info.get_properties = deck_properties;
     deck_info.update = deck_update;
-    // A belső privát forrásokat nem enumeráljuk a jelenetgráfba a kilépéskori kettős felszabadítás elkerülésére (Prevent Double-Free on Exit)
-    deck_info.enum_active_sources = nullptr;
+    // Az aktív belső forrás átadása az OBS-nek az automatikus dekódolási tickhez
+    deck_info.enum_active_sources = deck_enum_active_sources;
     deck_info.enum_all_sources = nullptr;
     obs_register_source_s(&deck_info, sizeof(deck_info));
 

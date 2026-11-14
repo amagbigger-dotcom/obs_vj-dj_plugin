@@ -276,7 +276,7 @@ static void *mixer_create(obs_data_t *, obs_source_t *source)
 
             bool have_b = false;
             if (db.hasAudioBuffer() && db.isPlaying()) {
-                db.readAudioFrames(buf_b_l.data(), db_b_r.data(), frames_per_tick, sample_rate);
+                db.readAudioFrames(buf_b_l.data(), buf_b_r.data(), frames_per_tick, sample_rate);
                 db.processAudioDsp(buf_b_l.data(), frames_per_tick, 0, sample_rate);
                 db.processAudioDsp(buf_b_r.data(), frames_per_tick, 1, sample_rate);
                 const float *channels_b[2] = {buf_b_l.data(), buf_b_r.data()};
@@ -561,22 +561,14 @@ static const char *cue_get_name(void *)
 // =============================================================================
 // Videó tick ciklus (Renderelés előtti állapotfrissítés - Video Render Tick)
 // =============================================================================
-// Meghívja a belső ffmpeg_source privát források obs_source_video_tick metódusát,
-// hogy a képkockák folyamatosan dekódolódjanak akkor is, ha nincs külön Deck a jelenetben.
 static void mixer_video_tick(void *data, float seconds)
 {
+    UNUSED_PARAMETER(seconds);
     UNUSED_PARAMETER(data);
     DeckPair *decks = vdj_decks();
     if (decks) {
         decks->deckA().updateLoop();
         decks->deckB().updateLoop();
-
-        obs_source_t *src_a = decks->deckA().source();
-        obs_source_t *src_b = decks->deckB().source();
-        if (src_a)
-            obs_source_video_tick(src_a, seconds);
-        if (src_b)
-            obs_source_video_tick(src_b, seconds);
     }
 }
 
@@ -644,8 +636,8 @@ void vdj_register_sources(void)
     master.update = mixer_update;
     master.video_tick = mixer_video_tick;
     master.video_render = mixer_video_render;
-    // A belső privát deck forrásokat nem enumeráljuk a jelenetbe a kettős törlés elkerülésére (Prevent Double-Free)
-    master.enum_active_sources = nullptr;
+    // Az aktív gyermek deck források átadása az OBS-nek az automatikus dekódolási tickhez
+    master.enum_active_sources = mixer_enum_active_sources;
     master.enum_all_sources = nullptr;
     master.get_width = mixer_get_width;
     master.get_height = mixer_get_height;
