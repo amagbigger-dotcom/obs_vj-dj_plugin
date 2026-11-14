@@ -11,6 +11,8 @@
 #include <QSignalBlocker>
 #include <QGroupBox>
 #include <QKeyEvent>
+#include <QGuiApplication>
+#include <QScreen>
 
 static QString formatTime(int64_t ms)
 {

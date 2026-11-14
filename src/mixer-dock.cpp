@@ -14,6 +14,8 @@
 #include <QComboBox>
 #include <QTimer>
 #include <QSignalBlocker>
+#include <QGuiApplication>
+#include <QScreen>
 #include <algorithm>
 #include <cmath>
 

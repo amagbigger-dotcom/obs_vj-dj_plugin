@@ -5,6 +5,13 @@
 #include <util/platform.h>
 #include "deck-engine.hpp"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <mmsystem.h>
+#include <timeapi.h>
+#pragma comment(lib, "winmm.lib")
+#endif
+
 #include <vector>
 #include <mutex>
 #include <chrono>
@@ -345,55 +352,6 @@ static void deck_video_tick(void *data, float seconds)
 
     if (context->deck) {
         context->deck->updateLoop();
-
-        // Gapless loop audio bridging watchdog during FFmpeg seek stalls
-        if (context->deck->isLooping() && context->source) {
-            const auto now = std::chrono::steady_clock::now();
-            const auto silence_gap_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - context->last_audio_tp).count();
-
-            if (silence_gap_ms >= 20) {
-                std::lock_guard<std::mutex> lock(context->bridge_mutex);
-                const size_t b_size = context->loop_bridge_l.size();
-                if (b_size > 1024) {
-                    uint32_t sample_rate = 48000;
-                    audio_t *audio = obs_get_audio();
-                    if (audio) {
-                        sample_rate = audio_output_get_sample_rate(audio);
-                    }
-
-                    const size_t chunk_frames = 512;
-                    static thread_local std::vector<float> bridge_out_l(512);
-                    static thread_local std::vector<float> bridge_out_r(512);
-
-                    for (size_t i = 0; i < chunk_frames; ++i) {
-                        const size_t idx = (context->bridge_play_idx + i) % b_size;
-                        bridge_out_l[i] = context->loop_bridge_l[idx];
-                        bridge_out_r[i] = context->loop_bridge_r[idx];
-                    }
-                    context->bridge_play_idx = (context->bridge_play_idx + chunk_frames) % b_size;
-
-                    const uint64_t cur_time = os_gettime_ns();
-                    if (context->next_audio_ts == 0 ||
-                        std::abs(static_cast<int64_t>(cur_time - context->next_audio_ts)) > 100000000LL) {
-                        context->next_audio_ts = cur_time;
-                    }
-
-                    struct obs_source_audio out_audio = {};
-                    out_audio.data[0] = reinterpret_cast<uint8_t *>(bridge_out_l.data());
-                    out_audio.data[1] = reinterpret_cast<uint8_t *>(bridge_out_r.data());
-                    out_audio.frames = static_cast<uint32_t>(chunk_frames);
-                    out_audio.speakers = SPEAKERS_STEREO;
-                    out_audio.format = AUDIO_FORMAT_FLOAT_PLANAR;
-                    out_audio.samples_per_sec = sample_rate;
-                    out_audio.timestamp = context->next_audio_ts;
-
-                    context->next_audio_ts += static_cast<uint64_t>(chunk_frames) * 1000000000ULL / sample_rate;
-                    context->last_audio_tp = now;
-
-                    obs_source_output_audio(context->source, &out_audio);
-                }
-            }
-        }
     }
 }
 
