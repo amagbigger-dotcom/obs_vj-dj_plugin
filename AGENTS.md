@@ -348,6 +348,23 @@ A bővítmény három független szálon/környezetben dolgozik:
   - `Eszközök -> OBS VJ Deck` (Egycsatornás vezérlő nagy hullámformával)
   - `Eszközök -> OBS VJ Tracklist` (Médiatár NVENC konverterrel)
 
+### 21. OBS Stúdió Mód T-Bar, Automatikus Indítás Gátló, 0.1 BPM Finomhangolás & Gapless Loop Híd (Build #207) *(KÉSZ)*
+- **OBS Stúdió Mód Jelenetátúsztató (T-Bar) Valós Idejű Vezérlés:**
+  - Amikor az OBS-ben a Stúdió Mód (Studio Mode) aktív, a Mixer Crossfader (és a Traktor S2 hardveres potmétere) közvetlenül a natív OBS T-Bar csúszkát mozgatja (`obs_frontend_set_tbar_position`, 0–1023).
+  - Ha a Deck A a `Jelenet 1`-ben, a Deck B a `Jelenet 2`-ben van, a crossfader zökkenőmentes hardveres OBS jelenetátúsztatást hajt végre bármilyen OBS transition effekttel (Fade, Move, Wipe, Stinger).
+- **Média Betöltésekor Automatikus Indítás Megszüntetve:**
+  - `loadFile` hívásakor a videó szigorúan 00:00 CUE ponton, szüneteltetve (`paused`) inicializálódik, várva a PLAY vagy CUE gombra.
+- **Tűpontos SYNC Sebesség (138.00 BPM):**
+  - Megszüntetve az egész-százalékos lefelé kerekítési hiba: szinkronban (`is_sync_`) az `effectiveBpm()` közvetlenül a master BPM-et adja vissza (138.00 BPM), az ütemrács és a hullámforma is tűpontosan szinkronizál.
+- **BPM Finomhangoló Gombok (±0.10 BPM):**
+  - A BPM szerkesztő mező mellett megjelent a `[ − ]` és `[ + ]` gomb a 0.10 BPM-es zenei finomhangoláshoz.
+- **BPM Mező Enter Gomb Biztosítás:**
+  - A `keyPressEvent` kizárólag a beírt értéket érvényesíti; az Enter soha többé nem nyitja meg véletlenül az Open Media ablakot.
+- **Kompakt, Keskeny Mixer (430 x 420 px):**
+  - Kisebb méret, optimalizált csatornamargók, tökéletes elhelyezkedés az OBS mellett.
+- **Gapless Loop Audio Híd (Zero-Stutter Memóriapuffer):**
+  - A `DeckSourceContext` in-memory `loop_bridge` puffert kapott. Loopoláskor az audió a RAM-ba rögzül; az FFmpeg seek alatti 80-120 ms-os csend alatt a watchdog azonnal a memóriából tolja a mintákat, így a hang soha többé nem esik ki és nem kattan a loop határokon!
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ
