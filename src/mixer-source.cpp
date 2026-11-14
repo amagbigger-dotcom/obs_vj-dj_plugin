@@ -1,6 +1,5 @@
 #include <obs-module.h>
 #include <obs-frontend-api.h>
-#include <obs-scene.h>
 #include <graphics/graphics.h>
 #include <graphics/effect.h>
 #include <graphics/matrix4.h>
@@ -10,6 +9,7 @@
 #include <cstring>
 #include <cmath>
 #include <algorithm>
+#include <chrono>
 
 #include "deck-engine.hpp"
 
@@ -433,24 +433,23 @@ static const char *cue_get_name(void *)
 
 static void mixer_video_tick(void *data, float seconds)
 {
+    UNUSED_PARAMETER(seconds);
     auto *context = static_cast<MixerSource *>(data);
     DeckPair *decks = vdj_decks();
     if (decks) {
-        obs_source_t *sa = decks->deckA().source();
-        obs_source_t *sb = decks->deckB().source();
-        if (sa) obs_source_video_tick(sa, seconds);
-        if (sb) obs_source_video_tick(sb, seconds);
+        decks->deckA().updateLoop();
+        decks->deckB().updateLoop();
     }
 
     if (!context || !context->source)
         return;
 
     // Periodically (every ~1 sec) ensure child sources exist under master mixer in active scene
-    static uint64_t last_check_ts = 0;
-    const uint64_t cur_ts = os_gettime_ns();
-    if (cur_ts - last_check_ts < 1000000000ULL)
+    static auto last_check_tp = std::chrono::steady_clock::now();
+    const auto now = std::chrono::steady_clock::now();
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_check_tp).count() < 1000)
         return;
-    last_check_ts = cur_ts;
+    last_check_tp = now;
 
     obs_source_t *scene_source = obs_frontend_get_current_scene();
     if (!scene_source)

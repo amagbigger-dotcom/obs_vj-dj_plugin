@@ -262,9 +262,6 @@ static void deck_video_tick(void *data, float seconds)
 
     if (context->deck) {
         context->deck->updateLoop();
-        if (context->deck->source()) {
-            obs_source_video_tick(context->deck->source(), seconds);
-        }
     }
 }
 
