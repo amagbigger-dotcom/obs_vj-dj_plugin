@@ -15,52 +15,6 @@
 
 extern "C" {
 
-struct FilterData {
-    obs_source_t *source = nullptr;
-    int deck_idx = 0;
-};
-
-static const char *filter_get_name(void *)
-{
-    return "OBS VJ/DJ Deck Audio DSP Filter";
-}
-
-static void *filter_create(obs_data_t *settings, obs_source_t *source)
-{
-    auto *filter = new FilterData();
-    filter->source = source;
-    filter->deck_idx = settings ? static_cast<int>(obs_data_get_int(settings, "deck_idx")) : 0;
-    return filter;
-}
-
-static void filter_destroy(void *data)
-{
-    delete static_cast<FilterData *>(data);
-}
-
-static struct obs_audio_data *filter_audio(void *data, struct obs_audio_data *audio)
-{
-    auto *filter = static_cast<FilterData *>(data);
-    DeckPair *decks = vdj_decks();
-    if (!filter || !decks || !audio)
-        return audio;
-
-    DeckPlayer &deck = (filter->deck_idx == 0) ? decks->deckA() : decks->deckB();
-    const size_t frames = audio->frames;
-    for (size_t ch = 0; ch < 2; ch++) {
-        if (audio->data[ch]) {
-            deck.processAudioDsp(reinterpret_cast<float *>(audio->data[ch]),
-                                  frames, ch, 48000);
-        }
-    }
-
-    decks->queueCueAudio(filter->deck_idx,
-                         reinterpret_cast<const float *const *>(audio->data),
-                         frames);
-
-    return audio;
-}
-
 struct MixerSource {
     obs_source_t *source = nullptr;
     int channel = 0;
@@ -405,9 +359,22 @@ static void mixer_enum_all_sources(void *data, obs_source_enum_proc_t cb, void *
         cb(parent, source_b, param);
 }
 
+static bool enum_audio_devices_cb(void *param, const char *name, const char *id)
+{
+    obs_property_t *prop = static_cast<obs_property_t *>(param);
+    obs_property_list_add_string(prop, name, id);
+    return true;
+}
+
 static obs_properties_t *mixer_properties(void *)
 {
     obs_properties_t *props = obs_properties_create();
+
+    obs_property_t *dev_list = obs_properties_add_list(
+        props, "master_device", "Master Audio Output Device (Soundcard)",
+        OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_property_list_add_string(dev_list, "Default Device (Behringer 1-2 Out / Windows Default)", "default");
+    obs_enum_audio_monitoring_devices(enum_audio_devices_cb, dev_list);
 
     obs_property_t *transition = obs_properties_add_list(
         props, "transition", "FX Transition",
@@ -421,8 +388,25 @@ static obs_properties_t *mixer_properties(void *)
     return props;
 }
 
+static void mixer_update(void *data, obs_data_t *settings)
+{
+    UNUSED_PARAMETER(data);
+    if (!settings) return;
+
+    const char *dev = obs_data_get_string(settings, "master_device");
+    if (dev && *dev && strcmp(dev, "default") != 0 && obs_audio_monitoring_available()) {
+        obs_set_audio_monitoring_device(dev, dev);
+    }
+
+    DeckPair *decks = vdj_decks();
+    if (decks) {
+        decks->setTransitionMode(static_cast<int>(obs_data_get_int(settings, "transition")));
+    }
+}
+
 static void mixer_defaults(obs_data_t *settings)
 {
+    obs_data_set_default_string(settings, "master_device", "default");
     obs_data_set_default_int(settings, "transition", 0);
 }
 
@@ -474,12 +458,12 @@ static void mixer_video_tick(void *data, float seconds)
                     obs_sceneitem_t *it = obs_scene_add(scene, src_a);
                     if (it) {
                         obs_sceneitem_set_order(it, OBS_ORDER_MOVE_BOTTOM);
-                        obs_sceneitem_set_visible(it, false);
+                        obs_sceneitem_set_visible(it, true);
                     }
                     obs_source_release(src_a);
                 }
             } else {
-                obs_sceneitem_set_visible(item_a, false);
+                obs_sceneitem_set_visible(item_a, true);
             }
 
             obs_sceneitem_t *item_b = obs_scene_find_source(scene, "OBS VJ Deck B");
@@ -495,12 +479,12 @@ static void mixer_video_tick(void *data, float seconds)
                     obs_sceneitem_t *it = obs_scene_add(scene, src_b);
                     if (it) {
                         obs_sceneitem_set_order(it, OBS_ORDER_MOVE_BOTTOM);
-                        obs_sceneitem_set_visible(it, false);
+                        obs_sceneitem_set_visible(it, true);
                     }
                     obs_source_release(src_b);
                 }
             } else {
-                obs_sceneitem_set_visible(item_b, false);
+                obs_sceneitem_set_visible(item_b, true);
             }
 
             obs_sceneitem_t *item_cue = obs_scene_find_source(scene, "OBS VJ Headphone CUE");
@@ -524,13 +508,6 @@ static void mixer_video_tick(void *data, float seconds)
         }
     }
     obs_source_release(scene_source);
-}
-
-static bool enum_audio_devices_cb(void *param, const char *name, const char *id)
-{
-    obs_property_t *prop = static_cast<obs_property_t *>(param);
-    obs_property_list_add_string(prop, name, id);
-    return true;
 }
 
 static obs_properties_t *cue_properties(void *)
@@ -576,16 +553,6 @@ static void cue_destroy(void *)
 
 void vdj_register_sources(void)
 {
-    obs_source_info filter_info = {};
-    filter_info.id = "vdj_eq_filter";
-    filter_info.type = OBS_SOURCE_TYPE_FILTER;
-    filter_info.output_flags = OBS_SOURCE_AUDIO;
-    filter_info.get_name = filter_get_name;
-    filter_info.create = filter_create;
-    filter_info.destroy = filter_destroy;
-    filter_info.filter_audio = filter_audio;
-    obs_register_source_s(&filter_info, sizeof(filter_info));
-
     obs_source_info cue_info = {};
     cue_info.id = "vdj_headphone_cue";
     cue_info.type = OBS_SOURCE_TYPE_INPUT;
@@ -604,6 +571,7 @@ void vdj_register_sources(void)
     master.get_name = mixer_get_name;
     master.create = mixer_create;
     master.destroy = mixer_destroy;
+    master.update = mixer_update;
     master.video_tick = mixer_video_tick;
     master.video_render = mixer_video_render;
     master.enum_active_sources = mixer_enum_active_sources;

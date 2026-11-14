@@ -365,6 +365,27 @@ A bővítmény három független szálon/környezetben dolgozik:
 - **Gapless Loop Audio Híd (Zero-Stutter Memóriapuffer):**
   - A `DeckSourceContext` in-memory `loop_bridge` puffert kapott. Loopoláskor az audió a RAM-ba rögzül; az FFmpeg seek alatti 80-120 ms-os csend alatt a watchdog azonnal a memóriából tolja a mintákat, így a hang soha többé nem esik ki és nem kattan a loop határokon!
 
+### 22. Crossfader B-Oldali Hangkiesés, EQ Recsegés, 0.1 BPM Léptetés, Dinamikus MIDI Név és 1ms Ütemrács Finomhangolás (Build #208) *(KÉSZ)*
+- **Crossfader B-Oldali Végpontján Eltűnő Hang Megszüntetve:**
+  - Az `obs_sceneitem_set_visible(it, false)` az OBS-ben teljesen inaktiválta és némította a forrás audióját. Visszaállítva garantált `obs_sceneitem_set_visible(it, true)` láthatóságra, míg a Master Mixer rétegzése (`OBS_ORDER_MOVE_TOP`) vizuálisan elfedi őket, megőrizve a folyamatos, tiszta hangot a crossfader teljes tartományában.
+- **Hangszín Potméterek (EQ & Filter) Recsegésének Megszüntetése:**
+  - A duplikált `vdj_eq_filter` OBS audio filter és szűrőkezelő véglegesen eltávolítva a kódból.
+  - A DJ filter állapotváltozója (`st.dj_hp`) nullára ugrás helyett finom exponenciális csillapítással simul el (`st.dj_hp += 0.05f * (0.0f - st.dj_hp)`), megszüntetve minden átmeneti kattanást.
+- **Dinamikus Valós MIDI Eszköznév Kijelzés:**
+  - A korábbi fix "NI S2 MK3 CONNECTED" felirat helyett most a valós Windows MIDI eszköznevet kérdezi le és írja ki (pl. `MIDI: BEHRINGER USB AUDIO CONNECTED` vagy `MIDI: Traktor Kontrol S2 MK3 CONNECTED`).
+- **Média Betöltési Autoplay Gátló:**
+  - Aszinkron FFmpeg média indításakor a `pause_on_load_pending_` azonnal leállítja a lejátszót 00:00 CUE pozícióban.
+- **Master Hangkártya Választó az OBS VJ Master Mixer Tulajdonságaiban:**
+  - Közvetlenül beállítható a Master Audio kimeneti eszköz (alapértelmezett: Behringer 1-2 Out / Windows Default).
+- **TEMPO Finomhangolás: Valós 0.10 BPM Léptetés és Kijelzés:**
+  - A TEMPO sorban lévő `[ − ]` és `[ + ]` gombok ±0.10 BPM-et léptetnek, a kijelző pedig pontosan mutatja a kialakult BPM értéket (pl. `138.00 BPM (+0%)`).
+- **Ütemrács 1ms és 10ms Finomhangolás:**
+  - Új mikroléptetők: `[ << 10ms ] [ < 1ms ] [ SET 1 (DOWNBEAT) ] [ 1ms > ] [ 10ms >> ]`.
+- **Waveform Dupla Felbontás & 40 FPS Frissítés:**
+  - 100 pont/másodperc (10 ms-os ablakok) borotvaéles tranziensekkel, 25 ms-os (40 FPS) ablakfrissítéssel.
+- **BPM Analizátor Triola Harmonikus Javítás:**
+  - Eltávolítva a 3/4-es keresztritmus miatti 109 BPM tévedés; tiszta oktáv-összegzés 130 BPM centrális priorral.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

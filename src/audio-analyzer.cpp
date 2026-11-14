@@ -345,14 +345,14 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         if (abs_f > max_full_all) max_full_all = abs_f;
     }
 
-    // 3. High-Resolution Detailed Waveform (50 points/sec, 20ms window)
-    const size_t samples_per_20ms = std::max<size_t>(1, static_cast<size_t>(sample_rate / 50));
-    const size_t num_detailed = total_samples / samples_per_20ms;
+    // 3. Ultra-High-Resolution Detailed Waveform (100 points/sec, 10ms window)
+    const size_t samples_per_10ms = std::max<size_t>(1, static_cast<size_t>(sample_rate / 100));
+    const size_t num_detailed = total_samples / samples_per_10ms;
     result.detailed_peaks.resize(num_detailed, 0.05f);
 
     for (size_t w = 0; w < num_detailed; ++w) {
-        const size_t start = w * samples_per_20ms;
-        const size_t end = std::min(start + samples_per_20ms, total_samples);
+        const size_t start = w * samples_per_10ms;
+        const size_t end = std::min(start + samples_per_10ms, total_samples);
 
         float peak_kick = 0.0f;
         float peak_full = 0.0f;
@@ -363,8 +363,8 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
 
         const float norm_k = peak_kick / max_kick_all;
         const float norm_f = peak_full / max_full_all;
-        const float env = 0.20f * norm_f + 0.80f * std::pow(norm_k, 1.8f);
-        result.detailed_peaks[w] = std::clamp(env, 0.06f, 1.0f);
+        const float env = 0.15f * norm_f + 0.85f * std::pow(norm_k, 2.0f);
+        result.detailed_peaks[w] = std::clamp(env, 0.05f, 1.0f);
     }
 
     // 4. Onset Novelty Curve at ~500 Hz (exact onset sample rate) for BPM autocorrelation
@@ -418,15 +418,14 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     double best_score = -1.0;
 
     for (int lag = kMinLag; lag <= kMaxLag; ++lag) {
-        // Harmonic summation reinforces true fundamental beat and suppresses 5/4, 3/4 cross-rhythms
+        // Octave harmonic summation reinforces true 4/4 fundamental beat
         double score = raw_corr[lag];
-        if (lag * 2 <= max_search_lag) score += 0.6 * raw_corr[lag * 2];
-        if (lag / 2 >= kMinLag / 2)   score += 0.4 * raw_corr[lag / 2];
-        if (lag * 3 <= max_search_lag) score += 0.25 * raw_corr[lag * 3];
+        if (lag * 2 <= max_search_lag) score += 0.7 * raw_corr[lag * 2];
+        if (lag / 2 >= kMinLag / 2)   score += 0.5 * raw_corr[lag / 2];
 
         const double bpm = (60.0 * onset_rate) / static_cast<double>(lag);
-        // Wide DJ prior centered at 128 BPM (sigma 40)
-        const double prior = std::exp(-std::pow(bpm - 128.0, 2.0) / (2.0 * 40.0 * 40.0));
+        // Electronic music / DJ prior centered at 130 BPM (sigma 35)
+        const double prior = std::exp(-std::pow(bpm - 130.0, 2.0) / (2.0 * 35.0 * 35.0));
         score *= prior;
         autocorr[lag] = score;
 

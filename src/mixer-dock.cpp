@@ -761,9 +761,14 @@ void MixerWindow::refreshMixer()
 
     if (midi_status_lbl_) {
         const bool conn = vdj_midi_is_connected();
-        midi_status_lbl_->setText(conn ? QStringLiteral("MIDI: NI S2 MK3 CONNECTED") : QStringLiteral("MIDI: Disconnected"));
-        midi_status_lbl_->setStyleSheet(conn
-            ? QStringLiteral("color: #00ff88; font-weight: bold; font-size: 10px;")
-            : QStringLiteral("color: #ff5555; font-weight: bold; font-size: 10px;"));
+        if (conn) {
+            const char *dev = vdj_midi_get_device_name();
+            const QString name = (dev && *dev) ? QString::fromUtf8(dev) : QStringLiteral("MIDI DEVICE");
+            midi_status_lbl_->setText(QStringLiteral("MIDI: %1 CONNECTED").arg(name));
+            midi_status_lbl_->setStyleSheet(QStringLiteral("color: #00ff88; font-weight: bold; font-size: 10px;"));
+        } else {
+            midi_status_lbl_->setText(QStringLiteral("MIDI: Disconnected"));
+            midi_status_lbl_->setStyleSheet(QStringLiteral("color: #ff5555; font-weight: bold; font-size: 10px;"));
+        }
     }
 }

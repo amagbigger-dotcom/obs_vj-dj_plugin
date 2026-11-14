@@ -55,7 +55,9 @@ private:
 
     // Move / Beatgrid
     QPushButton *grid_nudge_minus_ = nullptr;
+    QPushButton *grid_nudge_minus_1ms_ = nullptr;
     QPushButton *grid_set1_btn_ = nullptr;
+    QPushButton *grid_nudge_plus_1ms_ = nullptr;
     QPushButton *grid_nudge_plus_ = nullptr;
     QLabel *grid_offset_lbl_ = nullptr;
     QPushButton *zoom_out_btn_ = nullptr;

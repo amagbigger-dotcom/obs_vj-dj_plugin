@@ -55,7 +55,7 @@ DeckWindow::DeckWindow(DeckPlayer *deck, QWidget *parent)
 
     refresh_timer_ = new QTimer(this);
     connect(refresh_timer_, &QTimer::timeout, this, &DeckWindow::onRefresh);
-    refresh_timer_->start(50);
+    refresh_timer_->start(25);
 }
 
 DeckWindow::~DeckWindow()
@@ -250,12 +250,26 @@ void DeckWindow::setupUi()
     });
     move_bar->addWidget(grid_nudge_minus_);
 
+    grid_nudge_minus_1ms_ = new QPushButton(QStringLiteral("< 1ms"), this);
+    grid_nudge_minus_1ms_->setToolTip(QStringLiteral("Ütemrács finomhangolás: −1ms"));
+    connect(grid_nudge_minus_1ms_, &QPushButton::clicked, this, [this]() {
+        if (deck_) deck_->nudgeGrid(-1);
+    });
+    move_bar->addWidget(grid_nudge_minus_1ms_);
+
     grid_set1_btn_ = new QPushButton(QStringLiteral("SET 1 (DOWNBEAT)"), this);
     grid_set1_btn_->setStyleSheet(QStringLiteral("background: #1c3248; border-color: #00aaff; color: #00d2ff;"));
     connect(grid_set1_btn_, &QPushButton::clicked, this, [this]() {
         if (deck_) deck_->setGridAnchorAtCurrent();
     });
     move_bar->addWidget(grid_set1_btn_);
+
+    grid_nudge_plus_1ms_ = new QPushButton(QStringLiteral("1ms >"), this);
+    grid_nudge_plus_1ms_->setToolTip(QStringLiteral("Ütemrács finomhangolás: +1ms"));
+    connect(grid_nudge_plus_1ms_, &QPushButton::clicked, this, [this]() {
+        if (deck_) deck_->nudgeGrid(1);
+    });
+    move_bar->addWidget(grid_nudge_plus_1ms_);
 
     grid_nudge_plus_ = new QPushButton(QStringLiteral("10ms >>"), this);
     connect(grid_nudge_plus_, &QPushButton::clicked, this, [this]() {
@@ -378,8 +392,15 @@ void DeckWindow::setupUi()
         "QPushButton { background: #1c2634; border: 2px solid #385070; font-size: 13px; font-weight: bold; color: #78a0d0; border-radius: 6px; }"
         "QPushButton:checked { background: #005588; border-color: #00d2ff; color: #ffffff; }"
     ));
-    connect(sync_btn_, &QPushButton::toggled, this, [this](bool checked) {
-        if (deck_) deck_->setSync(checked);
+    connect(sync_btn_, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        DeckPair *decks = vdj_decks();
+        if (decks) {
+            const int ch = (deck_->side() == DeckPlayer::DeckSide::B) ? 1 : 0;
+            const bool new_sync = !deck_->isSync();
+            decks->setSync(ch, new_sync);
+            sync_btn_->setChecked(new_sync);
+        }
     });
     transport_bar->addWidget(sync_btn_);
 
@@ -415,8 +436,17 @@ void DeckWindow::setupUi()
 
     bend_minus_btn_ = new QPushButton(QStringLiteral("−"), this);
     bend_minus_btn_->setFixedSize(30, 28);
+    bend_minus_btn_->setToolTip(QStringLiteral("Tempo finomhangolás: −0.10 BPM"));
     connect(bend_minus_btn_, &QPushButton::clicked, this, [this]() {
-        if (deck_) deck_->applySpeedSettings(deck_->speed() - 1);
+        if (!deck_) return;
+        const double cur_eff = deck_->effectiveBpm();
+        const double target_bpm = std::round((cur_eff - 0.10) * 10.0) / 10.0;
+        if (std::abs(deck_->speed() - 100) <= 1) {
+            deck_->setBpm(target_bpm);
+        } else {
+            const int target_spd = std::clamp(static_cast<int>(std::round((target_bpm / deck_->bpm()) * 100.0)), 50, 150);
+            deck_->applySpeedSettings(target_spd);
+        }
     });
     tempo_bar->addWidget(bend_minus_btn_);
 
@@ -430,11 +460,9 @@ void DeckWindow::setupUi()
             if (deck_->isSync()) deck_->setSync(false);
             deck_->setSpeed(val);
         }
-        const double diff = val - 100;
-        pitch_val_lbl_->setText(QStringLiteral("%1% (%2%3%)")
-            .arg(val)
-            .arg(diff >= 0 ? "+" : "")
-            .arg(diff, 0, 'f', 1));
+        const double eff_bpm = deck_ ? deck_->effectiveBpm() : 128.0;
+        const int diff = val - 100;
+        pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+d%%)", eff_bpm, diff));
 
         // Debounced speed update: reset timer on every move so FFmpeg only reloads once user pauses/settles
         pending_throttle_speed_ = val;
@@ -451,14 +479,23 @@ void DeckWindow::setupUi()
 
     bend_plus_btn_ = new QPushButton(QStringLiteral("+"), this);
     bend_plus_btn_->setFixedSize(30, 28);
+    bend_plus_btn_->setToolTip(QStringLiteral("Tempo finomhangolás: +0.10 BPM"));
     connect(bend_plus_btn_, &QPushButton::clicked, this, [this]() {
-        if (deck_) deck_->applySpeedSettings(deck_->speed() + 1);
+        if (!deck_) return;
+        const double cur_eff = deck_->effectiveBpm();
+        const double target_bpm = std::round((cur_eff + 0.10) * 10.0) / 10.0;
+        if (std::abs(deck_->speed() - 100) <= 1) {
+            deck_->setBpm(target_bpm);
+        } else {
+            const int target_spd = std::clamp(static_cast<int>(std::round((target_bpm / deck_->bpm()) * 100.0)), 50, 150);
+            deck_->applySpeedSettings(target_spd);
+        }
     });
     tempo_bar->addWidget(bend_plus_btn_);
 
-    pitch_val_lbl_ = new QLabel(QStringLiteral("100% (+0.0%)"), this);
-    pitch_val_lbl_->setStyleSheet(QStringLiteral("color: #00d2ff; font-family: monospace; font-weight: bold; width: 110px;"));
-    pitch_val_lbl_->setFixedWidth(110);
+    pitch_val_lbl_ = new QLabel(QStringLiteral("128.00 BPM (+0%)"), this);
+    pitch_val_lbl_->setStyleSheet(QStringLiteral("color: #00d2ff; font-family: monospace; font-weight: bold; width: 140px;"));
+    pitch_val_lbl_->setFixedWidth(140);
     tempo_bar->addWidget(pitch_val_lbl_);
 
     pitch_reset_btn_ = new QPushButton(QStringLiteral("0% RESET"), this);
@@ -615,12 +652,10 @@ void DeckWindow::onRefresh()
         if (pitch_slider_->value() != spd) {
             QSignalBlocker b(pitch_slider_);
             pitch_slider_->setValue(spd);
-            const double diff = spd - 100;
-            pitch_val_lbl_->setText(QStringLiteral("%1% (%2%3%)")
-                .arg(spd)
-                .arg(diff >= 0 ? "+" : "")
-                .arg(diff, 0, 'f', 1));
         }
+        const double eff_bpm = deck_->effectiveBpm();
+        const int diff = spd - 100;
+        pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+d%%)", eff_bpm, diff));
     }
 }
 

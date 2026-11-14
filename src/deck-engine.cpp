@@ -163,6 +163,7 @@ void DeckPlayer::loadFile(const QString &path)
     });
 
     // Do NOT auto-play on media load: initialize paused at 00:00 (CUE)
+    pause_on_load_pending_.store(true, std::memory_order_relaxed);
     obs_source_media_play_pause(source_, true);
     obs_source_media_set_time(source_, 0);
 }
@@ -574,7 +575,7 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
             const float cutoff = 200.0f + norm * norm * 17800.0f;
             const float a_lp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.001f, 0.95f);
             st.dj_lp += a_lp * (out - st.dj_lp);
-            st.dj_hp = out;
+            st.dj_hp += 0.05f * (0.0f - st.dj_hp);
             out = st.dj_lp;
         } else if (st.cur_flt > 0.001f) {
             // High Pass: cutoff from ~20 Hz up to 8000 Hz
@@ -582,11 +583,11 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
             const float cutoff = 20.0f + norm * norm * 7980.0f;
             const float a_hp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.001f, 0.95f);
             st.dj_hp += a_hp * (out - st.dj_hp);
-            st.dj_lp = out;
+            st.dj_lp += 0.05f * (out - st.dj_lp);
             out = out - st.dj_hp;
         } else {
-            st.dj_lp = out;
-            st.dj_hp = 0.0f;
+            st.dj_lp += 0.05f * (out - st.dj_lp);
+            st.dj_hp += 0.05f * (0.0f - st.dj_hp);
         }
 
         channel_data[i] = std::clamp(out, -1.2f, 1.2f);
@@ -654,6 +655,16 @@ void DeckPlayer::updateLoop()
 {
     if (!source_)
         return;
+
+    // Catch asynchronous FFmpeg media load start and enforce pause at 00:00
+    if (pause_on_load_pending_.load(std::memory_order_relaxed)) {
+        const obs_media_state st = obs_source_media_get_state(source_);
+        if (st == OBS_MEDIA_STATE_PLAYING) {
+            obs_source_media_play_pause(source_, true);
+            obs_source_media_set_time(source_, 0);
+            pause_on_load_pending_.store(false, std::memory_order_relaxed);
+        }
+    }
 
     // 1. Resume saved position after speed restart without jumping to 0:00
     const int restart_phase = speed_restart_phase_.load(std::memory_order_relaxed);
