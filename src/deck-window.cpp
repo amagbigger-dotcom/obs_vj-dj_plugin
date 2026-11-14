@@ -31,8 +31,8 @@ DeckWindow::DeckWindow(DeckPlayer *deck, QWidget *parent)
     : QDialog(parent), deck_(deck)
 {
     setWindowTitle(QStringLiteral("OBS VJ Deck"));
-    // Fix nem nyújtható méret a monitor alsó feléhez igazítva (Fixed Non-Resizable Layout for Lower Screen)
-    setFixedSize(710, 480);
+    // Fix kompakt méret a monitor alsó egyharmadához igazítva (1/3 Screen Height, 640x340 px)
+    setFixedSize(640, 340);
     setWindowFlags(Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowMinimizeButtonHint);
     setStyleSheet(QStringLiteral(
         "QDialog { background-color: #12151c; color: #e0e4ec; font-family: 'Segoe UI', Arial, sans-serif; }"
@@ -76,8 +76,8 @@ DeckWindow::~DeckWindow()
 void DeckWindow::setupUi()
 {
     auto *main_layout = new QVBoxLayout(this);
-    main_layout->setContentsMargins(16, 14, 16, 14);
-    main_layout->setSpacing(12);
+    main_layout->setContentsMargins(8, 6, 8, 6);
+    main_layout->setSpacing(4);
 
     // ==========================================
     // 1. TOP BAR: File, Time, In-Place Direct BPM
@@ -234,7 +234,7 @@ void DeckWindow::setupUi()
     // 2. CLEAN WAVEFORM CANVAS (No duplicate header!)
     // ==========================================
     waveform_canvas_ = new WaveformCanvas(deck_, true, this);
-    waveform_canvas_->setFixedHeight(135);
+    waveform_canvas_->setFixedHeight(85);
     main_layout->addWidget(waveform_canvas_);
 
     // ==========================================
@@ -373,26 +373,26 @@ void DeckWindow::setupUi()
     transport_bar->setSpacing(10);
 
     cue_btn_ = new QPushButton(QStringLiteral("CUE"), this);
-    cue_btn_->setMinimumSize(90, 48);
-    cue_btn_->setStyleSheet(QStringLiteral("background: #2a3444; border: 2px solid #586884; font-size: 14px; font-weight: bold; color: #ffffff; border-radius: 6px;"));
+    cue_btn_->setMinimumSize(70, 36);
+    cue_btn_->setStyleSheet(QStringLiteral("background: #2a3444; border: 2px solid #586884; font-size: 13px; font-weight: bold; color: #ffffff; border-radius: 4px;"));
     connect(cue_btn_, &QPushButton::clicked, this, [this]() {
         if (deck_) deck_->cue();
     });
     transport_bar->addWidget(cue_btn_);
 
     play_btn_ = new QPushButton(QStringLiteral("▶ PLAY"), this);
-    play_btn_->setMinimumSize(120, 48);
-    play_btn_->setStyleSheet(QStringLiteral("background: #1e3a24; border: 2px solid #00cc44; font-size: 15px; font-weight: bold; color: #ffffff; border-radius: 6px;"));
+    play_btn_->setMinimumSize(95, 36);
+    play_btn_->setStyleSheet(QStringLiteral("background: #1e3a24; border: 2px solid #00cc44; font-size: 14px; font-weight: bold; color: #ffffff; border-radius: 4px;"));
     connect(play_btn_, &QPushButton::clicked, this, [this]() {
         if (deck_) deck_->togglePlayback();
     });
     transport_bar->addWidget(play_btn_);
 
     sync_btn_ = new QPushButton(QStringLiteral("SYNC"), this);
-    sync_btn_->setMinimumSize(80, 48);
+    sync_btn_->setMinimumSize(70, 36);
     sync_btn_->setCheckable(true);
     sync_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2634; border: 2px solid #385070; font-size: 13px; font-weight: bold; color: #78a0d0; border-radius: 6px; }"
+        "QPushButton { background: #1c2634; border: 2px solid #385070; font-size: 12px; font-weight: bold; color: #78a0d0; border-radius: 4px; }"
         "QPushButton:checked { background: #005588; border-color: #00d2ff; color: #ffffff; }"
     ));
     connect(sync_btn_, &QPushButton::clicked, this, [this]() {
@@ -408,10 +408,10 @@ void DeckWindow::setupUi()
     transport_bar->addWidget(sync_btn_);
 
     master_btn_ = new QPushButton(QStringLiteral("MASTER"), this);
-    master_btn_->setMinimumSize(80, 48);
+    master_btn_->setMinimumSize(70, 36);
     master_btn_->setCheckable(true);
     master_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2634; border: 2px solid #385070; font-size: 13px; font-weight: bold; color: #78a0d0; border-radius: 6px; }"
+        "QPushButton { background: #1c2634; border: 2px solid #385070; font-size: 12px; font-weight: bold; color: #78a0d0; border-radius: 4px; }"
         "QPushButton:checked { background: #d97706; border-color: #f59e0b; color: #ffffff; }"
     ));
     connect(master_btn_, &QPushButton::clicked, this, [this]() {
@@ -700,9 +700,15 @@ void DeckWindow::keyPressEvent(QKeyEvent *event)
 void DeckWindow::showEvent(QShowEvent *event)
 {
     QDialog::showEvent(event);
-    const QRect screen_geom = QGuiApplication::primaryScreen()->availableGeometry();
-    const int y_pos = std::max(0, screen_geom.bottom() - 485);
-    const bool is_b = (deck_ && deck_->side() == DeckPlayer::DeckSide::B);
-    const int x_pos = is_b ? (screen_geom.left() + 1195) : (screen_geom.left() + 15);
-    move(x_pos, y_pos);
+    if (QScreen *screen = QGuiApplication::primaryScreen()) {
+        const QRect geom = screen->availableGeometry();
+        const int target_w = 640;
+        const int target_h = 340;
+        setFixedSize(target_w, target_h);
+
+        const int y_pos = std::max(0, geom.bottom() - target_h - 4);
+        const bool is_b = (deck_ && deck_->side() == DeckPlayer::DeckSide::B);
+        const int x_pos = is_b ? (geom.left() + 1268) : (geom.left() + 12);
+        move(x_pos, y_pos);
+    }
 }

@@ -85,7 +85,10 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
 
     obs_source_inc_showing(source_);
     obs_source_inc_active(source_);
-    obs_source_set_audio_active(source_, true);
+    // A belső privát FFmpeg videodekóder forrást NEM regisztráljuk aktív OBS audióként,
+    // mert az OBS globális keverője hiányzó hangcsomagok miatt 960ms puffer-újraindítási ciklusba kerülne.
+    // (Never register private ffmpeg decoder as active OBS audio source to prevent audio lag restart spiral)
+    obs_source_set_audio_active(source_, false);
     obs_source_set_audio_mixers(source_, 0);
     obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
 

@@ -118,8 +118,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
 
           $preferredNames = @(
-            "obs-vj-mixer.dll",
-            "obs_vj-dj_plugin.dll"
+            "obs_dj-vj_plugin.dll",
+            "obs_vj-dj_plugin.dll",
+            "obs-vj-mixer.dll"
           )
 
           $dll = $null

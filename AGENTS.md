@@ -6,9 +6,9 @@ Ez a dokumentum a projekt teljes kontextusát, forrásfájljait, hardveres illes
 
 ## 1. ALAPADATOK ÉS CÉLKITŰZÉS
 * **Projekt neve / Repó:** `amagbigger-dotcom/obs_vj-dj_plugin`
-* **Kimeneti könyvtár / bináris:** `obs-vj-mixer.dll`
+* **Kimeneti könyvtár / bináris:** `obs_dj-vj_plugin.dll`
 * **Cél:** Natív C++17 (Qt 6) OBS Studio bővítmény (Windows x64, OBS 30+/33+), amely 2 deckes professzionális Video DJ keverőként üzemel.
-* **Telepítési forma:** Kizárólag **1 darab `obs-vj-mixer.dll`** fájl, amely közvetlenül a `C:\Program Files\obs-studio\obs-plugins\64bit\` mappába másolható. Nincsenek külső `.effect` fájlok vagy segédmappák; az összes HLSL shader C++ karaktersorozatként be van ágyazva a binárisba.
+* **Telepítési forma:** Kizárólag **1 darab `obs_dj-vj_plugin.dll`** fájl, amely közvetlenül a `C:\Program Files\obs-studio\obs-plugins\64bit\` mappába másolható. Nincsenek külső `.effect` fájlok vagy segédmappák; az összes HLSL shader C++ karaktersorozatként be van ágyazva a binárisba.
 * **Hardveres vezérlő:** **Native Instruments TRAKTOR KONTROL S2 MK3** USB MIDI módban.
 
 ---
@@ -416,6 +416,21 @@ A bővítmény három független szálon/környezetben dolgozik:
 - **Felső BPM Mező & TAP BPM Függetlenség:**
   - A felső BPM beviteli mező az alapértelmezett rácstempót (`deck_->bpm()`) szerkeszti és jeleníti meg, az Enter billentyű elmenti az értéket anélkül, hogy megnyitná a fájldialógust.
 
+### 25. Valós Idejű Videókeverés Stúdió Mód Nélkül, Behringer/OBS Recsegésmentes Audió Puffer, Képernyő 1/3 Magasságú Kompakt Elrendezés & Hivatalos `obs_dj-vj_plugin.dll` Átnevezés (Build #211) *(KÉSZ)*
+- **Hivatalos Átnevezés (`obs_dj-vj_plugin.dll`):**
+  - A CMake és a GitHub Actions CI mostantól közvetlenül az `obs_dj-vj_plugin.dll` binárist állítja elő és telepíti az OBS bővítmény mappájába.
+- **Valós Idejű Videókeverés Stúdió Mód Nélkül:**
+  - Az `OBS VJ Master Mixer` a videóképeket közvetlenül a két Deck privát hardveres dekóderéből (`deck_a.source()`, `deck_b.source()`) rendereli. Így egyetlen aktív jelenetben (pl. DJ-VJ vagy Jelenet 8), **Stúdió Mód nélkül, élőben és valós időben végzi a Crossfader a két videó keverését** (Linear Fade, Wipe, Additive Blend, Cut).
+- **Behringer X-Air és OBS Recsegésmentes Audió:**
+  - Megszüntetve az OBS 960 ms-os puffer újraindítási spirálját (`Source vj_deck_source_b audio is lagging at max audio buffering`): a privát FFmpeg videodekóder expliciten `obs_source_set_audio_active(source_, false)` állapotot kapott, így az OBS nem hallgatózik utána és nem indítja újra az audio alrendszert.
+  - A RAM Audio Engine szál `sleep_until` abszolút időzítést és 25 ms-os biztonsági előpufferelést kapott, így a Behringer XR18 és bármely kimeneti hangkártya tiszta, akadás- és pattogásmentes stúdióhangot kap.
+- **Képernyő 1/3 Magasságú Kompakt Elrendezés (1920x1080 Monitorra Kalibrálva):**
+  - A 3 vezérlőablak magassága egységesen **340 px** (pontosan a képernyő alsó 1/3 része, a tálca felett):
+    * **Deck A:** 640 x 340 px (`X = 12`)
+    * **Mixer:** 590 x 340 px (`X = 665`)
+    * **Deck B:** 640 x 340 px (`X = 1268`)
+  - A 3 ablak $12 + 640 + 13 + 590 + 13 + 640 = 1908$ px szélességben hézagmentesen elfér egymás mellett a képernyő alsó sávjában; a felső 700 px teljesen szabad marad az OBS Studio és az X-Air számára.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ
@@ -440,8 +455,8 @@ cmake --build build --config Release --parallel
 ```
 
 ### 7.2. Telepítés
-1. A sikeres fordítás után a `build\Release\obs-vj-mixer.dll` fájl jön létre.
+1. A sikeres fordítás után a `build\Release\obs_dj-vj_plugin.dll` fájl jön létre.
 2. Zárja be az OBS Studio-t.
 3. Másolja be a fájlt az OBS bővítmény mappájába:
-   `C:\Program Files\obs-studio\obs-plugins\64bit\obs-vj-mixer.dll`
+   `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
 4. Indítsa el az OBS-t, és nyissa meg a keverőt az **Eszközök (Tools) $\rightarrow$ Video DJ Mixer** menüpontból.

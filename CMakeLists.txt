@@ -46,7 +46,7 @@ add_library(obs_vj-dj_plugin MODULE ${SOURCES})
 set_target_properties(obs_vj-dj_plugin PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS TRUE
     PREFIX ""
-    OUTPUT_NAME "obs-vj-mixer"
+    OUTPUT_NAME "obs_dj-vj_plugin"
 )
 
 target_include_directories(obs_vj-dj_plugin PRIVATE

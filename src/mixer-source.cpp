@@ -246,13 +246,11 @@ static void draw_mixer(void *data)
     deck_a.updateLoop();
     deck_b.updateLoop();
 
-    obs_source_t *src_a = vdj_get_obs_source_deck(0);
-    if (!src_a)
-        src_a = deck_a.source();
-
-    obs_source_t *src_b = vdj_get_obs_source_deck(1);
-    if (!src_b)
-        src_b = deck_b.source();
+    // Közvetlenül a két Deck privát belső forrását rendereljük textúrára,
+    // így az OBS VJ Master Mixer BÁRMELY jelenetben működik, Stúdió Mód nélkül, valós időben!
+    // (Directly render Deck A and B decoder sources so Master Mixer works in ANY scene without Studio Mode)
+    obs_source_t *src_a = deck_a.source();
+    obs_source_t *src_b = deck_b.source();
 
     const bool rendered_a =
         render_to_texture(context->deck_a, src_a, width, height);

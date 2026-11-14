@@ -155,8 +155,8 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
       decks_(decks)
 {
     setWindowTitle(QStringLiteral("OBS VJ Mixer"));
-    // Fix nem nyújtható méret a képernyő alsó felében (Fixed Non-Resizable Center Mixer Layout)
-    setFixedSize(460, 480);
+    // Fix kompakt méret a monitor alsó egyharmadához igazítva (1/3 Screen Height, 590x340 px)
+    setFixedSize(590, 340);
     setWindowFlags(Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowMinimizeButtonHint);
     setStyleSheet(QString::fromUtf8(MIXER_STYLESHEET));
 
@@ -327,7 +327,7 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
     auto *vol_slider = new DJSlider(Qt::Vertical, 80, panel);
     vol_slider->setRange(0, 100);
     vol_slider->setValue(80);
-    vol_slider->setFixedHeight(95);
+    vol_slider->setFixedHeight(70);
     vol_slider->setToolTip(QStringLiteral("Channel Volume Fader (Default: 80% Unity Line Level)"));
 
     auto *meter = new QProgressBar(panel);
@@ -335,7 +335,7 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
     meter->setRange(0, 100);
     meter->setValue(0);
     meter->setFixedWidth(8);
-    meter->setFixedHeight(95);
+    meter->setFixedHeight(70);
     meter->setTextVisible(false);
 
     auto *vol_lbl = new QLabel(QStringLiteral("80%"), panel);
@@ -774,8 +774,14 @@ void MixerWindow::refreshMixer()
 void MixerWindow::showEvent(QShowEvent *event)
 {
     QDialog::showEvent(event);
-    const QRect screen_geom = QGuiApplication::primaryScreen()->availableGeometry();
-    const int y_pos = std::max(0, screen_geom.bottom() - 485);
-    const int x_pos = screen_geom.left() + 730;
-    move(x_pos, y_pos);
+    if (QScreen *screen = QGuiApplication::primaryScreen()) {
+        const QRect geom = screen->availableGeometry();
+        const int target_w = 590;
+        const int target_h = 340;
+        setFixedSize(target_w, target_h);
+
+        const int y_pos = std::max(0, geom.bottom() - target_h - 4);
+        const int x_pos = geom.left() + 665;
+        move(x_pos, y_pos);
+    }
 }

@@ -219,8 +219,10 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
         std::vector<float> buf_l(frames_per_tick);
         std::vector<float> buf_r(frames_per_tick);
 
+        auto next_wake = std::chrono::steady_clock::now();
+
         while (context->audio_thread_running.load(std::memory_order_relaxed)) {
-            const auto tick_start = std::chrono::steady_clock::now();
+            next_wake += std::chrono::milliseconds(10);
 
             if (context->deck && context->deck->hasAudioBuffer()) {
                 if (context->deck->isPlaying()) {
@@ -249,9 +251,13 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
                     }
 
                     const uint64_t cur_time = os_gettime_ns();
-                    if (context->next_audio_ts == 0 ||
-                        std::abs(static_cast<int64_t>(cur_time - context->next_audio_ts)) > 100000000LL) {
-                        context->next_audio_ts = cur_time;
+                    if (context->next_audio_ts == 0) {
+                        // 25ms biztonsági előpuffer az OBS belső jitter-kivédésére
+                        context->next_audio_ts = cur_time + 25000000ULL;
+                    } else if (cur_time > context->next_audio_ts + 80000000ULL ||
+                               context->next_audio_ts > cur_time + 150000000ULL) {
+                        // Időcsúszás esetén újraszinkronizálás
+                        context->next_audio_ts = cur_time + 25000000ULL;
                     }
 
                     struct obs_source_audio out_audio = {};
@@ -271,10 +277,11 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
                 }
             }
 
-            const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - tick_start).count();
-            const int sleep_us = 10000 - static_cast<int>(elapsed);
-            if (sleep_us > 1000) {
-                std::this_thread::sleep_for(std::chrono::microseconds(sleep_us));
+            const auto now = std::chrono::steady_clock::now();
+            if (next_wake > now) {
+                std::this_thread::sleep_until(next_wake);
+            } else {
+                next_wake = now;
             }
         }
         timeEndPeriod(1);
