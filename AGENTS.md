@@ -291,6 +291,17 @@ A bővítmény három független szálon/környezetben dolgozik:
 - **Automatikus Sáv- és Monitorozás Kényszerítés:** A `deck_video_tick` ellenőrzi az OBS forrás audio mixer sávjait. Ha az OBS korábbi mentésből 0 sávot töltött be (ez okozta a *"Nem hozzárendelt"* feliratot és a sárga felkiáltójelet), azonnal bekapcsolja mind a 6 sávot (`0x3F`) és a `MONITOR_AND_OUTPUT` módot, így a szintmérő azonnal életre kel.
 - **[ ⛶ FIT 1080p ] Vászonhoz Igazítás Gomb:** A felső sávba beépített azonnali gomb, amely a jelenetben található `OBS VJ Deck` forrást egyetlen kattintással (0, 0) pozícióra és 1.0 méretarányra állítja, kitöltve a teljes 1080p vásznat.
 
+### 18. GPU Frame Freeze, Deck A/B Routing és Integrált Tracklist Panel (Build #198) *(KÉSZ)*
+- **GPU Frame Freeze (0:00 felvillanás kizárása):** A `deck-source.cpp` egy offscreen `gs_texrender` rétegen keresztül rendereli a videót. Amikor a tempócsúszka mozgatásakor az OBS `ffmpeg_source` újraindul (`speed_restart_phase_ != 0`), a plugin kimerevíti az utolsó érvényes videótextúrát a GPU-n. Az FFmpeg által az újranyitáskor generált 0:00-s képkocka **soha nem kerül a pufferbe és a vászonra**, így a sebességváltás vizuális villanás nélkül, simán folytatódik a visszaugrás után.
+- **Kezelőfelület Letisztítása & Hangerőcsúszka Törlése:** A felesleges, nem funkcionáló belső hangerőcsúszka eltávolítva a Deck felületről. A Deck tiszta 1.0f (0 dB vonalszint) jelet ad az OBS-nek és a leendő mixernek.
+- **DECK A és DECK B Kapcsolópár:** A korábbi nagy FIT gomb helyére egy elegáns `[ DECK A ]` (kék) és `[ DECK B ]` (narancssárga) kapcsoló került. A felhasználó egyetlen kattintással átkapcsolhatja a vezérlőfelületet a Deck A és Deck B között, miközben az 1080p vászonhoz illesztés automatikusan és észrevétlenül lefut a háttérben.
+- **Integrált OBS VJ Tracklist Panel (Médiatár & Konverter):**
+  - Önálló ablak az `Eszközök -> OBS VJ Tracklist` menüből, illetve a Deck ablak `[ 📋 TRACKLIST ]` gombjából.
+  - **Drag & Drop Importálás:** Tetszőleges MP4/MKV/MOV videók behúzása a felületre.
+  - **Hardveres RTX 3060 NVENC 1080p All-Intra Konvertálás:** A háttérben az NVIDIA GPU-val 3-5 másodperc alatt 1080p All-Intra (`-g 1`) formátumra alakítja a videókat a felhasználó VJ mappájába (`Videos/VJ_Clips`).
+  - **Azonnali Automata BPM & Hullámforma Analízis:** A konvertálás után azonnal legenerálja a `.vdj.json` gyorsítótárat.
+  - **Perzisztens Lista & Lejátszási Állapot (✓):** A lista megőrzi az elemeket az OBS újraindításakor. A sorokból közvetlen `[ LOAD A ]` és `[ LOAD B ]` gombokkal azonnal betölthető a szám, és a lejátszott tételek mellett megjelenik a zöld `✓` (pipa) jelzés, vagy a futó `▶ A` / `▶ B` státusz.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

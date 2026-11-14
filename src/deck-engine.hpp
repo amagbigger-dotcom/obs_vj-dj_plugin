@@ -70,6 +70,13 @@ public:
     void updateLoop();
 
     bool hasVideo() const noexcept { return has_video_.load(std::memory_order_relaxed); }
+    bool isSpeedRestarting() const noexcept { return speed_restart_phase_.load(std::memory_order_relaxed) != 0; }
+    bool hasFileChanged() const noexcept { return file_changed_.load(std::memory_order_relaxed); }
+    void clearFileChanged() noexcept { file_changed_.store(false, std::memory_order_relaxed); }
+
+    enum class DeckSide { A, B };
+    void setSide(DeckSide side) noexcept { side_.store(side, std::memory_order_relaxed); }
+    DeckSide side() const noexcept { return side_.load(std::memory_order_relaxed); }
 
     // Sync readiness for future mixer connection
     bool isSync() const noexcept { return is_sync_.load(std::memory_order_relaxed); }
@@ -94,6 +101,8 @@ private:
 
     std::atomic<bool> looping_{false};
     std::atomic<bool> has_video_{false};
+    std::atomic<bool> file_changed_{false};
+    std::atomic<DeckSide> side_{DeckSide::A};
     std::atomic<int> loop_beat_index_{3}; // 4 beats default
 
     std::atomic<int64_t> loop_start_ms_{0};
@@ -104,7 +113,7 @@ private:
     std::atomic<int64_t> grid_offset_ms_{0};
 
     std::atomic<int> speed_percent_{100};
-    std::atomic<float> volume_{0.8f};
+    std::atomic<float> volume_{1.0f};
 
     std::atomic<bool> is_sync_{false};
     std::atomic<int64_t> pending_speed_seek_ms_{0};
@@ -118,6 +127,10 @@ private:
     std::vector<float> detailed_samples_;
 };
 
-// Global active deck accessor
+// Global deck accessors
 DeckPlayer *vj_active_deck();
+DeckPlayer *vj_deck_a();
+DeckPlayer *vj_deck_b();
 void vdj_set_active_deck(DeckPlayer *deck);
+void vdj_set_deck_a(DeckPlayer *deck);
+void vdj_set_deck_b(DeckPlayer *deck);

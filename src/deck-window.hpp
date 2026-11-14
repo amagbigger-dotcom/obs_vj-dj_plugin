@@ -20,17 +20,25 @@ public:
     explicit DeckWindow(DeckPlayer *deck, QWidget *parent = nullptr);
     ~DeckWindow() override;
 
+    void bindDeck(DeckPlayer *deck);
+    void fitTo1080p();
+
 private slots:
     void onRefresh();
 
 private:
     void setupUi();
     void openFileDialog();
+    void updateDeckButtonStates();
 
     DeckPlayer *deck_ = nullptr;
     QTimer *refresh_timer_ = nullptr;
     QTimer *pitch_throttle_timer_ = nullptr;
     int pending_throttle_speed_ = 100;
+
+    QPushButton *deck_a_btn_ = nullptr;
+    QPushButton *deck_b_btn_ = nullptr;
+    QPushButton *tracklist_btn_ = nullptr;
 
     QLabel *file_lbl_ = nullptr;
     QLabel *elapsed_lbl_ = nullptr;
@@ -63,9 +71,6 @@ private:
     QPushButton *pitch_reset_btn_ = nullptr;
     QPushButton *bend_minus_btn_ = nullptr;
     QPushButton *bend_plus_btn_ = nullptr;
-
-    // Volume
-    QSlider *volume_slider_ = nullptr;
 
     // Tap tempo helpers
     std::vector<qint64> tap_times_;

@@ -30,6 +30,10 @@ set(SOURCES
     src/deck-window.hpp
     src/waveform-widget.cpp
     src/waveform-widget.hpp
+    src/video-converter.cpp
+    src/video-converter.hpp
+    src/tracklist-dock.cpp
+    src/tracklist-dock.hpp
     src/midi-handler.cpp
     src/midi-handler.hpp
 )

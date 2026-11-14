@@ -42,6 +42,7 @@ DeckWindow::DeckWindow(DeckPlayer *deck, QWidget *parent)
     ));
 
     setupUi();
+    updateDeckButtonStates();
 
     pitch_throttle_timer_ = new QTimer(this);
     pitch_throttle_timer_->setSingleShot(true);
@@ -154,26 +155,46 @@ void DeckWindow::setupUi()
     bpm_box->addWidget(bpm_unit);
     top_bar->addLayout(bpm_box);
 
-    auto *fit_btn = new QPushButton(QStringLiteral("⛶ FIT 1080p"), this);
-    fit_btn->setStyleSheet(QStringLiteral("background: #1c2838; border: 1px solid #384c68; color: #88c0ff; font-size: 11px; padding: 4px 8px;"));
-    fit_btn->setToolTip(QStringLiteral("A videóképet azonnal a teljes 1080p OBS vászonhoz igazítja (Ctrl+F)"));
-    connect(fit_btn, &QPushButton::clicked, this, []() {
-        obs_source_t *scene_source = obs_frontend_get_current_scene();
-        if (!scene_source) return;
-        obs_scene_t *scene = obs_scene_from_source(scene_source);
-        if (scene) {
-            obs_sceneitem_t *item = obs_scene_find_source(scene, "OBS VJ Deck");
-            if (item) {
-                struct vec2 pos = {0.0f, 0.0f};
-                struct vec2 scale = {1.0f, 1.0f};
-                obs_sceneitem_set_pos(item, &pos);
-                obs_sceneitem_set_scale(item, &scale);
-                obs_sceneitem_set_bounds_type(item, OBS_BOUNDS_NONE);
-            }
-        }
-        obs_source_release(scene_source);
+    auto *side_box = new QHBoxLayout();
+    side_box->setSpacing(2);
+
+    deck_a_btn_ = new QPushButton(QStringLiteral("DECK A"), this);
+    deck_a_btn_->setCheckable(true);
+    deck_a_btn_->setFixedWidth(64);
+    deck_a_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c2635; border: 1px solid #2e3e54; color: #7f8fa4; font-size: 11px; font-weight: bold; padding: 4px; border-top-left-radius: 4px; border-bottom-left-radius: 4px; }"
+        "QPushButton:checked { background: #0088cc; border-color: #00d2ff; color: #ffffff; }"
+    ));
+    connect(deck_a_btn_, &QPushButton::clicked, this, [this]() {
+        if (vj_deck_a()) bindDeck(vj_deck_a());
     });
-    top_bar->addWidget(fit_btn);
+    side_box->addWidget(deck_a_btn_);
+
+    deck_b_btn_ = new QPushButton(QStringLiteral("DECK B"), this);
+    deck_b_btn_->setCheckable(true);
+    deck_b_btn_->setFixedWidth(64);
+    deck_b_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c2635; border: 1px solid #2e3e54; color: #7f8fa4; font-size: 11px; font-weight: bold; padding: 4px; border-top-right-radius: 4px; border-bottom-right-radius: 4px; }"
+        "QPushButton:checked { background: #c05500; border-color: #ff8822; color: #ffffff; }"
+    ));
+    connect(deck_b_btn_, &QPushButton::clicked, this, [this]() {
+        if (vj_deck_b()) bindDeck(vj_deck_b());
+    });
+    side_box->addWidget(deck_b_btn_);
+
+    top_bar->addLayout(side_box);
+
+    tracklist_btn_ = new QPushButton(QStringLiteral("📋 TRACKLIST"), this);
+    tracklist_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1f2b3c; border: 1px solid #385070; color: #00d2ff; font-size: 11px; font-weight: bold; padding: 4px 10px; }"
+        "QPushButton:hover { background: #29384e; border-color: #00d2ff; }"
+    ));
+    tracklist_btn_->setToolTip(QStringLiteral("Médiatár és 1080p videokonvertáló megnyitása"));
+    connect(tracklist_btn_, &QPushButton::clicked, this, []() {
+        extern void vdj_open_tracklist_window();
+        vdj_open_tracklist_window();
+    });
+    top_bar->addWidget(tracklist_btn_);
 
     main_layout->addLayout(top_bar);
 
@@ -333,22 +354,6 @@ void DeckWindow::setupUi()
     });
     transport_bar->addWidget(sync_btn_);
 
-    transport_bar->addSpacing(20);
-
-    // Volume - Line-level calibrated (max 100% = unity line level, default 80% = clean line level)
-    auto *vol_lbl = new QLabel(QStringLiteral("LINE VOL:"), this);
-    vol_lbl->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4;"));
-    transport_bar->addWidget(vol_lbl);
-
-    volume_slider_ = new QSlider(Qt::Horizontal, this);
-    volume_slider_->setRange(0, 100);
-    volume_slider_->setValue(80);
-    volume_slider_->setFixedWidth(140);
-    connect(volume_slider_, &QSlider::valueChanged, this, [this](int val) {
-        if (deck_) deck_->setVolume(static_cast<float>(val) / 100.0f);
-    });
-    transport_bar->addWidget(volume_slider_);
-
     transport_bar->addStretch(1);
     main_layout->addLayout(transport_bar);
 
@@ -421,6 +426,51 @@ void DeckWindow::setupUi()
     main_layout->addLayout(tempo_bar);
 }
 
+void DeckWindow::bindDeck(DeckPlayer *deck)
+{
+    deck_ = deck;
+    if (waveform_canvas_) {
+        waveform_canvas_->setDeck(deck_, !deck_ || deck_->side() == DeckPlayer::DeckSide::A);
+    }
+    updateDeckButtonStates();
+    fitTo1080p();
+}
+
+void DeckWindow::updateDeckButtonStates()
+{
+    const bool is_a = (!deck_ || deck_->side() == DeckPlayer::DeckSide::A);
+    if (deck_a_btn_) {
+        QSignalBlocker b(deck_a_btn_);
+        deck_a_btn_->setChecked(is_a);
+    }
+    if (deck_b_btn_) {
+        QSignalBlocker b(deck_b_btn_);
+        deck_b_btn_->setChecked(!is_a);
+    }
+    setWindowTitle(is_a ? QStringLiteral("OBS VJ Deck - [DECK A]") : QStringLiteral("OBS VJ Deck - [DECK B]"));
+}
+
+void DeckWindow::fitTo1080p()
+{
+    obs_source_t *scene_source = obs_frontend_get_current_scene();
+    if (!scene_source) return;
+    obs_scene_t *scene = obs_scene_from_source(scene_source);
+    if (scene) {
+        const char *src_names[] = {"OBS VJ Deck", "OBS VJ Deck A", "OBS VJ Deck B"};
+        for (const char *name : src_names) {
+            obs_sceneitem_t *item = obs_scene_find_source(scene, name);
+            if (item) {
+                struct vec2 pos = {0.0f, 0.0f};
+                struct vec2 scale = {1.0f, 1.0f};
+                obs_sceneitem_set_pos(item, &pos);
+                obs_sceneitem_set_scale(item, &scale);
+                obs_sceneitem_set_bounds_type(item, OBS_BOUNDS_NONE);
+            }
+        }
+    }
+    obs_source_release(scene_source);
+}
+
 void DeckWindow::openFileDialog()
 {
     const QString path = QFileDialog::getOpenFileName(
@@ -432,6 +482,7 @@ void DeckWindow::openFileDialog()
 
     if (!path.isEmpty() && deck_) {
         deck_->loadFile(path);
+        fitTo1080p();
     }
 }
 

@@ -7,15 +7,41 @@
 #include <cstring>
 
 static DeckPlayer *g_active_deck = nullptr;
+static DeckPlayer *g_deck_a = nullptr;
+static DeckPlayer *g_deck_b = nullptr;
 
 DeckPlayer *vj_active_deck()
 {
-    return g_active_deck;
+    if (g_active_deck)
+        return g_active_deck;
+    return g_deck_a;
+}
+
+DeckPlayer *vj_deck_a()
+{
+    return g_deck_a;
+}
+
+DeckPlayer *vj_deck_b()
+{
+    return g_deck_b;
 }
 
 void vdj_set_active_deck(DeckPlayer *deck)
 {
     g_active_deck = deck;
+}
+
+void vdj_set_deck_a(DeckPlayer *deck)
+{
+    g_deck_a = deck;
+    if (deck) deck->setSide(DeckPlayer::DeckSide::A);
+}
+
+void vdj_set_deck_b(DeckPlayer *deck)
+{
+    g_deck_b = deck;
+    if (deck) deck->setSide(DeckPlayer::DeckSide::B);
 }
 
 DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
@@ -101,6 +127,7 @@ void DeckPlayer::loadFile(const QString &path)
     loop_end_ms_.store(0, std::memory_order_relaxed);
     cue_point_ms_.store(0, std::memory_order_relaxed);
     grid_offset_ms_.store(0, std::memory_order_relaxed);
+    file_changed_.store(true, std::memory_order_relaxed);
 
     {
         std::lock_guard<std::mutex> lock(waveform_mutex_);

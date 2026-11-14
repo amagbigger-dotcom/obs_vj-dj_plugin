@@ -18,6 +18,7 @@ public:
     ~WaveformCanvas() override = default;
 
     void refreshCanvas();
+    void setDeck(DeckPlayer *deck, bool is_deck_a = true);
 
     double zoomSeconds() const noexcept { return zoom_seconds_; }
     void setZoomSeconds(double sec);

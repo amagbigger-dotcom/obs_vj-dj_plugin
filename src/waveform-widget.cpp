@@ -38,6 +38,16 @@ WaveformCanvas::WaveformCanvas(DeckPlayer *deck, bool is_deck_a, QWidget *parent
     setToolTip(QStringLiteral("Bal klikk: Pozíció keresés | Görgetés: Waveform Zoom | Shift + Húzás vagy Jobb klikk: Ütemrács"));
 }
 
+void WaveformCanvas::setDeck(DeckPlayer *deck, bool is_deck_a)
+{
+    deck_ = deck;
+    is_deck_a_ = is_deck_a;
+    cached_duration_ms_ = 0;
+    fallback_overview_.clear();
+    fallback_detailed_.clear();
+    update();
+}
+
 void WaveformCanvas::setZoomSeconds(double sec)
 {
     zoom_seconds_ = std::clamp(sec, 2.0, 16.0);
