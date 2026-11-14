@@ -224,7 +224,12 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
         while (context->audio_thread_running.load(std::memory_order_relaxed)) {
             next_wake += std::chrono::milliseconds(10);
 
-            if (context->deck && context->deck->hasAudioBuffer()) {
+            // Ha az OBS VJ Master Mixer aktív a jelenetben, a keverő végzi a master audio kimenetet,
+            // így elkerüljük a dupla mintaleolvasást és fáziskioltást (Master Mixer handles audio stream)
+            DeckPair *decks = vdj_decks();
+            const bool master_active = (decks && decks->masterSource() && obs_source_active(decks->masterSource()));
+
+            if (!master_active && context->deck && context->deck->hasAudioBuffer()) {
                 if (context->deck->isPlaying()) {
                     context->deck->readAudioFrames(buf_l.data(), buf_r.data(), frames_per_tick, sample_rate);
 
@@ -233,7 +238,6 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
                     context->deck->processAudioDsp(buf_r.data(), frames_per_tick, 1, sample_rate);
 
                     // Fejhallgató CUE (PFL)
-                    DeckPair *decks = vdj_decks();
                     if (decks) {
                         const float *channels[2] = {buf_l.data(), buf_r.data()};
                         decks->queueCueAudio(context->deck_channel, channels, frames_per_tick);
@@ -287,11 +291,6 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
         timeEndPeriod(1);
     });
 
-    if (context->deck && context->deck->source()) {
-        obs_source_add_audio_capture_callback(context->deck->source(), deck_audio_capture, context);
-        context->audio_captured = true;
-    }
-
     if (settings && context->deck) {
         const char *file = obs_data_get_string(settings, "local_file");
         if (file && *file) {
@@ -315,10 +314,6 @@ static void deck_destroy(void *data)
         if (g_obs_source_deck_b == context->source)
             g_obs_source_deck_b = nullptr;
 
-        if (context->audio_captured && context->deck && context->deck->source()) {
-            obs_source_remove_audio_capture_callback(context->deck->source(), deck_audio_capture, context);
-            context->audio_captured = false;
-        }
         if (context->color_effect) {
             obs_enter_graphics();
             gs_effect_destroy(context->color_effect);
@@ -335,30 +330,30 @@ static void deck_destroy(void *data)
     }
 }
 
+// =============================================================================
+// Deck videó tick ciklus (Állapotfrissítés és belső ffmpeg képkocka-pumpálás)
+// =============================================================================
 static void deck_video_tick(void *data, float seconds)
 {
-    UNUSED_PARAMETER(seconds);
     auto *context = static_cast<DeckSourceContext *>(data);
     if (!context)
         return;
 
     if (context->source) {
-        // Enforce all 6 audio tracks and monitor+output if OBS loaded 0 from JSON
+        // Minden hangsáv (1-6) és kimenet+monitor kényszerítése
         const uint32_t mixers = obs_source_get_audio_mixers(context->source);
         if (mixers == 0) {
             obs_source_set_audio_mixers(context->source, 0x3F);
             obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
         }
-
-        // Ensure audio capture callback is connected to player source
-        if (!context->audio_captured && context->deck && context->deck->source()) {
-            obs_source_add_audio_capture_callback(context->deck->source(), deck_audio_capture, context);
-            context->audio_captured = true;
-        }
     }
 
     if (context->deck) {
         context->deck->updateLoop();
+        obs_source_t *media = context->deck->source();
+        if (media) {
+            obs_source_video_tick(media, seconds);
+        }
     }
 }
 

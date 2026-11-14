@@ -79,24 +79,26 @@ void DeckWindow::setupUi()
     main_layout->setContentsMargins(8, 6, 8, 6);
     main_layout->setSpacing(4);
 
-    // ==========================================
-    // 1. TOP BAR: File, Time, In-Place Direct BPM
-    // ==========================================
+    // =========================================================================
+    // 1. FEJLÉC SÁV: Média megnyitás, Fájlnév, Időkódok, Közvetlen BPM (Top Bar)
+    // =========================================================================
     auto *top_bar = new QHBoxLayout();
-    top_bar->setSpacing(10);
+    top_bar->setSpacing(8);
 
-    auto *open_btn = new QPushButton(QStringLiteral("📂 OPEN MEDIA"), this);
-    open_btn->setAutoDefault(false);
-    open_btn->setDefault(false);
-    open_btn->setStyleSheet(QStringLiteral("background: #0088cc; border: 1px solid #00aaff; color: #ffffff; font-size: 12px; padding: 6px 14px;"));
-    connect(open_btn, &QPushButton::clicked, this, &DeckWindow::openFileDialog);
-    top_bar->addWidget(open_btn);
+    open_btn_ = new QPushButton(QStringLiteral("📂 Megnyitás"), this);
+    open_btn_->setAutoDefault(false);
+    open_btn_->setDefault(false);
+    open_btn_->setFixedWidth(85);
+    open_btn_->setStyleSheet(QStringLiteral("background: #0088cc; border: 1px solid #00aaff; color: #ffffff; font-size: 11px; padding: 4px; font-weight: bold; border-radius: 4px;"));
+    open_btn_->setToolTip(QStringLiteral("Médiafájl betöltése ebbe a deckbe"));
+    connect(open_btn_, &QPushButton::clicked, this, &DeckWindow::openFileDialog);
+    top_bar->addWidget(open_btn_);
 
     file_lbl_ = new QLabel(QStringLiteral("No Track Loaded"), this);
-    file_lbl_->setStyleSheet(QStringLiteral("font-size: 13px; font-weight: bold; color: #00d2ff; padding-left: 6px;"));
+    file_lbl_->setStyleSheet(QStringLiteral("font-size: 13px; font-weight: bold; color: #00d2ff; padding-left: 4px;"));
     top_bar->addWidget(file_lbl_, 1);
 
-    // Compact, sleek professional time display
+    // Kompakt és precíz időkód kijelző (Elapsed and Remaining Timecode Display)
     auto *time_container = new QFrame(this);
     time_container->setStyleSheet(QStringLiteral(
         "QFrame { background: #0c1017; border: 1px solid #1e2838; border-radius: 4px; }"
@@ -123,30 +125,18 @@ void DeckWindow::setupUi()
 
     top_bar->addWidget(time_container);
 
-    // Direct in-place editable BPM input field with exact 0.1 BPM stepping buttons
+    // Közvetlen kézi BPM beviteli mező (In-Place Direct BPM Input, Enter commits)
     auto *bpm_box = new QHBoxLayout();
-    bpm_box->setSpacing(2);
-
-    bpm_minus_btn_ = new QPushButton(QStringLiteral("−"), this);
-    bpm_minus_btn_->setFixedSize(22, 26);
-    bpm_minus_btn_->setStyleSheet(QStringLiteral("background: #1c2635; border: 1px solid #2e3e54; color: #00d2ff; font-size: 13px; font-weight: bold; border-radius: 3px; padding: 0;"));
-    bpm_minus_btn_->setToolTip(QStringLiteral("BPM finomhangolás: −0.1 BPM"));
-    connect(bpm_minus_btn_, &QPushButton::clicked, this, [this]() {
-        if (deck_) {
-            const double new_bpm = std::round((deck_->bpm() - 0.1) * 10.0) / 10.0;
-            deck_->setBpm(new_bpm);
-        }
-    });
-    bpm_box->addWidget(bpm_minus_btn_);
+    bpm_box->setSpacing(4);
 
     bpm_edit_ = new QLineEdit(QStringLiteral("128.00"), this);
-    bpm_edit_->setFixedWidth(70);
+    bpm_edit_->setFixedWidth(66);
     bpm_edit_->setAlignment(Qt::AlignCenter);
     bpm_edit_->setStyleSheet(QStringLiteral(
-        "QLineEdit { background: #141b24; color: #00d2ff; font-family: 'Consolas', monospace; font-size: 14px; font-weight: bold; border: 1px solid #2e3e54; border-radius: 4px; padding: 3px 4px; }"
+        "QLineEdit { background: #141b24; color: #00d2ff; font-family: 'Consolas', monospace; font-size: 13px; font-weight: bold; border: 1px solid #2e3e54; border-radius: 4px; padding: 3px 4px; }"
         "QLineEdit:focus { border: 1px solid #00d2ff; background: #1c2635; color: #ffffff; }"
     ));
-    bpm_edit_->setToolTip(QStringLiteral("BPM kézi beírása (Enter: alkalmazás, [−]/[+] gombok: 0.1 BPM finomhangolás)"));
+    bpm_edit_->setToolTip(QStringLiteral("BPM kézi beírása (Enter lenyomására azonnal menti és igazítja a rácsot)"));
     auto *bpm_val = new QDoubleValidator(40.0, 300.0, 2, bpm_edit_);
     bpm_val->setNotation(QDoubleValidator::StandardNotation);
     bpm_edit_->setValidator(bpm_val);
@@ -170,51 +160,10 @@ void DeckWindow::setupUi()
 
     bpm_box->addWidget(bpm_edit_);
 
-    bpm_plus_btn_ = new QPushButton(QStringLiteral("+"), this);
-    bpm_plus_btn_->setFixedSize(22, 26);
-    bpm_plus_btn_->setStyleSheet(QStringLiteral("background: #1c2635; border: 1px solid #2e3e54; color: #00d2ff; font-size: 13px; font-weight: bold; border-radius: 3px; padding: 0;"));
-    bpm_plus_btn_->setToolTip(QStringLiteral("BPM finomhangolás: +0.1 BPM"));
-    connect(bpm_plus_btn_, &QPushButton::clicked, this, [this]() {
-        if (deck_) {
-            const double new_bpm = std::round((deck_->bpm() + 0.1) * 10.0) / 10.0;
-            deck_->setBpm(new_bpm);
-        }
-    });
-    bpm_box->addWidget(bpm_plus_btn_);
-
     auto *bpm_unit = new QLabel(QStringLiteral("BPM"), this);
-    bpm_unit->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 10px; margin-left: 2px;"));
+    bpm_unit->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 10px; margin-left: 1px;"));
     bpm_box->addWidget(bpm_unit);
     top_bar->addLayout(bpm_box);
-
-    auto *side_box = new QHBoxLayout();
-    side_box->setSpacing(2);
-
-    deck_a_btn_ = new QPushButton(QStringLiteral("DECK A"), this);
-    deck_a_btn_->setCheckable(true);
-    deck_a_btn_->setFixedWidth(64);
-    deck_a_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2635; border: 1px solid #2e3e54; color: #7f8fa4; font-size: 11px; font-weight: bold; padding: 4px; border-top-left-radius: 4px; border-bottom-left-radius: 4px; }"
-        "QPushButton:checked { background: #0088cc; border-color: #00d2ff; color: #ffffff; }"
-    ));
-    connect(deck_a_btn_, &QPushButton::clicked, this, [this]() {
-        if (vj_deck_a()) bindDeck(vj_deck_a());
-    });
-    side_box->addWidget(deck_a_btn_);
-
-    deck_b_btn_ = new QPushButton(QStringLiteral("DECK B"), this);
-    deck_b_btn_->setCheckable(true);
-    deck_b_btn_->setFixedWidth(64);
-    deck_b_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2635; border: 1px solid #2e3e54; color: #7f8fa4; font-size: 11px; font-weight: bold; padding: 4px; border-top-right-radius: 4px; border-bottom-right-radius: 4px; }"
-        "QPushButton:checked { background: #c05500; border-color: #ff8822; color: #ffffff; }"
-    ));
-    connect(deck_b_btn_, &QPushButton::clicked, this, [this]() {
-        if (vj_deck_b()) bindDeck(vj_deck_b());
-    });
-    side_box->addWidget(deck_b_btn_);
-
-    top_bar->addLayout(side_box);
 
     tracklist_btn_ = new QPushButton(QStringLiteral("📋 TRACKLIST"), this);
     tracklist_btn_->setStyleSheet(QStringLiteral(
@@ -316,11 +265,24 @@ void DeckWindow::setupUi()
 
     move_bar->addStretch(1);
 
+    // =========================================================================
+    // TAP BPM gomb valós idejű intervallum-számítással és automatikus újraindítással
+    // (TAP BPM Button with Real-Time Interval Calculation & Auto-Reset)
+    // =========================================================================
     tap_bpm_btn_ = new QPushButton(QStringLiteral("TAP BPM"), this);
+    tap_bpm_btn_->setStyleSheet(QStringLiteral("background: #1c2838; border: 1px solid #2e4460; color: #00d2ff; font-size: 11px; font-weight: bold; padding: 4px 10px; border-radius: 3px;"));
     connect(tap_bpm_btn_, &QPushButton::clicked, this, [this]() {
         const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (!tap_times_.empty()) {
+            const qint64 diff = now - tap_times_.back();
+            if (diff > 2000) {
+                tap_times_.clear();
+            }
+        }
         tap_times_.push_back(now);
-        while (tap_times_.size() > 8) tap_times_.erase(tap_times_.begin());
+        while (tap_times_.size() > 8) {
+            tap_times_.erase(tap_times_.begin());
+        }
         if (tap_times_.size() >= 3) {
             double total_diff = 0;
             for (size_t i = 1; i < tap_times_.size(); i++) {
@@ -328,8 +290,13 @@ void DeckWindow::setupUi()
             }
             const double avg_ms = total_diff / (tap_times_.size() - 1);
             if (avg_ms > 100.0) {
-                const double bpm = 60000.0 / avg_ms;
-                if (deck_) deck_->setBpm(bpm);
+                const double bpm = std::clamp(60000.0 / avg_ms, 40.0, 300.0);
+                if (deck_) {
+                    deck_->setBpm(bpm);
+                    if (bpm_edit_) {
+                        bpm_edit_->setText(QString::number(bpm, 'f', 2));
+                    }
+                }
             }
         }
     });
@@ -534,15 +501,7 @@ void DeckWindow::bindDeck(DeckPlayer *deck)
 void DeckWindow::updateDeckButtonStates()
 {
     const bool is_a = (!deck_ || deck_->side() == DeckPlayer::DeckSide::A);
-    if (deck_a_btn_) {
-        QSignalBlocker b(deck_a_btn_);
-        deck_a_btn_->setChecked(is_a);
-    }
-    if (deck_b_btn_) {
-        QSignalBlocker b(deck_b_btn_);
-        deck_b_btn_->setChecked(!is_a);
-    }
-    setWindowTitle(is_a ? QStringLiteral("OBS VJ Deck - [DECK A]") : QStringLiteral("OBS VJ Deck - [DECK B]"));
+    setWindowTitle(is_a ? QStringLiteral("OBS VJ Deck A") : QStringLiteral("OBS VJ Deck B"));
 }
 
 void DeckWindow::fitTo1080p()

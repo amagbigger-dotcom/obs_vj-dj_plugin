@@ -302,6 +302,7 @@ void DeckPlayer::setSpeed(int percent)
 {
     const int clamped = std::clamp(percent, 50, 150);
     speed_percent_.store(clamped, std::memory_order_relaxed);
+    playback_bpm_.store(0.0, std::memory_order_relaxed); // Csúszkamozgatáskor feloldjuk a rögzített BPM-et (Unlock fixed BPM on slider move)
     is_sync_.store(false, std::memory_order_relaxed);
 }
 
@@ -312,6 +313,7 @@ void DeckPlayer::applySpeedSettings(int speed_percent)
 
     const int clamped = std::clamp(speed_percent, 50, 150);
     speed_percent_.store(clamped, std::memory_order_relaxed);
+    playback_bpm_.store(0.0, std::memory_order_relaxed);
     is_sync_.store(false, std::memory_order_relaxed);
 
     if (speed_restart_phase_.load(std::memory_order_relaxed) == 0) {
@@ -690,13 +692,16 @@ void DeckPlayer::updateLoop()
     if (!source_)
         return;
 
-    // Ha a felhasználó nem nyomta meg a PLAY gombot, kényszerített szüneteltetés 00:00 CUE-nál (Enforce Pause)
+    // Ha a felhasználó nem nyomta meg a PLAY gombot, kényszerített szüneteltetés 00:00 CUE-nál (Enforce Pause on Load/Stop)
     if (!user_playing_.load(std::memory_order_relaxed)) {
         const obs_media_state st = obs_source_media_get_state(source_);
-        if (st == OBS_MEDIA_STATE_PLAYING) {
+        if (st == OBS_MEDIA_STATE_PLAYING || st == OBS_MEDIA_STATE_OPENING || pause_on_load_pending_.load(std::memory_order_relaxed)) {
             obs_source_media_play_pause(source_, true);
             const int64_t cue = std::max<int64_t>(0, cue_point_ms_.load(std::memory_order_relaxed));
             obs_source_media_set_time(source_, static_cast<uint64_t>(cue));
+            if (st == OBS_MEDIA_STATE_PAUSED || st == OBS_MEDIA_STATE_STOPPED) {
+                pause_on_load_pending_.store(false, std::memory_order_relaxed);
+            }
         }
         return;
     }
@@ -846,7 +851,7 @@ void DeckPlayer::setAudioBuffer(const std::vector<float> &l, const std::vector<f
     audio_pcm_l_ = l;
     audio_pcm_r_ = r;
     audio_sample_rate_ = (sr > 0) ? sr : 44100;
-    const int64_t cur = (source_) ? obs_source_media_get_time(source_) : 0;
+    const int64_t cur = user_playing_.load(std::memory_order_relaxed) ? ((source_) ? obs_source_media_get_time(source_) : 0) : cue_point_ms_.load(std::memory_order_relaxed);
     playback_sample_pos_ = (static_cast<double>(cur) * static_cast<double>(audio_sample_rate_)) / 1000.0;
 }
 
@@ -904,8 +909,11 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
     for (size_t i = 0; i < frames; ++i) {
         if (looping && loop_end_sample > loop_start_sample + 100.0) {
             if (playback_sample_pos_ >= loop_end_sample) {
-                // Varratmentes azonnali ugrás a loop elejére akadás nélkül (Zero-stutter wrap)
+                // Varratmentes ugrás a loop elejére 3ms-os kattanásmentesítő lágy átúsztatással (Zero-stutter wrap with 3ms de-click crossfade)
+                loop_fade_old_pos_ = playback_sample_pos_;
                 playback_sample_pos_ = loop_start_sample + (playback_sample_pos_ - loop_end_sample);
+                loop_fade_rem_samples_ = std::max(64, static_cast<int>(audio_sample_rate_ * 3 / 1000));
+                loop_fade_total_samples_ = loop_fade_rem_samples_;
                 did_loop_wrap = true;
             }
         }
@@ -923,8 +931,28 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
         }
 
         const double frac = playback_sample_pos_ - static_cast<double>(idx0);
-        out_l[i] = static_cast<float>((1.0 - frac) * audio_pcm_l_[idx0] + frac * audio_pcm_l_[idx0 + 1]);
-        out_r[i] = static_cast<float>((1.0 - frac) * audio_pcm_r_[idx0] + frac * audio_pcm_r_[idx0 + 1]);
+        float sample_l = static_cast<float>((1.0 - frac) * audio_pcm_l_[idx0] + frac * audio_pcm_l_[idx0 + 1]);
+        float sample_r = static_cast<float>((1.0 - frac) * audio_pcm_r_[idx0] + frac * audio_pcm_r_[idx0 + 1]);
+
+        // Kattanásmentesítő mikró-átúsztatás a loop végpontján (De-click crossfade)
+        if (loop_fade_rem_samples_ > 0 && loop_fade_total_samples_ > 0) {
+            const size_t old_idx = static_cast<size_t>(loop_fade_old_pos_);
+            if (old_idx + 1 < total_samples) {
+                const double old_frac = loop_fade_old_pos_ - static_cast<double>(old_idx);
+                const float old_l = static_cast<float>((1.0 - old_frac) * audio_pcm_l_[old_idx] + old_frac * audio_pcm_l_[old_idx + 1]);
+                const float old_r = static_cast<float>((1.0 - old_frac) * audio_pcm_r_[old_idx] + old_frac * audio_pcm_r_[old_idx + 1]);
+
+                const float fade_in = 1.0f - static_cast<float>(loop_fade_rem_samples_) / static_cast<float>(loop_fade_total_samples_);
+                const float fade_out = 1.0f - fade_in;
+                sample_l = sample_l * fade_in + old_l * fade_out;
+                sample_r = sample_r * fade_in + old_r * fade_out;
+                loop_fade_old_pos_ += step;
+            }
+            loop_fade_rem_samples_--;
+        }
+
+        out_l[i] = sample_l;
+        out_r[i] = sample_r;
 
         playback_sample_pos_ += step;
     }

@@ -5,16 +5,30 @@
 #include <graphics/matrix4.h>
 #include <graphics/vec4.h>
 #include <media-io/audio-io.h>
+#include <util/platform.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <mmsystem.h>
+#include <timeapi.h>
+#pragma comment(lib, "winmm.lib")
+#endif
 
 #include <cstring>
 #include <cmath>
 #include <algorithm>
 #include <chrono>
+#include <thread>
+#include <atomic>
+#include <vector>
 
 #include "deck-engine.hpp"
 
 extern "C" {
 
+// =============================================================================
+// Mester Mixer forrás struktúra (Master Mixer Source Structure & Audio Thread)
+// =============================================================================
 struct MixerSource {
     obs_source_t *source = nullptr;
     int channel = 0;
@@ -22,6 +36,10 @@ struct MixerSource {
     gs_effect_t *effect = nullptr;
     gs_texrender_t *deck_a = nullptr;
     gs_texrender_t *deck_b = nullptr;
+
+    uint64_t next_audio_ts = 0;
+    std::thread audio_thread;
+    std::atomic<bool> audio_thread_running{false};
 };
 
 static const char *MIXER_EFFECT = R"(
@@ -200,6 +218,122 @@ static void *mixer_create(obs_data_t *, obs_source_t *source)
 {
     auto *context = new MixerSource();
     context->source = source;
+
+    // Minden hangsáv engedélyezése és monitorozás bekapcsolása (Enable all tracks & Monitor and Output)
+    obs_source_set_audio_mixers(source, 0x3F);
+    obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+
+    DeckPair *decks = vdj_decks();
+    if (decks) {
+        decks->setMasterSource(source);
+    }
+
+    // =========================================================================
+    // Mester RAM Audió Szál: Deck A + Deck B valós idejű keverése Crossfaderrel
+    // (Master RAM Audio Thread: Mixing Deck A + Deck B in Real-Time with Crossfader)
+    // =========================================================================
+    context->audio_thread_running.store(true, std::memory_order_relaxed);
+    context->audio_thread = std::thread([context]() {
+#ifdef _WIN32
+        timeBeginPeriod(1);
+#endif
+        const uint32_t sample_rate = 48000;
+        const size_t frames_per_tick = 480; // 10ms precíz időszelet 48kHz-en
+
+        std::vector<float> buf_a_l(frames_per_tick);
+        std::vector<float> buf_a_r(frames_per_tick);
+        std::vector<float> buf_b_l(frames_per_tick);
+        std::vector<float> buf_b_r(frames_per_tick);
+        std::vector<float> master_l(frames_per_tick);
+        std::vector<float> master_r(frames_per_tick);
+
+        auto next_wake = std::chrono::steady_clock::now();
+
+        while (context->audio_thread_running.load(std::memory_order_relaxed)) {
+            next_wake += std::chrono::milliseconds(10);
+
+            DeckPair *dp = vdj_decks();
+            if (!dp || !context->source) {
+                std::this_thread::sleep_until(next_wake);
+                continue;
+            }
+
+            DeckPlayer &da = dp->deckA();
+            DeckPlayer &db = dp->deckB();
+
+            bool have_a = false;
+            if (da.hasAudioBuffer() && da.isPlaying()) {
+                da.readAudioFrames(buf_a_l.data(), buf_a_r.data(), frames_per_tick, sample_rate);
+                da.processAudioDsp(buf_a_l.data(), frames_per_tick, 0, sample_rate);
+                da.processAudioDsp(buf_a_r.data(), frames_per_tick, 1, sample_rate);
+                const float *channels_a[2] = {buf_a_l.data(), buf_a_r.data()};
+                dp->queueCueAudio(0, channels_a, frames_per_tick);
+                have_a = true;
+            } else {
+                std::fill(buf_a_l.begin(), buf_a_l.end(), 0.0f);
+                std::fill(buf_a_r.begin(), buf_a_r.end(), 0.0f);
+            }
+
+            bool have_b = false;
+            if (db.hasAudioBuffer() && db.isPlaying()) {
+                db.readAudioFrames(buf_b_l.data(), db_b_r.data(), frames_per_tick, sample_rate);
+                db.processAudioDsp(buf_b_l.data(), frames_per_tick, 0, sample_rate);
+                db.processAudioDsp(buf_b_r.data(), frames_per_tick, 1, sample_rate);
+                const float *channels_b[2] = {buf_b_l.data(), buf_b_r.data()};
+                dp->queueCueAudio(1, channels_b, frames_per_tick);
+                have_b = true;
+            } else {
+                std::fill(buf_b_l.begin(), buf_b_l.end(), 0.0f);
+                std::fill(buf_b_r.begin(), buf_b_r.end(), 0.0f);
+            }
+
+            // Crossfader, csatornahangerő és Gain súlyozás (Gain & Crossfader weighting)
+            const float gain_a = da.gain() * da.volume() * da.mixGain();
+            const float gain_b = db.gain() * db.volume() * db.mixGain();
+
+            for (size_t i = 0; i < frames_per_tick; ++i) {
+                master_l[i] = std::clamp(buf_a_l[i] * gain_a + buf_b_l[i] * gain_b, -1.2f, 1.2f);
+                master_r[i] = std::clamp(buf_a_r[i] * gain_a + buf_b_r[i] * gain_b, -1.2f, 1.2f);
+            }
+
+            if (have_a || have_b) {
+                const uint64_t cur_time = os_gettime_ns();
+                if (context->next_audio_ts == 0) {
+                    context->next_audio_ts = cur_time + 25000000ULL;
+                } else if (cur_time > context->next_audio_ts + 80000000ULL ||
+                           context->next_audio_ts > cur_time + 150000000ULL) {
+                    context->next_audio_ts = cur_time + 25000000ULL;
+                }
+
+                struct obs_source_audio out_audio = {};
+                out_audio.data[0] = reinterpret_cast<uint8_t *>(master_l.data());
+                out_audio.data[1] = reinterpret_cast<uint8_t *>(master_r.data());
+                out_audio.frames = static_cast<uint32_t>(frames_per_tick);
+                out_audio.speakers = SPEAKERS_STEREO;
+                out_audio.format = AUDIO_FORMAT_FLOAT_PLANAR;
+                out_audio.samples_per_sec = sample_rate;
+                out_audio.timestamp = context->next_audio_ts;
+
+                context->next_audio_ts += static_cast<uint64_t>(frames_per_tick) * 1000000000ULL / sample_rate;
+
+                obs_source_output_audio(context->source, &out_audio);
+            } else {
+                context->next_audio_ts = 0;
+            }
+
+            const auto now = std::chrono::steady_clock::now();
+            if (next_wake > now) {
+                std::this_thread::sleep_until(next_wake);
+            } else {
+                next_wake = now;
+            }
+        }
+
+#ifdef _WIN32
+        timeEndPeriod(1);
+#endif
+    });
+
     return context;
 }
 
@@ -208,6 +342,17 @@ static void mixer_destroy(void *data)
     auto *context = static_cast<MixerSource *>(data);
     if (!context)
         return;
+
+    // Audió szál biztonságos leállítása a grafika felszabadítása előtt
+    context->audio_thread_running.store(false, std::memory_order_relaxed);
+    if (context->audio_thread.joinable()) {
+        context->audio_thread.join();
+    }
+
+    DeckPair *decks = vdj_decks();
+    if (decks && decks->masterSource() == context->source) {
+        decks->setMasterSource(nullptr);
+    }
 
     obs_enter_graphics();
 
@@ -416,14 +561,22 @@ static const char *cue_get_name(void *)
 // =============================================================================
 // Videó tick ciklus (Renderelés előtti állapotfrissítés - Video Render Tick)
 // =============================================================================
+// Meghívja a belső ffmpeg_source privát források obs_source_video_tick metódusát,
+// hogy a képkockák folyamatosan dekódolódjanak akkor is, ha nincs külön Deck a jelenetben.
 static void mixer_video_tick(void *data, float seconds)
 {
-    UNUSED_PARAMETER(seconds);
     UNUSED_PARAMETER(data);
     DeckPair *decks = vdj_decks();
     if (decks) {
         decks->deckA().updateLoop();
         decks->deckB().updateLoop();
+
+        obs_source_t *src_a = decks->deckA().source();
+        obs_source_t *src_b = decks->deckB().source();
+        if (src_a)
+            obs_source_video_tick(src_a, seconds);
+        if (src_b)
+            obs_source_video_tick(src_b, seconds);
     }
 }
 
@@ -484,7 +637,7 @@ void vdj_register_sources(void)
     obs_source_info master = {};
     master.id = "vdj_master_mixer";
     master.type = OBS_SOURCE_TYPE_INPUT;
-    master.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_DO_NOT_DUPLICATE;
+    master.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_DO_NOT_DUPLICATE;
     master.get_name = mixer_get_name;
     master.create = mixer_create;
     master.destroy = mixer_destroy;

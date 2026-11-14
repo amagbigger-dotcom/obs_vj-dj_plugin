@@ -192,6 +192,9 @@ private:
     std::vector<float> audio_pcm_r_;
     uint32_t audio_sample_rate_ = 44100;
     double playback_sample_pos_ = 0.0;
+    double loop_fade_old_pos_ = 0.0;
+    int loop_fade_rem_samples_ = 0;
+    int loop_fade_total_samples_ = 0;
 
     struct FilterState {
         float lp = 0.0f;

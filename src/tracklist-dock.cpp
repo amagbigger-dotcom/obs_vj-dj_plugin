@@ -455,24 +455,22 @@ void TracklistDock::addFile(const QString &path, int target_deck)
         return;
     }
 
-    // 3. Check if converted version already exists in library_dir_
+    // 3. Korábbi konvertált videó és gyorsítótár fájlok eltávolítása a tiszta újrakonvertáláshoz
+    // (Clean existing converted video and sidecar cache to guarantee fresh NVENC 1080p re-conversion)
     const QString existing_conv = QDir(library_dir_).filePath(fi.completeBaseName() + QStringLiteral("_vj1080.mp4"));
-    if (QFileInfo::exists(existing_conv)) {
-        item.file_path = existing_conv;
-        item.is_converted = true;
-        item.status = QStringLiteral("Ready");
-        tracks_.push_back(item);
-        const int idx = static_cast<int>(tracks_.size()) - 1;
-        updateTable();
-        analyzeTrackAudio(idx);
-        saveLibraryJson();
-        if (target_deck >= 0) {
-            loadTrackToDeck(idx, target_deck);
-        }
-        return;
+    if (QFile::exists(existing_conv)) {
+        QFile::remove(existing_conv);
+    }
+    const QString sidecar_cache = path + QStringLiteral(".vdj.json");
+    if (QFile::exists(sidecar_cache)) {
+        QFile::remove(sidecar_cache);
+    }
+    const QString sidecar_conv_cache = existing_conv + QStringLiteral(".vdj.json");
+    if (QFile::exists(sidecar_conv_cache)) {
+        QFile::remove(sidecar_conv_cache);
     }
 
-    // 4. Requires NVENC 1080p conversion
+    // 4. NVENC 1080p All-Intra videokonvertálási sorba állítás (Queue for 1080p Conversion)
     item.status = QStringLiteral("Várakozik...");
     tracks_.push_back(item);
     const int idx = static_cast<int>(tracks_.size()) - 1;

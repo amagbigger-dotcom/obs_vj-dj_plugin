@@ -40,16 +40,14 @@ private:
     QTimer *pitch_throttle_timer_ = nullptr;
     int pending_throttle_speed_ = 100;
 
-    QPushButton *deck_a_btn_ = nullptr;
-    QPushButton *deck_b_btn_ = nullptr;
+    // Kezelőszervek és gombok (UI Controls & Buttons)
+    QPushButton *open_btn_ = nullptr;
     QPushButton *tracklist_btn_ = nullptr;
 
     QLabel *file_lbl_ = nullptr;
     QLabel *elapsed_lbl_ = nullptr;
     QLabel *remaining_lbl_ = nullptr;
-    QPushButton *bpm_minus_btn_ = nullptr;
     QLineEdit *bpm_edit_ = nullptr;
-    QPushButton *bpm_plus_btn_ = nullptr;
     QPushButton *tap_bpm_btn_ = nullptr;
 
     WaveformCanvas *waveform_canvas_ = nullptr;
