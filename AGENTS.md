@@ -431,6 +431,24 @@ A bővítmény három független szálon/környezetben dolgozik:
     * **Deck B:** 640 x 340 px (`X = 1268`)
   - A 3 ablak $12 + 640 + 13 + 590 + 13 + 640 = 1908$ px szélességben hézagmentesen elfér egymás mellett a képernyő alsó sávjában; a felső 700 px teljesen szabad marad az OBS Studio és az X-Air számára.
 
+### 22. Videókeverő Shader ViewProj Mátrix, Ütemrács Fixálás, Valós Ütemfázis Szinkron, Master Clock Tempómegőrzés és DJ Jog Nudge (Build #213) *(KÉSZ)*
+- **Valós Idejű Videókeverés az `OBS VJ Master Mixer` Vásznán:**
+  - A `MIXER_EFFECT` és a `DECK_COLOR_EFFECT` HLSL shader vertex shadere megkapta a `gs_matrix_get(&view_proj)` projekciós mátrix átadását a `ViewProj` paraméteren keresztül, megszüntetve a koordináták nullára omlását. A Master Mixer mostantól azonnal, élőben, stúdió mód nélkül keveri a Deck A és Deck B képét és hangját a crossfader és az átmeneti módok (Wipe, Fade, Additive, Cut) alapján.
+- **Ütemrács (Beatgrid) Rögzítése a Hangfájl Idejéhez:**
+  - A `WaveformCanvas::paintEvent`-ben az ütemrács vonaltávolsága szigorúan a zeneszám eredeti `deck_->bpm()` alapértékéhez lett kötve `effectiveBpm()` helyett. A tempócsúszka mozgatásakor a rácsvonalak nem csúsznak le a lábdob tranziensekről.
+- **Valós Ütemfázis (Beat-Phase) Szinkron és Dekk Oldal Hozzárendelés:**
+  - A `DeckPlayer::syncPhaseTo()` közvetlenül a RAM audio puffer `playback_sample_pos_` pozícióját és a videó időkódot igazítja a másik deck ütemfázisához $((t - \text{grid}) \pmod{\text{beat\_ms}})$, garantálva a tökéletes, lecsúszásmentes zenei szinkront.
+  - A `g_deck_b` oldalexplicit hozzárendelést kapott (`DeckSide::B`), így a Deck B gombjai és a Sync állapot nem zavarják a Deck A-t.
+- **Varratmentes Master Clock Tempóátvétel & Szerkeszthető BPM Mező:**
+  - A Master Clock aktiválásakor (`setMasterMode(MASTER_CLOCK)`) vagy deck master feloldásakor a master óra automatikusan átveszi az éppen aktív/játszó deck sebességét, nem ugrik vissza 128.0 BPM-re.
+  - A mixer közepére közvetlenül beírható, Enterrel aktiválható digitális BPM mező került (`QLineEdit`).
+- **Deck Méretugrás Megszüntetése Loopoláskor:**
+  - A loop gombok mérete rögzítve (`46x24 px`), egységes 1px kerettel és 0px paddinggal mindkét állapotban, valamint `main_layout->setSizeConstraint(QLayout::SetFixedSize)` korláttal zárolva a méretnövekedés.
+- **DJ Jog Nudge / Lökdösés (Pitch Bend):**
+  - Új `[ ◀◀ JOG ]` és `[ JOG ▶▶ ]` lökdöső gombok a Pitch csúszka mellett, auto-repeat támogatással: ±20 ms-mal léptetik a lejátszási pozíciót a szinkron fülre történő finomhangolásához a BPM és a rács érintése nélkül.
+- **Tracklist Billentyűzetkezelés:**
+  - `Delete` és `Backspace` gombok bekötve a tracklist elemek gyors törléséhez a `.vdj.json` cache és konvertált videó automatikus lemezről törlésével.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ
