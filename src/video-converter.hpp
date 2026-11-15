@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QProcess>
+#include <QTimer>
 
 class VideoConverter : public QObject {
     Q_OBJECT
@@ -18,6 +19,7 @@ public:
     void cancel();
     bool isConverting() const { return is_converting_; }
     QString currentOutputPath() const { return current_output_path_; }
+    QString currentInputPath() const { return current_input_path_; }
 
 signals:
     void progressChanged(int percent);
@@ -26,15 +28,18 @@ signals:
 private slots:
     void onProcessReadyRead();
     void onProcessFinished(int exit_code, QProcess::ExitStatus exit_status);
+    void checkWatchdog();
 
 private:
     void startWithArguments(const QStringList &args);
     void startCpuFallback();
 
     QProcess *process_ = nullptr;
+    QTimer *watchdog_timer_ = nullptr;
     bool is_converting_ = false;
     bool is_trying_nvenc_ = true;
     QString current_input_path_{};
     QString current_output_path_{};
     double total_duration_sec_ = 0.0;
+    qint64 last_activity_ms_ = 0;
 };

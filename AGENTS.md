@@ -498,6 +498,23 @@ A bővítmény három független szálon/környezetben dolgozik:
   - Kibővített Auto-Loop sáv: `1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16, 32, 64, 128` (12 darab kompakt 30x22 px gomb).
   - Loop hossz változtatásakor (`setLooping`), ha a loop már aktív, a megfogott loop eleje (`loop_start_ms_`) **szigorúan rögzítve marad**, kizárólag a loop vége nyúlik vagy rövidül az új leütésszám szerint. Új loop aktiválásakor a kvantált ütemhez igazítás változatlanul precízen lefut.
 
+### 27. Robusztus NVENC/CPU Konvertálás, Watchdog & Megszakítás, Intelligens Újrakonvertálás és Maximális Track Cím Térköz (Build #218) *(KÉSZ)*
+- **Deck Fejléc Átrendezése és Maximális Hely a Track Címnek:**
+  - A `DeckWindow` fejlécében az időkijelző (`TIME`, `REMAIN`), a közvetlen `BPM` doboz és a `[ 📋 ]` Tracklist ikon jobbra rendezve, közvetlenül egymás mellé lettek igazítva hézag és eltolódás nélkül.
+  - A fájlnév / címke (`file_lbl_`) megkapta a rugalmas `QSizePolicy::Expanding` és stretch-faktoros skálázást, felszabadítva a korábbi 140 px-es mesterséges korlátot: mostantól közel 300 px széles sáv áll rendelkezésre a track cím kiírására, megelőzve a felesleges elidálást.
+  - Drag & Drop támogatás bevezetve a teljes `DeckWindow` felületre (`dragEnterEvent`, `dragMoveEvent`, `dropEvent`), így a fájlok közvetlenül a deckre is behúzhatók.
+- **Univerzális Szoftveres Dekódolás + RTX 3060 NVENC 1080p All-Intra Kódolás:**
+  - Eltávolítva a bemeneti `-hwaccel cuda` kapcsoló, ami CPU szűrőkkel (`scale=1920:1080`) kombinálva vagy nem standard színtereknél (10-bit HDR, VP9, AV1, ProRes) formátumegyeztetési hibát és lefagyást okozott.
+  - Az univerzális szoftveres dekóder minden fájlformátumot hibátlanul átad a GPU-nak, ahol a `-c:v h264_nvenc -preset p4 -tune hq -rc vbr -cq 18 -b:v 0 -g 2 -bf 0 -pix_fmt yuv420p` 150+ FPS sebességgel hozza létre a szabványos, azonnal scrubbolható All-Intra 1080p MP4-et.
+  - A QProcess csatornamódja `MergedChannels`-re váltott, kizárva az operációs rendszer névtelen pipe-jainak megteléséből adódó blokkolást és megakadást.
+- **Konverter Watchdog Időzítő & [ ⏹ MÉGSE ] Megszakítás Gomb:**
+  - A `VideoConverter` megkapta a 60 másodperces inaktivitási watchdog védelmet: ha az FFmpeg hibás fájl miatt nem ad életjelet, a folyamat automatikusan leáll, fallbackel és felszabadítja a sort, megelőzve a konverter örökös beragadását.
+  - A Tracklist fejlécébe a folyamatjelző mellé bekerült a `[ ⏹ MÉGSE ]` gomb, amellyel a felhasználó egyetlen kattintással leállíthatja az éppen futó nehéz vagy beragadt konvertálást, és a rendszer automatikusan a sorban következő számra ugrik.
+- **Kényelmes [ 🔄 ÚJRAKONVERTÁLÁS ] Gomb & Intelligens Audió $\rightarrow$ Videó Párosítás:**
+  - A Tracklist felső eszköztárába dedikált `[ 🔄 ÚJRAKONVERTÁLÁS ]` gomb került.
+  - Ha egy olyan számra kattintunk, amely korábban audióként lett észlelve vagy meghiúsult a konvertálása, a rendszer automatikusan megkeresi az azonos nevű videófájlt (`.mp4`, `.mov`, `.mkv`) az adott mappában, és elindítja a 1080p NVENC átalakítást, vagy felajánlja a fájlválasztást.
+  - A jobb egérgombos menüben elérhető a `[ 🔄 Kényszerített újrakonvertálás ]`, `[ 📁 Videófájl hozzárendelése / cseréje... ]` és `[ ⏹ Aktuális konvertálás megszakítása ]`.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

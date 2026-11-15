@@ -31,6 +31,9 @@ public:
 
     void addFile(const QString &path, int target_deck = -1);
     void deleteSelectedTrack();
+    void reconvertSelectedTrack();
+    void reconvertTrack(int row);
+    void cancelActiveConversion();
     void loadLibraryJson();
     void saveLibraryJson();
     const std::vector<TrackItem>& tracks() const { return tracks_; }
@@ -44,6 +47,7 @@ protected:
 private slots:
     void onBrowseFolder();
     void onImportButtonClicked();
+    void onReconvertButtonClicked();
     void onRefreshStatus();
     void onTableItemDoubleClicked(int row, int column);
     void onCustomContextMenuRequested(const QPoint &pos);
@@ -63,6 +67,8 @@ private:
 
     VideoConverter *converter_ = nullptr;
     QLineEdit *dir_edit_ = nullptr;
+    QPushButton *reconv_btn_ = nullptr;
+    QPushButton *cancel_btn_ = nullptr;
     QProgressBar *progress_bar_ = nullptr;
     QLabel *status_lbl_ = nullptr;
     QTableWidget *table_ = nullptr;

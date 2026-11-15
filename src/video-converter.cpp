@@ -4,6 +4,7 @@
 #include <QStandardPaths>
 #include <QFileInfo>
 #include <QDir>
+#include <QDateTime>
 #include <QRegularExpression>
 #include <obs.h>
 #include <algorithm>
@@ -13,7 +14,8 @@ VideoConverter::VideoConverter(QObject *parent)
     : QObject(parent)
 {
     process_ = new QProcess(this);
-    connect(process_, &QProcess::readyReadStandardError, this, &VideoConverter::onProcessReadyRead);
+    process_->setProcessChannelMode(QProcess::MergedChannels);
+    connect(process_, &QProcess::readyRead, this, &VideoConverter::onProcessReadyRead);
     connect(process_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &VideoConverter::onProcessFinished);
     connect(process_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError err) {
@@ -23,11 +25,15 @@ VideoConverter::VideoConverter(QObject *parent)
             startCpuFallback();
         } else {
             is_converting_ = false;
+            if (watchdog_timer_) watchdog_timer_->stop();
             emit progressChanged(0);
             emit conversionFinished(current_output_path_, false,
                 QStringLiteral("Process error (code %1)").arg(static_cast<int>(err)));
         }
     });
+
+    watchdog_timer_ = new QTimer(this);
+    connect(watchdog_timer_, &QTimer::timeout, this, &VideoConverter::checkWatchdog);
 }
 
 VideoConverter::~VideoConverter()
@@ -116,22 +122,23 @@ bool VideoConverter::convertTo1080p(const QString &input_file, const QString &ou
     total_duration_sec_ = 0.0;
     is_converting_ = true;
     is_trying_nvenc_ = true;
+    last_activity_ms_ = QDateTime::currentMSecsSinceEpoch();
 
     // Fast GPU accelerated conversion (RTX 3060 NVENC)
-    // 1920x1080 aspect ratio preserving scale + black bar padding + 100% All-Intra (-g 2 -bf 0)
+    // Universal software decode into 1080p All-Intra H.264 GPU encode (-g 2 -bf 0 -pix_fmt yuv420p)
     QStringList args;
     args << QStringLiteral("-y");
-    args << QStringLiteral("-hwaccel") << QStringLiteral("cuda");
     args << QStringLiteral("-i") << input_file;
     args << QStringLiteral("-vf") << QStringLiteral("scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black");
     args << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc");
-    args << QStringLiteral("-preset") << QStringLiteral("p7");
+    args << QStringLiteral("-preset") << QStringLiteral("p4");
     args << QStringLiteral("-tune") << QStringLiteral("hq");
     args << QStringLiteral("-rc") << QStringLiteral("vbr");
     args << QStringLiteral("-cq") << QStringLiteral("18");
     args << QStringLiteral("-b:v") << QStringLiteral("0");
     args << QStringLiteral("-g") << QStringLiteral("2");
     args << QStringLiteral("-bf") << QStringLiteral("0");
+    args << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
     args << QStringLiteral("-c:a") << QStringLiteral("aac");
     args << QStringLiteral("-b:a") << QStringLiteral("320k");
     args << QStringLiteral("-ar") << QStringLiteral("48000");
@@ -144,6 +151,7 @@ bool VideoConverter::convertTo1080p(const QString &input_file, const QString &ou
 void VideoConverter::startCpuFallback()
 {
     blog(LOG_INFO, "[vj_converter] Starting CPU libx264 fallback conversion");
+    last_activity_ms_ = QDateTime::currentMSecsSinceEpoch();
     QStringList args;
     args << QStringLiteral("-y");
     args << QStringLiteral("-i") << current_input_path_;
@@ -151,7 +159,8 @@ void VideoConverter::startCpuFallback()
     args << QStringLiteral("-c:v") << QStringLiteral("libx264");
     args << QStringLiteral("-preset") << QStringLiteral("veryfast");
     args << QStringLiteral("-crf") << QStringLiteral("18");
-    args << QStringLiteral("-g") << QStringLiteral("1");
+    args << QStringLiteral("-g") << QStringLiteral("2");
+    args << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
     args << QStringLiteral("-c:a") << QStringLiteral("aac");
     args << QStringLiteral("-b:a") << QStringLiteral("320k");
     args << QStringLiteral("-ar") << QStringLiteral("48000");
@@ -164,21 +173,58 @@ void VideoConverter::startWithArguments(const QStringList &args)
 {
     const QString ffmpeg = findFfmpegBinary();
     blog(LOG_INFO, "[vj_converter] Launching ffmpeg: %s with %d args", ffmpeg.toUtf8().constData(), args.size());
+    last_activity_ms_ = QDateTime::currentMSecsSinceEpoch();
+    if (watchdog_timer_ && !watchdog_timer_->isActive()) {
+        watchdog_timer_->start(5000); // Check every 5s
+    }
     process_->start(ffmpeg, args);
 }
 
 void VideoConverter::cancel()
 {
+    if (watchdog_timer_) {
+        watchdog_timer_->stop();
+    }
     if (process_ && process_->state() != QProcess::NotRunning) {
         process_->kill();
         process_->waitForFinished(1000);
     }
+    if (!current_output_path_.isEmpty() && QFile::exists(current_output_path_)) {
+        QFile::remove(current_output_path_);
+    }
     is_converting_ = false;
+}
+
+void VideoConverter::checkWatchdog()
+{
+    if (!is_converting_) {
+        if (watchdog_timer_) watchdog_timer_->stop();
+        return;
+    }
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    // If no progress output received for 60 seconds, handle hung process
+    if (now - last_activity_ms_ > 60000) {
+        blog(LOG_WARNING, "[vj_converter] Watchdog timeout: no ffmpeg progress for 60s, terminating hung process");
+        if (is_trying_nvenc_) {
+            is_trying_nvenc_ = false;
+            if (process_ && process_->state() != QProcess::NotRunning) {
+                process_->kill();
+                process_->waitForFinished(500);
+            }
+            startCpuFallback();
+        } else {
+            cancel();
+            emit progressChanged(0);
+            emit conversionFinished(current_output_path_, false, QStringLiteral("Időtúllépés (60s inaktivitás)"));
+        }
+    }
 }
 
 void VideoConverter::onProcessReadyRead()
 {
-    const QString output = QString::fromUtf8(process_->readAllStandardError());
+    last_activity_ms_ = QDateTime::currentMSecsSinceEpoch();
+    const QString output = QString::fromUtf8(process_->readAll());
 
     // 1. Parse Duration: 00:04:12.34
     if (total_duration_sec_ <= 0.0) {
@@ -207,6 +253,8 @@ void VideoConverter::onProcessReadyRead()
 
 void VideoConverter::onProcessFinished(int exit_code, QProcess::ExitStatus exit_status)
 {
+    if (watchdog_timer_) watchdog_timer_->stop();
+
     if (exit_code != 0 && is_trying_nvenc_) {
         // Fallback to CPU libx264 if NVENC fails
         is_trying_nvenc_ = false;
@@ -216,6 +264,9 @@ void VideoConverter::onProcessFinished(int exit_code, QProcess::ExitStatus exit_
 
     is_converting_ = false;
     const bool success = (exit_code == 0 && exit_status == QProcess::NormalExit);
+    if (!success && !current_output_path_.isEmpty() && QFile::exists(current_output_path_)) {
+        QFile::remove(current_output_path_);
+    }
     emit progressChanged(success ? 100 : 0);
     emit conversionFinished(current_output_path_, success, success ? QString() : QStringLiteral("Conversion error (code %1)").arg(exit_code));
 }

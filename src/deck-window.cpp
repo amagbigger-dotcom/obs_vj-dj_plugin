@@ -13,6 +13,10 @@
 #include <QKeyEvent>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
 
 static QString formatTime(int64_t ms)
 {
@@ -42,6 +46,7 @@ DeckWindow::DeckWindow(DeckPlayer *deck, QWidget *parent)
     // Fix kompakt méret a monitor alsó egyharmadához igazítva (1/3 Screen Height, 640x340 px)
     setFixedSize(640, 340);
     setWindowFlags(Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowMinimizeButtonHint);
+    setAcceptDrops(true);
     setStyleSheet(QStringLiteral(
         "QDialog { background-color: #12151c; color: #e0e4ec; font-family: 'Segoe UI', Arial, sans-serif; }"
         "QLabel { color: #cfd6e4; font-size: 11px; }"
@@ -104,15 +109,13 @@ void DeckWindow::setupUi()
     top_bar->addWidget(open_btn_);
 
     file_lbl_ = new QLabel(QStringLiteral("No Track Loaded"), this);
-    file_lbl_->setMaximumWidth(140);
-    file_lbl_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    file_lbl_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     file_lbl_->setStyleSheet(QStringLiteral("font-size: 11px; font-weight: bold; color: #00d2ff; padding-left: 2px;"));
-    top_bar->addWidget(file_lbl_);
+    top_bar->addWidget(file_lbl_, 1);
 
     // Kompakt és precíz időkód kijelző (Elapsed and Remaining Timecode Display)
     auto *time_container = new QFrame(this);
-    time_container->setMinimumWidth(215);
-    time_container->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    time_container->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     time_container->setStyleSheet(QStringLiteral(
         "QFrame { background: #0c1017; border: 1px solid #1e2838; border-radius: 4px; }"
     ));
@@ -138,7 +141,7 @@ void DeckWindow::setupUi()
     remaining_lbl_->setStyleSheet(QStringLiteral("font-family: 'Consolas', monospace; font-size: 12px; font-weight: bold; color: #ffaa00;"));
     time_layout->addWidget(remaining_lbl_);
 
-    top_bar->addWidget(time_container);
+    top_bar->addWidget(time_container, 0);
 
     // Közvetlen kézi BPM beviteli mező (In-Place Direct BPM Input, Enter commits)
     auto *bpm_box = new QHBoxLayout();
@@ -194,7 +197,7 @@ void DeckWindow::setupUi()
         extern void vdj_open_tracklist_window();
         vdj_open_tracklist_window();
     });
-    top_bar->addWidget(tracklist_btn_);
+    top_bar->addWidget(tracklist_btn_, 0);
 
     main_layout->addLayout(top_bar);
 
@@ -644,7 +647,8 @@ void DeckWindow::onRefresh()
     const QString fn = deck_->fileName();
     if (!fn.isEmpty()) {
         QFontMetrics fm(file_lbl_->font());
-        const QString elided = fm.elidedText(fn, Qt::ElideMiddle, 135);
+        const int avail = file_lbl_->width() > 30 ? file_lbl_->width() - 4 : 260;
+        const QString elided = fm.elidedText(fn, Qt::ElideMiddle, avail);
         if (file_lbl_->text() != elided) {
             file_lbl_->setText(elided);
             file_lbl_->setToolTip(fn);
@@ -768,4 +772,32 @@ void DeckWindow::showEvent(QShowEvent *event)
         const int x_pos = is_b ? (geom.left() + 1268) : (geom.left() + 12);
         move(x_pos, y_pos);
     }
+}
+
+void DeckWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+    }
+}
+
+void DeckWindow::dragMoveEvent(QDragMoveEvent *event)
+{
+    if (event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+    }
+}
+
+void DeckWindow::dropEvent(QDropEvent *event)
+{
+    const QList<QUrl> urls = event->mimeData()->urls();
+    if (!urls.isEmpty()) {
+        const QString path = urls.first().toLocalFile();
+        if (!path.isEmpty() && QFileInfo::exists(path)) {
+            extern void vdj_import_and_load(const QString &file_path, int deck_channel);
+            const int channel = (deck_ && deck_->side() == DeckPlayer::DeckSide::B) ? 1 : 0;
+            vdj_import_and_load(path, channel);
+        }
+    }
+    event->acceptProposedAction();
 }

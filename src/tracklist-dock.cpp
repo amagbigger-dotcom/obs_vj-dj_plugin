@@ -127,6 +127,9 @@ TracklistDock::TracklistDock(QWidget *parent)
             progress_bar_->setValue(100);
             progress_bar_->setVisible(false);
         }
+        if (cancel_btn_) {
+            cancel_btn_->setVisible(false);
+        }
         processNextConversion();
     });
 
@@ -186,6 +189,12 @@ void TracklistDock::setupUi()
     connect(del_btn, &QPushButton::clicked, this, &TracklistDock::deleteSelectedTrack);
     top_bar->addWidget(del_btn);
 
+    reconv_btn_ = new QPushButton(QStringLiteral("🔄 ÚJRAKONVERTÁLÁS"), this);
+    reconv_btn_->setStyleSheet(QStringLiteral("background: #143522; border: 1px solid #236838; color: #55ff99; padding: 5px 10px; font-size: 11px;"));
+    reconv_btn_->setToolTip(QStringLiteral("Kijelölt szám (akár videó, akár audió) kényszerített 1080p All-Intra újrakonvertálása"));
+    connect(reconv_btn_, &QPushButton::clicked, this, &TracklistDock::onReconvertButtonClicked);
+    top_bar->addWidget(reconv_btn_);
+
     main_layout->addLayout(top_bar);
 
     // Status bar & Progress
@@ -203,6 +212,13 @@ void TracklistDock::setupUi()
     progress_bar_->setFixedHeight(18);
     progress_bar_->setVisible(false);
     status_bar->addWidget(progress_bar_);
+
+    cancel_btn_ = new QPushButton(QStringLiteral("⏹ MÉGSE"), this);
+    cancel_btn_->setStyleSheet(QStringLiteral("background: #4a1c1c; border: 1px solid #7a3030; color: #ffaaaa; padding: 2px 8px; font-size: 10px; font-weight: bold; border-radius: 3px;"));
+    cancel_btn_->setToolTip(QStringLiteral("Aktuális konvertálás azonnali megszakítása és a következő számra ugrás"));
+    cancel_btn_->setVisible(false);
+    connect(cancel_btn_, &QPushButton::clicked, this, &TracklistDock::cancelActiveConversion);
+    status_bar->addWidget(cancel_btn_);
 
     main_layout->addLayout(status_bar);
 
@@ -347,6 +363,11 @@ void TracklistDock::onCustomContextMenuRequested(const QPoint &pos)
     auto *act_b = menu.addAction(QStringLiteral("▶ Betöltés a DECK B-be"));
     menu.addSeparator();
     auto *act_reconv = menu.addAction(QStringLiteral("🔄 Kényszerített újrakonvertálás (NVENC 1080p)"));
+    auto *act_change_vid = menu.addAction(QStringLiteral("📁 Videófájl hozzárendelése / cseréje..."));
+    QAction *act_cancel = nullptr;
+    if (converter_ && converter_->isConverting()) {
+        act_cancel = menu.addAction(QStringLiteral("⏹ Aktuális konvertálás megszakítása (Mégse)"));
+    }
     menu.addSeparator();
     auto *act_del = menu.addAction(QStringLiteral("🗑 Törlés a listából"));
 
@@ -356,22 +377,122 @@ void TracklistDock::onCustomContextMenuRequested(const QPoint &pos)
     } else if (selected == act_b) {
         loadTrackToDeck(row, 1);
     } else if (selected == act_reconv) {
-        auto &it = tracks_[row];
-        const QString lib_conv = QDir(library_dir_).filePath(QFileInfo(it.original_path).completeBaseName() + QStringLiteral("_vj1080.mp4"));
-        if (QFile::exists(lib_conv)) QFile::remove(lib_conv);
-        if (QFile::exists(it.file_path) && it.file_path.endsWith(QStringLiteral("_vj1080.mp4"))) QFile::remove(it.file_path);
-        const QString orig_cache = it.original_path + QStringLiteral(".vdj.json");
-        if (QFile::exists(orig_cache)) QFile::remove(orig_cache);
-
-        it.file_path = it.original_path;
-        it.is_converted = false;
-        it.status = QStringLiteral("Várakozik...");
-        conversion_queue_.push_back(row);
-        updateRow(row);
-        processNextConversion();
+        reconvertTrack(row);
+    } else if (selected == act_change_vid) {
+        const QString chosen = QFileDialog::getOpenFileName(
+            this,
+            QStringLiteral("Videófájl kiválasztása a számhoz"),
+            QFileInfo(tracks_[row].original_path).absolutePath(),
+            QStringLiteral("Video Files (*.mp4 *.mkv *.mov *.avi *.webm *.flv *.ts);;All Files (*.*)")
+        );
+        if (!chosen.isEmpty()) {
+            tracks_[row].original_path = chosen;
+            tracks_[row].title = QFileInfo(chosen).completeBaseName();
+            reconvertTrack(row);
+        }
+    } else if (act_cancel && selected == act_cancel) {
+        cancelActiveConversion();
     } else if (selected == act_del) {
         deleteSelectedTrack();
     }
+}
+
+void TracklistDock::onReconvertButtonClicked()
+{
+    reconvertSelectedTrack();
+}
+
+void TracklistDock::reconvertSelectedTrack()
+{
+    const int row = table_->currentRow();
+    if (row < 0 || row >= static_cast<int>(tracks_.size())) {
+        QMessageBox::information(this, QStringLiteral("Újrakonvertálás"),
+            QStringLiteral("Válassz ki egy számot a listában az újrakonvertáláshoz!"));
+        return;
+    }
+    reconvertTrack(row);
+}
+
+void TracklistDock::reconvertTrack(int row)
+{
+    if (row < 0 || row >= static_cast<int>(tracks_.size())) return;
+    auto &it = tracks_[row];
+
+    const QFileInfo orig_fi(it.original_path);
+    const QString ext = orig_fi.suffix().toLower();
+
+    // Ha ez egy tisztán audiófájl (pl. .wav vagy .mp3), megnézzük, létezik-e azonos nevű videó a mappájában
+    if (isAudioOnlyFile(ext)) {
+        QString found_video;
+        const QString dir = orig_fi.absolutePath();
+        const QString base = orig_fi.completeBaseName();
+        const QStringList vid_exts = {QStringLiteral(".mp4"), QStringLiteral(".mov"), QStringLiteral(".mkv"), QStringLiteral(".avi")};
+        for (const auto &v_ext : vid_exts) {
+            const QString candidate = QDir(dir).filePath(base + v_ext);
+            if (QFile::exists(candidate)) {
+                found_video = candidate;
+                break;
+            }
+        }
+
+        if (!found_video.isEmpty()) {
+            blog(LOG_INFO, "[obs_vj_tracklist] Found matching video for audio track: %s", found_video.toUtf8().constData());
+            it.original_path = found_video;
+            it.title = QFileInfo(found_video).completeBaseName();
+        } else {
+            const QString chosen = QFileDialog::getOpenFileName(
+                this,
+                QStringLiteral("Válaszd ki a számhoz tartozó videófájlt (MP4, MOV, MKV)..."),
+                dir,
+                QStringLiteral("Video Files (*.mp4 *.mkv *.mov *.avi *.webm *.flv *.ts);;All Files (*.*)")
+            );
+            if (!chosen.isEmpty()) {
+                it.original_path = chosen;
+                it.title = QFileInfo(chosen).completeBaseName();
+            } else {
+                return; // Felhasználó megszakította a választást
+            }
+        }
+    }
+
+    // 1. Töröljük a korábbi konvertált fájlokat és gyorsítótárat a tiszta újrakezdéshez
+    const QString lib_conv = QDir(library_dir_).filePath(QFileInfo(it.original_path).completeBaseName() + QStringLiteral("_vj1080.mp4"));
+    if (QFile::exists(lib_conv)) QFile::remove(lib_conv);
+    if (QFile::exists(it.file_path) && it.file_path.endsWith(QStringLiteral("_vj1080.mp4"))) QFile::remove(it.file_path);
+    const QString orig_cache = it.original_path + QStringLiteral(".vdj.json");
+    if (QFile::exists(orig_cache)) QFile::remove(orig_cache);
+
+    it.file_path = it.original_path;
+    it.is_converted = false;
+    it.status = QStringLiteral("Várakozik...");
+    updateRow(row);
+    saveLibraryJson();
+
+    if (std::find(conversion_queue_.begin(), conversion_queue_.end(), row) == conversion_queue_.end()) {
+        conversion_queue_.push_back(row);
+    }
+
+    if (active_conversion_idx_ < 0) {
+        processNextConversion();
+    }
+}
+
+void TracklistDock::cancelActiveConversion()
+{
+    if (converter_ && converter_->isConverting()) {
+        blog(LOG_INFO, "[obs_vj_tracklist] User cancelled active conversion");
+        converter_->cancel();
+    }
+    if (active_conversion_idx_ >= 0 && active_conversion_idx_ < static_cast<int>(tracks_.size())) {
+        tracks_[active_conversion_idx_].status = QStringLiteral("Megszakítva");
+        updateRow(active_conversion_idx_);
+    }
+    active_conversion_idx_ = -1;
+    if (progress_bar_) progress_bar_->setVisible(false);
+    if (cancel_btn_) cancel_btn_->setVisible(false);
+    if (status_lbl_) status_lbl_->setText(QStringLiteral("Konvertálás megszakítva."));
+    saveLibraryJson();
+    processNextConversion();
 }
 
 void TracklistDock::dragEnterEvent(QDragEnterEvent *event)
@@ -511,6 +632,9 @@ void TracklistDock::processNextConversion()
         progress_bar_->setValue(0);
         progress_bar_->setVisible(true);
     }
+    if (cancel_btn_) {
+        cancel_btn_->setVisible(true);
+    }
     if (status_lbl_) {
         status_lbl_->setText(QStringLiteral("Konvertálás (RTX 3060 NVENC 1080p): %1").arg(item.title));
     }
@@ -521,6 +645,7 @@ void TracklistDock::processNextConversion()
         updateRow(active_conversion_idx_);
         active_conversion_idx_ = -1;
         if (progress_bar_) progress_bar_->setVisible(false);
+        if (cancel_btn_) cancel_btn_->setVisible(false);
         processNextConversion();
     }
 }
