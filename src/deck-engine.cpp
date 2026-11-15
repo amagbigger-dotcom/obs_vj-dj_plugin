@@ -63,6 +63,7 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
     if (!is_deck_a_ && source_name && std::strstr(source_name, "source_a") != nullptr) {
         is_deck_a_ = true;
     }
+    side_.store(is_deck_a_ ? DeckSide::A : DeckSide::B, std::memory_order_relaxed);
 
     obs_data_t *settings = obs_data_create();
     if (!settings)
@@ -377,10 +378,13 @@ double DeckPlayer::effectiveBpm() const noexcept
     return b * spd;
 }
 
+// =============================================================================
+// Egy zenei ütem hossza a hangfájl eredeti idejében (Track Base Beat Duration)
+// =============================================================================
 double DeckPlayer::beatDurationMs() const noexcept
 {
-    const double eff = effectiveBpm();
-    return (eff > 1.0) ? (60000.0 / eff) : 500.0;
+    const double b = bpm();
+    return (b > 1.0) ? (60000.0 / b) : 500.0;
 }
 
 void DeckPlayer::setGridOffsetMs(int64_t offset_ms) noexcept
@@ -808,6 +812,74 @@ void DeckPlayer::syncPhase(int64_t beat_time_ms)
     }
 }
 
+// =============================================================================
+// Ütemfázis szinkronizálása a másik deckhez (Beat-Phase Synchronization)
+// =============================================================================
+void DeckPlayer::syncPhaseTo(const DeckPlayer &other)
+{
+    const double other_base = (other.bpm() > 10.0) ? other.bpm() : 128.0;
+    const double other_beat = 60000.0 / other_base;
+    const int64_t other_cur = other.currentTimeMs();
+    const int64_t other_grid = other.gridOffsetMs();
+    const double other_rel = static_cast<double>(other_cur - other_grid);
+    const double other_phase_frac = std::fmod(std::fmod(other_rel, other_beat) + other_beat, other_beat) / other_beat;
+
+    const double my_base = (bpm() > 10.0) ? bpm() : 128.0;
+    const double my_beat = 60000.0 / my_base;
+    const int64_t my_cur = currentTimeMs();
+    const int64_t my_grid = gridOffsetMs();
+    const double my_rel = static_cast<double>(my_cur - my_grid);
+    const double my_phase_frac = std::fmod(std::fmod(my_rel, my_beat) + my_beat, my_beat) / my_beat;
+
+    double frac_diff = other_phase_frac - my_phase_frac;
+    if (frac_diff > 0.5) frac_diff -= 1.0;
+    if (frac_diff < -0.5) frac_diff += 1.0;
+
+    const double shift_ms = frac_diff * my_beat;
+
+    if (hasAudioBuffer()) {
+        std::lock_guard<std::mutex> lock(audio_buf_mutex_);
+        if (audio_sample_rate_ > 0) {
+            const double shift_samples = (shift_ms * static_cast<double>(audio_sample_rate_)) / 1000.0;
+            playback_sample_pos_ += shift_samples;
+            if (playback_sample_pos_ < 0.0) playback_sample_pos_ = 0.0;
+            if (!audio_pcm_l_.empty() && playback_sample_pos_ >= static_cast<double>(audio_pcm_l_.size())) {
+                playback_sample_pos_ = static_cast<double>(audio_pcm_l_.size() - 1);
+            }
+        }
+    }
+
+    if (source_) {
+        const int64_t new_time = std::max<int64_t>(0, my_cur + static_cast<int64_t>(std::round(shift_ms)));
+        obs_source_media_set_time(source_, static_cast<uint64_t>(new_time));
+    }
+}
+
+// =============================================================================
+// Jog Nudge / Pitch Bend: lejátszási pozíció pillanatnyi léptetése (szinkronigazítás)
+// (Nudges current playback position forward/backward without changing tempo or grid)
+// =============================================================================
+void DeckPlayer::nudgePlayback(int64_t delta_ms) noexcept
+{
+    if (hasAudioBuffer()) {
+        std::lock_guard<std::mutex> lock(audio_buf_mutex_);
+        if (audio_sample_rate_ > 0) {
+            const double delta_samples = (static_cast<double>(delta_ms) * static_cast<double>(audio_sample_rate_)) / 1000.0;
+            playback_sample_pos_ += delta_samples;
+            if (playback_sample_pos_ < 0.0) playback_sample_pos_ = 0.0;
+            if (!audio_pcm_l_.empty() && playback_sample_pos_ >= static_cast<double>(audio_pcm_l_.size())) {
+                playback_sample_pos_ = static_cast<double>(audio_pcm_l_.size() - 1);
+            }
+        }
+    }
+
+    if (source_) {
+        const int64_t cur = currentTimeMs();
+        const int64_t new_t = std::max<int64_t>(0, cur + delta_ms);
+        obs_source_media_set_time(source_, static_cast<uint64_t>(new_t));
+    }
+}
+
 double DeckPlayer::position() const
 {
     const int64_t dur = durationMs();
@@ -818,6 +890,11 @@ double DeckPlayer::position() const
 
 int64_t DeckPlayer::currentTimeMs() const
 {
+    // Ha a felhasználó nem nyomta meg a PLAY gombot, szigorúan a CUE pozíciót (alapértelmezetten 00:00:00)
+    // adjuk vissza, így a háttérben futó analízis alatt sem ugrik vagy mozog el a hullámforma lejátszófej!
+    if (!user_playing_.load(std::memory_order_relaxed)) {
+        return cue_point_ms_.load(std::memory_order_relaxed);
+    }
     if (hasAudioBuffer()) {
         std::lock_guard<std::mutex> lock(audio_buf_mutex_);
         if (audio_sample_rate_ > 0) {
@@ -1050,6 +1127,20 @@ float DeckPair::headphoneMix() const noexcept
 
 void DeckPair::setMasterMode(int mode) noexcept
 {
+    if (mode == MASTER_CLOCK) {
+        // Amikor a Master Clock veszi át a mester tempót, átveszi a jelenleg aktív tempót
+        // (nem ugrik 128 BPM-re, hanem megtartja a lemez valós zenei sebességét!)
+        double cur_tempo = 0.0;
+        if (vj_deck_a() && vj_deck_a()->isPlaying()) cur_tempo = vj_deck_a()->effectiveBpm();
+        else if (vj_deck_b() && vj_deck_b()->isPlaying()) cur_tempo = vj_deck_b()->effectiveBpm();
+        else if (vj_deck_a() && vj_deck_a()->bpm() > 10.0) cur_tempo = vj_deck_a()->effectiveBpm();
+        else if (vj_deck_b() && vj_deck_b()->bpm() > 10.0) cur_tempo = vj_deck_b()->effectiveBpm();
+
+        if (cur_tempo > 30.0) {
+            master_clock_bpm_.store(cur_tempo, std::memory_order_relaxed);
+        }
+    }
+
     master_mode_.store(mode, std::memory_order_relaxed);
     if (mode == MASTER_DECK_A) {
         if (vj_deck_a()) vj_deck_a()->setMaster(true);
@@ -1085,16 +1176,31 @@ double DeckPair::effectiveMasterBpm() const noexcept
         return vj_deck_a()->effectiveBpm();
     if (mode == MASTER_DECK_B && vj_deck_b())
         return vj_deck_b()->effectiveBpm();
+    // Ha nincs explicit master kijelölve, az éppen játszó deck tempóját követjük
+    if (vj_deck_a() && vj_deck_a()->isPlaying())
+        return vj_deck_a()->effectiveBpm();
+    if (vj_deck_b() && vj_deck_b()->isPlaying())
+        return vj_deck_b()->effectiveBpm();
     return master_clock_bpm_.load(std::memory_order_relaxed);
 }
 
 void DeckPair::setSync(int deck_idx, bool sync_enabled)
 {
     DeckPlayer *target = (deck_idx == 0) ? vj_deck_a() : vj_deck_b();
+    DeckPlayer *other  = (deck_idx == 0) ? vj_deck_b() : vj_deck_a();
     if (!target) return;
     target->setSync(sync_enabled);
-    if (sync_enabled) {
-        target->syncToBpm(effectiveMasterBpm());
+    if (sync_enabled && other) {
+        // Tempó átvétele a másik deckről vagy a master órajeltől
+        const double target_bpm = other->isPlaying()
+            ? other->effectiveBpm()
+            : (other->bpm() > 10.0 ? other->bpm() : effectiveMasterBpm());
+        target->syncToBpm(target_bpm);
+
+        // Ütemfázis azonnali összehangolása (Beat Phase Alignment)
+        if (other->isPlaying() || target->isPlaying()) {
+            target->syncPhaseTo(*other);
+        }
     }
 }
 
@@ -1107,9 +1213,19 @@ bool DeckPair::isSync(int deck_idx) const noexcept
 void DeckPair::setDeckMaster(int deck_idx)
 {
     if (deck_idx == 0) {
-        setMasterMode((masterMode() == MASTER_DECK_A) ? MASTER_CLOCK : MASTER_DECK_A);
+        if (masterMode() == MASTER_DECK_A) {
+            if (vj_deck_a()) master_clock_bpm_.store(vj_deck_a()->effectiveBpm(), std::memory_order_relaxed);
+            setMasterMode(MASTER_CLOCK);
+        } else {
+            setMasterMode(MASTER_DECK_A);
+        }
     } else {
-        setMasterMode((masterMode() == MASTER_DECK_B) ? MASTER_CLOCK : MASTER_DECK_B);
+        if (masterMode() == MASTER_DECK_B) {
+            if (vj_deck_b()) master_clock_bpm_.store(vj_deck_b()->effectiveBpm(), std::memory_order_relaxed);
+            setMasterMode(MASTER_CLOCK);
+        } else {
+            setMasterMode(MASTER_DECK_B);
+        }
     }
 }
 
@@ -1119,14 +1235,15 @@ void DeckPair::updateSync()
     DeckPlayer *db = vj_deck_b();
     if (!da || !db) return;
 
-    const double master_bpm = effectiveMasterBpm();
     if (da->isSync() && !da->isMaster()) {
-        const double diff = std::abs(da->effectiveBpm() - master_bpm);
-        if (diff > 0.05) da->syncToBpm(master_bpm);
+        const double target_bpm = db->isPlaying() ? db->effectiveBpm() : effectiveMasterBpm();
+        const double diff = std::abs(da->effectiveBpm() - target_bpm);
+        if (diff > 0.05) da->syncToBpm(target_bpm);
     }
     if (db->isSync() && !db->isMaster()) {
-        const double diff = std::abs(db->effectiveBpm() - master_bpm);
-        if (diff > 0.05) db->syncToBpm(master_bpm);
+        const double target_bpm = da->isPlaying() ? da->effectiveBpm() : effectiveMasterBpm();
+        const double diff = std::abs(db->effectiveBpm() - target_bpm);
+        if (diff > 0.05) db->syncToBpm(target_bpm);
     }
 }
 
@@ -1134,14 +1251,20 @@ void DeckPair::syncTempoAtoB()
 {
     DeckPlayer *da = vj_deck_a();
     DeckPlayer *db = vj_deck_b();
-    if (da && db) da->syncToBpm(db->effectiveBpm());
+    if (da && db) {
+        da->syncToBpm(db->effectiveBpm());
+        da->syncPhaseTo(*db);
+    }
 }
 
 void DeckPair::syncTempoBtoA()
 {
     DeckPlayer *da = vj_deck_a();
     DeckPlayer *db = vj_deck_b();
-    if (da && db) db->syncToBpm(da->effectiveBpm());
+    if (da && db) {
+        db->syncToBpm(da->effectiveBpm());
+        db->syncPhaseTo(*da);
+    }
 }
 
 void DeckPair::setLoopBeatIndex(int deck_index, int beat_index)

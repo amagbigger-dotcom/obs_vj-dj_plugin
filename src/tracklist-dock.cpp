@@ -400,6 +400,16 @@ void TracklistDock::dropEvent(QDropEvent *event)
     event->acceptProposedAction();
 }
 
+void TracklistDock::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
+        deleteSelectedTrack();
+        event->accept();
+        return;
+    }
+    QDialog::keyPressEvent(event);
+}
+
 void TracklistDock::addFile(const QString &path, int target_deck)
 {
     const QFileInfo fi(path);

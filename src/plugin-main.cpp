@@ -86,7 +86,9 @@ static void open_all_layout(void *data)
 void init_deck_engine()
 {
     g_deck_a = new DeckPlayer("vj_deck_source_a", "OBS VJ Deck A");
+    g_deck_a->setSide(DeckPlayer::DeckSide::A);
     g_deck_b = new DeckPlayer("vj_deck_source_b", "OBS VJ Deck B");
+    g_deck_b->setSide(DeckPlayer::DeckSide::B);
     vdj_set_deck_a(g_deck_a);
     vdj_set_deck_b(g_deck_b);
     vdj_set_active_deck(g_deck_a);

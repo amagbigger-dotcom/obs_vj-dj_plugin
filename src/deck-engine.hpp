@@ -127,6 +127,8 @@ public:
     void setSync(bool s) noexcept { is_sync_.store(s, std::memory_order_relaxed); }
     void syncToBpm(double target_bpm);
     void syncPhase(int64_t beat_time_ms);
+    void syncPhaseTo(const DeckPlayer &other);
+    void nudgePlayback(int64_t delta_ms) noexcept;
 
     double position() const;
     int64_t currentTimeMs() const;

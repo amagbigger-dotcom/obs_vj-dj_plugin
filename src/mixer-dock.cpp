@@ -11,6 +11,7 @@
 #include <QFrame>
 #include <QPushButton>
 #include <QLabel>
+#include <QLineEdit>
 #include <QComboBox>
 #include <QTimer>
 #include <QSignalBlocker>
@@ -429,10 +430,24 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     master_clock_minus_btn_->setStyleSheet(QStringLiteral("background: #232b36; border: 1px solid #334050; color: #e0e6f0; font-size: 11px; font-weight: bold;"));
     clock_row2->addWidget(master_clock_minus_btn_);
 
-    master_clock_bpm_lbl_ = new QLabel(QStringLiteral("128.00 BPM"), clock_box);
-    master_clock_bpm_lbl_->setAlignment(Qt::AlignCenter);
-    master_clock_bpm_lbl_->setStyleSheet(QStringLiteral("font-size: 12px; font-family: monospace; font-weight: bold; color: #ffaa00;"));
-    clock_row2->addWidget(master_clock_bpm_lbl_, 1);
+    master_clock_bpm_edit_ = new QLineEdit(QStringLiteral("128.00"), clock_box);
+    master_clock_bpm_edit_->setAlignment(Qt::AlignCenter);
+    master_clock_bpm_edit_->setFixedHeight(22);
+    master_clock_bpm_edit_->setStyleSheet(QStringLiteral(
+        "QLineEdit { background: #141a22; color: #ffaa00; border: 1px solid #2d3b4d; border-radius: 3px; font-size: 11px; font-family: monospace; font-weight: bold; padding: 1px; } "
+        "QLineEdit:focus { border: 1px solid #ffaa00; background: #1a222d; }"));
+    master_clock_bpm_edit_->setToolTip(QStringLiteral("Master Clock BPM. Írd be és nyomj Entert!"));
+    clock_row2->addWidget(master_clock_bpm_edit_, 1);
+
+    connect(master_clock_bpm_edit_, &QLineEdit::returnPressed, this, [this]() {
+        if (!decks_ || !master_clock_bpm_edit_) return;
+        bool ok = false;
+        const double val = master_clock_bpm_edit_->text().toDouble(&ok);
+        if (ok && val >= 30.0 && val <= 300.0) {
+            decks_->setMasterClockBpm(val);
+        }
+        master_clock_bpm_edit_->clearFocus();
+    });
 
     master_clock_plus_btn_ = new QPushButton(QStringLiteral("+"), clock_box);
     master_clock_plus_btn_->setFixedSize(22, 22);
@@ -448,7 +463,17 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     layout->addWidget(clock_box);
 
     connect(master_clock_btn_, &QPushButton::clicked, this, [this]() {
-        if (decks_) decks_->setMasterMode(DeckPair::MASTER_CLOCK);
+        if (!decks_) return;
+        if (decks_->masterMode() != DeckPair::MASTER_CLOCK) {
+            const double cur_tempo = decks_->effectiveMasterBpm();
+            if (cur_tempo > 30.0) {
+                decks_->setMasterClockBpm(cur_tempo);
+            }
+            decks_->setMasterMode(DeckPair::MASTER_CLOCK);
+            master_clock_btn_->setChecked(true);
+        } else {
+            decks_->setMasterMode(DeckPair::MASTER_CLOCK);
+        }
     });
     connect(master_clock_ext_btn_, &QPushButton::clicked, this, [this]() {
         if (!decks_) return;
@@ -646,8 +671,8 @@ void MixerWindow::refreshMixer()
             master_clock_send_btn_->setChecked(is_send);
         }
     }
-    if (master_clock_bpm_lbl_) {
-        master_clock_bpm_lbl_->setText(QString::asprintf("%.2f BPM", decks_->effectiveMasterBpm()));
+    if (master_clock_bpm_edit_ && !master_clock_bpm_edit_->hasFocus()) {
+        master_clock_bpm_edit_->setText(QString::asprintf("%.2f", decks_->effectiveMasterBpm()));
     }
 
     if (crossfader_ && !crossfader_->isSliderDown()) {

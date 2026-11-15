@@ -13,6 +13,7 @@
 class DeckPair;
 class DeckPlayer;
 class QLabel;
+class QLineEdit;
 class QPushButton;
 
 // Custom slider that resets to its default value on double-click
@@ -92,7 +93,7 @@ private:
     QPushButton *master_clock_btn_ = nullptr;
     QPushButton *master_clock_ext_btn_ = nullptr;
     QPushButton *master_clock_send_btn_ = nullptr;
-    QLabel *master_clock_bpm_lbl_ = nullptr;
+    QLineEdit *master_clock_bpm_edit_ = nullptr;
     QPushButton *master_clock_tap_btn_ = nullptr;
     QPushButton *master_clock_minus_btn_ = nullptr;
     QPushButton *master_clock_plus_btn_ = nullptr;

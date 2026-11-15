@@ -429,6 +429,14 @@ static void draw_mixer(void *data)
     }
 
     gs_eparam_t *param = nullptr;
+
+    // ViewProj mátrix beállítása a HLSL shadernek a videókeverés megjelenítéséhez
+    // (Pass current ViewProj matrix so vertex shader transforms geometry to OBS screen space)
+    matrix4 view_proj;
+    gs_matrix_get(&view_proj);
+    if ((param = gs_effect_get_param_by_name(context->effect, "ViewProj")))
+        gs_effect_set_matrix4(param, &view_proj);
+
     if ((param = gs_effect_get_param_by_name(context->effect, "image_a")))
         gs_effect_set_texture(param, texture_a);
 

@@ -78,6 +78,7 @@ void DeckWindow::setupUi()
     auto *main_layout = new QVBoxLayout(this);
     main_layout->setContentsMargins(8, 6, 8, 6);
     main_layout->setSpacing(4);
+    main_layout->setSizeConstraint(QLayout::SetFixedSize);
 
     // =========================================================================
     // 1. FEJLÉC SÁV: Média megnyitás, Fájlnév, Időkódok, Közvetlen BPM (Top Bar)
@@ -317,7 +318,8 @@ void DeckWindow::setupUi()
     const QStringList loop_labels = {"1/2", "1", "2", "4", "8", "16", "32"};
     for (int i = 0; i < loop_labels.size(); i++) {
         auto *btn = new QPushButton(loop_labels[i], this);
-        btn->setFixedWidth(46);
+        btn->setFixedSize(46, 24);
+        btn->setStyleSheet(QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; font-weight: bold; border-radius: 4px; padding: 0px; font-size: 11px;"));
         connect(btn, &QPushButton::clicked, this, [this, i]() {
             if (!deck_) return;
             if (deck_->isLooping() && deck_->loopBeatIndex() == i) {
@@ -404,21 +406,21 @@ void DeckWindow::setupUi()
     tempo_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4;"));
     tempo_bar->addWidget(tempo_hdr);
 
-    bend_minus_btn_ = new QPushButton(QStringLiteral("−"), this);
-    bend_minus_btn_->setFixedSize(30, 28);
-    bend_minus_btn_->setToolTip(QStringLiteral("Tempo léptetés: első klikk kerekít tizedre, utána −0.10 BPM"));
-    connect(bend_minus_btn_, &QPushButton::clicked, this, [this]() {
+    jog_minus_btn_ = new QPushButton(QStringLiteral("◀◀ JOG"), this);
+    jog_minus_btn_->setFixedSize(54, 28);
+    jog_minus_btn_->setAutoRepeat(true);
+    jog_minus_btn_->setAutoRepeatDelay(250);
+    jog_minus_btn_->setAutoRepeatInterval(80);
+    jog_minus_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 10px; font-weight: bold; color: #78a0d0; border-radius: 4px; } "
+        "QPushButton:hover { background: #26384e; color: #fff; } "
+        "QPushButton:pressed { background: #0088cc; color: #fff; }"));
+    jog_minus_btn_->setToolTip(QStringLiteral("Jog Nudge / Lökdösés: lemezt lassítja / visszatartja 20ms-mal a szinkron pontos fázis-igazításához"));
+    connect(jog_minus_btn_, &QPushButton::clicked, this, [this]() {
         if (!deck_) return;
-        const double cur_eff = deck_->effectiveBpm();
-        double target_bpm = 0.0;
-        if (std::abs(cur_eff - (std::round(cur_eff * 10.0) / 10.0)) < 0.005) {
-            target_bpm = (std::round(cur_eff * 10.0) - 1.0) / 10.0;
-        } else {
-            target_bpm = std::floor(cur_eff * 10.0) / 10.0;
-        }
-        deck_->setPlaybackBpm(target_bpm);
+        deck_->nudgePlayback(-20);
     });
-    tempo_bar->addWidget(bend_minus_btn_);
+    tempo_bar->addWidget(jog_minus_btn_);
 
     pitch_slider_ = new QSlider(Qt::Horizontal, this);
     pitch_slider_->setRange(50, 150);
@@ -427,7 +429,14 @@ void DeckWindow::setupUi()
 
     connect(pitch_slider_, &QSlider::valueChanged, this, [this](int val) {
         if (deck_) {
-            if (deck_->isSync()) deck_->setSync(false);
+            if (deck_->isSync()) {
+                deck_->setSync(false);
+                DeckPair *dp = vdj_decks();
+                if (dp) {
+                    const int ch = (deck_->side() == DeckPlayer::DeckSide::B) ? 1 : 0;
+                    dp->setSync(ch, false);
+                }
+            }
             deck_->setSpeed(val);
         }
         const double eff_bpm = deck_ ? deck_->effectiveBpm() : 128.0;
@@ -448,21 +457,21 @@ void DeckWindow::setupUi()
     });
     tempo_bar->addWidget(pitch_slider_, 1);
 
-    bend_plus_btn_ = new QPushButton(QStringLiteral("+"), this);
-    bend_plus_btn_->setFixedSize(30, 28);
-    bend_plus_btn_->setToolTip(QStringLiteral("Tempo léptetés: első klikk kerekít tizedre, utána +0.10 BPM"));
-    connect(bend_plus_btn_, &QPushButton::clicked, this, [this]() {
+    jog_plus_btn_ = new QPushButton(QStringLiteral("JOG ▶▶"), this);
+    jog_plus_btn_->setFixedSize(54, 28);
+    jog_plus_btn_->setAutoRepeat(true);
+    jog_plus_btn_->setAutoRepeatDelay(250);
+    jog_plus_btn_->setAutoRepeatInterval(80);
+    jog_plus_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 10px; font-weight: bold; color: #78a0d0; border-radius: 4px; } "
+        "QPushButton:hover { background: #26384e; color: #fff; } "
+        "QPushButton:pressed { background: #0088cc; color: #fff; }"));
+    jog_plus_btn_->setToolTip(QStringLiteral("Jog Nudge / Lökdösés: lemezt gyorsítja / megtolja 20ms-mal a szinkron pontos fázis-igazításához"));
+    connect(jog_plus_btn_, &QPushButton::clicked, this, [this]() {
         if (!deck_) return;
-        const double cur_eff = deck_->effectiveBpm();
-        double target_bpm = 0.0;
-        if (std::abs(cur_eff - (std::round(cur_eff * 10.0) / 10.0)) < 0.005) {
-            target_bpm = (std::round(cur_eff * 10.0) + 1.0) / 10.0;
-        } else {
-            target_bpm = std::ceil(cur_eff * 10.0) / 10.0;
-        }
-        deck_->setPlaybackBpm(target_bpm);
+        deck_->nudgePlayback(+20);
     });
-    tempo_bar->addWidget(bend_plus_btn_);
+    tempo_bar->addWidget(jog_plus_btn_);
 
     pitch_val_lbl_ = new QLabel(QStringLiteral("128.00 BPM (+0.0%)"), this);
     pitch_val_lbl_->setStyleSheet(QStringLiteral("color: #00d2ff; font-family: monospace; font-weight: bold; width: 140px;"));
@@ -601,14 +610,14 @@ void DeckWindow::onRefresh()
         sync_btn_->setChecked(deck_->isSync());
     }
 
-    // 8. Loop buttons highlight
+    // 8. Loop buttons highlight (mindkét állapot 1px kerettel és 0px paddinggal, hogy a méret soha ne változzon)
     const bool looping = deck_->isLooping();
     const int loop_idx = deck_->loopBeatIndex();
     for (size_t i = 0; i < loop_btns_.size(); i++) {
         if (looping && static_cast<int>(i) == loop_idx) {
-            loop_btns_[i]->setStyleSheet(QStringLiteral("background: #ff8800; border: 2px solid #ffaa00; color: #000000; font-weight: bold; border-radius: 4px;"));
+            loop_btns_[i]->setStyleSheet(QStringLiteral("background: #ff8800; border: 1px solid #ffaa00; color: #000000; font-weight: bold; border-radius: 4px; padding: 0px; font-size: 11px;"));
         } else {
-            loop_btns_[i]->setStyleSheet(QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; font-weight: bold; border-radius: 4px;"));
+            loop_btns_[i]->setStyleSheet(QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; font-weight: bold; border-radius: 4px; padding: 0px; font-size: 11px;"));
         }
     }
 

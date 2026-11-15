@@ -72,12 +72,12 @@ private:
     QPushButton *sync_btn_ = nullptr;
     QPushButton *master_btn_ = nullptr;
 
-    // Tempo
+    // Tempo & Jog Nudge
     QSlider *pitch_slider_ = nullptr;
     QLabel *pitch_val_lbl_ = nullptr;
     QPushButton *pitch_reset_btn_ = nullptr;
-    QPushButton *bend_minus_btn_ = nullptr;
-    QPushButton *bend_plus_btn_ = nullptr;
+    QPushButton *jog_minus_btn_ = nullptr;
+    QPushButton *jog_plus_btn_ = nullptr;
 
     // Tap tempo helpers
     std::vector<qint64> tap_times_;

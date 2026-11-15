@@ -410,6 +410,12 @@ static void deck_video_render(void *data, gs_effect_t *effect)
             }
             if (context->color_effect) {
                 gs_eparam_t *param = nullptr;
+
+                matrix4 view_proj;
+                gs_matrix_get(&view_proj);
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "ViewProj")))
+                    gs_effect_set_matrix4(param, &view_proj);
+
                 if ((param = gs_effect_get_param_by_name(context->color_effect, "image")))
                     gs_effect_set_texture(param, tex);
 

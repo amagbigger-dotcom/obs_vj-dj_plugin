@@ -164,8 +164,10 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
         overview = fallback_overview_;
     }
 
-    const double eff_bpm = deck_->effectiveBpm();
-    const double beat_ms = (eff_bpm > 10.0) ? (60000.0 / eff_bpm) : 500.0;
+    // Az ütemrács (Beatgrid) vonalai a hangsáv eredeti audio idejéhez kötöttek (Base BPM),
+    // így a sebességcsúszka (Pitch Fader) állításakor nem csúsznak le a lábdob tranziensekről!
+    const double base_bpm = (deck_->bpm() > 10.0) ? deck_->bpm() : 128.0;
+    const double beat_ms = (base_bpm > 10.0) ? (60000.0 / base_bpm) : 500.0;
     const double visible_ms = zoom_seconds_ * 1000.0;
     const double ms_per_pixel = visible_ms / static_cast<double>(w);
 
