@@ -156,7 +156,6 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
     context->deck->processAudioDsp(buf_r.data(), frames, 1, sample_rate);
 
     // Fejhallgató CUE
-    DeckPair *decks = vdj_decks();
     if (decks) {
         const float *channels[2] = {buf_l.data(), buf_r.data()};
         decks->queueCueAudio(context->deck_channel, channels, frames);

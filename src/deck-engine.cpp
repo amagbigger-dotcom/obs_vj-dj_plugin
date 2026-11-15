@@ -1495,7 +1495,6 @@ void DeckPair::queueCueAudio(int deck_idx, const float *const *channels, size_t 
 // =============================================================================
 void DeckPair::cueWorkerLoop()
 {
-    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     WasapiOutput wasapi_out;
     std::string active_dev;
 
@@ -1567,5 +1566,4 @@ void DeckPair::cueWorkerLoop()
     }
 
     wasapi_out.close();
-    CoUninitialize();
 }
