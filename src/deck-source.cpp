@@ -213,7 +213,10 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
     // RAM Audio Engine szál indítása (Zero-Stutter Dedicated RAM Audio Thread)
     context->audio_thread_running.store(true, std::memory_order_relaxed);
     context->audio_thread = std::thread([context]() {
+#ifdef _WIN32
         timeBeginPeriod(1);
+        SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+#endif
         const uint32_t sample_rate = 48000;
         const size_t frames_per_tick = 480; // 10ms precíz időszelet 48kHz-en
         std::vector<float> buf_l(frames_per_tick);

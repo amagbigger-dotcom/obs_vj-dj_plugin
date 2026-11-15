@@ -248,6 +248,7 @@ static void *mixer_create(obs_data_t *settings, obs_source_t *source)
     context->audio_thread = std::thread([context]() {
 #ifdef _WIN32
         timeBeginPeriod(1);
+        SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 #endif
         const uint32_t sample_rate = 48000;
         const size_t frames_per_tick = 480; // 10ms precíz időszelet 48kHz-en

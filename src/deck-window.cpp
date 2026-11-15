@@ -18,9 +18,17 @@ static QString formatTime(int64_t ms)
 {
     if (ms < 0) ms = 0;
     const int total_sec = static_cast<int>(ms / 1000);
-    const int mins = total_sec / 60;
+    const int hours = total_sec / 3600;
+    const int mins = (total_sec % 3600) / 60;
     const int secs = total_sec % 60;
     const int millis = static_cast<int>((ms % 1000) / 10);
+    if (hours > 0) {
+        return QStringLiteral("%1:%2:%3.%4")
+            .arg(hours)
+            .arg(mins, 2, 10, QChar('0'))
+            .arg(secs, 2, 10, QChar('0'))
+            .arg(millis, 2, 10, QChar('0'));
+    }
     return QStringLiteral("%1:%2.%3")
         .arg(mins, 2, 10, QChar('0'))
         .arg(secs, 2, 10, QChar('0'))
@@ -86,42 +94,47 @@ void DeckWindow::setupUi()
     auto *top_bar = new QHBoxLayout();
     top_bar->setSpacing(6);
 
-    open_btn_ = new QPushButton(QStringLiteral("📂 Megnyitás"), this);
+    open_btn_ = new QPushButton(QStringLiteral("📂"), this);
     open_btn_->setAutoDefault(false);
     open_btn_->setDefault(false);
-    open_btn_->setFixedWidth(80);
-    open_btn_->setFixedHeight(24);
-    open_btn_->setStyleSheet(QStringLiteral("background: #0088cc; border: 1px solid #00aaff; color: #ffffff; font-size: 10px; padding: 2px 4px; font-weight: bold; border-radius: 3px;"));
-    open_btn_->setToolTip(QStringLiteral("Médiafájl betöltése ebbe a deckbe"));
+    open_btn_->setFixedSize(26, 24);
+    open_btn_->setStyleSheet(QStringLiteral("background: #0088cc; border: 1px solid #00aaff; color: #ffffff; font-size: 12px; padding: 0px; font-weight: bold; border-radius: 3px;"));
+    open_btn_->setToolTip(QStringLiteral("Médiafájl megnyitása ebbe a deckbe (Open)"));
     connect(open_btn_, &QPushButton::clicked, this, &DeckWindow::openFileDialog);
     top_bar->addWidget(open_btn_);
 
     file_lbl_ = new QLabel(QStringLiteral("No Track Loaded"), this);
-    file_lbl_->setStyleSheet(QStringLiteral("font-size: 12px; font-weight: bold; color: #00d2ff; padding-left: 2px;"));
-    top_bar->addWidget(file_lbl_, 1);
+    file_lbl_->setMaximumWidth(140);
+    file_lbl_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    file_lbl_->setStyleSheet(QStringLiteral("font-size: 11px; font-weight: bold; color: #00d2ff; padding-left: 2px;"));
+    top_bar->addWidget(file_lbl_);
 
     // Kompakt és precíz időkód kijelző (Elapsed and Remaining Timecode Display)
     auto *time_container = new QFrame(this);
+    time_container->setMinimumWidth(215);
+    time_container->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     time_container->setStyleSheet(QStringLiteral(
         "QFrame { background: #0c1017; border: 1px solid #1e2838; border-radius: 4px; }"
     ));
     auto *time_layout = new QHBoxLayout(time_container);
-    time_layout->setContentsMargins(6, 2, 6, 2);
-    time_layout->setSpacing(5);
+    time_layout->setContentsMargins(5, 2, 5, 2);
+    time_layout->setSpacing(4);
 
     auto *el_title = new QLabel(QStringLiteral("TIME"), time_container);
     el_title->setStyleSheet(QStringLiteral("font-size: 8px; font-weight: bold; color: #586884;"));
     time_layout->addWidget(el_title);
 
     elapsed_lbl_ = new QLabel(QStringLiteral("00:00.00"), time_container);
+    elapsed_lbl_->setMinimumWidth(58);
     elapsed_lbl_->setStyleSheet(QStringLiteral("font-family: 'Consolas', monospace; font-size: 12px; font-weight: bold; color: #00ffaa;"));
     time_layout->addWidget(elapsed_lbl_);
 
     auto *rem_title = new QLabel(QStringLiteral("REMAIN"), time_container);
-    rem_title->setStyleSheet(QStringLiteral("font-size: 8px; font-weight: bold; color: #586884; margin-left: 4px;"));
+    rem_title->setStyleSheet(QStringLiteral("font-size: 8px; font-weight: bold; color: #586884; margin-left: 2px;"));
     time_layout->addWidget(rem_title);
 
     remaining_lbl_ = new QLabel(QStringLiteral("-00:00.00"), time_container);
+    remaining_lbl_->setMinimumWidth(64);
     remaining_lbl_->setStyleSheet(QStringLiteral("font-family: 'Consolas', monospace; font-size: 12px; font-weight: bold; color: #ffaa00;"));
     time_layout->addWidget(remaining_lbl_);
 
@@ -132,7 +145,7 @@ void DeckWindow::setupUi()
     bpm_box->setSpacing(3);
 
     bpm_edit_ = new QLineEdit(QStringLiteral("128.00"), this);
-    bpm_edit_->setFixedWidth(60);
+    bpm_edit_->setFixedWidth(56);
     bpm_edit_->setFixedHeight(24);
     bpm_edit_->setAlignment(Qt::AlignCenter);
     bpm_edit_->setStyleSheet(QStringLiteral(
@@ -168,13 +181,15 @@ void DeckWindow::setupUi()
     bpm_box->addWidget(bpm_unit);
     top_bar->addLayout(bpm_box);
 
-    tracklist_btn_ = new QPushButton(QStringLiteral("📋 TRACKLIST"), this);
-    tracklist_btn_->setFixedHeight(24);
+    tracklist_btn_ = new QPushButton(QStringLiteral("📋"), this);
+    tracklist_btn_->setAutoDefault(false);
+    tracklist_btn_->setDefault(false);
+    tracklist_btn_->setFixedSize(26, 24);
     tracklist_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1f2b3c; border: 1px solid #385070; color: #00d2ff; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 3px; }"
+        "QPushButton { background: #1f2b3c; border: 1px solid #385070; color: #00d2ff; font-size: 12px; padding: 0px; font-weight: bold; border-radius: 3px; }"
         "QPushButton:hover { background: #29384e; border-color: #00d2ff; }"
     ));
-    tracklist_btn_->setToolTip(QStringLiteral("Médiatár és 1080p videokonvertáló megnyitása"));
+    tracklist_btn_->setToolTip(QStringLiteral("Médiatár és 1080p videokonvertáló megnyitása (Tracklist)"));
     connect(tracklist_btn_, &QPushButton::clicked, this, []() {
         extern void vdj_open_tracklist_window();
         vdj_open_tracklist_window();
@@ -331,17 +346,19 @@ void DeckWindow::setupUi()
     // 4. AUTO-LOOP MATRIX & JOG NUDGE
     // ==========================================
     auto *loop_bar = new QHBoxLayout();
-    loop_bar->setSpacing(4);
+    loop_bar->setSpacing(3);
 
     auto *loop_hdr = new QLabel(QStringLiteral("LOOP:"), this);
-    loop_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 10px;"));
+    loop_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px;"));
     loop_bar->addWidget(loop_hdr);
 
-    const QStringList loop_labels = {"1/2", "1", "2", "4", "8", "16", "32"};
+    const QStringList loop_labels = {
+        "1/16", "1/8", "1/4", "1/2", "1", "2", "4", "8", "16", "32", "64", "128"
+    };
     for (int i = 0; i < loop_labels.size(); i++) {
         auto *btn = new QPushButton(loop_labels[i], this);
-        btn->setFixedSize(36, 22);
-        btn->setStyleSheet(QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 10px;"));
+        btn->setFixedSize(30, 22);
+        btn->setStyleSheet(QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 8px;"));
         connect(btn, &QPushButton::clicked, this, [this, i]() {
             if (!deck_) return;
             if (deck_->isLooping() && deck_->loopBeatIndex() == i) {
@@ -355,19 +372,19 @@ void DeckWindow::setupUi()
         loop_bar->addWidget(btn);
     }
 
-    loop_bar->addSpacing(8);
+    loop_bar->addSpacing(4);
 
     auto *jog_hdr = new QLabel(QStringLiteral("JOG:"), this);
-    jog_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 10px;"));
+    jog_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px;"));
     loop_bar->addWidget(jog_hdr);
 
     jog_minus_btn_ = new QPushButton(QStringLiteral("◀ NUDGE"), this);
-    jog_minus_btn_->setFixedSize(58, 22);
+    jog_minus_btn_->setFixedSize(48, 22);
     jog_minus_btn_->setAutoRepeat(true);
     jog_minus_btn_->setAutoRepeatDelay(250);
     jog_minus_btn_->setAutoRepeatInterval(80);
     jog_minus_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 9px; font-weight: bold; color: #78a0d0; border-radius: 3px; padding: 0px; } "
+        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 8px; font-weight: bold; color: #78a0d0; border-radius: 3px; padding: 0px; } "
         "QPushButton:hover { background: #26384e; color: #fff; } "
         "QPushButton:pressed { background: #0088cc; color: #fff; }"));
     jog_minus_btn_->setToolTip(QStringLiteral("Jog Nudge: lemezt lassítja / visszatartja 20ms-mal"));
@@ -378,12 +395,12 @@ void DeckWindow::setupUi()
     loop_bar->addWidget(jog_minus_btn_);
 
     jog_plus_btn_ = new QPushButton(QStringLiteral("NUDGE ▶"), this);
-    jog_plus_btn_->setFixedSize(58, 22);
+    jog_plus_btn_->setFixedSize(48, 22);
     jog_plus_btn_->setAutoRepeat(true);
     jog_plus_btn_->setAutoRepeatDelay(250);
     jog_plus_btn_->setAutoRepeatInterval(80);
     jog_plus_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 9px; font-weight: bold; color: #78a0d0; border-radius: 3px; padding: 0px; } "
+        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 8px; font-weight: bold; color: #78a0d0; border-radius: 3px; padding: 0px; } "
         "QPushButton:hover { background: #26384e; color: #fff; } "
         "QPushButton:pressed { background: #0088cc; color: #fff; }"));
     jog_plus_btn_->setToolTip(QStringLiteral("Jog Nudge: lemezt gyorsítja / megtolja 20ms-mal"));
@@ -626,11 +643,15 @@ void DeckWindow::onRefresh()
     // 2. Track filename
     const QString fn = deck_->fileName();
     if (!fn.isEmpty()) {
-        if (file_lbl_->text() != fn) {
-            file_lbl_->setText(fn);
+        QFontMetrics fm(file_lbl_->font());
+        const QString elided = fm.elidedText(fn, Qt::ElideMiddle, 135);
+        if (file_lbl_->text() != elided) {
+            file_lbl_->setText(elided);
+            file_lbl_->setToolTip(fn);
         }
     } else {
         file_lbl_->setText(QStringLiteral("No Track Loaded"));
+        file_lbl_->setToolTip(QString());
     }
 
     // 3. Timecodes
@@ -682,9 +703,9 @@ void DeckWindow::onRefresh()
         last_loop_idx_ = loop_idx;
         for (size_t i = 0; i < loop_btns_.size(); i++) {
             if (looping && static_cast<int>(i) == loop_idx) {
-                loop_btns_[i]->setStyleSheet(QStringLiteral("background: #ff8800; border: 1px solid #ffaa00; color: #000000; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 10px;"));
+                loop_btns_[i]->setStyleSheet(QStringLiteral("background: #ff8800; border: 1px solid #ffaa00; color: #000000; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 8px;"));
             } else {
-                loop_btns_[i]->setStyleSheet(QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 10px;"));
+                loop_btns_[i]->setStyleSheet(QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 8px;"));
             }
         }
     }

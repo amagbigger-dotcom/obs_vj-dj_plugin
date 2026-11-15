@@ -173,14 +173,15 @@ void DeckPlayer::loadFile(const QString &path)
     // Aszinkron audio analízis és PCM betöltés a memóriába (Async Audio Analysis & RAM PCM Buffer)
     AudioAnalyzer::analyzeFileAsync(path, [this](TrackAnalysisResult res) {
         if (res.success) {
-            setBpm(res.detected_bpm);
-            setGridOffsetMs(res.grid_offset_ms);
+            base_bpm_.store(std::clamp(res.detected_bpm, 40.0, 300.0), std::memory_order_relaxed);
+            playback_bpm_.store(0.0, std::memory_order_relaxed);
+            grid_offset_ms_.store(res.grid_offset_ms, std::memory_order_relaxed);
             if (res.cue_point_ms > 0) {
                 cue_point_ms_.store(res.cue_point_ms, std::memory_order_relaxed);
             }
             setWaveformSamples(res.overview_peaks, res.detailed_peaks);
             if (!res.audio_pcm_l.empty() && !res.audio_pcm_r.empty()) {
-                setAudioBuffer(res.audio_pcm_l, res.audio_pcm_r, res.audio_sample_rate);
+                setAudioBuffer(std::move(res.audio_pcm_l), std::move(res.audio_pcm_r), res.audio_sample_rate);
             }
         }
     });
@@ -659,7 +660,7 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
 
 void DeckPlayer::setLoopBeatIndex(int index) noexcept
 {
-    loop_beat_index_.store(std::clamp(index, 0, 6), std::memory_order_relaxed);
+    loop_beat_index_.store(std::clamp(index, 0, 11), std::memory_order_relaxed);
 }
 
 int DeckPlayer::loopBeatIndex() const noexcept
@@ -674,25 +675,39 @@ void DeckPlayer::setLooping(bool looping)
         return;
     }
 
-    static const double BEAT_MULTIPLIERS[] = {0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0};
+    // 12 fokozatú Loop mátrix: 1/16-tól 128 ütemig (1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16, 32, 64, 128)
+    static const double BEAT_MULTIPLIERS[] = {
+        0.0625, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0
+    };
     const int idx = loop_beat_index_.load(std::memory_order_relaxed);
-    const double num_beats = BEAT_MULTIPLIERS[std::clamp(idx, 0, 6)];
+    const double num_beats = BEAT_MULTIPLIERS[std::clamp(idx, 0, 11)];
 
-    const int64_t current = currentTimeMs();
     const double beat_ms = beatDurationMs();
     const int64_t loop_len = static_cast<int64_t>(std::round(num_beats * beat_ms));
 
-    int64_t start = current;
-    if (beat_ms > 20.0) {
-        const int64_t grid_off = gridOffsetMs();
-        const double rel = static_cast<double>(current - grid_off) / beat_ms;
-        const int64_t beat_idx = static_cast<int64_t>(std::round(rel));
-        const int64_t quant_start = grid_off + static_cast<int64_t>(std::round(beat_idx * beat_ms));
-        if (std::abs(current - quant_start) < static_cast<int64_t>(beat_ms * 0.85) && quant_start >= 0) {
-            start = quant_start;
+    int64_t start = 0;
+    const bool already_looping = looping_.load(std::memory_order_relaxed);
+
+    if (already_looping) {
+        // Ha a loop már aktív, az eleje MINDIG a rögzített pozícióban marad, csak a végét változtatjuk!
+        start = loop_start_ms_.load(std::memory_order_relaxed);
+    } else {
+        // Új loop aktiválásakor: kvantált igazítás a legközelebbi ütemre
+        const int64_t current = currentTimeMs();
+        start = current;
+        if (beat_ms > 20.0) {
+            const int64_t grid_off = gridOffsetMs();
+            const double rel = static_cast<double>(current - grid_off) / beat_ms;
+            const int64_t beat_idx = static_cast<int64_t>(std::round(rel));
+            const int64_t quant_start = grid_off + static_cast<int64_t>(std::round(beat_idx * beat_ms));
+            if (std::abs(current - quant_start) < static_cast<int64_t>(beat_ms * 0.85) && quant_start >= 0) {
+                start = quant_start;
+            }
         }
     }
-    const int64_t end = start + std::max<int64_t>(100, loop_len);
+
+    const int64_t min_len = static_cast<int64_t>(std::max(10.0, beat_ms * 0.05));
+    const int64_t end = start + std::max<int64_t>(min_len, loop_len);
 
     loop_start_ms_.store(start, std::memory_order_relaxed);
     loop_end_ms_.store(end, std::memory_order_relaxed);
@@ -950,6 +965,16 @@ void DeckPlayer::setAudioBuffer(const std::vector<float> &l, const std::vector<f
     std::lock_guard<std::mutex> lock(audio_buf_mutex_);
     audio_pcm_l_ = l;
     audio_pcm_r_ = r;
+    audio_sample_rate_ = (sr > 0) ? sr : 44100;
+    const int64_t cur = user_playing_.load(std::memory_order_relaxed) ? ((source_) ? obs_source_media_get_time(source_) : 0) : cue_point_ms_.load(std::memory_order_relaxed);
+    playback_sample_pos_ = (static_cast<double>(cur) * static_cast<double>(audio_sample_rate_)) / 1000.0;
+}
+
+void DeckPlayer::setAudioBuffer(std::vector<float> &&l, std::vector<float> &&r, uint32_t sr)
+{
+    std::lock_guard<std::mutex> lock(audio_buf_mutex_);
+    audio_pcm_l_ = std::move(l);
+    audio_pcm_r_ = std::move(r);
     audio_sample_rate_ = (sr > 0) ? sr : 44100;
     const int64_t cur = user_playing_.load(std::memory_order_relaxed) ? ((source_) ? obs_source_media_get_time(source_) : 0) : cue_point_ms_.load(std::memory_order_relaxed);
     playback_sample_pos_ = (static_cast<double>(cur) * static_cast<double>(audio_sample_rate_)) / 1000.0;
@@ -1326,7 +1351,7 @@ void DeckPair::syncTempoBtoA()
 
 void DeckPair::setLoopBeatIndex(int deck_index, int beat_index)
 {
-    const int clamped = std::clamp(beat_index, 0, 6);
+    const int clamped = std::clamp(beat_index, 0, 11);
     if (deck_index == 0) {
         loop_beat_idx_a_.store(clamped, std::memory_order_relaxed);
         if (vj_deck_a()) vj_deck_a()->setLoopBeatIndex(clamped);

@@ -483,6 +483,21 @@ A bővítmény három független szálon/környezetben dolgozik:
   - A belső privát `ffmpeg_source` a teljes élettartama alatt teljesen némítva és deaktiválva van (`muted = true`, `volume = 0.0f`, `audio_active = false`, `mixers = 0`, `monitoring_type = NONE`), a deck és mixer audióját kizárólag a RAM audió motor (`AudioAnalyzer` és `readAudioFrames`) kezeli.
   - A `loadFile()` frissítése előtt és után is megerősítésre került a teljes csend, így az éppen nem játszó deckbe betöltődő számok soha többé nem okoznak pattanó vagy lebegő zajt az adásban és a monitorban.
 
+### 26. 4 Órás Sávhossz Támogatás, Valós Idejű Audiószál Prioritás, Négyzetgombok és 12-fokozatú Kezdőpont-védett Auto-Loop (Build #217) *(KÉSZ)*
+- **12 Perces Korlát Feloldása (4 Órás Mix & Szám Hossz):**
+  - Az `AudioAnalyzer` 720 másodperces (12 perc) mesterséges mintakorlátja felemelve 14 400 másodpercre (4 óra).
+  - Mind az `analyzeFile`, mind az `extractAudioOnly` teljes hosszában dekódolja és betölti a 14+ perces zeneszámokat, extended mixeket és hosszú szetteket, a formázott időkijelző pedig óra formátumot (`hh:mm:ss.ff`) is támogat.
+- **Számbetöltési Puffermásolás és Valós Idejű Audió Prioritás (Zero Glitch):**
+  - A `DeckPlayer::setAudioBuffer` megkapta az rvalue move szemantikát (`std::move`), kiküszöbölve a 300 MB-os nehéz memória-újrafoglalást a betöltés végén.
+  - Az analízis végi callback mostantól közvetlenül az atomi változókba ír, megszüntetve a `.vdj.json` leíró fájl egymás utáni háromszori felesleges lemezre írását és visszaolvasását.
+  - Az `analyzeFileAsync` háttérszál prioritása lecsökkentve (`THREAD_PRIORITY_BELOW_NORMAL`), míg a mester és deck audió szálak megkapták a valós idejű `THREAD_PRIORITY_TIME_CRITICAL` prioritást, így a betöltés befejeződésekor a játszó deck hangja egyetlen pillanatra sem akadozhat meg és nem pattanhat be.
+- **Kompakt Négyzet Gombok és Időkijelző Helyreállítása:**
+  - A Deck ablak tetején a széles gombok helyére elegáns, kompakt négyzet gombok kerültek: `[ 📂 ]` (26x24 px, Open) és `[ 📋 ]` (26x24 px, Tracklist), 117 px hasznos helyet felszabadítva a sávban.
+  - A fájlnév szöveg elnyújtása korlátozva (`140 px`, `Qt::ElideMiddle`), az időkijelző doboz pedig garantált minimális szélességet és margót kapott, így a számláló és az eltelt/hátralévő idő (`TIME 00:00.00` | `REMAIN -00:00.00`) mindig teljes szélességében, tisztán és levágás nélkül olvasható.
+- **12-fokozatú Auto-Loop Mátrix és Kezdőpont-megőrző Hosszváltás:**
+  - Kibővített Auto-Loop sáv: `1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16, 32, 64, 128` (12 darab kompakt 30x22 px gomb).
+  - Loop hossz változtatásakor (`setLooping`), ha a loop már aktív, a megfogott loop eleje (`loop_start_ms_`) **szigorúan rögzítve marad**, kizárólag a loop vége nyúlik vagy rövidül az új leütésszám szerint. Új loop aktiválásakor a kvantált ütemhez igazítás változatlanul precízen lefut.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

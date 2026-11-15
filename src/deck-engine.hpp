@@ -34,6 +34,7 @@ public:
 
     // RAM Audio Puffer kezelés a varratmentes loophoz (RAM Audio Buffer for Seamless Looping)
     void setAudioBuffer(const std::vector<float> &l, const std::vector<float> &r, uint32_t sr);
+    void setAudioBuffer(std::vector<float> &&l, std::vector<float> &&r, uint32_t sr);
     bool hasAudioBuffer() const noexcept;
     void clearAudioBuffer();
     size_t readAudioFrames(float *out_l, float *out_r, size_t frames, uint32_t out_sr);

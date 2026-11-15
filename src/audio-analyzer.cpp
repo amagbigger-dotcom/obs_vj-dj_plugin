@@ -265,7 +265,8 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     result.audio_pcm_l.reserve(sample_rate * 240);
     result.audio_pcm_r.reserve(sample_rate * 240);
 
-    const size_t max_total_samples = static_cast<size_t>(sample_rate * 720); // Maximum 12 perc sávhossz
+    // Maximum 4 óra sávhossz (4 hours = 14400s, bőven támogatja a hosszabb mixeket és 14+ perces számokat)
+    const size_t max_total_samples = static_cast<size_t>(sample_rate * 14400);
     while (mono_samples.size() < max_total_samples) {
         DWORD streamIndex = 0;
         DWORD flags = 0;
@@ -544,9 +545,12 @@ void AudioAnalyzer::analyzeFileAsync(const QString &file_path,
                                      std::function<void(TrackAnalysisResult)> callback)
 {
     std::thread([file_path, callback]() {
+#ifdef _WIN32
+        SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+#endif
         TrackAnalysisResult res = analyzeFile(file_path);
         if (callback)
-            callback(res);
+            callback(std::move(res));
     }).detach();
 }
 
@@ -628,7 +632,8 @@ bool AudioAnalyzer::extractAudioOnly(const QString &file_path,
     out_l.reserve(sample_rate * 240);
     out_r.reserve(sample_rate * 240);
 
-    const size_t max_total_samples = static_cast<size_t>(sample_rate * 720);
+    // Maximum 4 óra sávhossz (4 hours = 14400s)
+    const size_t max_total_samples = static_cast<size_t>(sample_rate * 14400);
     while (out_l.size() < max_total_samples) {
         DWORD streamIndex = 0;
         DWORD flags = 0;
