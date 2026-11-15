@@ -437,12 +437,17 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                     gs_effect_set_texture(param, tex);
 
                 vec4 gains;
-                vec4_set(&gains, context->deck->red(), context->deck->green(), context->deck->blue(), 1.0f);
+                if (context->deck->isVisualEqEnabled()) {
+                    vec4_set(&gains, context->deck->red(), context->deck->green(), context->deck->blue(), 1.0f);
+                } else {
+                    vec4_set(&gains, 1.0f, 1.0f, 1.0f, 1.0f);
+                }
                 if ((param = gs_effect_get_param_by_name(context->color_effect, "gains")))
                     gs_effect_set_vec4(param, &gains);
 
+                const float sat = context->deck->isVisualEqEnabled() ? context->deck->saturation() : 1.0f;
                 if ((param = gs_effect_get_param_by_name(context->color_effect, "saturation")))
-                    gs_effect_set_float(param, context->deck->saturation());
+                    gs_effect_set_float(param, sat);
 
                 const bool is_b = (context->deck_channel == 1 || (context->deck && context->deck->side() == DeckPlayer::DeckSide::B));
 

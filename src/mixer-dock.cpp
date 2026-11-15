@@ -252,7 +252,7 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
         row->setContentsMargins(0, 1, 0, 1);
 
         auto *lbl = new QLabel(name, panel);
-        lbl->setFixedWidth(24);
+        lbl->setFixedWidth(26);
         lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: %1;").arg(color));
 
         auto *sl = new DJSlider(Qt::Horizontal, def_val, panel);
@@ -262,7 +262,7 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
         *out_sl = sl;
 
         auto *val_lbl = new QLabel(formatter(def_val), panel);
-        val_lbl->setFixedWidth(36);
+        val_lbl->setFixedWidth(42);
         val_lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
         val_lbl->setStyleSheet(QStringLiteral("font-size: 8px; font-family: monospace; color: #8da0b8;"));
         *out_val_lbl = val_lbl;
@@ -319,21 +319,34 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
                      [deck](float v) { if (deck) { deck->setFilterVal(v - 1.0f); deck->setSaturation(v); } }, flt_fmt);
     }
 
-    // 2. Buttons Row: Headphone CUE
+    // 2. Buttons Row: Headphone CUE & Visual EQ Toggle
     auto *btn_row = new QHBoxLayout();
     btn_row->setContentsMargins(0, 2, 0, 2);
     btn_row->setSpacing(4);
 
     auto *cue_btn = new QPushButton(is_deck_a ? QStringLiteral("🎧 CUE A") : QStringLiteral("🎧 CUE B"), panel);
     cue_btn->setCheckable(true);
-    cue_btn->setFixedHeight(24);
+    cue_btn->setFixedHeight(22);
     cue_btn->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1a222c; border: 1px solid #2d3b4d; color: %1; font-weight: bold; font-size: 9px; } "
+        "QPushButton { background: #1a222c; border: 1px solid #2d3b4d; color: %1; font-weight: bold; font-size: 8px; border-radius: 3px; } "
         "QPushButton:checked { background: %2; color: #fff; border-color: %1; }")
         .arg(is_deck_a ? QStringLiteral("#00d2ff") : QStringLiteral("#ff7700"))
         .arg(is_deck_a ? QStringLiteral("#0088cc") : QStringLiteral("#cc5500")));
-
     btn_row->addWidget(cue_btn, 1);
+
+    auto *viz_eq_btn = new QPushButton(QStringLiteral("🎨 VIZ EQ"), panel);
+    viz_eq_btn->setCheckable(true);
+    viz_eq_btn->setChecked(deck ? deck->isVisualEqEnabled() : true);
+    viz_eq_btn->setFixedHeight(22);
+    viz_eq_btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #161b24; border: 1px solid #2b3545; color: #7f8fa4; font-weight: bold; font-size: 8px; border-radius: 3px; } "
+        "QPushButton:checked { background: #133824; color: #00ff88; border-color: #00bb55; }"));
+    viz_eq_btn->setToolTip(QStringLiteral("Vizuális EQ: Bekapcsolva a HI/MID/LOW/FLT potik színezik a videót. Kikapcsolva csak a hangot szűrik."));
+    connect(viz_eq_btn, &QPushButton::toggled, this, [deck](bool chk) {
+        if (deck) deck->setVisualEqEnabled(chk);
+    });
+    btn_row->addWidget(viz_eq_btn, 1);
+
     layout->addLayout(btn_row);
 
     if (is_deck_a) {
@@ -346,25 +359,26 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
 
     // 3. Vertical Volume Fader and Peak Meter Row
     auto *fader_meter_row = new QHBoxLayout();
-    fader_meter_row->setContentsMargins(0, 4, 0, 0);
-    fader_meter_row->setSpacing(8);
+    fader_meter_row->setContentsMargins(0, 3, 0, 0);
+    fader_meter_row->setSpacing(6);
 
     auto *vol_slider = new DJSlider(Qt::Vertical, 80, panel);
     vol_slider->setRange(0, 100);
     vol_slider->setValue(80);
-    vol_slider->setFixedHeight(70);
+    vol_slider->setFixedHeight(62);
     vol_slider->setToolTip(QStringLiteral("Channel Volume Fader (Default: 80% Unity Line Level)"));
 
     auto *meter = new QProgressBar(panel);
     meter->setOrientation(Qt::Vertical);
     meter->setRange(0, 100);
     meter->setValue(0);
-    meter->setFixedWidth(8);
-    meter->setFixedHeight(70);
+    meter->setFixedWidth(7);
+    meter->setFixedHeight(62);
     meter->setTextVisible(false);
 
     auto *vol_lbl = new QLabel(QStringLiteral("80%"), panel);
-    vol_lbl->setAlignment(Qt::AlignCenter);
+    vol_lbl->setFixedWidth(34);
+    vol_lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     vol_lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #8da0b8;"));
 
     if (is_deck_a) {
@@ -392,6 +406,23 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
     fader_meter_row->addStretch(1);
 
     layout->addLayout(fader_meter_row);
+
+    // 4. Volume FX Dropdown
+    auto *vol_fx_combo = new QComboBox(panel);
+    vol_fx_combo->setFixedHeight(20);
+    vol_fx_combo->setStyleSheet(QStringLiteral(
+        "QComboBox { background: #12161f; color: #8da0b8; border: 1px solid #242d3d; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 3px; } "
+        "QComboBox::drop-down { border: none; } "
+        "QComboBox QAbstractItemView { background: #181d26; color: #fff; selection-background-color: #005588; }"));
+    vol_fx_combo->addItem(QStringLiteral("VOL FX: Ki"), 0);
+    vol_fx_combo->addItem(QStringLiteral("VOL FX: Sötétedés"), 1);
+    vol_fx_combo->addItem(QStringLiteral("VOL FX: Kiégés"), 2);
+    vol_fx_combo->addItem(QStringLiteral("VOL FX: Homályosítás"), 3);
+    vol_fx_combo->setCurrentIndex(deck ? deck->volumeFxMode() : 0);
+    connect(vol_fx_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [deck](int idx) {
+        if (deck) deck->setVolumeFxMode(idx);
+    });
+    layout->addWidget(vol_fx_combo);
 
     return panel;
 }
@@ -577,6 +608,8 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     auto *hp_vol_lbl = new QLabel(QStringLiteral("HP VOL"), hp_box);
     hp_vol_lbl->setStyleSheet(QStringLiteral("font-size: 8px; font-weight: bold; color: #8da0b8;"));
     hp_vol_val_lbl_ = new QLabel(QStringLiteral("100%"), hp_box);
+    hp_vol_val_lbl_->setFixedWidth(34);
+    hp_vol_val_lbl_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     hp_vol_val_lbl_->setStyleSheet(QStringLiteral("font-size: 8px; font-family: monospace; color: #ffaa00;"));
     hp_vol_hdr->addWidget(hp_vol_lbl);
     hp_vol_hdr->addStretch();
@@ -593,6 +626,8 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     auto *hp_mix_lbl = new QLabel(QStringLiteral("CUE / PGM"), hp_box);
     hp_mix_lbl->setStyleSheet(QStringLiteral("font-size: 8px; font-weight: bold; color: #8da0b8;"));
     hp_mix_val_lbl_ = new QLabel(QStringLiteral("50/50"), hp_box);
+    hp_mix_val_lbl_->setFixedWidth(38);
+    hp_mix_val_lbl_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     hp_mix_val_lbl_->setStyleSheet(QStringLiteral("font-size: 8px; font-family: monospace; color: #ffaa00;"));
     hp_mix_hdr->addWidget(hp_mix_lbl);
     hp_mix_hdr->addStretch();
@@ -641,9 +676,33 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     cf_box->addLayout(cf_hdr);
 
     cf_val_lbl_ = new QLabel(QStringLiteral("◄ 50% | 50% ►"), panel);
+    cf_val_lbl_->setFixedWidth(130);
     cf_val_lbl_->setAlignment(Qt::AlignCenter);
     cf_val_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #8da0b8; font-weight: bold;"));
-    cf_box->addWidget(cf_val_lbl_);
+
+    auto *cf_val_row = new QHBoxLayout();
+    cf_val_row->addStretch(1);
+    cf_val_row->addWidget(cf_val_lbl_);
+    cf_val_row->addStretch(1);
+    cf_box->addLayout(cf_val_row);
+
+    // Crossfader FX Dropdown
+    auto *cf_fx_combo = new QComboBox(panel);
+    cf_fx_combo->setFixedHeight(20);
+    cf_fx_combo->setStyleSheet(QStringLiteral(
+        "QComboBox { background: #12161f; color: #8da0b8; border: 1px solid #242d3d; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 3px; } "
+        "QComboBox::drop-down { border: none; } "
+        "QComboBox QAbstractItemView { background: #181d26; color: #fff; selection-background-color: #005588; }"));
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Ki (Normál)"), 0);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Spirális Örvény"), 1);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Halszem Optika"), 2);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Glitch Csíkok"), 3);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Zoom & RGB Split"), 4);
+    cf_fx_combo->setCurrentIndex(decks_ ? decks_->crossfadeFxMode() : 0);
+    connect(cf_fx_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+        if (decks_) decks_->setCrossfadeFxMode(idx);
+    });
+    cf_box->addWidget(cf_fx_combo);
 
     crossfader_ = new DJSlider(Qt::Horizontal, 500, panel);
     crossfader_->setRange(0, 1000);

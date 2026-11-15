@@ -276,6 +276,29 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
         }
     }
 
+    // 4.5. Hot Cue Markers on scrolling wave
+    const QColor hc_colors[4] = {
+        QColor(255, 136, 0),
+        QColor(0, 210, 255),
+        QColor(0, 255, 102),
+        QColor(255, 0, 187)
+    };
+    for (int i = 0; i < 4; ++i) {
+        const int64_t hc_ms = deck_->hotCueMs(i);
+        if (hc_ms >= 0) {
+            const int hx = static_cast<int>((hc_ms - current) / ms_per_pixel) + playhead_x;
+            if (hx >= 0 && hx < w) {
+                p.setPen(QPen(hc_colors[i], 2));
+                p.drawLine(hx, wave_top, hx, wave_bottom);
+
+                p.fillRect(hx - 5, wave_top, 11, 12, hc_colors[i]);
+                p.setFont(QFont(QStringLiteral("Segoe UI"), 7, QFont::Bold));
+                p.setPen(QColor(0, 0, 0));
+                p.drawText(hx - 4, wave_top + 9, QString::number(i + 1));
+            }
+        }
+    }
+
     // 5. Center Playhead Needle with Yellow Pointer Arrow
     p.setPen(QPen(QColor(255, 230, 0), 2));
     p.drawLine(playhead_x, wave_top, playhead_x, wave_bottom);
@@ -330,6 +353,15 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
             const int lx_start = static_cast<int>((static_cast<double>(deck_->loopStartMs()) / duration) * w);
             const int lx_end = static_cast<int>((static_cast<double>(deck_->loopEndMs()) / duration) * w);
             p.fillRect(lx_start, ov_top, std::max(3, lx_end - lx_start), kOverviewHeight, QColor(0, 255, 128, 180));
+        }
+
+        // Hot cue markers on overview strip
+        for (int i = 0; i < 4; ++i) {
+            const int64_t hc_ms = deck_->hotCueMs(i);
+            if (hc_ms >= 0) {
+                const int ov_hx = static_cast<int>((static_cast<double>(hc_ms) / duration) * w);
+                p.fillRect(ov_hx - 1, ov_top, 3, kOverviewHeight, hc_colors[i]);
+            }
         }
 
         // White position needle with top/bottom marker

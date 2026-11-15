@@ -58,6 +58,15 @@ bool AudioAnalyzer::loadCache(const QString &file_path, TrackAnalysisResult &out
     out_res.cue_point_ms = static_cast<int64_t>(root.value(QStringLiteral("cue_point_ms")).toVariant().toLongLong());
     out_res.duration_ms = static_cast<int64_t>(root.value(QStringLiteral("duration_ms")).toVariant().toLongLong());
 
+    const QJsonArray hc_arr = root.value(QStringLiteral("hot_cues")).toArray();
+    for (int i = 0; i < 4; ++i) {
+        if (i < hc_arr.size()) {
+            out_res.hot_cues[i] = static_cast<int64_t>(hc_arr[i].toVariant().toLongLong());
+        } else {
+            out_res.hot_cues[i] = -1;
+        }
+    }
+
     const QJsonArray ov_arr = root.value(QStringLiteral("overview_peaks")).toArray();
     out_res.overview_peaks.clear();
     out_res.overview_peaks.reserve(ov_arr.size());
@@ -89,6 +98,12 @@ bool AudioAnalyzer::saveCache(const QString &file_path, const TrackAnalysisResul
     root.insert(QStringLiteral("grid_offset_ms"), static_cast<qint64>(res.grid_offset_ms));
     root.insert(QStringLiteral("cue_point_ms"), static_cast<qint64>(res.cue_point_ms));
     root.insert(QStringLiteral("duration_ms"), static_cast<qint64>(res.duration_ms));
+
+    QJsonArray hc_arr;
+    for (int i = 0; i < 4; ++i) {
+        hc_arr.append(static_cast<qint64>(res.hot_cues[i]));
+    }
+    root.insert(QStringLiteral("hot_cues"), hc_arr);
 
     QJsonArray ov_arr;
     for (float v : res.overview_peaks) {
@@ -127,6 +142,30 @@ bool AudioAnalyzer::updateCacheUserEdits(const QString &file_path, double bpm, i
         root.insert(QStringLiteral("grid_offset_ms"), static_cast<qint64>(grid_offset_ms));
     if (cue_point_ms >= 0)
         root.insert(QStringLiteral("cue_point_ms"), static_cast<qint64>(cue_point_ms));
+
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        file.close();
+        return true;
+    }
+    return false;
+}
+
+bool AudioAnalyzer::updateCacheHotCues(const QString &file_path, const int64_t hot_cues[4])
+{
+    const QString cache_path = cacheFilePath(file_path);
+    QFile file(cache_path);
+    QJsonObject root;
+    if (file.exists() && file.open(QIODevice::ReadOnly)) {
+        root = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+    }
+
+    QJsonArray hc_arr;
+    for (int i = 0; i < 4; ++i) {
+        hc_arr.append(static_cast<qint64>(hot_cues[i]));
+    }
+    root.insert(QStringLiteral("hot_cues"), hc_arr);
 
     if (file.open(QIODevice::WriteOnly)) {
         file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));

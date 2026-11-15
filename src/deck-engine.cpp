@@ -160,8 +160,20 @@ void DeckPlayer::loadFile(const QString &path)
     loop_start_ms_.store(0, std::memory_order_relaxed);
     loop_end_ms_.store(0, std::memory_order_relaxed);
     cue_point_ms_.store(0, std::memory_order_relaxed);
+    for (int i = 0; i < 4; ++i) hot_cues_[i].store(-1, std::memory_order_relaxed);
     grid_offset_ms_.store(0, std::memory_order_relaxed);
     file_changed_.store(true, std::memory_order_relaxed);
+
+    // Ha ez a deck volt a Master, de a másik deck éppen játszik a közönségnek,
+    // átadjuk a Master jogot a játszó decknek, hogy az új szám betöltése NE rántsa el a zenét!
+    DeckPair *dp = vdj_decks();
+    if (dp) {
+        DeckPlayer *other = (side() == DeckSide::A) ? vj_deck_b() : vj_deck_a();
+        if (other && other->isPlaying()) {
+            const int other_master = (side() == DeckSide::A) ? DeckPair::MASTER_DECK_B : DeckPair::MASTER_DECK_A;
+            dp->setMasterMode(other_master);
+        }
+    }
 
     clearAudioBuffer();
 
@@ -179,6 +191,9 @@ void DeckPlayer::loadFile(const QString &path)
             grid_offset_ms_.store(res.grid_offset_ms, std::memory_order_relaxed);
             if (res.cue_point_ms > 0) {
                 cue_point_ms_.store(res.cue_point_ms, std::memory_order_relaxed);
+            }
+            for (int i = 0; i < 4; ++i) {
+                hot_cues_[i].store(res.hot_cues[i], std::memory_order_relaxed);
             }
             setWaveformSamples(res.overview_peaks, res.detailed_peaks);
             if (!res.audio_pcm_l.empty() && !res.audio_pcm_r.empty()) {
@@ -286,6 +301,73 @@ void DeckPlayer::setCuePointMs(int64_t ms) noexcept
 {
     cue_point_ms_.store(std::max<int64_t>(0, ms), std::memory_order_relaxed);
     saveUserEdits();
+}
+
+int64_t DeckPlayer::hotCueMs(int index) const noexcept
+{
+    if (index < 0 || index >= 4) return -1;
+    return hot_cues_[index].load(std::memory_order_relaxed);
+}
+
+void DeckPlayer::setHotCueMs(int index, int64_t ms) noexcept
+{
+    if (index < 0 || index >= 4) return;
+    hot_cues_[index].store(ms, std::memory_order_relaxed);
+    QString path;
+    {
+        std::lock_guard<std::mutex> lock(file_mutex_);
+        path = file_path_;
+    }
+    if (!path.isEmpty()) {
+        int64_t cues[4];
+        for (int i = 0; i < 4; ++i) cues[i] = hot_cues_[i].load(std::memory_order_relaxed);
+        AudioAnalyzer::updateCacheHotCues(path, cues);
+    }
+}
+
+void DeckPlayer::clearHotCue(int index) noexcept
+{
+    if (index < 0 || index >= 4) return;
+    hot_cues_[index].store(-1, std::memory_order_relaxed);
+    QString path;
+    {
+        std::lock_guard<std::mutex> lock(file_mutex_);
+        path = file_path_;
+    }
+    if (!path.isEmpty()) {
+        int64_t cues[4];
+        for (int i = 0; i < 4; ++i) cues[i] = hot_cues_[i].load(std::memory_order_relaxed);
+        AudioAnalyzer::updateCacheHotCues(path, cues);
+    }
+}
+
+void DeckPlayer::triggerHotCue(int index) noexcept
+{
+    if (index < 0 || index >= 4) return;
+    const int64_t ms = hot_cues_[index].load(std::memory_order_relaxed);
+    if (ms < 0) {
+        const int64_t cur = currentTimeMs();
+        setHotCueMs(index, cur);
+    } else {
+        seekMs(ms);
+    }
+}
+
+std::array<int64_t, 4> DeckPlayer::allHotCues() const noexcept
+{
+    std::array<int64_t, 4> res;
+    for (int i = 0; i < 4; ++i) {
+        res[i] = hot_cues_[i].load(std::memory_order_relaxed);
+    }
+    return res;
+}
+
+bool DeckPlayer::isAtEnd() const noexcept
+{
+    const int64_t dur = durationMs();
+    if (dur <= 1000) return false;
+    const int64_t cur = currentTimeMs();
+    return (cur >= dur - 300);
 }
 
 void DeckPlayer::seek(double normalized_pos)
@@ -1302,6 +1384,19 @@ void DeckPair::updateSync()
     if (!da || !db) return;
 
     const int mode = master_mode_.load(std::memory_order_relaxed);
+
+    // Automatikus Master átadás a másik deckre, ha a Master deck leállt vagy a track végére ért,
+    // megelőzve, hogy az új szám betöltése elhúzza a közönségnek szóló deck tempóját
+    if (mode == MASTER_DECK_A && (!da->isPlaying() || da->isAtEnd())) {
+        if (db->isPlaying()) {
+            setMasterMode(MASTER_DECK_B);
+        }
+    } else if (mode == MASTER_DECK_B && (!db->isPlaying() || db->isAtEnd())) {
+        if (da->isPlaying()) {
+            setMasterMode(MASTER_DECK_A);
+        }
+    }
+
     const double master_bpm = effectiveMasterBpm();
 
     if (da->isSync() && !da->isMaster()) {
@@ -1443,8 +1538,89 @@ void DeckPair::enableAudioMonitoring() noexcept
 // =============================================================================
 // Fejhallgató CUE audió sorbaállítása (Headphone CUE Audio Queueing)
 // =============================================================================
+void DeckPair::mixAndQueueCue(const float *a_l, const float *a_r,
+                              const float *b_l, const float *b_r,
+                              size_t frames)
+{
+    if (frames == 0) return;
+
+    const float hp_vol = headphone_volume_.load(std::memory_order_relaxed);
+    if (hp_vol <= 0.001f) return;
+
+    const float hp_mix = headphone_mix_.load(std::memory_order_relaxed); // 0.0 = pure CUE, 1.0 = pure PGM / Master
+
+    DeckPlayer *da = vj_deck_a();
+    DeckPlayer *db = vj_deck_b();
+    if (!da || !db) return;
+
+    const bool cue_a = da->isHeadphoneCue();
+    const bool cue_b = db->isHeadphoneCue();
+
+    // Ha nincs CUE bekapcsolva és a Master CUE/PGM potméter 0 (csak CUE), akkor csend
+    if (!cue_a && !cue_b && hp_mix <= 0.001f)
+        return;
+
+    const float gain_a = da->gain();
+    const float vol_a = da->volume();
+    const float mix_gain_a = da->mixGain();
+
+    const float gain_b = db->gain();
+    const float vol_b = db->volume();
+    const float mix_gain_b = db->mixGain();
+
+    const float cue_weight = 1.0f - hp_mix;
+    const float pgm_weight = hp_mix;
+
+    CuePacket pkt;
+    pkt.l.resize(frames);
+    pkt.r.resize(frames);
+    pkt.frames = frames;
+
+    for (size_t i = 0; i < frames; ++i) {
+        // 1. CUE (PFL) komponens: PRE-FADER, PRE-CROSSFADER!
+        // Teljesen független a csatornahangerőtől és a crossfadertől, csak a Gain hat rá!
+        float cue_l = 0.0f;
+        float cue_r = 0.0f;
+        if (cue_a && a_l && a_r) {
+            cue_l += a_l[i] * gain_a;
+            cue_r += a_r[i] * gain_a;
+        }
+        if (cue_b && b_l && b_r) {
+            cue_l += b_l[i] * gain_b;
+            cue_r += b_r[i] * gain_b;
+        }
+
+        // 2. PGM (Program / Master) komponens: POST-FADER, POST-CROSSFADER
+        float pgm_l = 0.0f;
+        float pgm_r = 0.0f;
+        if (a_l && a_r) {
+            pgm_l += a_l[i] * (gain_a * vol_a * mix_gain_a);
+            pgm_r += a_r[i] * (gain_a * vol_a * mix_gain_a);
+        }
+        if (b_l && b_r) {
+            pgm_l += b_l[i] * (gain_b * vol_b * mix_gain_b);
+            pgm_r += b_r[i] * (gain_b * vol_b * mix_gain_b);
+        }
+
+        // 3. Fülesbe keverés az arány (CUE / PGM) és a fejhallgató hangerő szerint
+        pkt.l[i] = std::clamp((cue_l * cue_weight + pgm_l * pgm_weight) * hp_vol, -1.2f, 1.2f);
+        pkt.r[i] = std::clamp((cue_r * cue_weight + pgm_r * pgm_weight) * hp_vol, -1.2f, 1.2f);
+    }
+
+    std::lock_guard<std::mutex> lock(cue_mutex_);
+    if (cue_queue_.size() > 15)
+        cue_queue_.pop();
+    cue_queue_.push(std::move(pkt));
+    cue_cv_.notify_one();
+}
+
 void DeckPair::queueCueAudio(int deck_idx, const float *const *channels, size_t frames)
 {
+    // Ha a Master Mixer forrás aktív a jelenetben, az a mixAndQueueCue hívással egyben küldi
+    // mindkét deck mintáját, így a különálló deck hívásokat átugorjuk a szétcsúszás elkerülésére
+    if (master_source_ != nullptr)
+        return;
+
     if (!channels || !channels[0] || frames == 0)
         return;
 
@@ -1464,6 +1640,7 @@ void DeckPair::queueCueAudio(int deck_idx, const float *const *channels, size_t 
     const float xfade = static_cast<float>(crossfader_.load(std::memory_order_relaxed));
     const float xfade_gain = (deck_idx == 0) ? (1.0f - xfade) : xfade;
 
+    // PRE-fader CUE + POST-fader Master
     const float cue_factor = (1.0f - hp_mix) * ch_gain;
     const float master_factor = hp_mix * ch_gain * ch_vol * xfade_gain;
     const float total_factor = (cue_factor + master_factor) * hp_vol;

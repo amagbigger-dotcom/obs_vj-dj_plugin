@@ -529,6 +529,29 @@ A bővítmény három független szálon/környezetben dolgozik:
   - Amikor a `free_deck_engine()` felszabadította a `g_deck_pair`-t, a futó mixer időzítő a már felszabadított memóriára próbált hivatkozni az offset 0x38 címen, ami azonnali alkalmazáshibát (`obs64.exe - Application Error`) dobott OBS bezáráskor.
   - Bevezetve a `vdj_free_mixer_window()` és `vdj_free_tracklist_window()`, a `MixerWindow` megkapta a szabályos destruktort, amely leállítja a `refresh_timer_`-t és lenullázza a mutatókat, mielőtt a deck motor leállna. A kilépés mostantól 100%-ban tiszta és hibamentes.
 
+### 29. Valódi Pre-Fade CUE & PGM Mix, 4 Hot Cue Gomb, Stabilizált Mixer Layout, Automatikus Master Átadás, VOL FX, XFADE FX & Visual EQ Kapcsoló (Build #220) *(KÉSZ)*
+- **Valódi Pre-Fade Headphone CUE & CUE/PGM Potméter:**
+  - A fejhallgató CUE kapcsoló gomb (`[ 🎧 CUE A ]`, `[ 🎧 CUE B ]`) teljesen független a crossfadertől és a hangerő féderektől: még ha a crossfader 100%-ban a másik oldalon áll is, a némított vagy behúzott deck a fülesben tisztán szól.
+  - A CUE/PGM potméter valódi DJ keverő logikát kapott: balra (0%) tiszta előhallgatás (PFL CUE), jobbra (100%) a kimenő Master adás (PGM), középen (50%) a kettő arányos keveréke.
+  - Szinkronizált `mixAndQueueCue` audio keverés a Master forrásban, megszűntetve a fáziscsúszást és az audio jittert.
+- **4 db Hot Cue Gomb Deck-enként (`[ 1 ]`, `[ 2 ]`, `[ 3 ]`, `[ 4 ]`):**
+  - Kattintásra azonnali ugrás a mentett pozícióra (ha üres, a lejátszófej aktuális állását rögzíti).
+  - Jobb egérgombos kattintással törölhető a mentett pont.
+  - Világító színes jelzések a gombokon (#ff8800, #00d2ff, #00ff66, #ff00bb) és a gördülő hullámformán, valamint az áttekintő csíkon is megjelennek a Hot Cue zászlók és számok.
+  - Azonnali mentés és visszatöltés a `.vdj.json` oldalkocsi fájlba.
+- **Mixer Felület Mozgás és Torzulás Végleges Megszüntetése:**
+  - A hangerő és CUE/PGM százalékok és dB értékek változásakor ugráló féderek oka a dinamikus szöveghossz volt.
+  - Minden értékcímke rögzített szélességet (`setFixedWidth`) és jobbra/középre igazítást kapott, így a féderek és potméterek mozdulatlanul, stabilan állnak a helyükön.
+- **Automatikus Master Deck Átadás Zene Végén:**
+  - Amikor a Master deck zenéje véget ér vagy leáll, miközben a másik deck szól, a rendszer automatikusan átadja a Master státuszt az aktív decknek. Így új szám betöltésekor nem rántja el a kifelé szóló zene tempóját.
+- **Csatornánkénti Hangerő Vizuális Effektek (VOL FX):**
+  - Legördülő menü csatornánként: Ki (Off), Fade to Black (sötétedés), Fade to White / Burn (fehérbe égés), Soft Blur (fókuszvesztés / homályosodás a hangerő lehúzásakor).
+- **Master Crossfader Vizuális Effektek (XFADE FX):**
+  - Központi legördülő menü: Ki (Off), Spiral Twist (örvénycsavarás a középponton), Fisheye (halszemoptika torzítás), Glitch Slice Shift (szeletelt elcsúsztatás), Zoom & Chromatic Aberration (RGB széthúzás).
+  - Az effektus a crossfader középpontján (0.5) éri el a csúcsát, majd a másik oldalra húzva visszahúzódik az eredeti képbe.
+- **Csatornánkénti Visual EQ / RGB & Filter Ki/Bekapcsoló (`[ 🎨 VIZ EQ ]`):**
+  - Dedikált kapcsológomb a deck csatornákon: bekapcsolva a HI/MID/LOW és FILTER potméterek színezik a videót (RGB tint és szaturáció), kikapcsolva pedig kizárólag a hangszíneket módosítják, a videó érintetlen, természetes marad.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

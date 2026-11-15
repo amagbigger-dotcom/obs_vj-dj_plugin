@@ -44,6 +44,17 @@ public:
     int64_t cuePointMs() const noexcept { return cue_point_ms_.load(std::memory_order_relaxed); }
     void setCuePointMs(int64_t ms) noexcept;
 
+    int64_t hotCueMs(int index) const noexcept;
+    void setHotCueMs(int index, int64_t ms) noexcept;
+    void clearHotCue(int index) noexcept;
+    void triggerHotCue(int index) noexcept;
+    std::array<int64_t, 4> allHotCues() const noexcept;
+
+    int volumeFxMode() const noexcept { return volume_fx_mode_.load(std::memory_order_relaxed); }
+    void setVolumeFxMode(int m) noexcept { volume_fx_mode_.store(m, std::memory_order_relaxed); }
+    bool isVisualEqEnabled() const noexcept { return visual_eq_enabled_.load(std::memory_order_relaxed); }
+    void setVisualEqEnabled(bool en) noexcept { visual_eq_enabled_.store(en, std::memory_order_relaxed); }
+
     void seek(double normalized_pos);
     void seekMs(int64_t ms);
 
@@ -134,6 +145,7 @@ public:
     double position() const;
     int64_t currentTimeMs() const;
     int64_t durationMs() const;
+    bool isAtEnd() const noexcept;
 
     obs_source_t *source() const noexcept { return source_; }
 
@@ -157,6 +169,9 @@ private:
     std::atomic<int64_t> loop_start_ms_{0};
     std::atomic<int64_t> loop_end_ms_{0};
     std::atomic<int64_t> cue_point_ms_{0};
+    std::atomic<int64_t> hot_cues_[4]{-1, -1, -1, -1};
+    std::atomic<int> volume_fx_mode_{0};
+    std::atomic<bool> visual_eq_enabled_{true};
 
     std::atomic<double> base_bpm_{128.0};
     std::atomic<int64_t> grid_offset_ms_{0};
@@ -236,12 +251,16 @@ public:
     std::string cueDeviceId() const noexcept;
 
     void queueCueAudio(int deck_idx, const float *const *channels, size_t frames);
+    void mixAndQueueCue(const float *a_l, const float *a_r, const float *b_l, const float *b_r, size_t frames);
 
     void setCrossfader(double value) noexcept;
     double crossfader() const noexcept;
 
     void setTransitionMode(int mode) noexcept;
     int transitionMode() const noexcept;
+
+    void setCrossfadeFxMode(int mode) noexcept { crossfade_fx_mode_.store(mode, std::memory_order_relaxed); }
+    int crossfadeFxMode() const noexcept { return crossfade_fx_mode_.load(std::memory_order_relaxed); }
 
     void setObsOutputMode(int mode) noexcept;
     int obsOutputMode() const noexcept;
@@ -290,6 +309,7 @@ private:
 
     std::atomic<double> crossfader_{0.5};
     std::atomic<int> transition_mode_{0};
+    std::atomic<int> crossfade_fx_mode_{0};
     std::atomic<int> obs_output_mode_{0};
     std::atomic<float> headphone_volume_{1.0f};
     std::atomic<float> headphone_mix_{0.5f};

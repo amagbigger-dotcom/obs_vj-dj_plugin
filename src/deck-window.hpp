@@ -74,6 +74,9 @@ private:
     QPushButton *play_btn_ = nullptr;
     QPushButton *sync_btn_ = nullptr;
     QPushButton *master_btn_ = nullptr;
+    QPushButton *hot_cue_btns_[4] = {nullptr, nullptr, nullptr, nullptr};
+
+    void updateHotCueButtons();
 
     // Tempo & Jog Nudge
     QSlider *pitch_slider_ = nullptr;

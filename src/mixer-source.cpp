@@ -54,6 +54,14 @@ uniform float saturation_b;
 uniform float crossfade;
 uniform float transition_mode;
 
+uniform float vol_fx_mode_a;
+uniform float vol_fx_val_a;
+uniform float vol_fx_mode_b;
+uniform float vol_fx_val_b;
+
+uniform float cf_fx_mode;
+uniform float cf_fx_mid;
+
 sampler_state def_sampler {
     Filter = Linear;
     AddressU = Clamp;
@@ -82,10 +90,101 @@ float4 colorize(float4 color, float4 gains, float saturation)
     return saturate(color);
 }
 
+float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b)
+{
+    if (mode < 0.5 || mid <= 0.001)
+        return uv;
+
+    float2 p = uv - float2(0.5, 0.5);
+    float r = length(p);
+
+    if (mode > 0.5 && mode < 1.5) {
+        // 1. Spirális Örvény (Spiral Twist / Vortex)
+        float dir = (is_b > 0.5) ? -1.0 : 1.0;
+        float angle = dir * mid * 3.14159 * (1.0 - saturate(r * 2.0));
+        float s = sin(angle);
+        float c = cos(angle);
+        float2 rot_p = float2(p.x * c - p.y * s, p.x * s + p.y * c);
+        return rot_p + float2(0.5, 0.5);
+    }
+    else if (mode > 1.5 && mode < 2.5) {
+        // 2. Halszem Optika (Fisheye / Barrel Distortion)
+        float distortion = 1.0 + mid * 0.9 * (r * r);
+        return p * distortion + float2(0.5, 0.5);
+    }
+    else if (mode > 2.5 && mode < 3.5) {
+        // 3. Glitch Szeletelt Csíkok (Slice Shift)
+        float stripe = sin(uv.y * 36.0 + mid * 12.0);
+        float dir = (is_b > 0.5) ? -1.0 : 1.0;
+        float shift = (stripe > 0.0 ? 1.0 : -1.0) * mid * 0.05 * dir;
+        return float2(uv.x + shift, uv.y);
+    }
+    else if (mode > 3.5 && mode < 4.5) {
+        // 4. Zoom Pulse
+        float zoom = 1.0 - mid * 0.18;
+        return p * zoom + float2(0.5, 0.5);
+    }
+
+    return uv;
+}
+
+float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx_val, float4 gains, float sat)
+{
+    float4 col;
+    if (fx_mode > 2.5 && fx_val > 0.01) {
+        // Mode 3: Soft Focus / Homályosítás (Multi-tap Box/Gaussian Blur)
+        float2 off = float2(fx_val * 0.012, fx_val * 0.012);
+        float4 sum = img.Sample(def_sampler, uv);
+        sum += img.Sample(def_sampler, uv + float2(off.x, 0));
+        sum += img.Sample(def_sampler, uv - float2(off.x, 0));
+        sum += img.Sample(def_sampler, uv + float2(0, off.y));
+        sum += img.Sample(def_sampler, uv - float2(0, off.y));
+        sum += img.Sample(def_sampler, uv + float2(off.x * 0.7, off.y * 0.7));
+        sum += img.Sample(def_sampler, uv - float2(off.x * 0.7, off.y * 0.7));
+        sum += img.Sample(def_sampler, uv + float2(-off.x * 0.7, off.y * 0.7));
+        sum += img.Sample(def_sampler, uv + float2(off.x * 0.7, -off.y * 0.7));
+        col = sum / 9.0;
+    } else {
+        col = img.Sample(def_sampler, uv);
+    }
+
+    // Színkorrekció (RGB Gain & Saturation)
+    col = colorize(col, gains, sat);
+
+    // Fade to Black vagy Fade to White
+    if (fx_mode > 0.5 && fx_mode < 1.5) {
+        // Mode 1: Fade to Black (Sötétedés / Dimming)
+        col.rgb *= saturate(1.0 - fx_val);
+    } else if (fx_mode > 1.5 && fx_mode < 2.5) {
+        // Mode 2: Fade to White (Kiégés / Burn)
+        col.rgb = lerp(col.rgb, float3(1.0, 1.0, 1.0), fx_val);
+    }
+
+    col.a = 1.0;
+    return saturate(col);
+}
+
 float4 PS(VertData v) : TARGET
 {
-    float4 a = colorize(image_a.Sample(def_sampler, v.uv), gains_a, saturation_a);
-    float4 b = colorize(image_b.Sample(def_sampler, v.uv), gains_b, saturation_b);
+    float2 uv_a = apply_cf_fx(v.uv, cf_fx_mode, cf_fx_mid, 0.0);
+    float2 uv_b = apply_cf_fx(v.uv, cf_fx_mode, cf_fx_mid, 1.0);
+
+    float4 a = sample_deck_with_vol_fx(image_a, uv_a, vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
+    float4 b = sample_deck_with_vol_fx(image_b, uv_b, vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
+
+    // 4. Mód esetén: RGB Kromatikus Aberráció a középponton
+    if (cf_fx_mode > 3.5 && cf_fx_mid > 0.05) {
+        float split = cf_fx_mid * 0.012;
+        float4 a_r = sample_deck_with_vol_fx(image_a, uv_a + float2(split, 0), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
+        float4 a_b = sample_deck_with_vol_fx(image_a, uv_a - float2(split, 0), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
+        a.r = a_r.r;
+        a.b = a_b.b;
+
+        float4 b_r = sample_deck_with_vol_fx(image_b, uv_b + float2(split, 0), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
+        float4 b_b = sample_deck_with_vol_fx(image_b, uv_b - float2(split, 0), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
+        b.r = b_r.r;
+        b.b = b_b.b;
+    }
 
     float4 res;
     if (transition_mode > 2.5) {
@@ -178,15 +277,25 @@ static void set_color_params(MixerSource *context,
                              const DeckPlayer &deck_a,
                              const DeckPlayer &deck_b,
                              float crossfade,
-                             int transition_mode)
+                             int transition_mode,
+                             int cf_fx_mode)
 {
     gs_eparam_t *param = nullptr;
 
     vec4 gains_a;
     vec4 gains_b;
 
-    vec4_set(&gains_a, deck_a.red(), deck_a.green(), deck_a.blue(), 1.0f);
-    vec4_set(&gains_b, deck_b.red(), deck_b.green(), deck_b.blue(), 1.0f);
+    if (deck_a.isVisualEqEnabled()) {
+        vec4_set(&gains_a, deck_a.red(), deck_a.green(), deck_a.blue(), 1.0f);
+    } else {
+        vec4_set(&gains_a, 1.0f, 1.0f, 1.0f, 1.0f);
+    }
+
+    if (deck_b.isVisualEqEnabled()) {
+        vec4_set(&gains_b, deck_b.red(), deck_b.green(), deck_b.blue(), 1.0f);
+    } else {
+        vec4_set(&gains_b, 1.0f, 1.0f, 1.0f, 1.0f);
+    }
 
     if ((param = gs_effect_get_param_by_name(context->effect, "gains_a")))
         gs_effect_set_vec4(param, &gains_a);
@@ -194,17 +303,45 @@ static void set_color_params(MixerSource *context,
     if ((param = gs_effect_get_param_by_name(context->effect, "gains_b")))
         gs_effect_set_vec4(param, &gains_b);
 
+    const float sat_a = deck_a.isVisualEqEnabled() ? deck_a.saturation() : 1.0f;
+    const float sat_b = deck_b.isVisualEqEnabled() ? deck_b.saturation() : 1.0f;
+
     if ((param = gs_effect_get_param_by_name(context->effect, "saturation_a")))
-        gs_effect_set_float(param, deck_a.saturation());
+        gs_effect_set_float(param, sat_a);
 
     if ((param = gs_effect_get_param_by_name(context->effect, "saturation_b")))
-        gs_effect_set_float(param, deck_b.saturation());
+        gs_effect_set_float(param, sat_b);
 
     if ((param = gs_effect_get_param_by_name(context->effect, "crossfade")))
         gs_effect_set_float(param, crossfade);
 
     if ((param = gs_effect_get_param_by_name(context->effect, "transition_mode")))
         gs_effect_set_float(param, static_cast<float>(transition_mode));
+
+    // Volume FX (Deck A & Deck B)
+    const float vol_val_a = std::clamp(1.0f - deck_a.volume(), 0.0f, 1.0f);
+    const float vol_val_b = std::clamp(1.0f - deck_b.volume(), 0.0f, 1.0f);
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "vol_fx_mode_a")))
+        gs_effect_set_float(param, static_cast<float>(deck_a.volumeFxMode()));
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "vol_fx_val_a")))
+        gs_effect_set_float(param, vol_val_a);
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "vol_fx_mode_b")))
+        gs_effect_set_float(param, static_cast<float>(deck_b.volumeFxMode()));
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "vol_fx_val_b")))
+        gs_effect_set_float(param, vol_val_b);
+
+    // Crossfader FX (Midpoint peak: 0 at edges, 1 at center)
+    const float cf_mid = std::clamp(1.0f - std::abs(crossfade - 0.5f) * 2.0f, 0.0f, 1.0f);
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "cf_fx_mode")))
+        gs_effect_set_float(param, static_cast<float>(cf_fx_mode));
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "cf_fx_mid")))
+        gs_effect_set_float(param, cf_mid);
 }
 
 static const char *mixer_get_name(void *)
@@ -279,8 +416,6 @@ static void *mixer_create(obs_data_t *settings, obs_source_t *source)
                 da.readAudioFrames(buf_a_l.data(), buf_a_r.data(), frames_per_tick, sample_rate);
                 da.processAudioDsp(buf_a_l.data(), frames_per_tick, 0, sample_rate);
                 da.processAudioDsp(buf_a_r.data(), frames_per_tick, 1, sample_rate);
-                const float *channels_a[2] = {buf_a_l.data(), buf_a_r.data()};
-                dp->queueCueAudio(0, channels_a, frames_per_tick);
                 have_a = true;
             } else {
                 std::fill(buf_a_l.begin(), buf_a_l.end(), 0.0f);
@@ -292,13 +427,14 @@ static void *mixer_create(obs_data_t *settings, obs_source_t *source)
                 db.readAudioFrames(buf_b_l.data(), buf_b_r.data(), frames_per_tick, sample_rate);
                 db.processAudioDsp(buf_b_l.data(), frames_per_tick, 0, sample_rate);
                 db.processAudioDsp(buf_b_r.data(), frames_per_tick, 1, sample_rate);
-                const float *channels_b[2] = {buf_b_l.data(), buf_b_r.data()};
-                dp->queueCueAudio(1, channels_b, frames_per_tick);
                 have_b = true;
             } else {
                 std::fill(buf_b_l.begin(), buf_b_l.end(), 0.0f);
                 std::fill(buf_b_r.begin(), buf_b_r.end(), 0.0f);
             }
+
+            // Fejhallgató CUE & PGM precíz keverése a két csatorna mintáiból (szinkronizált sztereó)
+            dp->mixAndQueueCue(buf_a_l.data(), buf_a_r.data(), buf_b_l.data(), buf_b_r.data(), frames_per_tick);
 
             // Crossfader, csatornahangerő és Gain súlyozás (Gain & Crossfader weighting)
             const float gain_a = da.gain() * da.volume() * da.mixGain();
@@ -450,7 +586,8 @@ static void draw_mixer(void *data)
         gs_effect_set_texture(param, texture_b);
 
     set_color_params(context, *color_a, *color_b, xfade,
-                     decks->transitionMode());
+                     decks->transitionMode(),
+                     decks->crossfadeFxMode());
 
     gs_blend_state_push();
     gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
@@ -542,6 +679,15 @@ static obs_properties_t *mixer_properties(void *)
     obs_property_list_add_int(transition, "Additive Blend", 2);
     obs_property_list_add_int(transition, "Hard Cut", 3);
 
+    obs_property_t *cf_fx = obs_properties_add_list(
+        props, "crossfade_fx", "Crossfade Center FX",
+        OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_list_add_int(cf_fx, "Off (Alapértelmezett)", 0);
+    obs_property_list_add_int(cf_fx, "Spirális Örvény (Twist)", 1);
+    obs_property_list_add_int(cf_fx, "Halszem Optika (Fisheye)", 2);
+    obs_property_list_add_int(cf_fx, "Glitch Szeletelt Csíkok (Slice)", 3);
+    obs_property_list_add_int(cf_fx, "Zoom & RGB Split", 4);
+
     return props;
 }
 
@@ -562,6 +708,7 @@ static void mixer_update(void *data, obs_data_t *settings)
     DeckPair *decks = vdj_decks();
     if (decks) {
         decks->setTransitionMode(static_cast<int>(obs_data_get_int(settings, "transition")));
+        decks->setCrossfadeFxMode(static_cast<int>(obs_data_get_int(settings, "crossfade_fx")));
     }
 
     if (context && context->source) {
@@ -574,6 +721,7 @@ static void mixer_defaults(obs_data_t *settings)
 {
     obs_data_set_default_string(settings, "master_device", "default");
     obs_data_set_default_int(settings, "transition", 0);
+    obs_data_set_default_int(settings, "crossfade_fx", 0);
 }
 
 static const char *cue_get_name(void *)

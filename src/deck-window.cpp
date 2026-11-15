@@ -474,6 +474,32 @@ void DeckWindow::setupUi()
     });
     transport_bar->addWidget(master_btn_);
 
+    auto *hc_hdr = new QLabel(QStringLiteral("HOT CUE:"), this);
+    hc_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px; margin-left: 6px;"));
+    transport_bar->addWidget(hc_hdr);
+
+    for (int i = 0; i < 4; ++i) {
+        auto *btn = new QPushButton(QString::asprintf("%d", i + 1), this);
+        btn->setFixedSize(30, 34);
+        btn->setContextMenuPolicy(Qt::CustomContextMenu);
+        hot_cue_btns_[i] = btn;
+        transport_bar->addWidget(btn);
+
+        connect(btn, &QPushButton::clicked, this, [this, i]() {
+            if (!deck_) return;
+            deck_->triggerHotCue(i);
+            updateHotCueButtons();
+        });
+
+        connect(btn, &QPushButton::customContextMenuRequested, this, [this, i](const QPoint &) {
+            if (!deck_) return;
+            deck_->clearHotCue(i);
+            updateHotCueButtons();
+        });
+    }
+
+    updateHotCueButtons();
+
     transport_bar->addStretch(1);
     main_layout->addLayout(transport_bar);
 
@@ -725,6 +751,36 @@ void DeckWindow::onRefresh()
         const double base_bpm = (deck_->bpm() > 1.0) ? deck_->bpm() : 128.0;
         const double diff_pct = (eff_bpm / base_bpm - 1.0) * 100.0;
         pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+.1f%%)", eff_bpm, diff_pct));
+    }
+
+    // 10. Hot Cue buttons state update
+    updateHotCueButtons();
+}
+
+void DeckWindow::updateHotCueButtons()
+{
+    if (!deck_) return;
+    const char *hc_colors[4] = {"#ff8800", "#00d2ff", "#00ff66", "#ff00bb"};
+    for (int i = 0; i < 4; ++i) {
+        auto *btn = hot_cue_btns_[i];
+        if (!btn) continue;
+        const int64_t ms = deck_->hotCueMs(i);
+        if (ms >= 0) {
+            const int total_sec = static_cast<int>(ms / 1000);
+            const int m = total_sec / 60;
+            const int s = total_sec % 60;
+            const int cs = static_cast<int>((ms % 1000) / 10);
+            btn->setStyleSheet(QStringLiteral(
+                "QPushButton { background: %1; border: 2px solid #ffffff; font-size: 13px; font-weight: bold; color: #000000; border-radius: 4px; padding: 0px; } "
+                "QPushButton:hover { background: #ffffff; color: %1; }")
+                .arg(hc_colors[i]));
+            btn->setToolTip(QString::asprintf("Hot Cue %d: %02d:%02d.%02d (Kattintás: Ugrás, Jobb-klikk: Törlés)", i + 1, m, s, cs));
+        } else {
+            btn->setStyleSheet(QStringLiteral(
+                "QPushButton { background: #181f2a; border: 1px solid #324155; font-size: 11px; font-weight: bold; color: #5f748f; border-radius: 4px; padding: 0px; } "
+                "QPushButton:hover { background: #263447; color: #ffffff; border-color: #4a6280; }"));
+            btn->setToolTip(QString::asprintf("Hot Cue %d: Üres (Kattintás: Rögzítés az aktuális pozíciónál)", i + 1));
+        }
     }
 }
 
