@@ -40,6 +40,7 @@ struct MixerSource {
     uint64_t next_audio_ts = 0;
     std::thread audio_thread;
     std::atomic<bool> audio_thread_running{false};
+    std::atomic<bool> need_monitor_wake_{true};
 };
 
 static const char *MIXER_EFFECT = R"(
@@ -211,19 +212,33 @@ static const char *mixer_get_name(void *)
     return "OBS VJ Master Mixer";
 }
 
-static void *mixer_create(obs_data_t *, obs_source_t *source)
+static void mixer_update(void *data, obs_data_t *settings);
+
+static void *mixer_create(obs_data_t *settings, obs_source_t *source)
 {
     auto *context = new MixerSource();
     context->source = source;
 
-    // Minden hangsáv engedélyezése és monitorozás bekapcsolása (Enable all tracks & Monitor and Output)
+    // Minden hangsáv engedélyezése az OBS rögzítéshez és streameléshez (Enable all 6 audio tracks)
     obs_source_set_audio_mixers(source, 0x3F);
-    obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
 
     DeckPair *decks = vdj_decks();
     if (decks) {
         decks->setMasterSource(source);
     }
+
+    // Alkalmazzuk a mentett beállításokat (hangkártya kimenet, átmeneti mód) azonnal az indításkor
+    if (settings) {
+        mixer_update(context, settings);
+    } else {
+        if (obs_audio_monitoring_available()) {
+            obs_set_audio_monitoring_device("Default", "default");
+        }
+    }
+
+    // Kényszerített monitorozási típus beállítás (Destroy stale handle & create fresh monitor)
+    obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_NONE);
+    obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
 
     // =========================================================================
     // Mester RAM Audió Szál: Deck A + Deck B valós idejű keverése Crossfaderrel
@@ -531,17 +546,26 @@ static obs_properties_t *mixer_properties(void *)
 
 static void mixer_update(void *data, obs_data_t *settings)
 {
-    UNUSED_PARAMETER(data);
+    auto *context = static_cast<MixerSource *>(data);
     if (!settings) return;
 
     const char *dev = obs_data_get_string(settings, "master_device");
-    if (dev && *dev && strcmp(dev, "default") != 0 && obs_audio_monitoring_available()) {
-        obs_set_audio_monitoring_device(dev, dev);
+    if (obs_audio_monitoring_available()) {
+        if (dev && *dev && strcmp(dev, "default") != 0) {
+            obs_set_audio_monitoring_device(dev, dev);
+        } else {
+            obs_set_audio_monitoring_device("Default", "default");
+        }
     }
 
     DeckPair *decks = vdj_decks();
     if (decks) {
         decks->setTransitionMode(static_cast<int>(obs_data_get_int(settings, "transition")));
+    }
+
+    if (context && context->source) {
+        obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_NONE);
+        obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
     }
 }
 
@@ -562,11 +586,20 @@ static const char *cue_get_name(void *)
 static void mixer_video_tick(void *data, float seconds)
 {
     UNUSED_PARAMETER(seconds);
-    UNUSED_PARAMETER(data);
+    auto *context = static_cast<MixerSource *>(data);
     DeckPair *decks = vdj_decks();
     if (decks) {
         decks->deckA().updateLoop();
         decks->deckB().updateLoop();
+
+        // Amikor a felhasználó elindítja a lejátszást az OBS indítása után, azonnal felébresztjük a WASAPI kimenetet
+        if (context && context->need_monitor_wake_.load(std::memory_order_relaxed)) {
+            if ((decks->deckA().isPlaying() || decks->deckB().isPlaying()) && context->source) {
+                context->need_monitor_wake_.store(false, std::memory_order_relaxed);
+                obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_NONE);
+                obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+            }
+        }
     }
 }
 
@@ -585,8 +618,13 @@ static void cue_update(void *data, obs_data_t *settings)
 {
     UNUSED_PARAMETER(data);
     if (!settings) return;
+    // Ha a Master Mixer aktív a jelenetben, nem írjuk felül a globális hangkártya kimenetet a fülessel
+    DeckPair *decks = vdj_decks();
+    if (decks && decks->masterSource()) {
+        return;
+    }
     const char *dev = obs_data_get_string(settings, "monitoring_device");
-    if (dev && *dev && strcmp(dev, "default") != 0) {
+    if (dev && *dev && strcmp(dev, "default") != 0 && obs_audio_monitoring_available()) {
         obs_set_audio_monitoring_device(dev, dev);
     }
 }

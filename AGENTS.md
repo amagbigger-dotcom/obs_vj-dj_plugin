@@ -472,6 +472,17 @@ A bővítmény három független szálon/környezetben dolgozik:
   - A `setMasterMode(MASTER_CLOCK)` mostantól csak akkor veszi át a deck sebességét, ha előtte deck master volt érvényben, így nem írja felül a kézzel beírt BPM-et.
   - A `DeckPair::updateSync()` és `DeckPlayer::setMaster()` metódusok javítva: ha a Master Clock a kijelölt master, minden bekapcsolt `SYNC` gombú deck azonnal és simán átveszi a Master Clock BPM-jét.
 
+### 25. Hangkártya Kimenet Automatikus Felélesztése és Betöltési Hangpattanás Megszüntetése (Build #216) *(KÉSZ)*
+- **Hangkártya Kimenet (Soundcard Output) Automatikus Indításkori Felélesztése:**
+  - A `mixer_create` forrás-inicializáló megkapta az elmentett `settings` paramétereket és azonnal meghívja a `mixer_update`-et, így az OBS indításakor azonnal beállítja a globális hangkártyát az elmentett kimeneti eszközre (`master_device`), vagy a Default eszközre (`"Default", "default"`).
+  - Megszüntetve az a hiba, hogy a felhasználónak kézzel kellett átkapcsolnia a hangkártyát másikra és vissza a forrás tulajdonságaiban, hogy megszólaljon a hangfal.
+  - A `mixer_create` és `mixer_update` kényszerített módon újraindítja az audio figyelőt (`obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_NONE)` -> `OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT`), a `mixer_video_tick` pedig az első zeneszám elindításakor azonnal felébreszti a WASAPI kimeneti szálat.
+  - A `cue_update` védve lett: ha a Master Mixer aktív a jelenetben, a CUE fejhallgató beállítás nem írhatja felül a hangfalakhoz tartozó globális kimeneti eszközt.
+- **Számbetöltéskori Hangpattanás (Audio Pop / Glitch) Teljes Megszüntetése:**
+  - Megszüntetve a privát `ffmpeg_source` téves bekapcsolása (`obs_source_set_audio_active(source_, true)`) a `loadFile()` metódusban, ami aszinkron konténermegnyitáskor bejátszotta az FFmpeg első dekódolt audiócsomagját az OBS kimenetre.
+  - A belső privát `ffmpeg_source` a teljes élettartama alatt teljesen némítva és deaktiválva van (`muted = true`, `volume = 0.0f`, `audio_active = false`, `mixers = 0`, `monitoring_type = NONE`), a deck és mixer audióját kizárólag a RAM audió motor (`AudioAnalyzer` és `readAudioFrames`) kezeli.
+  - A `loadFile()` frissítése előtt és után is megerősítésre került a teljes csend, így az éppen nem játszó deckbe betöltődő számok soha többé nem okoznak pattanó vagy lebegő zajt az adásban és a monitorban.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

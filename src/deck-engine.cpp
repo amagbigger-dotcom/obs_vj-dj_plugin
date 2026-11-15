@@ -90,6 +90,8 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
     // mert az OBS globális keverője hiányzó hangcsomagok miatt 960ms puffer-újraindítási ciklusba kerülne.
     // (Never register private ffmpeg decoder as active OBS audio source to prevent audio lag restart spiral)
     obs_source_set_audio_active(source_, false);
+    obs_source_set_muted(source_, true);
+    obs_source_set_volume(source_, 0.0f);
     obs_source_set_audio_mixers(source_, 0);
     obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
 
@@ -134,10 +136,21 @@ void DeckPlayer::loadFile(const QString &path)
     obs_data_set_bool(settings, "hw_decode", true);
     obs_data_set_int(settings, "speed_percent", speed_percent_.load(std::memory_order_relaxed));
 
+    // A belső privát FFmpeg videodekóder hangját teljesen némítjuk és kikapcsoljuk a frissítés előtt,
+    // így az FFmpeg konténer megnyitásakor keletkező első dekódolt audiócsomag soha nem pattanhat be az OBS kimenetre.
+    obs_source_set_audio_active(source_, false);
+    obs_source_set_muted(source_, true);
+    obs_source_set_volume(source_, 0.0f);
+    obs_source_set_audio_mixers(source_, 0);
+    obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
+
     obs_source_update(source_, settings);
     obs_data_release(settings);
 
-    obs_source_set_audio_active(source_, true);
+    // Megerősítjük a teljes csendet a belső forráson a beállítások frissítése után is
+    obs_source_set_audio_active(source_, false);
+    obs_source_set_muted(source_, true);
+    obs_source_set_volume(source_, 0.0f);
     obs_source_set_audio_mixers(source_, 0);
     obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
     applyAudioVolume();
@@ -540,9 +553,13 @@ float DeckPlayer::mixGain() const noexcept
 
 void DeckPlayer::enableAudioMonitoring() noexcept
 {
+    // A RAM audio motor kezeli a hangot; a belső FFmpeg videodekóder forrás mindig némítva marad
     if (source_) {
-        obs_source_set_audio_active(source_, true);
+        obs_source_set_audio_active(source_, false);
+        obs_source_set_muted(source_, true);
+        obs_source_set_volume(source_, 0.0f);
         obs_source_set_audio_mixers(source_, 0);
+        obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
     }
 }
 
@@ -558,8 +575,14 @@ bool DeckPlayer::isHeadphoneCue() const noexcept
 
 void DeckPlayer::applyAudioVolume() noexcept
 {
+    // A deck valódi hangerejét és csillapítását a RAM audió szál (processAudioDsp) végzi,
+    // a belső FFmpeg forrás soha nem adhat ki natív hangot.
     if (source_) {
-        obs_source_set_volume(source_, 1.0f);
+        obs_source_set_volume(source_, 0.0f);
+        obs_source_set_muted(source_, true);
+        obs_source_set_audio_active(source_, false);
+        obs_source_set_audio_mixers(source_, 0);
+        obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
     }
 }
 
