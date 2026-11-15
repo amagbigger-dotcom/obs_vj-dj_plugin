@@ -455,9 +455,9 @@ A bővítmény három független szálon/környezetben dolgozik:
 - **Jog Nudge Gombok Áthelyezése az Auto-Loop Sorba:**
   - A `[ ◀◀ NUDGE ]` és `[ NUDGE ▶▶ ]` gombok (`65x24 px`) átkerültek az Auto-Loop gombok mögé (`loop_bar`), ahol bőségesen elférnek a 640 px szélességű ablakban.
   - Megőrizve a 640x340 px szigorú fix ablakméret (`QLayout::SetFixedSize`).
-- **OBS VJ Master Mixer Videókeverés és Tick Helyreállítása:**
+- **OBS VJ Master Mixer Videókeverés Helyreállítása:**
   - Eltávolítva a kézi `gs_matrix_get(&view_proj)` felülírás, amely a modell-mátrixszal felülírta a libobs automatikus ViewProj vetítési mátrixát, levágva a képet a képernyőről Direct3D alatt.
-  - A `mixer_video_tick`-ben helyreállítva a privát `Deck A` és `Deck B` belső dekóder források explicit `obs_source_video_tick(source, seconds)` meghívása, így a képkockák folyamatosan dekódolódnak és frissülnek a mixer textúráin.
+  - A `master.enum_active_sources` biztosítja a privát `Deck A` és `Deck B` belső dekóder források folyamatos képkocka-dekódolását és szinkronizációját.
   - A `render_to_texture` megkapta a `gs_texrender_reset(target)` hívást és a felesleges belső `gs_ortho` eltávolítását a hibátlan Direct3D és OpenGL textúragenerálásért.
 
 ---

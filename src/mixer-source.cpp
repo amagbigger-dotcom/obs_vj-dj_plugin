@@ -559,22 +559,14 @@ static const char *cue_get_name(void *)
 // =============================================================================
 // Videó tick ciklus (Renderelés előtti állapotfrissítés - Video Render Tick)
 // =============================================================================
-// Meghívja a belső ffmpeg_source privát források obs_source_video_tick metódusát,
-// hogy a képkockák folyamatosan dekódolódjanak akkor is, ha nincs külön Deck a jelenetben.
 static void mixer_video_tick(void *data, float seconds)
 {
+    UNUSED_PARAMETER(seconds);
     UNUSED_PARAMETER(data);
     DeckPair *decks = vdj_decks();
     if (decks) {
         decks->deckA().updateLoop();
         decks->deckB().updateLoop();
-
-        obs_source_t *src_a = decks->deckA().source();
-        obs_source_t *src_b = decks->deckB().source();
-        if (src_a)
-            obs_source_video_tick(src_a, seconds);
-        if (src_b)
-            obs_source_video_tick(src_b, seconds);
     }
 }
 
