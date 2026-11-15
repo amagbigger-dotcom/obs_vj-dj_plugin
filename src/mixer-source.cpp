@@ -610,7 +610,7 @@ static obs_properties_t *cue_properties(void *)
     obs_property_t *dev_list = obs_properties_add_list(
         props, "monitoring_device", "CUE Headphone Soundcard / Device",
         OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-    obs_property_list_add_string(dev_list, "Default Monitoring Device", "default");
+    obs_property_list_add_string(dev_list, "Default Audio Device", "default");
     obs_enum_audio_monitoring_devices(enum_audio_devices_cb, dev_list);
     return props;
 }
@@ -619,14 +619,10 @@ static void cue_update(void *data, obs_data_t *settings)
 {
     UNUSED_PARAMETER(data);
     if (!settings) return;
-    // Ha a Master Mixer aktív a jelenetben, nem írjuk felül a globális hangkártya kimenetet a fülessel
-    DeckPair *decks = vdj_decks();
-    if (decks && decks->masterSource()) {
-        return;
-    }
     const char *dev = obs_data_get_string(settings, "monitoring_device");
-    if (dev && *dev && strcmp(dev, "default") != 0 && obs_audio_monitoring_available()) {
-        obs_set_audio_monitoring_device(dev, dev);
+    DeckPair *decks = vdj_decks();
+    if (decks && dev && *dev) {
+        decks->setCueDeviceId(dev);
     }
 }
 
@@ -637,7 +633,7 @@ static void *cue_create(obs_data_t *settings, obs_source_t *source)
         decks->setCueSource(source);
     }
     obs_source_set_audio_mixers(source, 0); // Mute on main stream / recording tracks
-    obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_ONLY); // Send to headphones
+    obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_NONE); // Send direct to headphones via WASAPI, not OBS master monitor!
     cue_update(source, settings);
     return source;
 }

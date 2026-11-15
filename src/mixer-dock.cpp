@@ -152,6 +152,28 @@ void vdj_open_mixer_window()
     g_mixer_window->activateWindow();
 }
 
+void vdj_free_mixer_window()
+{
+    if (g_mixer_window) {
+        g_mixer_window->close();
+        delete g_mixer_window;
+        g_mixer_window = nullptr;
+    }
+}
+
+MixerWindow::~MixerWindow()
+{
+    if (refresh_timer_) {
+        refresh_timer_->stop();
+        delete refresh_timer_;
+        refresh_timer_ = nullptr;
+    }
+    decks_ = nullptr;
+    if (g_mixer_window == this) {
+        g_mixer_window = nullptr;
+    }
+}
+
 MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
     : QDialog(parent),
       decks_(decks)
@@ -202,9 +224,9 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
     }
 
     // 50ms GUI update loop
-    auto *timer = new QTimer(this);
-    connect(timer, &QTimer::timeout, this, &MixerWindow::refreshMixer);
-    timer->start(50);
+    refresh_timer_ = new QTimer(this);
+    connect(refresh_timer_, &QTimer::timeout, this, &MixerWindow::refreshMixer);
+    refresh_timer_->start(50);
 }
 
 QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)

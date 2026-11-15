@@ -45,7 +45,7 @@ class MixerWindow final : public QDialog {
     Q_OBJECT
 public:
     explicit MixerWindow(DeckPair *decks, QWidget *parent = nullptr);
-    ~MixerWindow() override = default;
+    ~MixerWindow() override;
 
 protected:
     void showEvent(QShowEvent *event) override;
@@ -110,6 +110,9 @@ private:
     // Bottom Bar Controls
     QLabel *midi_status_lbl_ = nullptr;
     QLabel *bottom_bpm_lbl_ = nullptr;
+
+    class QTimer *refresh_timer_ = nullptr;
 };
 
 void vdj_open_mixer_window();
+void vdj_free_mixer_window();

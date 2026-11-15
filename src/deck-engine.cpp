@@ -1,5 +1,6 @@
 #include "deck-engine.hpp"
 #include "audio-analyzer.hpp"
+#include "wasapi-output.hpp"
 
 #include <obs-module.h>
 #include <obs-frontend-api.h>
@@ -1417,6 +1418,22 @@ void DeckPair::setCueSource(obs_source_t *s) noexcept
     cue_source_ = s;
 }
 
+void DeckPair::setCueDeviceId(const std::string &id) noexcept
+{
+    std::lock_guard<std::mutex> lock(cue_dev_mutex_);
+    if (cue_device_id_ != id) {
+        cue_device_id_ = id;
+        cue_device_changed_.store(true, std::memory_order_relaxed);
+        cue_cv_.notify_all();
+    }
+}
+
+std::string DeckPair::cueDeviceId() const noexcept
+{
+    std::lock_guard<std::mutex> lock(cue_dev_mutex_);
+    return cue_device_id_;
+}
+
 void DeckPair::enableAudioMonitoring() noexcept
 {
     if (vj_deck_a()) vj_deck_a()->enableAudioMonitoring();
@@ -1428,12 +1445,7 @@ void DeckPair::enableAudioMonitoring() noexcept
 // =============================================================================
 void DeckPair::queueCueAudio(int deck_idx, const float *const *channels, size_t frames)
 {
-    bool has_src = false;
-    {
-        std::lock_guard<std::mutex> lock(cue_source_mutex_);
-        has_src = (cue_source_ != nullptr);
-    }
-    if (!has_src || !channels || !channels[0] || frames == 0)
+    if (!channels || !channels[0] || frames == 0)
         return;
 
     const float hp_vol = headphone_volume_.load(std::memory_order_relaxed);
@@ -1483,47 +1495,77 @@ void DeckPair::queueCueAudio(int deck_idx, const float *const *channels, size_t 
 // =============================================================================
 void DeckPair::cueWorkerLoop()
 {
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    WasapiOutput wasapi_out;
+    std::string active_dev;
+
     uint64_t cue_next_timestamp = 0;
     while (cue_thread_running_.load(std::memory_order_relaxed)) {
         CuePacket pkt;
         {
             std::unique_lock<std::mutex> lock(cue_mutex_);
             cue_cv_.wait_for(lock, std::chrono::milliseconds(20), [this]() {
-                return !cue_queue_.empty() || !cue_thread_running_.load(std::memory_order_relaxed);
+                return !cue_queue_.empty() || !cue_thread_running_.load(std::memory_order_relaxed) || cue_device_changed_.load(std::memory_order_relaxed);
             });
             if (!cue_thread_running_.load(std::memory_order_relaxed))
                 break;
+
+            if (cue_device_changed_.load(std::memory_order_relaxed)) {
+                cue_device_changed_.store(false, std::memory_order_relaxed);
+                active_dev = cueDeviceId();
+                wasapi_out.open(active_dev);
+            }
+
             if (cue_queue_.empty())
                 continue;
             pkt = std::move(cue_queue_.front());
             cue_queue_.pop();
         }
 
-        obs_source_t *src = nullptr;
-        {
-            std::lock_guard<std::mutex> lock(cue_source_mutex_);
-            src = cue_source_;
+        if (!wasapi_out.isRunning()) {
+            static auto last_retry = std::chrono::steady_clock::now();
+            const auto now = std::chrono::steady_clock::now();
+            if (now - last_retry > std::chrono::seconds(2)) {
+                last_retry = now;
+                active_dev = cueDeviceId();
+                wasapi_out.open(active_dev);
+            }
         }
 
-        if (src && pkt.frames > 0 && !pkt.l.empty() && !pkt.r.empty()) {
-            struct obs_source_audio audio_out = {};
-            audio_out.data[0] = reinterpret_cast<uint8_t *>(pkt.l.data());
-            audio_out.data[1] = reinterpret_cast<uint8_t *>(pkt.r.data());
-            audio_out.frames = static_cast<uint32_t>(pkt.frames);
-            audio_out.speakers = SPEAKERS_STEREO;
-            audio_out.format = AUDIO_FORMAT_FLOAT_PLANAR;
-            audio_out.samples_per_sec = 48000;
+        if (pkt.frames > 0 && !pkt.l.empty() && !pkt.r.empty()) {
+            // 1. Közvetlen hardveres WASAPI kimenet a kiválasztott fejhallgató eszközre (pl. OUT 3-4)
+            wasapi_out.writeFrames(pkt.l.data(), pkt.r.data(), pkt.frames);
 
-            const uint64_t now_ns = os_gettime_ns();
-            if (cue_next_timestamp == 0 ||
-                (now_ns > cue_next_timestamp && (now_ns - cue_next_timestamp) > 100000000ULL) ||
-                (cue_next_timestamp > now_ns && (cue_next_timestamp - now_ns) > 100000000ULL)) {
-                cue_next_timestamp = now_ns;
+            // 2. Szintmérő kimenet az OBS CUE forrás felé (monitoring NONE mellett), hogy az OBS keverőben ugráljon a zöld csík
+            obs_source_t *src = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(cue_source_mutex_);
+                src = cue_source_;
             }
-            audio_out.timestamp = cue_next_timestamp;
-            cue_next_timestamp += static_cast<uint64_t>(pkt.frames) * 1000000000ULL / 48000ULL;
 
-            obs_source_output_audio(src, &audio_out);
+            if (src) {
+                struct obs_source_audio audio_out = {};
+                audio_out.data[0] = reinterpret_cast<uint8_t *>(pkt.l.data());
+                audio_out.data[1] = reinterpret_cast<uint8_t *>(pkt.r.data());
+                audio_out.frames = static_cast<uint32_t>(pkt.frames);
+                audio_out.speakers = SPEAKERS_STEREO;
+                audio_out.format = AUDIO_FORMAT_FLOAT_PLANAR;
+                audio_out.samples_per_sec = 48000;
+
+                const uint64_t now_ns = os_gettime_ns();
+                if (cue_next_timestamp == 0 ||
+                    (now_ns > cue_next_timestamp && (now_ns - cue_next_timestamp) > 100000000ULL) ||
+                    (cue_next_timestamp > now_ns && (cue_next_timestamp - now_ns) > 100000000ULL)) {
+                    cue_next_timestamp = now_ns;
+                }
+                audio_out.timestamp = cue_next_timestamp;
+                cue_next_timestamp += static_cast<uint64_t>(pkt.frames) * 1000000000ULL / 48000ULL;
+
+                obs_source_output_audio(src, &audio_out);
+            }
         }
     }
+
+    wasapi_out.close();
+    CoUninitialize();
 }

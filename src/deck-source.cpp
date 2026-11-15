@@ -114,6 +114,11 @@ static void deck_audio_capture(void *param, obs_source_t *source, const struct a
     if (!context || !context->source || !context->deck)
         return;
 
+    // Ha a Master Mixer már végzi a master audio keverést, elkerüljük a dupla jelet
+    DeckPair *decks = vdj_decks();
+    if (decks && decks->masterSource() != nullptr)
+        return;
+
     // Ha a RAM audio motor már betöltődött, ignoráljuk az FFmpeg audiót (RAM Audio takes precedence)
     if (context->deck->hasAudioBuffer())
         return;
@@ -207,8 +212,15 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
         g_obs_source_deck_a = source;
     }
 
-    obs_source_set_audio_mixers(source, 0x3F);
-    obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+    DeckPair *decks = vdj_decks();
+    const bool has_master = (decks && decks->masterSource() != nullptr);
+    if (!has_master) {
+        obs_source_set_audio_mixers(source, 0x3F);
+        obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+    } else {
+        obs_source_set_audio_mixers(source, 0);
+        obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_NONE);
+    }
 
     // RAM Audio Engine szál indítása (Zero-Stutter Dedicated RAM Audio Thread)
     context->audio_thread_running.store(true, std::memory_order_relaxed);
@@ -344,11 +356,19 @@ static void deck_video_tick(void *data, float seconds)
         return;
 
     if (context->source) {
-        // Minden hangsáv (1-6) és kimenet+monitor kényszerítése
-        const uint32_t mixers = obs_source_get_audio_mixers(context->source);
-        if (mixers == 0) {
-            obs_source_set_audio_mixers(context->source, 0x3F);
-            obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+        DeckPair *decks = vdj_decks();
+        const bool has_master = (decks && decks->masterSource() != nullptr);
+        if (has_master) {
+            // Ha a Master Mixer a jelenetben van, a Deck A/B forrás ne küldjön hangot,
+            // megelőzve a hangerő duplázódást és fáziskioltást az 1-2 kimeneten
+            obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_NONE);
+            obs_source_set_audio_mixers(context->source, 0);
+        } else {
+            const uint32_t mixers = obs_source_get_audio_mixers(context->source);
+            if (mixers == 0) {
+                obs_source_set_audio_mixers(context->source, 0x3F);
+                obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+            }
         }
     }
 

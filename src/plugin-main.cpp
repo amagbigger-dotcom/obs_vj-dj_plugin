@@ -126,6 +126,8 @@ void init_deck_ui()
 
 void free_deck_ui()
 {
+    vdj_free_mixer_window();
+    vdj_free_tracklist_window();
     if (g_deck_window_a) {
         g_deck_window_a->close();
         delete g_deck_window_a;

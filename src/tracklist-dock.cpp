@@ -36,6 +36,15 @@ void vdj_open_tracklist_window()
     g_tracklist_instance->activateWindow();
 }
 
+void vdj_free_tracklist_window()
+{
+    if (g_tracklist_instance) {
+        g_tracklist_instance->close();
+        delete g_tracklist_instance;
+        g_tracklist_instance = nullptr;
+    }
+}
+
 void vdj_import_and_load(const QString &file_path, int deck_channel)
 {
     if (!g_tracklist_instance) {

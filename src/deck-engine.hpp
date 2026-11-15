@@ -232,6 +232,8 @@ public:
     void setMasterSource(obs_source_t *s) noexcept { master_source_ = s; }
     obs_source_t *cueSource() const noexcept;
     void setCueSource(obs_source_t *s) noexcept;
+    void setCueDeviceId(const std::string &id) noexcept;
+    std::string cueDeviceId() const noexcept;
 
     void queueCueAudio(int deck_idx, const float *const *channels, size_t frames);
 
@@ -282,6 +284,9 @@ private:
     obs_source_t *master_source_ = nullptr;
     mutable std::mutex cue_source_mutex_;
     obs_source_t *cue_source_ = nullptr;
+    mutable std::mutex cue_dev_mutex_;
+    std::string cue_device_id_{"default"};
+    std::atomic<bool> cue_device_changed_{false};
 
     std::atomic<double> crossfader_{0.5};
     std::atomic<int> transition_mode_{0};

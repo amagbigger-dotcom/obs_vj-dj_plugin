@@ -515,6 +515,20 @@ A bővítmény három független szálon/környezetben dolgozik:
   - Ha egy olyan számra kattintunk, amely korábban audióként lett észlelve vagy meghiúsult a konvertálása, a rendszer automatikusan megkeresi az azonos nevű videófájlt (`.mp4`, `.mov`, `.mkv`) az adott mappában, és elindítja a 1080p NVENC átalakítást, vagy felajánlja a fájlválasztást.
   - A jobb egérgombos menüben elérhető a `[ 🔄 Kényszerített újrakonvertálás ]`, `[ 📁 Videófájl hozzárendelése / cseréje... ]` és `[ ⏹ Aktuális konvertálás megszakítása ]`.
 
+### 28. Natív WASAPI Fejhallgató CUE (Behringer XR18 OUT 3-4), Audió Duplázódás Megszüntetése és OBS Kilépési Crash Javítás (Build #219) *(KÉSZ)*
+- **Natív Windows WASAPI CUE Hangfolyam (Direct WASAPI Streaming to OUT 3-4):**
+  - Az OBS Studio architektúrájában globálisan csak 1 darab Audio Monitoring kimeneti eszköz létezik (`obs_set_audio_monitoring_device`). Amikor a fejhallgató CUE forrás az OBS beépített monitorozásán futott (`MONITOR_ONLY`), az OBS a fülest is elkerülhetetlenül a Master hangfalakra küldte ki (`OUT 1-2`), ami a Behringer keverőn megduplázta a jelszintet, fáziskioltást és visszhangot keltett, miközben a füles kimenetre (`OUT 3-4`) semmi sem jutott.
+  - Új dedikált `WasapiOutput` alrendszer (`wasapi-output.cpp` / `.hpp`), amely a Windows Core Audio / WASAPI API-n keresztül közvetlenül a felhasználó által kiválasztott hardveres kimenetre (`OUT 3-4 (BEHRINGER X-AIR)`) küldi ki a CUE hangot, teljesen megkerülve az OBS master audio buszát.
+  - Automatikus mintavételezési frekvencia adaptáció (44.1 kHz, 48 kHz, 96 kHz lineáris resampler) és endpoint illesztés (GetDevice GUID / Device Collection azonosítás).
+  - Az OBS `OBS VJ Headphone CUE` forrás monitoringja `OBS_MONITORING_TYPE_NONE` és `mixers = 0` beállítást kapott, így a master streamre és felvételre sosem jut ki, viszont a szintmérő kimenet aktív maradt, így az OBS hangkeverőjében a zöld kivezérlésjelző továbbra is élőben villog a fülesben hallható zene ütemére.
+- **Master Mixer és Deck A / B Audió Duplázódás Megszüntetése:**
+  - Amikor az `OBS VJ Master Mixer` jelen van a jelenetben, a `deck_video_tick` és a `deck_create` automatikusan `OBS_MONITORING_TYPE_NONE`-ra és `mixers = 0`-ra állítja az `OBS VJ Deck A` és `OBS VJ Deck B` forrásokat, valamint a `deck_audio_capture` is azonnal visszatér.
+  - Ezzel teljesen megszűnt a hangfalak felé menő kettős jel és a csatornaváltási bepattanás: kizárólag a Master Mixer küldi ki a kevert hangot a Master kimenetre (`OUT 1-2`).
+- **OBS Bezárási Crash (0x0000000000000038 Read Access Violation) Megszüntetése:**
+  - Az OBS kilépésekor (`obs_module_unload`) a `free_deck_ui()` korábban csak a deck ablakokat zárta be, miközben a `MixerWindow` és a `TracklistDock` nyitva maradt az 50 ms-os `QTimer`-rel.
+  - Amikor a `free_deck_engine()` felszabadította a `g_deck_pair`-t, a futó mixer időzítő a már felszabadított memóriára próbált hivatkozni az offset 0x38 címen, ami azonnali alkalmazáshibát (`obs64.exe - Application Error`) dobott OBS bezáráskor.
+  - Bevezetve a `vdj_free_mixer_window()` és `vdj_free_tracklist_window()`, a `MixerWindow` megkapta a szabályos destruktort, amely leállítja a `refresh_timer_`-t és lenullázza a mutatókat, mielőtt a deck motor leállna. A kilépés mostantól 100%-ban tiszta és hibamentes.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

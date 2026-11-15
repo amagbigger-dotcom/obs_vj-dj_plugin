@@ -37,6 +37,8 @@ set(SOURCES
     src/video-converter.hpp
     src/tracklist-dock.cpp
     src/tracklist-dock.hpp
+    src/wasapi-output.cpp
+    src/wasapi-output.hpp
     src/midi-handler.cpp
     src/midi-handler.hpp
 )
@@ -72,6 +74,7 @@ target_link_libraries(obs_vj-dj_plugin PRIVATE
     mfreadwrite
     mfuuid
     propsys
+    ole32
 )
 
 target_compile_definitions(obs_vj-dj_plugin PRIVATE
