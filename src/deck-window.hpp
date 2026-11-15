@@ -76,6 +76,8 @@ private:
     QSlider *pitch_slider_ = nullptr;
     QLabel *pitch_val_lbl_ = nullptr;
     QPushButton *pitch_reset_btn_ = nullptr;
+    QPushButton *bend_minus_btn_ = nullptr;
+    QPushButton *bend_plus_btn_ = nullptr;
     QPushButton *jog_minus_btn_ = nullptr;
     QPushButton *jog_plus_btn_ = nullptr;
 

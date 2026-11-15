@@ -139,12 +139,9 @@ static bool render_to_texture(gs_texrender_t *target,
     if (!target || width == 0 || height == 0)
         return false;
 
+    gs_texrender_reset(target);
     if (!gs_texrender_begin(target, width, height))
         return false;
-
-    gs_ortho(0.0f, static_cast<float>(width),
-             0.0f, static_cast<float>(height),
-             -100.0f, 100.0f);
 
     vec4 clear = {0.0f, 0.0f, 0.0f, 1.0f};
     gs_clear(GS_CLEAR_COLOR, &clear, 0.0f, 0);
@@ -430,13 +427,6 @@ static void draw_mixer(void *data)
 
     gs_eparam_t *param = nullptr;
 
-    // ViewProj mátrix beállítása a HLSL shadernek a videókeverés megjelenítéséhez
-    // (Pass current ViewProj matrix so vertex shader transforms geometry to OBS screen space)
-    matrix4 view_proj;
-    gs_matrix_get(&view_proj);
-    if ((param = gs_effect_get_param_by_name(context->effect, "ViewProj")))
-        gs_effect_set_matrix4(param, &view_proj);
-
     if ((param = gs_effect_get_param_by_name(context->effect, "image_a")))
         gs_effect_set_texture(param, texture_a);
 
@@ -569,14 +559,22 @@ static const char *cue_get_name(void *)
 // =============================================================================
 // Videó tick ciklus (Renderelés előtti állapotfrissítés - Video Render Tick)
 // =============================================================================
+// Meghívja a belső ffmpeg_source privát források obs_source_video_tick metódusát,
+// hogy a képkockák folyamatosan dekódolódjanak akkor is, ha nincs külön Deck a jelenetben.
 static void mixer_video_tick(void *data, float seconds)
 {
-    UNUSED_PARAMETER(seconds);
     UNUSED_PARAMETER(data);
     DeckPair *decks = vdj_decks();
     if (decks) {
         decks->deckA().updateLoop();
         decks->deckB().updateLoop();
+
+        obs_source_t *src_a = decks->deckA().source();
+        obs_source_t *src_b = decks->deckB().source();
+        if (src_a)
+            obs_source_video_tick(src_a, seconds);
+        if (src_b)
+            obs_source_video_tick(src_b, seconds);
     }
 }
 

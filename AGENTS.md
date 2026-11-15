@@ -449,6 +449,17 @@ A bővítmény három független szálon/környezetben dolgozik:
 - **Tracklist Billentyűzetkezelés:**
   - `Delete` és `Backspace` gombok bekötve a tracklist elemek gyors törléséhez a `.vdj.json` cache és konvertált videó automatikus lemezről törlésével.
 
+### 23. 0.10 BPM Léptető Visszaállítása, Jog Nudge Áthelyezése a Loop Sorba és Master Mixer Videódekódolás (Build #214) *(KÉSZ)*
+- **0.10 BPM Léptető Gombok Visszaállítása a Pitch Csúszka Mellé:**
+  - A tempó sávon visszaállítva a `[ − ]` és `[ + ]` gombok (`30x28 px`), amelyek az első kattintásra kerekítenek a legközelebbi tizedre, utána pontosan ±0.10 BPM-mel léptetik a lejátszási tempót (`bend_minus_btn_`, `bend_plus_btn_`).
+- **Jog Nudge Gombok Áthelyezése az Auto-Loop Sorba:**
+  - A `[ ◀◀ NUDGE ]` és `[ NUDGE ▶▶ ]` gombok (`65x24 px`) átkerültek az Auto-Loop gombok mögé (`loop_bar`), ahol bőségesen elférnek a 640 px szélességű ablakban.
+  - Megőrizve a 640x340 px szigorú fix ablakméret (`QLayout::SetFixedSize`).
+- **OBS VJ Master Mixer Videókeverés és Tick Helyreállítása:**
+  - Eltávolítva a kézi `gs_matrix_get(&view_proj)` felülírás, amely a modell-mátrixszal felülírta a libobs automatikus ViewProj vetítési mátrixát, levágva a képet a képernyőről Direct3D alatt.
+  - A `mixer_video_tick`-ben helyreállítva a privát `Deck A` és `Deck B` belső dekóder források explicit `obs_source_video_tick(source, seconds)` meghívása, így a képkockák folyamatosan dekódolódnak és frissülnek a mixer textúráin.
+  - A `render_to_texture` megkapta a `gs_texrender_reset(target)` hívást és a felesleges belső `gs_ortho` eltávolítását a hibátlan Direct3D és OpenGL textúragenerálásért.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

@@ -332,6 +332,45 @@ void DeckWindow::setupUi()
         loop_btns_.push_back(btn);
         loop_bar->addWidget(btn);
     }
+
+    loop_bar->addSpacing(8);
+
+    auto *jog_hdr = new QLabel(QStringLiteral("JOG:"), this);
+    jog_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 11px;"));
+    loop_bar->addWidget(jog_hdr);
+
+    jog_minus_btn_ = new QPushButton(QStringLiteral("◀◀ NUDGE"), this);
+    jog_minus_btn_->setFixedSize(65, 24);
+    jog_minus_btn_->setAutoRepeat(true);
+    jog_minus_btn_->setAutoRepeatDelay(250);
+    jog_minus_btn_->setAutoRepeatInterval(80);
+    jog_minus_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 10px; font-weight: bold; color: #78a0d0; border-radius: 4px; padding: 0px; } "
+        "QPushButton:hover { background: #26384e; color: #fff; } "
+        "QPushButton:pressed { background: #0088cc; color: #fff; }"));
+    jog_minus_btn_->setToolTip(QStringLiteral("Jog Nudge / Lökdösés: lemezt lassítja / visszatartja 20ms-mal a szinkron pontos fázis-igazításához"));
+    connect(jog_minus_btn_, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        deck_->nudgePlayback(-20);
+    });
+    loop_bar->addWidget(jog_minus_btn_);
+
+    jog_plus_btn_ = new QPushButton(QStringLiteral("NUDGE ▶▶"), this);
+    jog_plus_btn_->setFixedSize(65, 24);
+    jog_plus_btn_->setAutoRepeat(true);
+    jog_plus_btn_->setAutoRepeatDelay(250);
+    jog_plus_btn_->setAutoRepeatInterval(80);
+    jog_plus_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 10px; font-weight: bold; color: #78a0d0; border-radius: 4px; padding: 0px; } "
+        "QPushButton:hover { background: #26384e; color: #fff; } "
+        "QPushButton:pressed { background: #0088cc; color: #fff; }"));
+    jog_plus_btn_->setToolTip(QStringLiteral("Jog Nudge / Lökdösés: lemezt gyorsítja / megtolja 20ms-mal a szinkron pontos fázis-igazításához"));
+    connect(jog_plus_btn_, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        deck_->nudgePlayback(+20);
+    });
+    loop_bar->addWidget(jog_plus_btn_);
+
     loop_bar->addStretch(1);
     main_layout->addLayout(loop_bar);
 
@@ -406,21 +445,21 @@ void DeckWindow::setupUi()
     tempo_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4;"));
     tempo_bar->addWidget(tempo_hdr);
 
-    jog_minus_btn_ = new QPushButton(QStringLiteral("◀◀ JOG"), this);
-    jog_minus_btn_->setFixedSize(54, 28);
-    jog_minus_btn_->setAutoRepeat(true);
-    jog_minus_btn_->setAutoRepeatDelay(250);
-    jog_minus_btn_->setAutoRepeatInterval(80);
-    jog_minus_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 10px; font-weight: bold; color: #78a0d0; border-radius: 4px; } "
-        "QPushButton:hover { background: #26384e; color: #fff; } "
-        "QPushButton:pressed { background: #0088cc; color: #fff; }"));
-    jog_minus_btn_->setToolTip(QStringLiteral("Jog Nudge / Lökdösés: lemezt lassítja / visszatartja 20ms-mal a szinkron pontos fázis-igazításához"));
-    connect(jog_minus_btn_, &QPushButton::clicked, this, [this]() {
+    bend_minus_btn_ = new QPushButton(QStringLiteral("−"), this);
+    bend_minus_btn_->setFixedSize(30, 28);
+    bend_minus_btn_->setToolTip(QStringLiteral("Tempo léptetés: első klikk kerekít tizedre, utána −0.10 BPM"));
+    connect(bend_minus_btn_, &QPushButton::clicked, this, [this]() {
         if (!deck_) return;
-        deck_->nudgePlayback(-20);
+        const double cur_eff = deck_->effectiveBpm();
+        double target_bpm = 0.0;
+        if (std::abs(cur_eff - (std::round(cur_eff * 10.0) / 10.0)) < 0.005) {
+            target_bpm = (std::round(cur_eff * 10.0) - 1.0) / 10.0;
+        } else {
+            target_bpm = std::floor(cur_eff * 10.0) / 10.0;
+        }
+        deck_->setPlaybackBpm(target_bpm);
     });
-    tempo_bar->addWidget(jog_minus_btn_);
+    tempo_bar->addWidget(bend_minus_btn_);
 
     pitch_slider_ = new QSlider(Qt::Horizontal, this);
     pitch_slider_->setRange(50, 150);
@@ -457,21 +496,21 @@ void DeckWindow::setupUi()
     });
     tempo_bar->addWidget(pitch_slider_, 1);
 
-    jog_plus_btn_ = new QPushButton(QStringLiteral("JOG ▶▶"), this);
-    jog_plus_btn_->setFixedSize(54, 28);
-    jog_plus_btn_->setAutoRepeat(true);
-    jog_plus_btn_->setAutoRepeatDelay(250);
-    jog_plus_btn_->setAutoRepeatInterval(80);
-    jog_plus_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 10px; font-weight: bold; color: #78a0d0; border-radius: 4px; } "
-        "QPushButton:hover { background: #26384e; color: #fff; } "
-        "QPushButton:pressed { background: #0088cc; color: #fff; }"));
-    jog_plus_btn_->setToolTip(QStringLiteral("Jog Nudge / Lökdösés: lemezt gyorsítja / megtolja 20ms-mal a szinkron pontos fázis-igazításához"));
-    connect(jog_plus_btn_, &QPushButton::clicked, this, [this]() {
+    bend_plus_btn_ = new QPushButton(QStringLiteral("+"), this);
+    bend_plus_btn_->setFixedSize(30, 28);
+    bend_plus_btn_->setToolTip(QStringLiteral("Tempo léptetés: első klikk kerekít tizedre, utána +0.10 BPM"));
+    connect(bend_plus_btn_, &QPushButton::clicked, this, [this]() {
         if (!deck_) return;
-        deck_->nudgePlayback(+20);
+        const double cur_eff = deck_->effectiveBpm();
+        double target_bpm = 0.0;
+        if (std::abs(cur_eff - (std::round(cur_eff * 10.0) / 10.0)) < 0.005) {
+            target_bpm = (std::round(cur_eff * 10.0) + 1.0) / 10.0;
+        } else {
+            target_bpm = std::ceil(cur_eff * 10.0) / 10.0;
+        }
+        deck_->setPlaybackBpm(target_bpm);
     });
-    tempo_bar->addWidget(jog_plus_btn_);
+    tempo_bar->addWidget(bend_plus_btn_);
 
     pitch_val_lbl_ = new QLabel(QStringLiteral("128.00 BPM (+0.0%)"), this);
     pitch_val_lbl_->setStyleSheet(QStringLiteral("color: #00d2ff; font-family: monospace; font-weight: bold; width: 140px;"));
