@@ -61,6 +61,7 @@ uniform float vol_fx_val_b;
 
 uniform float cf_fx_mode;
 uniform float cf_fx_mid;
+uniform float anim_time;
 
 sampler_state def_sampler {
     Filter = Linear;
@@ -99,7 +100,7 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b)
     float r = length(p);
 
     if (mode > 0.5 && mode < 1.5) {
-        // 1. Spirális Örvény (Spiral Twist / Vortex)
+        // Mode 1: Spirális Örvény (Swirl / Vortex)
         float dir = (is_b > 0.5) ? -1.0 : 1.0;
         float angle = dir * mid * 3.14159 * (1.0 - saturate(r * 2.0));
         float s = sin(angle);
@@ -108,21 +109,47 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b)
         return rot_p + float2(0.5, 0.5);
     }
     else if (mode > 1.5 && mode < 2.5) {
-        // 2. Halszem Optika (Fisheye / Barrel Distortion)
+        // Mode 2: Halszem Optika (Fisheye Lens)
         float distortion = 1.0 + mid * 0.9 * (r * r);
         return p * distortion + float2(0.5, 0.5);
     }
-    else if (mode > 2.5 && mode < 3.5) {
-        // 3. Glitch Szeletelt Csíkok (Slice Shift)
-        float stripe = sin(uv.y * 36.0 + mid * 12.0);
-        float dir = (is_b > 0.5) ? -1.0 : 1.0;
-        float shift = (stripe > 0.0 ? 1.0 : -1.0) * mid * 0.05 * dir;
+    else if (mode > 4.5 && mode < 5.5) {
+        // Mode 5: Pixelesedés (Pixelate / Mosaic)
+        float tiles = lerp(160.0, 16.0, mid);
+        float2 blk = float2(tiles, tiles * 0.5625);
+        return floor(uv * blk) / blk;
+    }
+    else if (mode > 6.5 && mode < 7.5) {
+        // Mode 7: Folyadék Hullámzás (Liquid Ripple Warp)
+        float2 ap = p;
+        ap.x *= 1.7778;
+        float ar = length(ap);
+        float wave = sin(ar * 28.0 - anim_time * 8.0 - crossfade * 10.0);
+        float amp = mid * 0.035 * (1.0 / (ar + 0.25));
+        float2 warp = (ap / (ar + 0.0001)) * wave * amp;
+        warp.x /= 1.7778;
+        return uv + warp;
+    }
+    else if (mode > 7.5 && mode < 8.5) {
+        // Mode 8: Kaleidoszkóp (Mirror Fold)
+        float2 ap = abs(p);
+        float ang = mid * 1.5708;
+        float s = sin(ang);
+        float c = cos(ang);
+        float2 rot = abs(float2(ap.x * c - ap.y * s, ap.x * s + ap.y * c));
+        return lerp(uv, rot + float2(0.5, 0.5), saturate(mid * 1.25));
+    }
+    else if (mode > 8.5 && mode < 9.5) {
+        // Mode 9: Glitch Displacement (Vízszintes zajelcsúszás)
+        float band = floor(uv.y * 36.0);
+        float n1 = sin(band * 127.1 + anim_time * 18.0);
+        float shift = (n1 > 0.4 ? 1.0 : (n1 < -0.4 ? -1.0 : 0.0)) * mid * 0.05;
         return float2(uv.x + shift, uv.y);
     }
-    else if (mode > 3.5 && mode < 4.5) {
-        // 4. Zoom Pulse
-        float zoom = 1.0 - mid * 0.18;
-        return p * zoom + float2(0.5, 0.5);
+    else if (mode > 9.5 && mode < 10.5) {
+        // Mode 10: CRT / VHS Scanline (Curvature)
+        float r2 = dot(p, p);
+        return p * (1.0 + r2 * mid * 0.35) + float2(0.5, 0.5);
     }
 
     return uv;
@@ -172,33 +199,103 @@ float4 PS(VertData v) : TARGET
     float4 a = sample_deck_with_vol_fx(image_a, uv_a, vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
     float4 b = sample_deck_with_vol_fx(image_b, uv_b, vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
 
-    // 4. Mód esetén: RGB Kromatikus Aberráció a középponton
-    if (cf_fx_mode > 3.5 && cf_fx_mid > 0.05) {
-        float split = cf_fx_mid * 0.012;
-        float4 a_r = sample_deck_with_vol_fx(image_a, uv_a + float2(split, 0), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
-        float4 a_b = sample_deck_with_vol_fx(image_a, uv_a - float2(split, 0), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
+    // Mode 3: RGB Split (Chromatic Aberration)
+    if (cf_fx_mode > 2.5 && cf_fx_mode < 3.5 && cf_fx_mid > 0.005) {
+        float split = cf_fx_mid * 0.035;
+        float4 a_r = sample_deck_with_vol_fx(image_a, uv_a + float2(split, 0.0), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
+        float4 a_b = sample_deck_with_vol_fx(image_a, uv_a - float2(split, 0.0), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
         a.r = a_r.r;
         a.b = a_b.b;
 
-        float4 b_r = sample_deck_with_vol_fx(image_b, uv_b + float2(split, 0), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
-        float4 b_b = sample_deck_with_vol_fx(image_b, uv_b - float2(split, 0), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
+        float4 b_r = sample_deck_with_vol_fx(image_b, uv_b - float2(split, 0.0), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
+        float4 b_b = sample_deck_with_vol_fx(image_b, uv_b + float2(split, 0.0), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
         b.r = b_r.r;
         b.b = b_b.b;
     }
+    // Mode 4: Radial Zoom Blur (Suhanó nagyítás)
+    else if (cf_fx_mode > 3.5 && cf_fx_mode < 4.5 && cf_fx_mid > 0.005) {
+        float2 to_c_a = float2(0.5, 0.5) - uv_a;
+        float2 to_c_b = float2(0.5, 0.5) - uv_b;
+        float z_step = cf_fx_mid * 0.035;
+        float4 sum_a = a;
+        float4 sum_b = b;
+        for (int i = 1; i <= 6; ++i) {
+            float w = 1.0 - (float)i * 0.12;
+            sum_a += sample_deck_with_vol_fx(image_a, uv_a + to_c_a * ((float)i * z_step), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a) * w;
+            sum_b += sample_deck_with_vol_fx(image_b, uv_b + to_c_b * ((float)i * z_step), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b) * w;
+        }
+        a = sum_a / 4.48;
+        b = sum_b / 4.48;
+    }
 
     float4 res;
-    if (transition_mode > 2.5) {
-        // Hard Cut
-        res = crossfade < 0.5 ? a : b;
-    } else if (transition_mode > 0.5 && transition_mode < 1.5) {
-        // Horizontal Wipe
-        res = v.uv.x < (1.0 - crossfade) ? a : b;
-    } else if (transition_mode > 1.5 && transition_mode < 2.5) {
-        // Additive Blend
-        res = saturate(a * (1.0 - crossfade) + b * crossfade);
+
+    // Mode 6: Luma Dissolve (Fényerő-alapú áttűnés)
+    if (cf_fx_mode > 5.5 && cf_fx_mode < 6.5) {
+        float luma_a = dot(a.rgb, float3(0.2126, 0.7152, 0.0722));
+        float thresh = crossfade;
+        float width = 0.12;
+        float blend = smoothstep(thresh - width, thresh + width, luma_a);
+        float glow = saturate(1.0 - abs((luma_a - thresh) / width)) * cf_fx_mid;
+        res = lerp(b, a, blend) + float4(1.0, 0.75, 0.3, 0.0) * glow * 1.4;
     } else {
-        // Linear Fade / Crossfade
-        res = lerp(a, b, crossfade);
+        // Standard Transition Modes
+        if (transition_mode > 2.5) {
+            // Hard Cut
+            res = crossfade < 0.5 ? a : b;
+        } else if (transition_mode > 0.5 && transition_mode < 1.5) {
+            // Horizontal Wipe
+            res = v.uv.x < (1.0 - crossfade) ? a : b;
+        } else if (transition_mode > 1.5 && transition_mode < 2.5) {
+            // Additive Blend
+            res = saturate(a * (1.0 - crossfade) + b * crossfade);
+        } else {
+            // Linear Fade / Crossfade
+            res = lerp(a, b, crossfade);
+        }
+    }
+
+    // Mode 10: CRT / VHS Scanline (Analóg TV & Csík)
+    if (cf_fx_mode > 9.5 && cf_fx_mode < 10.5 && cf_fx_mid > 0.01) {
+        float scan = sin(v.uv.y * 540.0 * 3.14159);
+        res.rgb *= (1.0 - cf_fx_mid * 0.35 * (scan * 0.5 + 0.5));
+        float2 p_scan = v.uv - float2(0.5, 0.5);
+        if (cf_fx_mid > 0.75) {
+            float col_factor = saturate((cf_fx_mid - 0.75) / 0.25);
+            float beam = exp(-abs(p_scan.y) * lerp(30.0, 220.0, col_factor)) * col_factor;
+            res.rgb = lerp(res.rgb, float3(1.3, 1.3, 1.4), beam);
+        }
+    }
+    // Mode 11: Pop-Art Halftone (Képregény Pontrács)
+    else if (cf_fx_mode > 10.5 && cf_fx_mode < 11.5 && cf_fx_mid > 0.01) {
+        float2 grid = frac(v.uv * float2(96.0, 54.0)) - 0.5;
+        float dist = length(grid);
+        float luma = dot(res.rgb, float3(0.2126, 0.7152, 0.0722));
+        float radius = sqrt(luma) * 0.48;
+        float dot_mask = smoothstep(radius + 0.06, radius - 0.06, dist);
+        float3 pop_color = floor(res.rgb * 3.5 + 0.5) / 3.5;
+        float3 halftone = pop_color * dot_mask * 1.35;
+        res.rgb = lerp(res.rgb, halftone, cf_fx_mid * 0.9);
+    }
+    // Mode 12: Neon Kontúr (Sobel Edge Glow)
+    else if (cf_fx_mode > 11.5 && cf_fx_mode < 12.5 && cf_fx_mid > 0.01) {
+        float2 d = float2(1.5 / 1920.0, 1.5 / 1080.0);
+        float4 a_u = sample_deck_with_vol_fx(image_a, uv_a + float2(0, -d.y), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
+        float4 a_d = sample_deck_with_vol_fx(image_a, uv_a + float2(0, d.y), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
+        float4 a_l = sample_deck_with_vol_fx(image_a, uv_a + float2(-d.x, 0), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
+        float4 a_r = sample_deck_with_vol_fx(image_a, uv_a + float2(d.x, 0), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
+        float edge_a = length(a_u.rgb + a_d.rgb + a_l.rgb + a_r.rgb - 4.0 * a.rgb);
+
+        float4 b_u = sample_deck_with_vol_fx(image_b, uv_b + float2(0, -d.y), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
+        float4 b_d = sample_deck_with_vol_fx(image_b, uv_b + float2(0, d.y), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
+        float4 b_l = sample_deck_with_vol_fx(image_b, uv_b + float2(-d.x, 0), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
+        float4 b_r = sample_deck_with_vol_fx(image_b, uv_b + float2(d.x, 0), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
+        float edge_b = length(b_u.rgb + b_d.rgb + b_l.rgb + b_r.rgb - 4.0 * b.rgb);
+
+        float3 neon_a = float3(0.0, 0.9, 1.0) * edge_a * 4.5;
+        float3 neon_b = float3(1.0, 0.1, 0.8) * edge_b * 4.5;
+        float3 wireframe = neon_a * (1.0 - crossfade) + neon_b * crossfade;
+        res.rgb = lerp(res.rgb, wireframe, cf_fx_mid * 0.95);
     }
 
     res.a = 1.0;
@@ -342,6 +439,10 @@ static void set_color_params(MixerSource *context,
 
     if ((param = gs_effect_get_param_by_name(context->effect, "cf_fx_mid")))
         gs_effect_set_float(param, cf_mid);
+
+    const float anim_time = static_cast<float>(os_gettime_ns() / 1000000ULL) * 0.001f;
+    if ((param = gs_effect_get_param_by_name(context->effect, "anim_time")))
+        gs_effect_set_float(param, anim_time);
 }
 
 static const char *mixer_get_name(void *)
@@ -683,10 +784,18 @@ static obs_properties_t *mixer_properties(void *)
         props, "crossfade_fx", "Crossfade Center FX",
         OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
     obs_property_list_add_int(cf_fx, "Off (Alapértelmezett)", 0);
-    obs_property_list_add_int(cf_fx, "Spirális Örvény (Twist)", 1);
-    obs_property_list_add_int(cf_fx, "Halszem Optika (Fisheye)", 2);
-    obs_property_list_add_int(cf_fx, "Glitch Szeletelt Csíkok (Slice)", 3);
-    obs_property_list_add_int(cf_fx, "Zoom & RGB Split", 4);
+    obs_property_list_add_int(cf_fx, "Spirális Örvény (Swirl / Vortex)", 1);
+    obs_property_list_add_int(cf_fx, "Halszem Optika (Fisheye Lens)", 2);
+    obs_property_list_add_int(cf_fx, "RGB Split (Chromatic Aberration)", 3);
+    obs_property_list_add_int(cf_fx, "Radial Zoom Blur (Suhanó nagyítás)", 4);
+    obs_property_list_add_int(cf_fx, "Pixelesedés (Pixelate / Mosaic)", 5);
+    obs_property_list_add_int(cf_fx, "Luma Dissolve (Fényerő áttűnés)", 6);
+    obs_property_list_add_int(cf_fx, "Folyadék Hullámzás (Liquid Ripple Warp)", 7);
+    obs_property_list_add_int(cf_fx, "Kaleidoszkóp (Mirror Fold)", 8);
+    obs_property_list_add_int(cf_fx, "Glitch Displacement (Zajelcsúszás)", 9);
+    obs_property_list_add_int(cf_fx, "CRT / VHS Scanline (Analóg TV & Csík)", 10);
+    obs_property_list_add_int(cf_fx, "Pop-Art Halftone (Képregény Pontrács)", 11);
+    obs_property_list_add_int(cf_fx, "Neon Kontúr (Sobel Edge Glow)", 12);
 
     return props;
 }

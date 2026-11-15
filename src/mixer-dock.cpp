@@ -696,8 +696,16 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     cf_fx_combo->addItem(QStringLiteral("XFADE FX: Ki (Normál)"), 0);
     cf_fx_combo->addItem(QStringLiteral("XFADE FX: Spirális Örvény"), 1);
     cf_fx_combo->addItem(QStringLiteral("XFADE FX: Halszem Optika"), 2);
-    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Glitch Csíkok"), 3);
-    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Zoom & RGB Split"), 4);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: RGB Split"), 3);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Radial Zoom Blur"), 4);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Pixelesedés (Mosaic)"), 5);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Luma Dissolve"), 6);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Folyadék Hullám"), 7);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Kaleidoszkóp"), 8);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Glitch Displacement"), 9);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: CRT / VHS Scanline"), 10);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Pop-Art Halftone"), 11);
+    cf_fx_combo->addItem(QStringLiteral("XFADE FX: Neon Kontúr"), 12);
     cf_fx_combo->setCurrentIndex(decks_ ? decks_->crossfadeFxMode() : 0);
     connect(cf_fx_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
         if (decks_) decks_->setCrossfadeFxMode(idx);

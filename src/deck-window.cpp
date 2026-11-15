@@ -17,6 +17,7 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QUrl>
+#include <QMessageBox>
 
 static QString formatTime(int64_t ms)
 {
@@ -646,6 +647,13 @@ void DeckWindow::fitTo1080p()
 
 void DeckWindow::openFileDialog()
 {
+    if (deck_ && deck_->isPlaying()) {
+        QMessageBox::warning(this, QStringLiteral("Deck lejátszás alatt"),
+            QStringLiteral("A(z) %1 éppen lejátszás alatt áll!\n\nÚj szám betöltéséhez előbb állítsd meg a lejátszást (PAUSE / STOP).")
+                .arg(deck_->deckId()));
+        return;
+    }
+
     const QString path = QFileDialog::getOpenFileName(
         this,
         QStringLiteral("Média megnyitása"),
@@ -846,6 +854,14 @@ void DeckWindow::dragMoveEvent(QDragMoveEvent *event)
 
 void DeckWindow::dropEvent(QDropEvent *event)
 {
+    if (deck_ && deck_->isPlaying()) {
+        QMessageBox::warning(this, QStringLiteral("Deck lejátszás alatt"),
+            QStringLiteral("A(z) %1 éppen lejátszás alatt áll!\n\nFájl behúzásához előbb állítsd meg a lejátszást (PAUSE / STOP).")
+                .arg(deck_->deckId()));
+        event->ignore();
+        return;
+    }
+
     const QList<QUrl> urls = event->mimeData()->urls();
     if (!urls.isEmpty()) {
         const QString path = urls.first().toLocalFile();

@@ -121,7 +121,13 @@ TracklistDock::TracklistDock(QWidget *parent)
                 analyzeTrackAudio(active_conversion_idx_);
 
                 if (deck_target >= 0) {
-                    loadTrackToDeck(active_conversion_idx_, deck_target);
+                    DeckPlayer *target = (deck_target == 1) ? vj_deck_b() : vj_deck_a();
+                    if (target && target->isPlaying()) {
+                        blog(LOG_INFO, "[obs_vj_tracklist] Target deck %s is currently playing; newly converted track marked Ready without disrupting playback",
+                             target->deckId().toUtf8().constData());
+                    } else {
+                        loadTrackToDeck(active_conversion_idx_, deck_target);
+                    }
                 }
             } else {
                 item.status = QStringLiteral("Hiba: %1").arg(err);
@@ -803,6 +809,13 @@ void TracklistDock::loadTrackToDeck(int track_index, int deck_channel)
     }
 
     if (target_deck) {
+        if (target_deck->isPlaying()) {
+            QMessageBox::warning(this, QStringLiteral("Deck lejátszás alatt"),
+                QStringLiteral("A(z) %1 éppen lejátszás alatt áll!\n\nÚj szám betöltéséhez előbb állítsd meg a lejátszást (PAUSE / STOP).")
+                    .arg(target_deck->deckId()));
+            return;
+        }
+
         target_deck->loadFile(item.file_path);
         item.played = true;
         updateRow(track_index);

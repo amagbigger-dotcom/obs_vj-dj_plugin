@@ -552,6 +552,28 @@ A bővítmény három független szálon/környezetben dolgozik:
 - **Csatornánkénti Visual EQ / RGB & Filter Ki/Bekapcsoló (`[ 🎨 VIZ EQ ]`):**
   - Dedikált kapcsológomb a deck csatornákon: bekapcsolva a HI/MID/LOW és FILTER potméterek színezik a videót (RGB tint és szaturáció), kikapcsolva pedig kizárólag a hangszíneket módosítják, a videó érintetlen, természetes marad.
 
+### 30. Lejátszás Alatti Számbetöltés Védelem & 12 Professzionális VJ Crossfader Shader Effekt (Build #221) *(KÉSZ)*
+- **Lejátszás Alatti Számbetöltés Szigorú Tiltása (Playback Load Protection):**
+  - Ha a Deck éppen játszik (`isPlaying()`), a rendszer meggátolja a véletlen számráhúzást vagy betöltést:
+    * `DeckWindow` fájlmegnyitás (`[ 📂 ]`) és Drag & Drop behúzás figyelmeztető ablakkal leállítva: *"A(z) Deck éppen lejátszás alatt áll! Új szám betöltéséhez előbb állítsd meg a lejátszást (PAUSE / STOP)."*
+    * `TracklistDock` `[ LOAD A ]`, `[ LOAD B ]`, duplaklikk és konverzió végi betöltés lekezelve.
+    * `DeckPlayer::loadFile` belső mag védve: játszó deckre semmilyen forrásból nem lehet számot rátölteni.
+- **12 Professzionális VJ Crossfader Shader Effekt (XFADE FX Suite):**
+  - Bevezetve az `anim_time` GPU időalap a valós idejű szinuszhullám és zaj animációkhoz.
+  - A 12 választható Master Crossfader effekt:
+    1. **Spirális Örvény (Swirl / Vortex):** A kép középpontja körül a sugár és az intenzitás függvényében ellentétes irányban pörgő örvény.
+    2. **Halszem Optika (Fisheye Lens):** Hordótorzítás a középpont felé.
+    3. **RGB Split (Chromatic Aberration):** UV eltolás a piros és kék csatornákon ellentétes irányba, középen szétcsúszó 3D sztereoszkópikus színfázissal.
+    4. **Radial / Zoom Blur (Suhanó nagyítás):** 7-tap súlyozott mintavételezés a középpont felé húzó mozgási elmosással, elfedve a két klip vágását.
+    5. **Pixelesedés (Pixelate / Mosaic):** A felbontás durva raszterre (16x9 blokk) osztása a csúszka közepén, majd visszatisztulás az új videóra.
+    6. **Luma Dissolve (Fényerő áttűnés):** A képek fényerejének (luminance) összehasonlítása a crossfader progresszív értékével; fénylő égő kontúrokkal olvasztja át az A videót a B videóba.
+    7. **Folyadék Hullámzás (Liquid Ripple Warp):** Koncentrikus szinuszhullám indul a képernyő közepéből vízcsepp-szerű lencsetorzítással.
+    8. **Kaleidoszkóp (Mirror Fold):** 4-irányú tükrözés és 90 fokos szögelforgatás pszichedelikus VJ geometriával.
+    9. **Glitch Displacement (Zajelcsúszás):** Vízszintes scanline és sávcsúsztatás véletlenszerű digitális puffer-hibákkal.
+    10. **CRT / VHS Scanline (Analóg TV & Csík):** Analóg katódsugárcsöves görbület, vízszintes scanlines, és a középpontban fehéren felvillanó vízszintes elektronnyaláb.
+    11. **Pop-Art Halftone (Képregény Pontrács):** Fényerő alapján méretezett raszterpontok és poszterizált pop-art színek.
+    12. **Neon Kontúr (Sobel Edge Glow):** Élkereső szűrő (Laplacian / Sobel), a kitöltő színek eltüntetésével; középen a két videó egymásba fonódó neon cián és magenta drótváza világít.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

@@ -114,6 +114,13 @@ void DeckPlayer::loadFile(const QString &path)
     if (!source_ || path.isEmpty())
         return;
 
+    // Ha a deck éppen lejátszás alatt áll, szigorúan tilos új számot rátölteni (Stop/Pause szükséges)
+    if (isPlaying()) {
+        blog(LOG_WARNING, "[obs-vj-deck] Deck '%s' is currently playing! Playback must be stopped before loading a new track.",
+             deck_id_.toUtf8().constData());
+        return;
+    }
+
     setFilePath(path);
     setFileName(QFileInfo(path).fileName());
 
