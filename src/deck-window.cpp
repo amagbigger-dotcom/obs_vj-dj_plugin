@@ -115,34 +115,34 @@ void DeckWindow::setupUi()
     top_bar->addWidget(file_lbl_, 1);
 
     // Kompakt és precíz időkód kijelző (Elapsed and Remaining Timecode Display)
-    auto *time_container = new QFrame(this);
-    time_container->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    time_container->setStyleSheet(QStringLiteral(
+    time_container_ = new QFrame(this);
+    time_container_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    time_container_->setStyleSheet(QStringLiteral(
         "QFrame { background: #0c1017; border: 1px solid #1e2838; border-radius: 4px; }"
     ));
-    auto *time_layout = new QHBoxLayout(time_container);
+    auto *time_layout = new QHBoxLayout(time_container_);
     time_layout->setContentsMargins(5, 2, 5, 2);
     time_layout->setSpacing(4);
 
-    auto *el_title = new QLabel(QStringLiteral("TIME"), time_container);
+    auto *el_title = new QLabel(QStringLiteral("TIME"), time_container_);
     el_title->setStyleSheet(QStringLiteral("font-size: 8px; font-weight: bold; color: #586884;"));
     time_layout->addWidget(el_title);
 
-    elapsed_lbl_ = new QLabel(QStringLiteral("00:00.00"), time_container);
+    elapsed_lbl_ = new QLabel(QStringLiteral("00:00.00"), time_container_);
     elapsed_lbl_->setMinimumWidth(58);
     elapsed_lbl_->setStyleSheet(QStringLiteral("font-family: 'Consolas', monospace; font-size: 12px; font-weight: bold; color: #00ffaa;"));
     time_layout->addWidget(elapsed_lbl_);
 
-    auto *rem_title = new QLabel(QStringLiteral("REMAIN"), time_container);
+    auto *rem_title = new QLabel(QStringLiteral("REMAIN"), time_container_);
     rem_title->setStyleSheet(QStringLiteral("font-size: 8px; font-weight: bold; color: #586884; margin-left: 2px;"));
     time_layout->addWidget(rem_title);
 
-    remaining_lbl_ = new QLabel(QStringLiteral("-00:00.00"), time_container);
+    remaining_lbl_ = new QLabel(QStringLiteral("-00:00.00"), time_container_);
     remaining_lbl_->setMinimumWidth(64);
     remaining_lbl_->setStyleSheet(QStringLiteral("font-family: 'Consolas', monospace; font-size: 12px; font-weight: bold; color: #ffaa00;"));
     time_layout->addWidget(remaining_lbl_);
 
-    top_bar->addWidget(time_container, 0);
+    top_bar->addWidget(time_container_, 0);
 
     // Közvetlen kézi BPM beviteli mező (In-Place Direct BPM Input, Enter commits)
     auto *bpm_box = new QHBoxLayout();
@@ -622,6 +622,82 @@ void DeckWindow::updateDeckButtonStates()
 {
     const bool is_a = (!deck_ || deck_->side() == DeckPlayer::DeckSide::A);
     setWindowTitle(is_a ? QStringLiteral("OBS VJ Deck A") : QStringLiteral("OBS VJ Deck B"));
+    applyTheme(is_a);
+}
+
+void DeckWindow::applyTheme(bool is_a)
+{
+    if (is_a) {
+        // =====================================================================
+        // DECK A: KÉK ALAPSZÍN (CYAN / ELECTRIC BLUE THEME)
+        // =====================================================================
+        setStyleSheet(QStringLiteral(
+            "QDialog { background-color: #0b1420; color: #e0e4ec; font-family: 'Segoe UI', Arial, sans-serif; border: 1px solid #143554; }"
+            "QLabel { color: #cfd6e4; font-size: 11px; }"
+            "QPushButton { background: #101e30; border: 1px solid #1c3756; border-radius: 4px; color: #ffffff; padding: 4px 10px; font-weight: bold; font-size: 11px; }"
+            "QPushButton:hover { background: #192f4c; border-color: #00d2ff; }"
+            "QPushButton:pressed { background: #0b1522; }"
+            "QSlider::groove:horizontal { height: 6px; background: #08101a; border: 1px solid #152c42; border-radius: 3px; }"
+            "QSlider::handle:horizontal { background: #00d2ff; width: 18px; margin: -5px 0; border-radius: 3px; border: 1px solid #ffffff; }"
+            "QSlider::handle:horizontal:hover { background: #38e0ff; }"
+        ));
+        if (open_btn_) {
+            open_btn_->setStyleSheet(QStringLiteral("background: #006699; border: 1px solid #00aaff; color: #ffffff; font-size: 12px; padding: 0px; font-weight: bold; border-radius: 3px;"));
+        }
+        if (file_lbl_) {
+            file_lbl_->setStyleSheet(QStringLiteral("font-size: 11px; font-weight: bold; color: #00d2ff; padding-left: 2px;"));
+        }
+        if (bpm_edit_) {
+            bpm_edit_->setStyleSheet(QStringLiteral(
+                "QLineEdit { background: #070e17; color: #00d2ff; font-family: 'Consolas', monospace; font-size: 12px; font-weight: bold; border: 1px solid #183552; border-radius: 3px; padding: 2px 2px; }"
+                "QLineEdit:focus { border: 1px solid #00d2ff; background: #0c1826; color: #ffffff; }"
+            ));
+        }
+        if (time_container_) {
+            time_container_->setStyleSheet(QStringLiteral("QFrame { background: #060d16; border: 1px solid #14283d; border-radius: 4px; }"));
+        }
+        if (pitch_slider_) {
+            pitch_slider_->setStyleSheet(QStringLiteral(
+                "QSlider::groove:horizontal { height: 6px; background: #08101a; border: 1px solid #152c42; border-radius: 3px; } "
+                "QSlider::handle:horizontal { background: #00d2ff; width: 18px; margin: -5px 0; border-radius: 3px; border: 1px solid #ffffff; } "
+                "QSlider::handle:horizontal:hover { background: #38e0ff; }"));
+        }
+    } else {
+        // =====================================================================
+        // DECK B: NARANCSSÁRGA ALAPSZÍN (WARM AMBER / ORANGE THEME)
+        // =====================================================================
+        setStyleSheet(QStringLiteral(
+            "QDialog { background-color: #1c1108; color: #ece4e0; font-family: 'Segoe UI', Arial, sans-serif; border: 1px solid #542d14; }"
+            "QLabel { color: #e4d6cf; font-size: 11px; }"
+            "QPushButton { background: #2c1a0c; border: 1px solid #4f2e15; border-radius: 4px; color: #ffffff; padding: 4px 10px; font-weight: bold; font-size: 11px; }"
+            "QPushButton:hover { background: #442813; border-color: #ff8800; }"
+            "QPushButton:pressed { background: #1c1108; }"
+            "QSlider::groove:horizontal { height: 6px; background: #140b05; border: 1px solid #3b200e; border-radius: 3px; }"
+            "QSlider::handle:horizontal { background: #ff8800; width: 18px; margin: -5px 0; border-radius: 3px; border: 1px solid #ffffff; }"
+            "QSlider::handle:horizontal:hover { background: #ffa538; }"
+        ));
+        if (open_btn_) {
+            open_btn_->setStyleSheet(QStringLiteral("background: #cc5500; border: 1px solid #ff8800; color: #ffffff; font-size: 12px; padding: 0px; font-weight: bold; border-radius: 3px;"));
+        }
+        if (file_lbl_) {
+            file_lbl_->setStyleSheet(QStringLiteral("font-size: 11px; font-weight: bold; color: #ff8800; padding-left: 2px;"));
+        }
+        if (bpm_edit_) {
+            bpm_edit_->setStyleSheet(QStringLiteral(
+                "QLineEdit { background: #140b05; color: #ff8800; font-family: 'Consolas', monospace; font-size: 12px; font-weight: bold; border: 1px solid #522b12; border-radius: 3px; padding: 2px 2px; }"
+                "QLineEdit:focus { border: 1px solid #ff8800; background: #26150a; color: #ffffff; }"
+            ));
+        }
+        if (time_container_) {
+            time_container_->setStyleSheet(QStringLiteral("QFrame { background: #140a04; border: 1px solid #3d2312; border-radius: 4px; }"));
+        }
+        if (pitch_slider_) {
+            pitch_slider_->setStyleSheet(QStringLiteral(
+                "QSlider::groove:horizontal { height: 6px; background: #140b05; border: 1px solid #3b200e; border-radius: 3px; } "
+                "QSlider::handle:horizontal { background: #ff8800; width: 18px; margin: -5px 0; border-radius: 3px; border: 1px solid #ffffff; } "
+                "QSlider::handle:horizontal:hover { background: #ffa538; }"));
+        }
+    }
 }
 
 void DeckWindow::fitTo1080p()

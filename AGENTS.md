@@ -574,6 +574,20 @@ A bővítmény három független szálon/környezetben dolgozik:
     11. **Pop-Art Halftone (Képregény Pontrács):** Fényerő alapján méretezett raszterpontok és poszterizált pop-art színek.
     12. **Neon Kontúr (Sobel Edge Glow):** Élkereső szűrő (Laplacian / Sobel), a kitöltő színek eltüntetésével; középen a két videó egymásba fonódó neon cián és magenta drótváza világít.
 
+### 31. Munkamenet-alapú Lejátszási Pipa (Új Szett Kezdés) & Deck-Színű Felületek (Deck A Kék, Deck B Narancs) (Build #222) *(KÉSZ)*
+- **Munkamenet-alapú Tracklist Zöld Pipák & Új Szett Kezdés:**
+  - A Tracklist első oszlopában megjelenő zöld pipák (`played = true`) kizárólag az aktuális OBS munkamenet / DJ szett alatt maradnak meg.
+  - Az OBS bezárásakor és újraindításakor (`loadLibraryJson`), valamint lemezre mentéskor (`saveLibraryJson`) a státusz automatikusan alaphelyzetbe áll (`played = false`), így minden új alkalommal 100%-ban tiszta, átlátható listával indulhat a keverés.
+  - Új `[ ↺ ÚJ SZETT ]` gomb a Tracklist fejlécében és a jobb egérgombos menüben (`↺ Lejátszott jelölések törlése`), amellyel az OBS újraindítása nélkül is bármikor lenullázhatók a lejátszási pipák egy új szett megkezdésekor.
+- **Deck-Színű Felületek és Oldalpanelek (Deck A Kék, Deck B Narancssárga):**
+  - **OBS VJ Deck Ablakok:**
+    * **Deck A:** Mély kék alapszín (`#0b1420`), kék keret (`#143554`), ciánkék fejléc és BPM mező (`#00d2ff`), sötétkék timebox és kék fader csúszka.
+    * **Deck B:** Mély meleg borostyán/narancs alapszín (`#1c1108`), narancs keret (`#542d14`), élénk narancs fejléc és BPM mező (`#ff8800`), meleg sötétbarna timebox és narancs fader csúszka.
+  - **OBS VJ Mixer Keverőfelület:**
+    * **Bal oldali Deck A csatornapanel:** Gazdag sötétkék háttér (`#0c1522`), kék sávkeret (`#143554`), ciánkék címsor és fader potik (`#00d2ff`), kék gradiens kivezérlésmérő és navy VOL FX mező.
+    * **Jobb oldali Deck B csatornapanel:** Meleg sötét narancsbarna háttér (`#201208`), borostyán sávkeret (`#542d14`), narancs címsor és fader potik (`#ff7700`), narancs gradiens kivezérlésmérő és meleg barna VOL FX mező.
+    * **Középső Master panel:** Letisztult semleges grafitmetál (`#13171e`), így a két oldal vizuálisan élesen és azonnal elkülönül egymástól, még széthúzott ablakok esetén sem keverhető össze a két oldal.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

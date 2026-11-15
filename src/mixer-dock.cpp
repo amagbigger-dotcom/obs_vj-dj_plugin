@@ -233,10 +233,15 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
 {
     const QString title = is_deck_a ? QStringLiteral("◄ DECK A") : QStringLiteral("DECK B ►");
     auto *panel = new QGroupBox(title, this);
-    panel->setStyleSheet(QStringLiteral(
-        "QGroupBox { background: #151a22; border: 1px solid #232b38; border-radius: 4px; padding: 4px; } "
-        "QGroupBox::title { color: %1; font-weight: bold; font-size: 10px; }")
-        .arg(is_deck_a ? QStringLiteral("#00d2ff") : QStringLiteral("#ff7700")));
+    if (is_deck_a) {
+        panel->setStyleSheet(QStringLiteral(
+            "QGroupBox { background: #0c1522; border: 1px solid #143554; border-radius: 4px; padding: 4px; } "
+            "QGroupBox::title { color: #00d2ff; font-weight: bold; font-size: 10px; }"));
+    } else {
+        panel->setStyleSheet(QStringLiteral(
+            "QGroupBox { background: #201208; border: 1px solid #542d14; border-radius: 4px; padding: 4px; } "
+            "QGroupBox::title { color: #ff7700; font-weight: bold; font-size: 10px; }"));
+    }
 
     auto *layout = new QVBoxLayout(panel);
     layout->setContentsMargins(4, 2, 4, 2);
@@ -244,9 +249,9 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
 
     DeckPlayer *deck = is_deck_a ? vj_deck_a() : vj_deck_b();
 
-    auto addSliderRow = [panel, layout](const QString &name, const QString &color,
-                                        DJSlider **out_sl, QLabel **out_val_lbl,
-                                        int def_val, auto setter, auto formatter) {
+    auto addSliderRow = [panel, layout, is_deck_a](const QString &name, const QString &color,
+                                                   DJSlider **out_sl, QLabel **out_val_lbl,
+                                                   int def_val, auto setter, auto formatter) {
         auto *row = new QHBoxLayout();
         row->setSpacing(4);
         row->setContentsMargins(0, 1, 0, 1);
@@ -259,12 +264,24 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
         sl->setRange(-100, 100);
         sl->setValue(def_val);
         sl->setFixedHeight(18);
+        if (is_deck_a) {
+            sl->setStyleSheet(QStringLiteral(
+                "QSlider::groove:horizontal { height: 4px; background: #08101a; border: 1px solid #152c42; border-radius: 2px; } "
+                "QSlider::handle:horizontal { background: #00aacc; width: 12px; margin: -4px 0; border-radius: 2px; border: 1px solid #ffffff; } "
+                "QSlider::handle:horizontal:hover { background: #00d2ff; }"));
+        } else {
+            sl->setStyleSheet(QStringLiteral(
+                "QSlider::groove:horizontal { height: 4px; background: #1a0c05; border: 1px solid #42220f; border-radius: 2px; } "
+                "QSlider::handle:horizontal { background: #e06600; width: 12px; margin: -4px 0; border-radius: 2px; border: 1px solid #ffffff; } "
+                "QSlider::handle:horizontal:hover { background: #ff7700; }"));
+        }
         *out_sl = sl;
 
         auto *val_lbl = new QLabel(formatter(def_val), panel);
         val_lbl->setFixedWidth(42);
         val_lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        val_lbl->setStyleSheet(QStringLiteral("font-size: 8px; font-family: monospace; color: #8da0b8;"));
+        val_lbl->setStyleSheet(QStringLiteral("font-size: 8px; font-family: monospace; color: %1;")
+            .arg(is_deck_a ? QStringLiteral("#7eb5e6") : QStringLiteral("#e6a87e")));
         *out_val_lbl = val_lbl;
 
         row->addWidget(lbl);
@@ -367,6 +384,17 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
     vol_slider->setValue(80);
     vol_slider->setFixedHeight(62);
     vol_slider->setToolTip(QStringLiteral("Channel Volume Fader (Default: 80% Unity Line Level)"));
+    if (is_deck_a) {
+        vol_slider->setStyleSheet(QStringLiteral(
+            "QSlider::groove:vertical { width: 6px; background: #08101a; border: 1px solid #152c42; border-radius: 3px; } "
+            "QSlider::handle:vertical { background: #00d2ff; height: 16px; margin: 0 -5px; border-radius: 3px; border: 1px solid #ffffff; } "
+            "QSlider::handle:vertical:hover { background: #38e0ff; }"));
+    } else {
+        vol_slider->setStyleSheet(QStringLiteral(
+            "QSlider::groove:vertical { width: 6px; background: #1a0c05; border: 1px solid #42220f; border-radius: 3px; } "
+            "QSlider::handle:vertical { background: #ff7700; height: 16px; margin: 0 -5px; border-radius: 3px; border: 1px solid #ffffff; } "
+            "QSlider::handle:vertical:hover { background: #ffa038; }"));
+    }
 
     auto *meter = new QProgressBar(panel);
     meter->setOrientation(Qt::Vertical);
@@ -375,11 +403,21 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
     meter->setFixedWidth(7);
     meter->setFixedHeight(62);
     meter->setTextVisible(false);
+    if (is_deck_a) {
+        meter->setStyleSheet(QStringLiteral(
+            "QProgressBar { background: #08101a; border: 1px solid #152c42; border-radius: 2px; } "
+            "QProgressBar::chunk { background: qlineargradient(x1:0, y1:1, x2:0, y2:0, stop:0 #005588, stop:0.8 #00d2ff, stop:1 #ffffff); border-radius: 1px; }"));
+    } else {
+        meter->setStyleSheet(QStringLiteral(
+            "QProgressBar { background: #1a0c05; border: 1px solid #42220f; border-radius: 2px; } "
+            "QProgressBar::chunk { background: qlineargradient(x1:0, y1:1, x2:0, y2:0, stop:0 #883300, stop:0.8 #ff7700, stop:1 #ffffff); border-radius: 1px; }"));
+    }
 
     auto *vol_lbl = new QLabel(QStringLiteral("80%"), panel);
     vol_lbl->setFixedWidth(34);
     vol_lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    vol_lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: #8da0b8;"));
+    vol_lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: %1;")
+        .arg(is_deck_a ? QStringLiteral("#7eb5e6") : QStringLiteral("#e6a87e")));
 
     if (is_deck_a) {
         vol_a_ = vol_slider;
@@ -410,10 +448,17 @@ QWidget *MixerWindow::buildChannelStrip(bool is_deck_a)
     // 4. Volume FX Dropdown
     auto *vol_fx_combo = new QComboBox(panel);
     vol_fx_combo->setFixedHeight(20);
-    vol_fx_combo->setStyleSheet(QStringLiteral(
-        "QComboBox { background: #12161f; color: #8da0b8; border: 1px solid #242d3d; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 3px; } "
-        "QComboBox::drop-down { border: none; } "
-        "QComboBox QAbstractItemView { background: #181d26; color: #fff; selection-background-color: #005588; }"));
+    if (is_deck_a) {
+        vol_fx_combo->setStyleSheet(QStringLiteral(
+            "QComboBox { background: #09131e; color: #7eb5e6; border: 1px solid #173450; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 3px; } "
+            "QComboBox::drop-down { border: none; } "
+            "QComboBox QAbstractItemView { background: #0c1826; color: #fff; selection-background-color: #005588; }"));
+    } else {
+        vol_fx_combo->setStyleSheet(QStringLiteral(
+            "QComboBox { background: #1e0f07; color: #e6a87e; border: 1px solid #502b13; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 3px; } "
+            "QComboBox::drop-down { border: none; } "
+            "QComboBox QAbstractItemView { background: #26150a; color: #fff; selection-background-color: #884400; }"));
+    }
     vol_fx_combo->addItem(QStringLiteral("VOL FX: Ki"), 0);
     vol_fx_combo->addItem(QStringLiteral("VOL FX: Sötétedés"), 1);
     vol_fx_combo->addItem(QStringLiteral("VOL FX: Kiégés"), 2);

@@ -210,6 +210,17 @@ void TracklistDock::setupUi()
     connect(reconv_btn_, &QPushButton::clicked, this, &TracklistDock::onReconvertButtonClicked);
     top_bar->addWidget(reconv_btn_);
 
+    auto *new_set_btn = new QPushButton(QStringLiteral("↺ ÚJ SZETT"), this);
+    new_set_btn->setStyleSheet(QStringLiteral("background: #1c2635; border: 1px solid #334863; color: #8da0b8; padding: 5px 10px; font-size: 11px; font-weight: bold;"));
+    new_set_btn->setToolTip(QStringLiteral("Lejátszott (zöld pipa) jelölések törlése új szett indításához"));
+    connect(new_set_btn, &QPushButton::clicked, this, [this]() {
+        for (auto &it : tracks_) {
+            it.played = false;
+        }
+        updateTable();
+    });
+    top_bar->addWidget(new_set_btn);
+
     main_layout->addLayout(top_bar);
 
     // Status bar & Progress
@@ -385,6 +396,7 @@ void TracklistDock::onCustomContextMenuRequested(const QPoint &pos)
     }
     menu.addSeparator();
     auto *act_del = menu.addAction(QStringLiteral("🗑 Törlés a listából"));
+    auto *act_reset_played = menu.addAction(QStringLiteral("↺ Lejátszott jelölések törlése (Új szett)"));
 
     QAction *selected = menu.exec(table_->viewport()->mapToGlobal(pos));
     if (selected == act_a) {
@@ -409,6 +421,11 @@ void TracklistDock::onCustomContextMenuRequested(const QPoint &pos)
         cancelActiveConversion();
     } else if (selected == act_del) {
         deleteSelectedTrack();
+    } else if (selected == act_reset_played) {
+        for (auto &it : tracks_) {
+            it.played = false;
+        }
+        updateTable();
     }
 }
 
@@ -870,7 +887,7 @@ void TracklistDock::saveLibraryJson()
         obj[QStringLiteral("bpm")] = item.bpm;
         obj[QStringLiteral("duration_ms")] = static_cast<qint64>(item.duration_ms);
         obj[QStringLiteral("is_converted")] = item.is_converted;
-        obj[QStringLiteral("played")] = item.played;
+        obj[QStringLiteral("played")] = false; // A zöld pipa munkamenet-alapú: lemezre soha nem perzisztálunk korábbi lejátszást
         obj[QStringLiteral("status")] = item.status;
         arr.append(obj);
     }
@@ -902,7 +919,7 @@ void TracklistDock::loadLibraryJson()
                 item.bpm = obj[QStringLiteral("bpm")].toDouble(128.0);
                 item.duration_ms = obj[QStringLiteral("duration_ms")].toInteger();
                 item.is_converted = obj[QStringLiteral("is_converted")].toBool();
-                item.played = obj[QStringLiteral("played")].toBool();
+                item.played = false; // OBS újraindításkor mindig tiszta szettel indulunk!
                 QString st = obj[QStringLiteral("status")].toString(QStringLiteral("Ready"));
                 // Reset any stuck conversion status from previous crash/restart
                 if (st.startsWith(QStringLiteral("Conv")) || st == QStringLiteral("Várakozik...")) {

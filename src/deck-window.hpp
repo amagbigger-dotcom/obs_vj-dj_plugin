@@ -37,6 +37,7 @@ private:
     void setupUi();
     void openFileDialog();
     void updateDeckButtonStates();
+    void applyTheme(bool is_a);
 
     DeckPlayer *deck_ = nullptr;
     QTimer *refresh_timer_ = nullptr;
@@ -48,6 +49,7 @@ private:
     QPushButton *tracklist_btn_ = nullptr;
 
     QLabel *file_lbl_ = nullptr;
+    QFrame *time_container_ = nullptr;
     QLabel *elapsed_lbl_ = nullptr;
     QLabel *remaining_lbl_ = nullptr;
     QLineEdit *bpm_edit_ = nullptr;
