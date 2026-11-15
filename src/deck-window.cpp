@@ -650,7 +650,7 @@ void DeckWindow::openFileDialog()
     if (deck_ && deck_->isPlaying()) {
         QMessageBox::warning(this, QStringLiteral("Deck lejátszás alatt"),
             QStringLiteral("A(z) %1 éppen lejátszás alatt áll!\n\nÚj szám betöltéséhez előbb állítsd meg a lejátszást (PAUSE / STOP).")
-                .arg(deck_->deckId()));
+                .arg(deck_->deckName()));
         return;
     }
 
@@ -857,7 +857,7 @@ void DeckWindow::dropEvent(QDropEvent *event)
     if (deck_ && deck_->isPlaying()) {
         QMessageBox::warning(this, QStringLiteral("Deck lejátszás alatt"),
             QStringLiteral("A(z) %1 éppen lejátszás alatt áll!\n\nFájl behúzásához előbb állítsd meg a lejátszást (PAUSE / STOP).")
-                .arg(deck_->deckId()));
+                .arg(deck_->deckName()));
         event->ignore();
         return;
     }

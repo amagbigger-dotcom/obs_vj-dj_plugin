@@ -132,6 +132,8 @@ public:
     enum class DeckSide { A, B };
     void setSide(DeckSide side) noexcept { side_.store(side, std::memory_order_relaxed); }
     DeckSide side() const noexcept { return side_.load(std::memory_order_relaxed); }
+    const char *deckId() const noexcept { return side() == DeckSide::B ? "Deck B" : "Deck A"; }
+    QString deckName() const { return QString::fromUtf8(deckId()); }
 
     bool isMaster() const noexcept { return is_master_.load(std::memory_order_relaxed); }
     void setMaster(bool m) noexcept { is_master_.store(m, std::memory_order_relaxed); }

@@ -124,7 +124,7 @@ TracklistDock::TracklistDock(QWidget *parent)
                     DeckPlayer *target = (deck_target == 1) ? vj_deck_b() : vj_deck_a();
                     if (target && target->isPlaying()) {
                         blog(LOG_INFO, "[obs_vj_tracklist] Target deck %s is currently playing; newly converted track marked Ready without disrupting playback",
-                             target->deckId().toUtf8().constData());
+                             target->deckId());
                     } else {
                         loadTrackToDeck(active_conversion_idx_, deck_target);
                     }
@@ -812,7 +812,7 @@ void TracklistDock::loadTrackToDeck(int track_index, int deck_channel)
         if (target_deck->isPlaying()) {
             QMessageBox::warning(this, QStringLiteral("Deck lejátszás alatt"),
                 QStringLiteral("A(z) %1 éppen lejátszás alatt áll!\n\nÚj szám betöltéséhez előbb állítsd meg a lejátszást (PAUSE / STOP).")
-                    .arg(target_deck->deckId()));
+                    .arg(target_deck->deckName()));
             return;
         }
 
