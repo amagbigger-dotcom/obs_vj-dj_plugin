@@ -83,4 +83,8 @@ private:
 
     // Tap tempo helpers
     std::vector<qint64> tap_times_;
+
+    // Loop state caching to avoid redundant style recalculation / jitter
+    bool last_looping_ = false;
+    int last_loop_idx_ = -1;
 };

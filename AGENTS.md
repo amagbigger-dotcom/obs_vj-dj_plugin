@@ -460,6 +460,18 @@ A bővítmény három független szálon/környezetben dolgozik:
   - A `master.enum_active_sources` biztosítja a privát `Deck A` és `Deck B` belső dekóder források folyamatos képkocka-dekódolását és szinkronizációját.
   - A `render_to_texture` megkapta a `gs_texrender_reset(target)` hívást és a felesleges belső `gs_ortho` eltávolítását a hibátlan Direct3D és OpenGL textúragenerálásért.
 
+### 24. Deck és Mixer Ablakméretezés Fixálása (640x340 és 590x340 px), Master Clock BPM Beviteli és Szinkron Javítás (Build #215) *(KÉSZ)*
+- **DeckWindow és MixerWindow Merev Méretfixálás & Jitter Megszüntetése:**
+  - `QLayout::SetFixedSize` lecserélve `QLayout::SetNoConstraint`-re mindkét ablakban (`DeckWindow`, `MixerWindow`), így a Qt belső layout motorja sosem növeli túl az ablakok méretét az explicit `setFixedSize(640, 340)` és `setFixedSize(590, 340)` beállításokon túl.
+  - A `move_bar` (Beatgrid és Move sáv) gombjai és címkéi ultra-kompakt méretezést kaptak: `GRID:` címke, `[−10]` (36x22), `[−1]` (28x22), `[SET 1]` (48x22), `[+1]` (28x22), `[+10]` (36x22), fix 52 px offset kijelző, kompakt Zoom vezérlők és `[TAP]` (38x22), így a sáv mérete 774 px-ről ~430 px-re csökkent, garantálva, hogy a Deck ablak mindig pontosan 640 px széles marad.
+  - Az Auto-Loop mátrix és Jog Nudge sor gombjai kompakt méretűek lettek (`36x22` és `58x22`), a loop gombok stílusfrissítése (`onRefresh`) pedig állapotváltozás-védelemmel (`last_looping_`, `last_loop_idx_`) van ellátva, megszüntetve a loopoláskor tapasztalt ablak-méretugrást és ugrálást.
+  - A 3 ablak matematikailag tökéletesen, 12-13 px szimmetrikus margókkal és résekkel ($12 + 640 + 13 + 590 + 13 + 640 + 12 = 1920\text{ px}$) illeszkedik a képernyő alsó 1/3-ába.
+- **Mixer Master Clock BPM Kézi Beírás és Szinkron Helyreállítása:**
+  - A `master_clock_bpm_edit_` mező megkapta mind a `returnPressed`, mind az `editingFinished` eseménykezelőt, valamint a `MixerWindow::keyPressEvent` Enter/Return lekezelését, amely azonnal beállítja a `MasterClock` módot (`MASTER_CLOCK`), érvényesíti a beírt tempót és lefutatja a `decks_->updateSync()` szinkronizálást.
+  - A `DeckPair::effectiveMasterBpm()` javítva: ha a `master_mode_ == MASTER_CLOCK`, szigorúan a `master_clock_bpm_` értékét adja vissza, még akkor is, ha egy deck éppen játszik, így a mixer 50 ms-os frissítési hurka nem írja felül a kézzel megadott tempót az éppen játszó deck tempójával.
+  - A `setMasterMode(MASTER_CLOCK)` mostantól csak akkor veszi át a deck sebességét, ha előtte deck master volt érvényben, így nem írja felül a kézzel beírt BPM-et.
+  - A `DeckPair::updateSync()` és `DeckPlayer::setMaster()` metódusok javítva: ha a Master Clock a kijelölt master, minden bekapcsolt `SYNC` gombú deck azonnal és simán átveszi a Master Clock BPM-jét.
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

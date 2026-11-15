@@ -49,6 +49,7 @@ public:
 
 protected:
     void showEvent(QShowEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
 
 private:
     QWidget *buildChannelStrip(bool is_deck_a);

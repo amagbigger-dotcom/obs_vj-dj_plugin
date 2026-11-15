@@ -17,6 +17,7 @@
 #include <QSignalBlocker>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QKeyEvent>
 #include <algorithm>
 #include <cmath>
 
@@ -164,6 +165,7 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
     auto *main_layout = new QVBoxLayout(this);
     main_layout->setContentsMargins(4, 3, 4, 3);
     main_layout->setSpacing(3);
+    main_layout->setSizeConstraint(QLayout::SetNoConstraint);
 
     // 1. 3-Column DJ Mixer Area: Channel A | Center Master | Channel B
     auto *mixer_row = new QHBoxLayout();
@@ -439,15 +441,22 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     master_clock_bpm_edit_->setToolTip(QStringLiteral("Master Clock BPM. Írd be és nyomj Entert!"));
     clock_row2->addWidget(master_clock_bpm_edit_, 1);
 
-    connect(master_clock_bpm_edit_, &QLineEdit::returnPressed, this, [this]() {
+    auto commit_master_bpm = [this]() {
         if (!decks_ || !master_clock_bpm_edit_) return;
         bool ok = false;
         const double val = master_clock_bpm_edit_->text().toDouble(&ok);
         if (ok && val >= 30.0 && val <= 300.0) {
             decks_->setMasterClockBpm(val);
+            decks_->updateSync();
+            if (master_clock_btn_) master_clock_btn_->setChecked(true);
         }
+    };
+
+    connect(master_clock_bpm_edit_, &QLineEdit::returnPressed, this, [this, commit_master_bpm]() {
+        commit_master_bpm();
         master_clock_bpm_edit_->clearFocus();
     });
+    connect(master_clock_bpm_edit_, &QLineEdit::editingFinished, this, commit_master_bpm);
 
     master_clock_plus_btn_ = new QPushButton(QStringLiteral("+"), clock_box);
     master_clock_plus_btn_->setFixedSize(22, 22);
@@ -468,12 +477,14 @@ QWidget *MixerWindow::buildCenterMasterPanel()
             const double cur_tempo = decks_->effectiveMasterBpm();
             if (cur_tempo > 30.0) {
                 decks_->setMasterClockBpm(cur_tempo);
+            } else {
+                decks_->setMasterMode(DeckPair::MASTER_CLOCK);
             }
-            decks_->setMasterMode(DeckPair::MASTER_CLOCK);
             master_clock_btn_->setChecked(true);
         } else {
             decks_->setMasterMode(DeckPair::MASTER_CLOCK);
         }
+        decks_->updateSync();
     });
     connect(master_clock_ext_btn_, &QPushButton::clicked, this, [this]() {
         if (!decks_) return;
@@ -482,6 +493,7 @@ QWidget *MixerWindow::buildCenterMasterPanel()
         } else {
             decks_->setMasterMode(DeckPair::MASTER_EXT_MIDI);
         }
+        decks_->updateSync();
     });
     connect(master_clock_send_btn_, &QPushButton::clicked, this, [this]() {
         const bool send = !vdj_midi_is_clock_send();
@@ -489,10 +501,18 @@ QWidget *MixerWindow::buildCenterMasterPanel()
         master_clock_send_btn_->setChecked(send);
     });
     connect(master_clock_minus_btn_, &QPushButton::clicked, this, [this]() {
-        if (decks_) decks_->setMasterClockBpm(decks_->masterClockBpm() - 0.1);
+        if (decks_) {
+            decks_->setMasterClockBpm(decks_->masterClockBpm() - 0.1);
+            decks_->updateSync();
+            if (master_clock_btn_) master_clock_btn_->setChecked(true);
+        }
     });
     connect(master_clock_plus_btn_, &QPushButton::clicked, this, [this]() {
-        if (decks_) decks_->setMasterClockBpm(decks_->masterClockBpm() + 0.1);
+        if (decks_) {
+            decks_->setMasterClockBpm(decks_->masterClockBpm() + 0.1);
+            decks_->updateSync();
+            if (master_clock_btn_) master_clock_btn_->setChecked(true);
+        }
     });
     connect(master_clock_tap_btn_, &QPushButton::clicked, this, [this]() {
         const auto now = std::chrono::steady_clock::now();
@@ -510,6 +530,8 @@ QWidget *MixerWindow::buildCenterMasterPanel()
             if (avg_ms > 150.0) {
                 const double tap_bpm = 60000.0 / avg_ms;
                 decks_->setMasterClockBpm(tap_bpm);
+                decks_->updateSync();
+                if (master_clock_btn_) master_clock_btn_->setChecked(true);
             }
         }
     });
@@ -809,4 +831,30 @@ void MixerWindow::showEvent(QShowEvent *event)
         const int x_pos = geom.left() + 665;
         move(x_pos, y_pos);
     }
+}
+
+void MixerWindow::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
+        if (master_clock_bpm_edit_ && master_clock_bpm_edit_->hasFocus()) {
+            bool ok = false;
+            const double val = master_clock_bpm_edit_->text().toDouble(&ok);
+            if (ok && val >= 30.0 && val <= 300.0 && decks_) {
+                decks_->setMasterClockBpm(val);
+                decks_->updateSync();
+                if (master_clock_btn_) master_clock_btn_->setChecked(true);
+            }
+            master_clock_bpm_edit_->clearFocus();
+        }
+        event->accept();
+        return;
+    }
+    if (event->key() == Qt::Key_Escape) {
+        if (master_clock_bpm_edit_ && master_clock_bpm_edit_->hasFocus()) {
+            master_clock_bpm_edit_->clearFocus();
+            event->accept();
+            return;
+        }
+    }
+    QDialog::keyPressEvent(event);
 }

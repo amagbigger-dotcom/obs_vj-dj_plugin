@@ -1127,14 +1127,14 @@ float DeckPair::headphoneMix() const noexcept
 
 void DeckPair::setMasterMode(int mode) noexcept
 {
-    if (mode == MASTER_CLOCK) {
-        // Amikor a Master Clock veszi át a mester tempót, átveszi a jelenleg aktív tempót
-        // (nem ugrik 128 BPM-re, hanem megtartja a lemez valós zenei sebességét!)
+    const int old_mode = master_mode_.load(std::memory_order_relaxed);
+    if (mode == MASTER_CLOCK && old_mode != MASTER_CLOCK) {
+        // Amikor Deckről váltunk át Master Clockra, átvesszük az aktív tempót
         double cur_tempo = 0.0;
-        if (vj_deck_a() && vj_deck_a()->isPlaying()) cur_tempo = vj_deck_a()->effectiveBpm();
+        if (old_mode == MASTER_DECK_A && vj_deck_a()) cur_tempo = vj_deck_a()->effectiveBpm();
+        else if (old_mode == MASTER_DECK_B && vj_deck_b()) cur_tempo = vj_deck_b()->effectiveBpm();
+        else if (vj_deck_a() && vj_deck_a()->isPlaying()) cur_tempo = vj_deck_a()->effectiveBpm();
         else if (vj_deck_b() && vj_deck_b()->isPlaying()) cur_tempo = vj_deck_b()->effectiveBpm();
-        else if (vj_deck_a() && vj_deck_a()->bpm() > 10.0) cur_tempo = vj_deck_a()->effectiveBpm();
-        else if (vj_deck_b() && vj_deck_b()->bpm() > 10.0) cur_tempo = vj_deck_b()->effectiveBpm();
 
         if (cur_tempo > 30.0) {
             master_clock_bpm_.store(cur_tempo, std::memory_order_relaxed);
@@ -1161,7 +1161,11 @@ int DeckPair::masterMode() const noexcept
 
 void DeckPair::setMasterClockBpm(double bpm) noexcept
 {
-    master_clock_bpm_.store(std::clamp(bpm, 40.0, 300.0), std::memory_order_relaxed);
+    const double clamped = std::clamp(bpm, 40.0, 300.0);
+    master_clock_bpm_.store(clamped, std::memory_order_relaxed);
+    master_mode_.store(MASTER_CLOCK, std::memory_order_relaxed);
+    if (vj_deck_a()) vj_deck_a()->setMaster(false);
+    if (vj_deck_b()) vj_deck_b()->setMaster(false);
 }
 
 double DeckPair::masterClockBpm() const noexcept
@@ -1172,10 +1176,18 @@ double DeckPair::masterClockBpm() const noexcept
 double DeckPair::effectiveMasterBpm() const noexcept
 {
     const int mode = master_mode_.load(std::memory_order_relaxed);
-    if (mode == MASTER_DECK_A && vj_deck_a())
+    if (mode == MASTER_CLOCK) {
+        return master_clock_bpm_.load(std::memory_order_relaxed);
+    }
+    if (mode == MASTER_DECK_A && vj_deck_a()) {
         return vj_deck_a()->effectiveBpm();
-    if (mode == MASTER_DECK_B && vj_deck_b())
+    }
+    if (mode == MASTER_DECK_B && vj_deck_b()) {
         return vj_deck_b()->effectiveBpm();
+    }
+    if (mode == MASTER_EXT_MIDI) {
+        return master_clock_bpm_.load(std::memory_order_relaxed);
+    }
     // Ha nincs explicit master kijelölve, az éppen játszó deck tempóját követjük
     if (vj_deck_a() && vj_deck_a()->isPlaying())
         return vj_deck_a()->effectiveBpm();
@@ -1190,15 +1202,20 @@ void DeckPair::setSync(int deck_idx, bool sync_enabled)
     DeckPlayer *other  = (deck_idx == 0) ? vj_deck_b() : vj_deck_a();
     if (!target) return;
     target->setSync(sync_enabled);
-    if (sync_enabled && other) {
-        // Tempó átvétele a másik deckről vagy a master órajeltől
-        const double target_bpm = other->isPlaying()
-            ? other->effectiveBpm()
-            : (other->bpm() > 10.0 ? other->bpm() : effectiveMasterBpm());
+    if (sync_enabled) {
+        const int mode = master_mode_.load(std::memory_order_relaxed);
+        double target_bpm = effectiveMasterBpm();
+        if (mode == MASTER_CLOCK || mode == MASTER_EXT_MIDI) {
+            target_bpm = effectiveMasterBpm();
+        } else if (other && other->isPlaying()) {
+            target_bpm = other->effectiveBpm();
+        } else if (other && other->bpm() > 10.0) {
+            target_bpm = other->bpm();
+        }
         target->syncToBpm(target_bpm);
 
         // Ütemfázis azonnali összehangolása (Beat Phase Alignment)
-        if (other->isPlaying() || target->isPlaying()) {
+        if (other && (other->isPlaying() || target->isPlaying())) {
             target->syncPhaseTo(*other);
         }
     }
@@ -1235,13 +1252,30 @@ void DeckPair::updateSync()
     DeckPlayer *db = vj_deck_b();
     if (!da || !db) return;
 
+    const int mode = master_mode_.load(std::memory_order_relaxed);
+    const double master_bpm = effectiveMasterBpm();
+
     if (da->isSync() && !da->isMaster()) {
-        const double target_bpm = db->isPlaying() ? db->effectiveBpm() : effectiveMasterBpm();
+        double target_bpm = master_bpm;
+        if (mode == MASTER_DECK_B && db->isPlaying()) {
+            target_bpm = db->effectiveBpm();
+        } else if (mode == MASTER_CLOCK || mode == MASTER_EXT_MIDI) {
+            target_bpm = master_bpm;
+        } else if (db->isPlaying()) {
+            target_bpm = db->effectiveBpm();
+        }
         const double diff = std::abs(da->effectiveBpm() - target_bpm);
         if (diff > 0.05) da->syncToBpm(target_bpm);
     }
     if (db->isSync() && !db->isMaster()) {
-        const double target_bpm = da->isPlaying() ? da->effectiveBpm() : effectiveMasterBpm();
+        double target_bpm = master_bpm;
+        if (mode == MASTER_DECK_A && da->isPlaying()) {
+            target_bpm = da->effectiveBpm();
+        } else if (mode == MASTER_CLOCK || mode == MASTER_EXT_MIDI) {
+            target_bpm = master_bpm;
+        } else if (da->isPlaying()) {
+            target_bpm = da->effectiveBpm();
+        }
         const double diff = std::abs(db->effectiveBpm() - target_bpm);
         if (diff > 0.05) db->syncToBpm(target_bpm);
     }
