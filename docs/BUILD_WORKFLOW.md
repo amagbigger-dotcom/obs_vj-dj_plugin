@@ -66,3 +66,8 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
 * **Verzió & Commit:** `c5926b6`
 * **SHA256:** `373D728EDCE57B6E7BCEA0F0B0C309806A927CB19AC19A158D219E5EF220D802`
 * **Jellemzők:** A `sandraschi/mixxxxx` mintájára átrendezett 7 alrendszer (`engine/`, `audio/`, `video/`, `effects/`, `controllers/`, `waveform/`, `gui/`), `VjFxDialog` önálló modulba kiemelve, Precompiled Headers (PCH) bekapcsolva a gyors fordításért, modern include hierarchia.
+
+### Mérföldkő #4: Build #241 / GitHub Run #241 (Snap 0.10 BPM Léptetés & Tized Kerekítés)
+* **Verzió & Commit:** `0f92aa2`
+* **SHA256:** `25728F98A1A2238413E59471FBD9B7A9B82A13F2F8CC4180F971997D30425977`
+* **Jellemzők:** `playback_bpm_` nullázódás megszűntetve a sebességállítóban, intelligens snap tized-kerekítés és 0.10 BPM lépés a pitch fader melletti `[ − ]` és `[ + ]` gombokkal, azonnali GUI visszajelzés, auto-repeat tartás, Deck A/B témaszínek és 2 tizedesjegyű hullámforma kijelzés.
