@@ -725,17 +725,16 @@ void WaveformWidget::refreshWaveform()
         return;
 
     if (bpm_label_) {
-        const double base = deck_->bpm();
+        const double base = (deck_->bpm() > 10.0) ? deck_->bpm() : 128.0;
         const double eff = deck_->effectiveBpm();
-        const int spd = deck_->speed();
-        if (spd == 100) {
-            bpm_label_->setText(QStringLiteral("%1 BPM").arg(base, 0, 'f', 1));
+        if (std::abs(eff - base) < 0.005) {
+            bpm_label_->setText(QStringLiteral("%1 BPM").arg(base, 0, 'f', 2));
         } else {
-            const double diff = static_cast<double>(spd - 100);
+            const double diff_pct = (eff / base - 1.0) * 100.0;
             bpm_label_->setText(QStringLiteral("%1 (%2%3%)")
-                .arg(eff, 0, 'f', 1)
-                .arg(diff >= 0 ? QStringLiteral("+") : QStringLiteral(""))
-                .arg(diff, 0, 'f', 0));
+                .arg(eff, 0, 'f', 2)
+                .arg(diff_pct >= 0 ? QStringLiteral("+") : QStringLiteral(""))
+                .arg(diff_pct, 0, 'f', 1));
         }
     }
 

@@ -531,8 +531,10 @@ void DeckWindow::setupUi()
     tempo_bar->addWidget(tempo_hdr);
 
     bend_minus_btn_ = new QPushButton(QStringLiteral("−"), this);
-    bend_minus_btn_->setFixedSize(26, 24);
-    bend_minus_btn_->setStyleSheet(QStringLiteral("padding: 0px; font-size: 11px; font-weight: bold;"));
+    bend_minus_btn_->setFixedSize(28, 24);
+    bend_minus_btn_->setAutoRepeat(true);
+    bend_minus_btn_->setAutoRepeatDelay(350);
+    bend_minus_btn_->setAutoRepeatInterval(100);
     bend_minus_btn_->setToolTip(QStringLiteral("Tempo léptetés: első klikk kerekít tizedre, utána −0.10 BPM"));
     connect(bend_minus_btn_, &QPushButton::clicked, this, [this]() {
         if (!deck_) return;
@@ -543,7 +545,17 @@ void DeckWindow::setupUi()
         } else {
             target_bpm = std::floor(cur_eff * 10.0) / 10.0;
         }
+        target_bpm = std::round(target_bpm * 100.0) / 100.0;
         deck_->setPlaybackBpm(target_bpm);
+
+        const double eff_bpm = deck_->effectiveBpm();
+        const double base_bpm = (deck_->bpm() > 1.0) ? deck_->bpm() : 128.0;
+        const double diff_pct = (eff_bpm / base_bpm - 1.0) * 100.0;
+        pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+.1f%%)", eff_bpm, diff_pct));
+        if (pitch_slider_) {
+            QSignalBlocker b(pitch_slider_);
+            pitch_slider_->setValue(deck_->speed());
+        }
     });
     tempo_bar->addWidget(bend_minus_btn_);
 
@@ -583,8 +595,10 @@ void DeckWindow::setupUi()
     tempo_bar->addWidget(pitch_slider_, 1);
 
     bend_plus_btn_ = new QPushButton(QStringLiteral("+"), this);
-    bend_plus_btn_->setFixedSize(26, 24);
-    bend_plus_btn_->setStyleSheet(QStringLiteral("padding: 0px; font-size: 11px; font-weight: bold;"));
+    bend_plus_btn_->setFixedSize(28, 24);
+    bend_plus_btn_->setAutoRepeat(true);
+    bend_plus_btn_->setAutoRepeatDelay(350);
+    bend_plus_btn_->setAutoRepeatInterval(100);
     bend_plus_btn_->setToolTip(QStringLiteral("Tempo léptetés: első klikk kerekít tizedre, utána +0.10 BPM"));
     connect(bend_plus_btn_, &QPushButton::clicked, this, [this]() {
         if (!deck_) return;
@@ -595,7 +609,17 @@ void DeckWindow::setupUi()
         } else {
             target_bpm = std::ceil(cur_eff * 10.0) / 10.0;
         }
+        target_bpm = std::round(target_bpm * 100.0) / 100.0;
         deck_->setPlaybackBpm(target_bpm);
+
+        const double eff_bpm = deck_->effectiveBpm();
+        const double base_bpm = (deck_->bpm() > 1.0) ? deck_->bpm() : 128.0;
+        const double diff_pct = (eff_bpm / base_bpm - 1.0) * 100.0;
+        pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+.1f%%)", eff_bpm, diff_pct));
+        if (pitch_slider_) {
+            QSignalBlocker b(pitch_slider_);
+            pitch_slider_->setValue(deck_->speed());
+        }
     });
     tempo_bar->addWidget(bend_plus_btn_);
 
@@ -610,8 +634,8 @@ void DeckWindow::setupUi()
     connect(pitch_reset_btn_, &QPushButton::clicked, this, [this]() {
         if (pitch_slider_) pitch_slider_->setValue(100);
         if (deck_) {
-            deck_->setPlaybackBpm(deck_->bpm());
             deck_->applySpeedSettings(100);
+            deck_->setPlaybackBpm(deck_->bpm());
         }
     });
     tempo_bar->addWidget(pitch_reset_btn_);
@@ -683,6 +707,21 @@ void DeckWindow::applyTheme(bool is_a)
                 "QPushButton { background: #101e30; border: 1px solid #00d2ff; color: #00d2ff; font-size: 10px; font-weight: bold; border-radius: 3px; }"
                 "QPushButton:hover { background: #0088cc; color: #ffffff; }"));
         }
+        if (bend_minus_btn_) {
+            bend_minus_btn_->setStyleSheet(QStringLiteral(
+                "QPushButton { background: #101e30; border: 1px solid #1c3756; border-radius: 3px; color: #00d2ff; font-size: 13px; font-weight: bold; padding: 0px; } "
+                "QPushButton:hover { background: #192f4c; border-color: #00d2ff; color: #ffffff; } "
+                "QPushButton:pressed { background: #0088cc; color: #ffffff; }"));
+        }
+        if (bend_plus_btn_) {
+            bend_plus_btn_->setStyleSheet(QStringLiteral(
+                "QPushButton { background: #101e30; border: 1px solid #1c3756; border-radius: 3px; color: #00d2ff; font-size: 13px; font-weight: bold; padding: 0px; } "
+                "QPushButton:hover { background: #192f4c; border-color: #00d2ff; color: #ffffff; } "
+                "QPushButton:pressed { background: #0088cc; color: #ffffff; }"));
+        }
+        if (pitch_val_lbl_) {
+            pitch_val_lbl_->setStyleSheet(QStringLiteral("color: #00d2ff; font-family: monospace; font-weight: bold; font-size: 11px;"));
+        }
     } else {
         // =====================================================================
         // DECK B: NARANCSSÁRGA ALAPSZÍN (WARM AMBER / ORANGE THEME)
@@ -722,6 +761,21 @@ void DeckWindow::applyTheme(bool is_a)
             vj_shader_btn_->setStyleSheet(QStringLiteral(
                 "QPushButton { background: #2c1a0c; border: 1px solid #ff8800; color: #ff8800; font-size: 10px; font-weight: bold; border-radius: 3px; }"
                 "QPushButton:hover { background: #cc5500; color: #ffffff; }"));
+        }
+        if (bend_minus_btn_) {
+            bend_minus_btn_->setStyleSheet(QStringLiteral(
+                "QPushButton { background: #2c1a0c; border: 1px solid #4f2e15; border-radius: 3px; color: #ff8800; font-size: 13px; font-weight: bold; padding: 0px; } "
+                "QPushButton:hover { background: #442813; border-color: #ff8800; color: #ffffff; } "
+                "QPushButton:pressed { background: #cc5500; color: #ffffff; }"));
+        }
+        if (bend_plus_btn_) {
+            bend_plus_btn_->setStyleSheet(QStringLiteral(
+                "QPushButton { background: #2c1a0c; border: 1px solid #4f2e15; border-radius: 3px; color: #ff8800; font-size: 13px; font-weight: bold; padding: 0px; } "
+                "QPushButton:hover { background: #442813; border-color: #ff8800; color: #ffffff; } "
+                "QPushButton:pressed { background: #cc5500; color: #ffffff; }"));
+        }
+        if (pitch_val_lbl_) {
+            pitch_val_lbl_->setStyleSheet(QStringLiteral("color: #ff8800; font-family: monospace; font-weight: bold; font-size: 11px;"));
         }
     }
 }

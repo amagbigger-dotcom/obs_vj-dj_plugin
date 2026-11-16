@@ -486,13 +486,14 @@ double DeckPlayer::bpm() const noexcept
 void DeckPlayer::setPlaybackBpm(double target_bpm) noexcept
 {
     const double clamped = std::clamp(target_bpm, 20.0, 300.0);
-    playback_bpm_.store(clamped, std::memory_order_relaxed);
     is_sync_.store(false, std::memory_order_relaxed);
     const double base = bpm();
     if (base > 1.0) {
         const int spd = std::clamp(static_cast<int>(std::round((clamped / base) * 100.0)), 50, 150);
         applySpeedSettings(spd);
     }
+    // CRITICAL: Must be stored AFTER applySpeedSettings, because applySpeedSettings resets playback_bpm_ to 0.0!
+    playback_bpm_.store(clamped, std::memory_order_relaxed);
 }
 
 double DeckPlayer::effectiveBpm() const noexcept
