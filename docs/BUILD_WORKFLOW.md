@@ -61,3 +61,8 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
 * **Verzió & Commit:** `bdfb49b`
 * **SHA256:** `83606345F4A24A12296C2A5E57A6CD9CC436E30E1EEA6A28DF21982979508020`
 * **Jellemzők:** 8 ISF visualizer shader tiszta audióhoz, kifordított paraméter csúszkák, paraméterenkénti zenei lüktetés és tónuskövetés moduláció, külön Deck A/B vezérlés, számszintű `.vdj.json` perzisztencia.
+
+### Mérföldkő #3: Build #240 / GitHub Run #240 (Mixxx-Stílusú Moduláris Architektúra & PCH)
+* **Verzió & Commit:** `c5926b6`
+* **SHA256:** `373D728EDCE57B6E7BCEA0F0B0C309806A927CB19AC19A158D219E5EF220D802`
+* **Jellemzők:** A `sandraschi/mixxxxx` mintájára átrendezett 7 alrendszer (`engine/`, `audio/`, `video/`, `effects/`, `controllers/`, `waveform/`, `gui/`), `VjFxDialog` önálló modulba kiemelve, Precompiled Headers (PCH) bekapcsolva a gyors fordításért, modern include hierarchia.
