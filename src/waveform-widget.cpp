@@ -234,15 +234,18 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
                 continue;
 
             if (has_det_spec) {
-                const float tot = peak_l + peak_m + peak_h + 0.001f;
-                const float wl = peak_l / tot;
-                const float wm = peak_m / tot;
-                const float wh = peak_h / tot;
+                const float pow_l = std::pow(peak_l, 1.8f);
+                const float pow_m = std::pow(peak_m, 1.8f);
+                const float pow_h = std::pow(peak_h, 1.8f);
+                const float tot = pow_l + pow_m + pow_h + 0.0001f;
+                const float wl = pow_l / tot;
+                const float wm = pow_m / tot;
+                const float wh = pow_h / tot;
 
                 // 3-Sávos Színek a gördülő nézetben: Mély = Telt Kék, Közép = Meleg Narancs/Arany, Magas = Cián/Fehér
-                int r_col = static_cast<int>(std::clamp(wl * 10.0f + wm * 255.0f + wh * 120.0f, 0.0f, 255.0f));
-                int g_col = static_cast<int>(std::clamp(wl * 85.0f + wm * 140.0f + wh * 240.0f, 0.0f, 255.0f));
-                int b_col = static_cast<int>(std::clamp(wl * 255.0f + wm * 20.0f + wh * 255.0f, 0.0f, 255.0f));
+                int r_col = static_cast<int>(std::clamp(wl * 0.0f   + wm * 255.0f + wh * 0.0f,   0.0f, 255.0f));
+                int g_col = static_cast<int>(std::clamp(wl * 70.0f  + wm * 160.0f + wh * 240.0f, 0.0f, 255.0f));
+                int b_col = static_cast<int>(std::clamp(wl * 255.0f + wm * 0.0f   + wh * 255.0f, 0.0f, 255.0f));
 
                 p.setPen(QPen(QColor(r_col, g_col, b_col, 220), 1));
                 p.drawLine(x, center_y - bar_h, x, center_y + bar_h);
@@ -378,15 +381,18 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
                 const float m = ov_mid[sp_idx];
                 const float h_val = ov_high[sp_idx];
 
-                // 3-Band Spectral Color Synthesis (Low = Blue, Mid = Amber/Gold, High = Cyan/White)
-                const float weight_sum = l + m + h_val + 0.0001f;
-                const float wl = l / weight_sum;
-                const float wm = m / weight_sum;
-                const float wh = h_val / weight_sum;
+                // 3-Band Spectral Color Synthesis (Low = Deep Blue, Mid = Warm Gold, High = Cyan/White)
+                const float pow_l = std::pow(l, 1.8f);
+                const float pow_m = std::pow(m, 1.8f);
+                const float pow_h = std::pow(h_val, 1.8f);
+                const float weight_sum = pow_l + pow_m + pow_h + 0.0001f;
+                const float wl = pow_l / weight_sum;
+                const float wm = pow_m / weight_sum;
+                const float wh = pow_h / weight_sum;
 
-                const int red   = static_cast<int>(std::clamp(wl * 15.0f + wm * 255.0f + wh * 120.0f, 0.0f, 255.0f));
-                const int green = static_cast<int>(std::clamp(wl * 90.0f + wm * 150.0f + wh * 240.0f, 0.0f, 255.0f));
-                const int blue  = static_cast<int>(std::clamp(wl * 255.0f + wm * 25.0f + wh * 255.0f, 0.0f, 255.0f));
+                const int red   = static_cast<int>(std::clamp(wl * 0.0f   + wm * 255.0f + wh * 0.0f,   0.0f, 255.0f));
+                const int green = static_cast<int>(std::clamp(wl * 70.0f  + wm * 160.0f + wh * 240.0f, 0.0f, 255.0f));
+                const int blue  = static_cast<int>(std::clamp(wl * 255.0f + wm * 0.0f   + wh * 255.0f, 0.0f, 255.0f));
 
                 const QColor spec_outer(red, green, blue, 220);
                 p.setPen(QPen(spec_outer, 1));

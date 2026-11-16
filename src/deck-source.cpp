@@ -470,7 +470,6 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                     context->dummy_tex = gs_texture_create(1, 1, GS_RGBA, 1, &data_ptr, 0);
                 }
                 if (context->fluid_effect && context->dummy_tex) {
-                    DeckPair *dp = vdj_decks();
                     const float time_sec = static_cast<float>(os_gettime_ns() / 1000000ULL) * 0.001f;
                     const float bpm_val = static_cast<float>(context->deck->bpm());
                     const float amp_val = context->deck->currentAmplitude();
@@ -479,17 +478,25 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                     const float high_val = context->deck->currentHighEnergy();
                     const bool is_b = (context->deck_channel == 1 || (context->deck && context->deck->side() == DeckPlayer::DeckSide::B));
 
-                    const float viz_mode = dp ? static_cast<float>(dp->visualizerMode()) : 0.0f;
-                    const float pulse_on = (dp && dp->isVisualizerPulse()) ? 1.0f : 0.0f;
-                    const float tone_on  = (dp && dp->isVisualizerTone()) ? 1.0f : 0.0f;
+                    VjDeckConfig v_cfg = context->deck->vjConfig();
+                    const float viz_mode = static_cast<float>(v_cfg.shader_idx);
+
+                    const auto &defs = getVjShaderDefinitions();
+                    float p_vals[8] = {0.0f};
+                    const float tone_balance = (high_val + mid_val * 0.5f) / (bass_val + mid_val + high_val + 0.001f);
+
+                    if (v_cfg.shader_idx >= 0 && v_cfg.shader_idx < static_cast<int>(defs.size())) {
+                        const auto &p_defs = defs[v_cfg.shader_idx].params;
+                        for (size_t i = 0; i < p_defs.size() && i < 8; ++i) {
+                            p_vals[i] = computeEffectiveParam(p_defs[i], v_cfg.params[i].value,
+                                                              v_cfg.params[i].mod_mode,
+                                                              bass_val, tone_balance);
+                        }
+                    }
 
                     gs_eparam_t *p = nullptr;
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_mode")))
                         gs_effect_set_float(p, viz_mode);
-                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "pulse_enabled")))
-                        gs_effect_set_float(p, pulse_on);
-                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "tone_tracking_enabled")))
-                        gs_effect_set_float(p, tone_on);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "anim_time")))
                         gs_effect_set_float(p, time_sec);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bpm")))
@@ -504,6 +511,13 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                         gs_effect_set_float(p, high_val);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "is_deck_b")))
                         gs_effect_set_float(p, is_b ? 1.0f : 0.0f);
+
+                    char p_name[4] = "p0";
+                    for (int i = 0; i < 8; ++i) {
+                        p_name[1] = static_cast<char>('0' + i);
+                        if ((p = gs_effect_get_param_by_name(context->fluid_effect, p_name)))
+                            gs_effect_set_float(p, p_vals[i]);
+                    }
 
                     while (gs_effect_loop(context->fluid_effect, "Draw")) {
                         gs_draw_sprite(context->dummy_tex, 0, 1920, 1080);

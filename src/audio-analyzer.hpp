@@ -4,6 +4,7 @@
 #include <vector>
 #include <functional>
 #include <cstdint>
+#include "vj-config.hpp"
 
 struct TrackAnalysisResult {
     bool success = false;
@@ -24,6 +25,9 @@ struct TrackAnalysisResult {
     std::vector<float> audio_pcm_l;      // RAM stereo float PCM buffer (Left)
     std::vector<float> audio_pcm_r;      // RAM stereo float PCM buffer (Right)
     uint32_t audio_sample_rate = 44100;
+
+    bool has_vj_config = false;
+    VjDeckConfig vj_config;
 };
 
 class AudioAnalyzer {
@@ -33,6 +37,7 @@ public:
     static bool saveCache(const QString &file_path, const TrackAnalysisResult &res);
     static bool updateCacheUserEdits(const QString &file_path, double bpm, int64_t grid_offset_ms, int64_t cue_point_ms);
     static bool updateCacheHotCues(const QString &file_path, const int64_t hot_cues[4]);
+    static bool updateCacheVjConfig(const QString &file_path, const VjDeckConfig &config);
 
     static TrackAnalysisResult analyzeFile(const QString &file_path);
     static void analyzeFileAsync(const QString &file_path,

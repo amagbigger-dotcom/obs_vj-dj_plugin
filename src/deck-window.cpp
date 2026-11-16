@@ -200,6 +200,22 @@ void DeckWindow::setupUi()
     });
     top_bar->addWidget(tracklist_btn_, 0);
 
+    vj_shader_btn_ = new QPushButton(QStringLiteral("⚡ VJ"), this);
+    vj_shader_btn_->setAutoDefault(false);
+    vj_shader_btn_->setDefault(false);
+    vj_shader_btn_->setFixedSize(38, 24);
+    vj_shader_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1a2738; border: 1px solid #38bdf8; color: #38bdf8; font-size: 10px; font-weight: bold; border-radius: 3px; }"
+        "QPushButton:hover { background: #0284c7; color: #ffffff; }"
+    ));
+    vj_shader_btn_->setToolTip(QStringLiteral("Deck VJ Visualizer Shader és paraméter beállítások megnyitása"));
+    connect(vj_shader_btn_, &QPushButton::clicked, this, [this]() {
+        extern void vdj_open_vj_fx_dialog(int target_deck);
+        const int target_d = (deck_ && deck_->side() == DeckPlayer::DeckSide::B) ? 1 : 0;
+        vdj_open_vj_fx_dialog(target_d);
+    });
+    top_bar->addWidget(vj_shader_btn_, 0);
+
     main_layout->addLayout(top_bar);
 
     // ==========================================
@@ -662,6 +678,11 @@ void DeckWindow::applyTheme(bool is_a)
                 "QSlider::handle:horizontal { background: #00d2ff; width: 18px; margin: -5px 0; border-radius: 3px; border: 1px solid #ffffff; } "
                 "QSlider::handle:horizontal:hover { background: #38e0ff; }"));
         }
+        if (vj_shader_btn_) {
+            vj_shader_btn_->setStyleSheet(QStringLiteral(
+                "QPushButton { background: #101e30; border: 1px solid #00d2ff; color: #00d2ff; font-size: 10px; font-weight: bold; border-radius: 3px; }"
+                "QPushButton:hover { background: #0088cc; color: #ffffff; }"));
+        }
     } else {
         // =====================================================================
         // DECK B: NARANCSSÁRGA ALAPSZÍN (WARM AMBER / ORANGE THEME)
@@ -696,6 +717,11 @@ void DeckWindow::applyTheme(bool is_a)
                 "QSlider::groove:horizontal { height: 6px; background: #140b05; border: 1px solid #3b200e; border-radius: 3px; } "
                 "QSlider::handle:horizontal { background: #ff8800; width: 18px; margin: -5px 0; border-radius: 3px; border: 1px solid #ffffff; } "
                 "QSlider::handle:horizontal:hover { background: #ffa538; }"));
+        }
+        if (vj_shader_btn_) {
+            vj_shader_btn_->setStyleSheet(QStringLiteral(
+                "QPushButton { background: #2c1a0c; border: 1px solid #ff8800; color: #ff8800; font-size: 10px; font-weight: bold; border-radius: 3px; }"
+                "QPushButton:hover { background: #cc5500; color: #ffffff; }"));
         }
     }
 }

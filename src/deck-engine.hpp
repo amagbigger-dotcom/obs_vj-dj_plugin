@@ -12,6 +12,7 @@
 #include <queue>
 #include <thread>
 #include <vector>
+#include "vj-config.hpp"
 
 class DeckPlayer {
 public:
@@ -146,6 +147,15 @@ public:
     float currentHighEnergy() const noexcept;
     float currentAmplitude() const noexcept;
 
+    // VJ Shader Configuration & Parameter Modulation (Per-deck & Per-track)
+    VjDeckConfig vjConfig() const noexcept;
+    void setVjConfig(const VjDeckConfig &cfg) noexcept;
+    void setVjParamValue(int param_idx, float val) noexcept;
+    void setVjParamMod(int param_idx, int mod) noexcept;
+    void setVjShaderIdx(int idx) noexcept;
+    void saveVjConfigToCache();
+    void loadVjConfigFromCache();
+
     enum class DeckSide { A, B };
     void setSide(DeckSide side) noexcept { side_.store(side, std::memory_order_relaxed); }
     DeckSide side() const noexcept { return side_.load(std::memory_order_relaxed); }
@@ -254,6 +264,16 @@ private:
     std::vector<float> detailed_mid_;
     std::vector<float> detailed_high_;
     bool has_spectral_{false};
+
+    // Live DSP Envelope Follower for instantaneous real-time audio reactivity
+    std::atomic<float> live_amp_{0.0f};
+    std::atomic<float> live_bass_{0.0f};
+    std::atomic<float> live_mid_{0.0f};
+    std::atomic<float> live_high_{0.0f};
+
+    // VJ Shader Configuration & Parameter Modulation
+    mutable std::mutex vj_config_mutex_;
+    VjDeckConfig vj_config_ = getDefaultVjConfig(0);
 };
 
 using DeckEngine = DeckPlayer;

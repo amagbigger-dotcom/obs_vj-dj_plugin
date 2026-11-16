@@ -23,6 +23,7 @@ set(SOURCES
     src/plugin-main.cpp
     src/audio-analyzer.cpp
     src/audio-analyzer.hpp
+    src/vj-config.hpp
     src/deck-engine.cpp
     src/deck-engine.hpp
     src/deck-source.cpp

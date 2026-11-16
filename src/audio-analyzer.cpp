@@ -101,6 +101,18 @@ bool AudioAnalyzer::loadCache(const QString &file_path, TrackAnalysisResult &out
         out_res.detailed_peaks.push_back(static_cast<float>(val.toDouble(0.1)));
     }
 
+    if (root.contains(QStringLiteral("vj_shader"))) {
+        QJsonObject vj_obj = root.value(QStringLiteral("vj_shader")).toObject();
+        out_res.vj_config.shader_idx = vj_obj.value(QStringLiteral("shader_idx")).toInt(0);
+        QJsonArray p_arr = vj_obj.value(QStringLiteral("params")).toArray();
+        for (int i = 0; i < std::min(8, p_arr.size()); ++i) {
+            QJsonObject p_obj = p_arr[i].toObject();
+            out_res.vj_config.params[i].value = static_cast<float>(p_obj.value(QStringLiteral("val")).toDouble(1.0));
+            out_res.vj_config.params[i].mod_mode = p_obj.value(QStringLiteral("mod")).toInt(0);
+        }
+        out_res.has_vj_config = true;
+    }
+
     out_res.waveform_peaks = out_res.overview_peaks;
     out_res.success = !out_res.overview_peaks.empty() && (out_res.detected_bpm > 30.0);
     return out_res.success;
@@ -145,6 +157,20 @@ bool AudioAnalyzer::saveCache(const QString &file_path, const TrackAnalysisResul
     }
     root.insert(QStringLiteral("detailed_peaks"), det_arr);
 
+    if (res.has_vj_config) {
+        QJsonObject vj_obj;
+        vj_obj.insert(QStringLiteral("shader_idx"), res.vj_config.shader_idx);
+        QJsonArray p_arr;
+        for (int i = 0; i < 8; ++i) {
+            QJsonObject p_obj;
+            p_obj.insert(QStringLiteral("val"), std::round(res.vj_config.params[i].value * 10000.0) / 10000.0);
+            p_obj.insert(QStringLiteral("mod"), res.vj_config.params[i].mod_mode);
+            p_arr.append(p_obj);
+        }
+        vj_obj.insert(QStringLiteral("params"), p_arr);
+        root.insert(QStringLiteral("vj_shader"), vj_obj);
+    }
+
     QFile file(cache_path);
     if (!file.open(QIODevice::WriteOnly))
         return false;
@@ -152,6 +178,36 @@ bool AudioAnalyzer::saveCache(const QString &file_path, const TrackAnalysisResul
     file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
     file.close();
     return true;
+}
+
+bool AudioAnalyzer::updateCacheVjConfig(const QString &file_path, const VjDeckConfig &config)
+{
+    const QString cache_path = cacheFilePath(file_path);
+    QFile file(cache_path);
+    QJsonObject root;
+    if (file.exists() && file.open(QIODevice::ReadOnly)) {
+        root = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+    }
+
+    QJsonObject vj_obj;
+    vj_obj.insert(QStringLiteral("shader_idx"), config.shader_idx);
+    QJsonArray p_arr;
+    for (int i = 0; i < 8; ++i) {
+        QJsonObject p_obj;
+        p_obj.insert(QStringLiteral("val"), std::round(config.params[i].value * 10000.0) / 10000.0);
+        p_obj.insert(QStringLiteral("mod"), config.params[i].mod_mode);
+        p_arr.append(p_obj);
+    }
+    vj_obj.insert(QStringLiteral("params"), p_arr);
+    root.insert(QStringLiteral("vj_shader"), vj_obj);
+
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        file.close();
+        return true;
+    }
+    return false;
 }
 
 bool AudioAnalyzer::updateCacheUserEdits(const QString &file_path, double bpm, int64_t grid_offset_ms, int64_t cue_point_ms)
@@ -501,11 +557,12 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         if (bucket_h[b] > max_h_b) max_h_b = bucket_h[b];
     }
 
+    const float max_band_energy = std::max({max_l_b, max_m_b, max_h_b, 0.001f});
     for (size_t b = 0; b < kOverviewBuckets; ++b) {
         result.overview_peaks[b] = std::clamp(bucket_max[b] / max_peak_b, 0.05f, 1.0f);
-        result.overview_low[b]   = std::clamp(bucket_l[b] / max_l_b, 0.05f, 1.0f);
-        result.overview_mid[b]   = std::clamp(bucket_m[b] / max_m_b, 0.05f, 1.0f);
-        result.overview_high[b]  = std::clamp(bucket_h[b] / max_h_b, 0.05f, 1.0f);
+        result.overview_low[b]   = std::clamp(bucket_l[b] / max_band_energy, 0.01f, 1.0f);
+        result.overview_mid[b]   = std::clamp(bucket_m[b] / max_band_energy, 0.01f, 1.0f);
+        result.overview_high[b]  = std::clamp(bucket_h[b] / max_band_energy, 0.01f, 1.0f);
     }
     result.waveform_peaks = result.overview_peaks;
 

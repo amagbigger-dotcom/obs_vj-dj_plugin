@@ -190,6 +190,8 @@ void DeckPlayer::loadFile(const QString &path)
         detailed_samples_.clear();
     }
 
+    loadVjConfigFromCache();
+
     // Aszinkron audio analízis és PCM betöltés a memóriába (Async Audio Analysis & RAM PCM Buffer)
     AudioAnalyzer::analyzeFileAsync(path, [this](TrackAnalysisResult res) {
         if (res.success) {
@@ -207,6 +209,10 @@ void DeckPlayer::loadFile(const QString &path)
                                res.detailed_low, res.detailed_mid, res.detailed_high);
             if (!res.audio_pcm_l.empty() && !res.audio_pcm_r.empty()) {
                 setAudioBuffer(std::move(res.audio_pcm_l), std::move(res.audio_pcm_r), res.audio_sample_rate);
+            }
+            if (res.has_vj_config) {
+                std::lock_guard<std::mutex> lock(vj_config_mutex_);
+                vj_config_ = res.vj_config;
             }
         }
     });
@@ -645,8 +651,10 @@ bool DeckPlayer::hasSpectralData() const
 float DeckPlayer::currentBassEnergy() const noexcept
 {
     if (!isPlaying()) return 0.0f;
+    const float live = live_bass_.load(std::memory_order_relaxed);
+    if (live > 0.005f) return live;
     std::lock_guard<std::mutex> lock(waveform_mutex_);
-    if (detailed_low_.empty()) return 0.25f;
+    if (detailed_low_.empty()) return 0.0f;
     const int64_t cur = currentTimeMs();
     const size_t idx = static_cast<size_t>(std::clamp<int64_t>((cur * 100) / 1000, 0, static_cast<int64_t>(detailed_low_.size() - 1)));
     return detailed_low_[idx];
@@ -655,8 +663,10 @@ float DeckPlayer::currentBassEnergy() const noexcept
 float DeckPlayer::currentMidEnergy() const noexcept
 {
     if (!isPlaying()) return 0.0f;
+    const float live = live_mid_.load(std::memory_order_relaxed);
+    if (live > 0.005f) return live;
     std::lock_guard<std::mutex> lock(waveform_mutex_);
-    if (detailed_mid_.empty()) return 0.25f;
+    if (detailed_mid_.empty()) return 0.0f;
     const int64_t cur = currentTimeMs();
     const size_t idx = static_cast<size_t>(std::clamp<int64_t>((cur * 100) / 1000, 0, static_cast<int64_t>(detailed_mid_.size() - 1)));
     return detailed_mid_[idx];
@@ -665,8 +675,10 @@ float DeckPlayer::currentMidEnergy() const noexcept
 float DeckPlayer::currentHighEnergy() const noexcept
 {
     if (!isPlaying()) return 0.0f;
+    const float live = live_high_.load(std::memory_order_relaxed);
+    if (live > 0.005f) return live;
     std::lock_guard<std::mutex> lock(waveform_mutex_);
-    if (detailed_high_.empty()) return 0.25f;
+    if (detailed_high_.empty()) return 0.0f;
     const int64_t cur = currentTimeMs();
     const size_t idx = static_cast<size_t>(std::clamp<int64_t>((cur * 100) / 1000, 0, static_cast<int64_t>(detailed_high_.size() - 1)));
     return detailed_high_[idx];
@@ -675,11 +687,80 @@ float DeckPlayer::currentHighEnergy() const noexcept
 float DeckPlayer::currentAmplitude() const noexcept
 {
     if (!isPlaying()) return 0.0f;
+    const float live = live_amp_.load(std::memory_order_relaxed);
+    if (live > 0.005f) return live;
     std::lock_guard<std::mutex> lock(waveform_mutex_);
-    if (detailed_samples_.empty()) return 0.25f;
+    if (detailed_samples_.empty()) return 0.0f;
     const int64_t cur = currentTimeMs();
     const size_t idx = static_cast<size_t>(std::clamp<int64_t>((cur * 100) / 1000, 0, static_cast<int64_t>(detailed_samples_.size() - 1)));
     return detailed_samples_[idx];
+}
+
+VjDeckConfig DeckPlayer::vjConfig() const noexcept
+{
+    std::lock_guard<std::mutex> lock(vj_config_mutex_);
+    return vj_config_;
+}
+
+void DeckPlayer::setVjConfig(const VjDeckConfig &cfg) noexcept
+{
+    {
+        std::lock_guard<std::mutex> lock(vj_config_mutex_);
+        vj_config_ = cfg;
+    }
+    saveVjConfigToCache();
+}
+
+void DeckPlayer::setVjParamValue(int param_idx, float val) noexcept
+{
+    if (param_idx >= 0 && param_idx < 8) {
+        {
+            std::lock_guard<std::mutex> lock(vj_config_mutex_);
+            vj_config_.params[param_idx].value = val;
+        }
+        saveVjConfigToCache();
+    }
+}
+
+void DeckPlayer::setVjParamMod(int param_idx, int mod) noexcept
+{
+    if (param_idx >= 0 && param_idx < 8) {
+        {
+            std::lock_guard<std::mutex> lock(vj_config_mutex_);
+            vj_config_.params[param_idx].mod_mode = mod;
+        }
+        saveVjConfigToCache();
+    }
+}
+
+void DeckPlayer::setVjShaderIdx(int idx) noexcept
+{
+    {
+        std::lock_guard<std::mutex> lock(vj_config_mutex_);
+        if (vj_config_.shader_idx != idx) {
+            vj_config_ = getDefaultVjConfig(idx);
+        }
+    }
+    saveVjConfigToCache();
+}
+
+void DeckPlayer::saveVjConfigToCache()
+{
+    const QString fp = filePath();
+    if (fp.isEmpty()) return;
+    VjDeckConfig cfg = vjConfig();
+    AudioAnalyzer::updateCacheVjConfig(fp, cfg);
+}
+
+void DeckPlayer::loadVjConfigFromCache()
+{
+    const QString fp = filePath();
+    if (fp.isEmpty()) return;
+    TrackAnalysisResult res;
+    if (AudioAnalyzer::loadCache(fp, res) && res.has_vj_config) {
+        std::lock_guard<std::mutex> lock(vj_config_mutex_);
+        vj_config_ = res.vj_config;
+    }
 }
 
 void DeckPlayer::setEqHi(float val) noexcept
@@ -820,6 +901,11 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
 
     const float smooth_rate = 0.002f; // ~10 ms smooth time at 48kHz (imperceptible latency, zero crackle)
 
+    float sum_sq_in = 0.0f;
+    float sum_sq_low = 0.0f;
+    float sum_sq_mid = 0.0f;
+    float sum_sq_high = 0.0f;
+
     for (size_t i = 0; i < num_frames; ++i) {
         const float in = channel_data[i];
 
@@ -835,6 +921,11 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
         const float low_band = st.lp;
         const float high_band = in - st.hp;
         const float mid_band = in - low_band - high_band;
+
+        sum_sq_in += in * in;
+        sum_sq_low += low_band * low_band;
+        sum_sq_mid += mid_band * mid_band;
+        sum_sq_high += high_band * high_band;
 
         float out = low_band * st.cur_low + mid_band * st.cur_mid + high_band * st.cur_hi;
 
@@ -861,6 +952,29 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
         }
 
         channel_data[i] = std::clamp(out, -1.2f, 1.2f);
+    }
+
+    if (channel_idx == 0 && num_frames > 0) {
+        const float inv = 1.0f / static_cast<float>(num_frames);
+        const float raw_amp  = std::clamp(std::sqrt(sum_sq_in   * inv) * 2.5f, 0.0f, 1.0f);
+        const float raw_bass = std::clamp(std::sqrt(sum_sq_low  * inv) * 3.8f, 0.0f, 1.0f);
+        const float raw_mid  = std::clamp(std::sqrt(sum_sq_mid  * inv) * 3.2f, 0.0f, 1.0f);
+        const float raw_high = std::clamp(std::sqrt(sum_sq_high * inv) * 3.0f, 0.0f, 1.0f);
+
+        auto updateEnvelope = [](std::atomic<float> &atom, float target) {
+            float cur = atom.load(std::memory_order_relaxed);
+            if (target > cur) {
+                cur = cur * 0.20f + target * 0.80f; // Fast punchy attack
+            } else {
+                cur = cur * 0.86f; // Smooth musical decay
+            }
+            atom.store(cur, std::memory_order_relaxed);
+        };
+
+        updateEnvelope(live_amp_, raw_amp);
+        updateEnvelope(live_bass_, raw_bass);
+        updateEnvelope(live_mid_, raw_mid);
+        updateEnvelope(live_high_, raw_high);
     }
 }
 
