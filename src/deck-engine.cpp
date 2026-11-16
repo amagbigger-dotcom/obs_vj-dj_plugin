@@ -642,6 +642,46 @@ bool DeckPlayer::hasSpectralData() const
     return has_spectral_;
 }
 
+float DeckPlayer::currentBassEnergy() const noexcept
+{
+    if (!isPlaying()) return 0.0f;
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    if (detailed_low_.empty()) return 0.25f;
+    const int64_t cur = currentTimeMs();
+    const size_t idx = static_cast<size_t>(std::clamp<int64_t>((cur * 100) / 1000, 0, static_cast<int64_t>(detailed_low_.size() - 1)));
+    return detailed_low_[idx];
+}
+
+float DeckPlayer::currentMidEnergy() const noexcept
+{
+    if (!isPlaying()) return 0.0f;
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    if (detailed_mid_.empty()) return 0.25f;
+    const int64_t cur = currentTimeMs();
+    const size_t idx = static_cast<size_t>(std::clamp<int64_t>((cur * 100) / 1000, 0, static_cast<int64_t>(detailed_mid_.size() - 1)));
+    return detailed_mid_[idx];
+}
+
+float DeckPlayer::currentHighEnergy() const noexcept
+{
+    if (!isPlaying()) return 0.0f;
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    if (detailed_high_.empty()) return 0.25f;
+    const int64_t cur = currentTimeMs();
+    const size_t idx = static_cast<size_t>(std::clamp<int64_t>((cur * 100) / 1000, 0, static_cast<int64_t>(detailed_high_.size() - 1)));
+    return detailed_high_[idx];
+}
+
+float DeckPlayer::currentAmplitude() const noexcept
+{
+    if (!isPlaying()) return 0.0f;
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    if (detailed_samples_.empty()) return 0.25f;
+    const int64_t cur = currentTimeMs();
+    const size_t idx = static_cast<size_t>(std::clamp<int64_t>((cur * 100) / 1000, 0, static_cast<int64_t>(detailed_samples_.size() - 1)));
+    return detailed_samples_[idx];
+}
+
 void DeckPlayer::setEqHi(float val) noexcept
 {
     const float cl = std::clamp(val, 0.0f, 2.0f);

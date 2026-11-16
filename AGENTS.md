@@ -588,6 +588,44 @@ A bővítmény három független szálon/környezetben dolgozik:
     * **Jobb oldali Deck B csatornapanel:** Meleg sötét narancsbarna háttér (`#201208`), borostyán sávkeret (`#542d14`), narancs címsor és fader potik (`#ff7700`), narancs gradiens kivezérlésmérő és meleg barna VOL FX mező.
     * **Középső Master panel:** Letisztult semleges grafitmetál (`#13171e`), így a két oldal vizuálisan élesen és azonnal elkülönül egymástól, még széthúzott ablakok esetén sem keverhető össze a két oldal.
 
+### 32. Interaktív Jog Scratch / Egérrel Húzható Hullámforma, 3-Sávos Spektrális Áttekintő Sáv & Fehér Csúcsok, Kvantált Keresés & Hot Cue, 720p–4K Konverter és FIT/FILL Képméretezés (Build #223) *(KÉSZ)*
+- **Interaktív Jog Scratch és Egérrel Húzható Gördülő Hullámforma:**
+  - A felső zenei hullámformára bal egérgombbal kattintva és jobbra-balra húzva az időkód és a hang azonnal és közvetlenül követi a kézmozdulatot (relatív `delta_x` jog scrubbing).
+  - Ha lejátszás közben fogjuk meg az egeret, a lejátszás átmenetileg szünetel, felengedéskor pedig automatikusan és azonnal folytatódik a lecsúsztatott új pozícióból.
+  - A pozíció szigorúan a `[0, duration]` határok közé van szorítva, megelőzve a túlcsúszást.
+- **3-Sávos Spektrális Áttekintő Hullámforma (Pioneer / Traktor Stílus):**
+  - Az `AudioAnalyzer` 3 független frekvenciasávra (Mély / Low < 250 Hz, Közép / Mid 250–2500 Hz, Magas / High > 2500 Hz) bontja a sávot.
+  - Az alsó áttekintő hullámforma (overview bar) zenei színezést kapott: mély lila/kék mélyhangok, meleg borostyán/narancs közepek, és világító cián magasak.
+  - Amikor a teljes frekvenciatartomány egyszerre dübörög (kick + szinti + cintányér), a színek additív módon tiszta, ragyogó fehérré olvadnak össze, azonnal láthatóvá téve a dropokat és zenei kiállásokat.
+- **Kvantált Áttekintő Keresés (Quantized Overview Seek) és Kvantált Hot Cue-k:**
+  - Az alsó pozicionáló sávba bárhová kattintva a lejátszófej nem esik ritmustévesztésbe: a rendszer a legközelebbi ütemrácsvonalra kerekíti az ugrást, így a zene menet közben is tökéletes ütemben és akadás nélkül folytatódik.
+  - Mind a 4 Hot Cue rögzítése automatikusan a legközelebbi ütemrácsvonalhoz igazodik (`quantizeToBeatgrid`), és lejátszás alatti leütésük is garantáltan fázis-szinkronban tartja a dalt.
+- **Multi-Felbontású Tracklist Konverter Választó (720p, 1080p, 1440p, 4K, Eredeti):**
+  - A Tracklist eszköztárába felbontásválasztó legördülő menü került (`[ 720p | 1080p | 1440p | 4K | Eredeti ]`).
+  - Szigorú felskálázás-gátló logika: a célfelbontás soha nem haladja meg az eredeti videó szélességét és magasságát (`min(orig_w, target_w)`, `min(orig_h, target_h)`), így megmarad a kristálytiszta képminőség felesleges GPU/lemez terhelés nélkül.
+- **OBS Vászon Képméretezési Módok (FIT / FILL / STRETCH):**
+  - Mind a Deck felületeken, mind a Master Mixer vásznán beállítható a képméretezés módja a `DeckPair::videoScaleMode` segítségével.
+  - **FIT:** Aránytartó teljes kép, fekete sávokkal ha a videó és az OBS vászon képaránya eltér.
+  - **FILL:** Aránytartó teljes vászonkitöltés széltől szélig, fekete sávok nélkül (automatikus középre vágással).
+  - **STRETCH:** Közvetlen nyújtás a teljes vászonra.
+  - A Master Mixer ablakba megjelent a dedikált `[ 📺 FILL ]` / `[ 📺 FIT ]` azonnali váltógomb.
+
+### 33. Mojovideotech FluidFlowSNoise Audio-Reaktív ISF VJ Shader Tiszta Audióhoz (.mp3, .wav) (Build #224) *(KÉSZ)*
+- **Mojovideotech FluidFlowSNoise GPU VJ Shader Integráció:**
+  - A népszerű ISF (Interactive Shader Format) shader natív Direct3D 11 / OpenGL HLSL implementációja (`shaders/fluid-flow.hpp`), amely külső fájlok nélkül közvetlenül be van ágyazva a binárisba.
+  - Amikor egy tisztán audió fájlt (.mp3, .wav) töltünk be a deckbe, a fekete képernyő helyett azonnal elindul a procedurális, GPU-n futó organikus folyadék-áramlás vizualizáció 60 FPS sebességgel.
+- **Zenei Paraméterekre Kötött Áramlás:**
+  - **`rate` (Mozgási Sebesség):** Közvetlenül a zeneszám valós tempójához (BPM) kötve, a lebegő pontossággal kiszámolt zenei ütem sebességével áramlik a térben.
+  - **`depth` (Folyadék Sűrűség & Mélység):** A lábdob és mélyhangok (Bass/Kick Transient Energy) pillanatnyi amplitúdójára lüktet, a kick leütésekor erőteljesen megnyílik a mintázat.
+  - **`blur` (Élmosás / Lágyítás):** A track összhagerejére (RMS / Audio Amplitude) finomodik el.
+  - **`c1` és `c2` (Adaptív Színpaletta):**
+    * **Deck A:** Mély kék és ragyogó ciánkék árnyalatok, a magas hangokra felvillanó cián fényekkel.
+    * **Deck B:** Meleg mahagóni és borostyánsárga / arany árnyalatok, a magas hangokra felvillanó arany fényekkel.
+  - A többi belső paraméter (`freq`, `freq2`, `zrate`) stabilizálva maradt, így nincsenek kellemetlen képrángások, a mozgás hipnotikusan sima és zenei.
+- **Master Mixer Integráció & Kettős Vizualizációs Keverés:**
+  - A Master Mixer vásznán mind a Deck A, mind a Deck B FluidFlow textúrája függetlenül, a saját zenei adataira reagálva generálódik.
+  - A Crossfader és a csatorna hangerőkkel a két folyadék vizualizáció zökkenőmentesen keveredik át egymásba a 12 Master Crossfader shader effektussal (Swirl, Fisheye, RGB Split, Zoom Blur, Pixelate, Luma Dissolve, Ripple, Kaleidoscope, Glitch, Scanline, Halftone, Neon Sobel) együtt!
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ

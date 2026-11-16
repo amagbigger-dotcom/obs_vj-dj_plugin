@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "deck-engine.hpp"
+#include "shaders/fluid-flow.hpp"
 
 extern "C" {
 
@@ -34,6 +35,8 @@ struct MixerSource {
     int channel = 0;
 
     gs_effect_t *effect = nullptr;
+    gs_effect_t *fluid_effect = nullptr;
+    gs_texture_t *dummy_tex = nullptr;
     gs_texrender_t *deck_a = nullptr;
     gs_texrender_t *deck_b = nullptr;
 
@@ -321,6 +324,21 @@ static void ensure_resources(MixerSource *context)
         }
     }
 
+    if (!context->fluid_effect) {
+        char *err = nullptr;
+        context->fluid_effect = gs_effect_create(FLUID_FLOW_EFFECT, "fluid_flow_effect", &err);
+        if (!context->fluid_effect) {
+            blog(LOG_ERROR, "[obs-vj-mixer] Failed to compile FLUID_FLOW_EFFECT: %s", err ? err : "unknown error");
+            bfree(err);
+        }
+    }
+
+    if (!context->dummy_tex) {
+        const uint32_t white_px = 0xFFFFFFFF;
+        const uint8_t *data_ptr = reinterpret_cast<const uint8_t *>(&white_px);
+        context->dummy_tex = gs_texture_create(1, 1, GS_RGBA, 1, &data_ptr, 0);
+    }
+
     if (!context->deck_a)
         context->deck_a = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
 
@@ -328,8 +346,10 @@ static void ensure_resources(MixerSource *context)
         context->deck_b = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
 }
 
-static bool render_to_texture(gs_texrender_t *target,
+static bool render_to_texture(MixerSource *context,
+                              gs_texrender_t *target,
                               obs_source_t *source,
+                              const DeckPlayer *deck,
                               uint32_t width,
                               uint32_t height)
 {
@@ -343,52 +363,79 @@ static bool render_to_texture(gs_texrender_t *target,
     vec4 clear = {0.0f, 0.0f, 0.0f, 1.0f};
     gs_clear(GS_CLEAR_COLOR, &clear, 0.0f, 0);
 
-    if (source) {
-        const uint32_t src_w = obs_source_get_width(source);
-        const uint32_t src_h = obs_source_get_height(source);
+    const uint32_t src_w = source ? obs_source_get_width(source) : 0;
+    const uint32_t src_h = source ? obs_source_get_height(source) : 0;
 
-        gs_blend_state_push();
-        gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+    gs_blend_state_push();
+    gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
 
-        if (src_w > 0 && src_h > 0) {
-            gs_matrix_push();
-            DeckPair *dp = vdj_decks();
-            const int scale_mode = dp ? dp->videoScaleMode() : 1; // 0 = Fit, 1 = Fill, 2 = Stretch
+    if (source && src_w > 0 && src_h > 0 && (!deck || deck->hasVideo())) {
+        gs_matrix_push();
+        DeckPair *dp = vdj_decks();
+        const int scale_mode = dp ? dp->videoScaleMode() : 1; // 0 = Fit, 1 = Fill, 2 = Stretch
 
-            if (scale_mode == 0) {
-                // FIT (Aránytartó teljes kép, fekete sávokkal ha eltér a képarány)
-                const float s = std::min(static_cast<float>(width) / static_cast<float>(src_w),
-                                         static_cast<float>(height) / static_cast<float>(src_h));
-                const float draw_w = static_cast<float>(src_w) * s;
-                const float draw_h = static_cast<float>(src_h) * s;
-                const float off_x = (static_cast<float>(width) - draw_w) * 0.5f;
-                const float off_y = (static_cast<float>(height) - draw_h) * 0.5f;
-                gs_matrix_translate3f(off_x, off_y, 0.0f);
-                gs_matrix_scale3f(s, s, 1.0f);
-            } else if (scale_mode == 1) {
-                // FILL (Aránytartó teljes vászonkitöltés fekete sávok nélkül)
-                const float s = std::max(static_cast<float>(width) / static_cast<float>(src_w),
-                                         static_cast<float>(height) / static_cast<float>(src_h));
-                const float draw_w = static_cast<float>(src_w) * s;
-                const float draw_h = static_cast<float>(src_h) * s;
-                const float off_x = (static_cast<float>(width) - draw_w) * 0.5f;
-                const float off_y = (static_cast<float>(height) - draw_h) * 0.5f;
-                gs_matrix_translate3f(off_x, off_y, 0.0f);
-                gs_matrix_scale3f(s, s, 1.0f);
-            } else {
-                // STRETCH (Nyújtás)
-                const float sx = static_cast<float>(width) / static_cast<float>(src_w);
-                const float sy = static_cast<float>(height) / static_cast<float>(src_h);
-                gs_matrix_scale3f(sx, sy, 1.0f);
-            }
-            obs_source_video_render(source);
-            gs_matrix_pop();
+        if (scale_mode == 0) {
+            // FIT (Aránytartó teljes kép, fekete sávokkal ha eltér a képarány)
+            const float s = std::min(static_cast<float>(width) / static_cast<float>(src_w),
+                                     static_cast<float>(height) / static_cast<float>(src_h));
+            const float draw_w = static_cast<float>(src_w) * s;
+            const float draw_h = static_cast<float>(src_h) * s;
+            const float off_x = (static_cast<float>(width) - draw_w) * 0.5f;
+            const float off_y = (static_cast<float>(height) - draw_h) * 0.5f;
+            gs_matrix_translate3f(off_x, off_y, 0.0f);
+            gs_matrix_scale3f(s, s, 1.0f);
+        } else if (scale_mode == 1) {
+            // FILL (Aránytartó teljes vászonkitöltés fekete sávok nélkül)
+            const float s = std::max(static_cast<float>(width) / static_cast<float>(src_w),
+                                     static_cast<float>(height) / static_cast<float>(src_h));
+            const float draw_w = static_cast<float>(src_w) * s;
+            const float draw_h = static_cast<float>(src_h) * s;
+            const float off_x = (static_cast<float>(width) - draw_w) * 0.5f;
+            const float off_y = (static_cast<float>(height) - draw_h) * 0.5f;
+            gs_matrix_translate3f(off_x, off_y, 0.0f);
+            gs_matrix_scale3f(s, s, 1.0f);
         } else {
-            obs_source_video_render(source);
+            // STRETCH (Nyújtás)
+            const float sx = static_cast<float>(width) / static_cast<float>(src_w);
+            const float sy = static_cast<float>(height) / static_cast<float>(src_h);
+            gs_matrix_scale3f(sx, sy, 1.0f);
         }
+        obs_source_video_render(source);
+        gs_matrix_pop();
+    } else {
+        // Procedurális Audio-Reaktív FluidFlowSNoise VJ Shader tiszta audio fájlokhoz!
+        if (context && context->fluid_effect && context->dummy_tex) {
+            const float time_sec = static_cast<float>(os_gettime_ns() / 1000000ULL) * 0.001f;
+            const float bpm_val = deck ? static_cast<float>(deck->bpm()) : 120.0f;
+            const float amp_val = deck ? deck->currentAmplitude() : 0.0f;
+            const float bass_val = deck ? deck->currentBassEnergy() : 0.0f;
+            const float mid_val = deck ? deck->currentMidEnergy() : 0.0f;
+            const float high_val = deck ? deck->currentHighEnergy() : 0.0f;
+            const bool is_b = (deck && deck->side() == DeckPlayer::DeckSide::B);
 
-        gs_blend_state_pop();
+            gs_eparam_t *p = nullptr;
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "anim_time")))
+                gs_effect_set_float(p, time_sec);
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bpm")))
+                gs_effect_set_float(p, bpm_val);
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "audio_amp")))
+                gs_effect_set_float(p, amp_val);
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bass_energy")))
+                gs_effect_set_float(p, bass_val);
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "mid_energy")))
+                gs_effect_set_float(p, mid_val);
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "high_energy")))
+                gs_effect_set_float(p, high_val);
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "is_deck_b")))
+                gs_effect_set_float(p, is_b ? 1.0f : 0.0f);
+
+            while (gs_effect_loop(context->fluid_effect, "Draw")) {
+                gs_draw_sprite(context->dummy_tex, 0, width, height);
+            }
+        }
     }
+
+    gs_blend_state_pop();
 
     gs_texrender_end(target);
     return true;
@@ -639,6 +686,12 @@ static void mixer_destroy(void *data)
     if (context->effect)
         gs_effect_destroy(context->effect);
 
+    if (context->fluid_effect)
+        gs_effect_destroy(context->fluid_effect);
+
+    if (context->dummy_tex)
+        gs_texture_destroy(context->dummy_tex);
+
     obs_leave_graphics();
     delete context;
 }
@@ -672,9 +725,9 @@ static void draw_mixer(void *data)
     obs_source_t *src_b = deck_b.source();
 
     const bool rendered_a =
-        render_to_texture(context->deck_a, src_a, width, height);
+        render_to_texture(context, context->deck_a, src_a, &deck_a, width, height);
     const bool rendered_b =
-        render_to_texture(context->deck_b, src_b, width, height);
+        render_to_texture(context, context->deck_b, src_b, &deck_b, width, height);
 
     gs_texture_t *texture_a =
         rendered_a ? gs_texrender_get_texture(context->deck_a) : nullptr;

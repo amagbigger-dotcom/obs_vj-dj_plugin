@@ -4,6 +4,7 @@
 #include <media-io/audio-io.h>
 #include <util/platform.h>
 #include "deck-engine.hpp"
+#include "shaders/fluid-flow.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -89,6 +90,8 @@ struct DeckSourceContext {
     bool has_frozen_frame = false;
     int deck_channel = 0;
     gs_effect_t *color_effect = nullptr;
+    gs_effect_t *fluid_effect = nullptr;
+    gs_texture_t *dummy_tex = nullptr;
 
     uint64_t next_audio_ts = 0;
 
@@ -334,6 +337,18 @@ static void deck_destroy(void *data)
             context->color_effect = nullptr;
             obs_leave_graphics();
         }
+        if (context->fluid_effect) {
+            obs_enter_graphics();
+            gs_effect_destroy(context->fluid_effect);
+            context->fluid_effect = nullptr;
+            obs_leave_graphics();
+        }
+        if (context->dummy_tex) {
+            obs_enter_graphics();
+            gs_texture_destroy(context->dummy_tex);
+            context->dummy_tex = nullptr;
+            obs_leave_graphics();
+        }
         if (context->freeze_tex) {
             obs_enter_graphics();
             gs_texrender_destroy(context->freeze_tex);
@@ -408,7 +423,7 @@ static void deck_video_render(void *data, gs_effect_t *effect)
             const uint32_t sw = obs_source_get_width(media);
             const uint32_t sh = obs_source_get_height(media);
 
-            if (sw > 0 && sh > 0) {
+            if (sw > 0 && sh > 0 && context->deck->hasVideo()) {
                 gs_matrix_push();
                 DeckPair *dp = vdj_decks();
                 const int scale_mode = dp ? dp->videoScaleMode() : 1; // 0 = Fit, 1 = Fill, 2 = Stretch
@@ -440,7 +455,49 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                 obs_source_video_render(media);
                 gs_matrix_pop();
             } else {
-                obs_source_video_render(media);
+                // Procedurális Audio-Reaktív FluidFlowSNoise VJ Shader tiszta audio fájlokhoz!
+                if (!context->fluid_effect) {
+                    char *err = nullptr;
+                    context->fluid_effect = gs_effect_create(FLUID_FLOW_EFFECT, "fluid_flow_effect", &err);
+                    if (!context->fluid_effect) {
+                        blog(LOG_ERROR, "[vj_deck] Failed to compile FLUID_FLOW_EFFECT: %s", err ? err : "unknown");
+                        bfree(err);
+                    }
+                }
+                if (!context->dummy_tex) {
+                    const uint32_t white_px = 0xFFFFFFFF;
+                    const uint8_t *data_ptr = reinterpret_cast<const uint8_t *>(&white_px);
+                    context->dummy_tex = gs_texture_create(1, 1, GS_RGBA, 1, &data_ptr, 0);
+                }
+                if (context->fluid_effect && context->dummy_tex) {
+                    const float time_sec = static_cast<float>(os_gettime_ns() / 1000000) / 1000.0f;
+                    const float bpm_val = static_cast<float>(context->deck->bpm());
+                    const float amp_val = context->deck->currentAmplitude();
+                    const float bass_val = context->deck->currentBassEnergy();
+                    const float mid_val = context->deck->currentMidEnergy();
+                    const float high_val = context->deck->currentHighEnergy();
+                    const bool is_b = (context->deck_channel == 1 || (context->deck && context->deck->side() == DeckPlayer::DeckSide::B));
+
+                    gs_eparam_t *p = nullptr;
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "anim_time")))
+                        gs_effect_set_float(p, time_sec);
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bpm")))
+                        gs_effect_set_float(p, bpm_val);
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "audio_amp")))
+                        gs_effect_set_float(p, amp_val);
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bass_energy")))
+                        gs_effect_set_float(p, bass_val);
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "mid_energy")))
+                        gs_effect_set_float(p, mid_val);
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "high_energy")))
+                        gs_effect_set_float(p, high_val);
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "is_deck_b")))
+                        gs_effect_set_float(p, is_b ? 1.0f : 0.0f);
+
+                    while (gs_effect_loop(context->fluid_effect, "Draw")) {
+                        gs_draw_sprite(context->dummy_tex, 0, 1920, 1080);
+                    }
+                }
             }
             gs_texrender_end(context->freeze_tex);
             context->has_frozen_frame = true;

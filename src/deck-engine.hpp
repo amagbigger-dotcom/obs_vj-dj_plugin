@@ -138,6 +138,11 @@ public:
     bool hasFileChanged() const noexcept { return file_changed_.load(std::memory_order_relaxed); }
     void clearFileChanged() noexcept { file_changed_.store(false, std::memory_order_relaxed); }
 
+    float currentBassEnergy() const noexcept;
+    float currentMidEnergy() const noexcept;
+    float currentHighEnergy() const noexcept;
+    float currentAmplitude() const noexcept;
+
     enum class DeckSide { A, B };
     void setSide(DeckSide side) noexcept { side_.store(side, std::memory_order_relaxed); }
     DeckSide side() const noexcept { return side_.load(std::memory_order_relaxed); }
