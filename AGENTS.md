@@ -626,6 +626,32 @@ A bővítmény három független szálon/környezetben dolgozik:
   - A Master Mixer vásznán mind a Deck A, mind a Deck B FluidFlow textúrája függetlenül, a saját zenei adataira reagálva generálódik.
   - A Crossfader és a csatorna hangerőkkel a két folyadék vizualizáció zökkenőmentesen keveredik át egymásba a 12 Master Crossfader shader effektussal (Swirl, Fisheye, RGB Split, Zoom Blur, Pixelate, Luma Dissolve, Ripple, Kaleidoscope, Glitch, Scanline, Halftone, Neon Sobel) együtt!
 
+### 34. 8 ISF Visualizer Shader Suite, Paraméterenkénti Zenei Lüktetés és Tónuskövetés, Külön Deck Vezérlés és .vdj.json Perzisztencia (Build #233 / Run #237) *(KÉSZ)*
+- **8 Komplett ISF Visualizer Shader Suite:**
+  - `0: Fluid Flow (Organikus Folyadék)`: Folyadék áramlás simplex zajjal.
+  - `1: Truchet Spin (Forgó Labirintus)`: Kettős szintű forgó labirintus.
+  - `2: Hypno Worm (Hipnotikus Féregalagút)`: OpArt 30 lépéses 3D alagút.
+  - `3: Shape Twist (Elektro Hullám Csavarás)`: Triangle & Square twist raymarching.
+  - `4: String Art (Geometrikus Szálművészet)`: Harmonikus húrgeometria.
+  - `5: Dodecahedron (3D Platóni Test)`: Raymarching 3D kristály forma.
+  - `6: Kali Circuits (Fraktál Áramkörök)`: Fraktál áramkörök.
+  - `7: Diamond Vision (Tórusz Sugárkövetés)`: Axiom-Crux tórusz sugárkövetés.
+- **Kifordított Paraméterek és Paraméterenkénti Zenei Moduláció:**
+  - A megnyitható VJ Beállítások ablakban (`[ ⚡ VJ ]`) mindegyik shaderhez megjelennek az eredeti paraméterek valós idejű csúszkákkal (`QSlider` és numerikus érték).
+  - Minden egyes paraméter mellett függetlenül választható a kívánt modulációs algoritmus:
+    * `✋ Kézi (Manual / Off)`: fix, csúszkával beállított érték.
+    * `🥁 Zene Üteme (Beat Pulse)`: lábdob / basszus tranziensekre lüktető dinamika.
+    * `🌈 Tónusos (Spectral Tone)`: a szám valós idejű spektrális egyensúlyára (mély vs magas arány) reagáló moduláció.
+    * `⚡ Mindkettő (Both)`: lüktetés és tónuskövetés szimultán.
+- **Különválasztott Deck A és Deck B Beállítások:**
+  - Mindkét deckhez teljesen független shader kiválasztás és egyedi paraméterkiosztás rendelhető (`[ ◄ DECK A ]` és `[ DECK B ► ]`).
+  - A DeckWindow fejlécében található `[ ⚡ VJ ]` gomb közvetlenül az adott deckre fókuszálva nyitja meg a panelt.
+- **Számszintű Automatikus Mentés (`.vdj.json`):**
+  - A testreszabott shader és paraméterek automatikusan beleíródnak a track `<zenefájl>.vdj.json` oldalkocsi leírójába, így legközelebb ugyanazt a zenét betöltve azonnal az elmentett VJ beállításokkal jelenik meg.
+- **Élő Audio DSP Envelope Follower & Spektrális Kontraszt:**
+  - Valós idejű dinamikus RMS és lábdob érzékelés közvetlenül a 48 kHz-es audió feldolgozó szálon, garantálva a hibátlan, azonnali audio-reaktivitást.
+  - A pozicionáló sávban normalizált relatív spektrális arányok és `pow(1.8)` kontraszt-kiemelés a határozott, szép színmegkülönböztetésért (mély kék, meleg arany, elektromos cián és fehér csúcsok).
+
 ---
 
 ## 7. ÉPÍTÉSI ÉS TELEPÍTÉSI ÚTMUTATÓ
