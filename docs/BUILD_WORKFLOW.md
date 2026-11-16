@@ -1,0 +1,63 @@
+# Építés, Telepítés & Munkafolyamat Specifikáció (BUILD_WORKFLOW)
+
+Ez a dokumentum a fordítási környezetet, a GitHub Actions CI folyamatot, a helyi gyorsfordítási tervet és a hivatalos mérföldköveket tartalmazza.
+
+---
+
+## 1. FORRÁSFAJLOK ÉS KONFIGURÁCIÓK
+* **`CMakeLists.txt`:** C++17, Qt6 (Core, Gui, Widgets), libobs, obs-frontend-api, Windows Media Foundation és WinMM könyvtárak.
+* **`.github/workflows/build.yml`:** Automatizált felhős fordítás Windows 2022 virtuális gépen, OBS 33 SDK-val és Qt6-tal.
+
+---
+
+## 2. KÖVETELMÉNYEK ÉS FÜGGŐSÉGEK
+
+* **Fordító:** Microsoft Visual C++ (MSVC v143 - Visual Studio 2022 x64).
+* **Nyelvi szabvány:** C++17 (`set(CMAKE_CXX_STANDARD 17)`).
+* **Keretrendszerek:**
+  * **OBS Studio SDK:** Fejlécek és könyvtárak (`libobs.lib`, `obs-frontend-api.lib`).
+  * **Qt 6.6+:** `Qt6Core.lib`, `Qt6Gui.lib`, `Qt6Widgets.lib`.
+  * **Windows API:** `winmm.lib` (MIDI), `mfplat.lib`, `mfreadwrite.lib`, `mfuuid.lib`, `propsys.lib` (WMF audió dekódolás).
+* **Generált Bináris:** Szigorúan **1 darab `obs_dj-vj_plugin.dll`**.
+
+---
+
+## 3. TELEPÍTÉSI ÚTVONALAK ÉS JOGOSULTSÁGOK
+
+A kész binárist a Windows OBS Studio 64 bites bővítmény mappájába kell másolni:
+* **Elsődleges célhely:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
+* **Biztonsági másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
+
+*Megjegyzés:* A `Program Files` mappába történő másoláshoz rendszergazdai jogosultság (Elevation / RunAs) szükséges. PowerShell parancs:
+```powershell
+Start-Process powershell -ArgumentList '-NoProfile -Command "Copy-Item -Path \"$DLL_PATH\" -Destination \"C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll\" -Force"' -Verb RunAs -Wait
+```
+
+---
+
+## 4. GITHUB ACTIONS FELHŐS FORDÍTÁS (CI PIPELINE)
+
+Amikor a kódot felküldjük a GitHubra (`git push origin main`), lefut a `.github/workflows/build.yml`:
+1. Elindul egy tiszta `windows-2022` futtató környezet.
+2. Letölti a Qt6 csomagokat és az előre lefordított OBS Studio 33 SDK-t.
+3. CMake-kel és MSVC-vel lefordítja a plugint Release módban.
+4. Létrehoz egy `obs-vj-mixer.zip` artifactot.
+5. Az artifact a GitHub API-n vagy a nightly.link-en keresztül automatikusan letölthető és telepíthető.
+
+---
+
+## 5. HIVATALOS MÉRFÖLDKÖVEK ÉS TÁMPONTOK (MILESTONES)
+
+Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
+
+### Mérföldkő #1: Build #222 / GitHub Run #231 (Kiemelt Referencia Támpont)
+* **Verzió & Commit:** `c680bd5f72af90d939729dd54952c5ed2d60c59f`
+* **Git Tag:** `milestone-run231-build222`
+* **Kész bináris mentés:** `milestones/obs_dj-vj_plugin_run231_build222.dll`
+* **SHA256:** `5CA2942365846B944C89AD3347F84D5AA141DBBF4082D7D12464214BE80C401D`
+* **Jellemzők:** 2 deckes stabil független motor, OUT 3-4 WASAPI füles keverő, 4 Hot Cue, 12 Crossfader shader, deck-színek, zöld pipák.
+
+### Mérföldkő #2: Build #233 / GitHub Run #237 (8 ISF Shader & Paraméter Moduláció)
+* **Verzió & Commit:** `bdfb49b`
+* **SHA256:** `83606345F4A24A12296C2A5E57A6CD9CC436E30E1EEA6A28DF21982979508020`
+* **Jellemzők:** 8 ISF visualizer shader tiszta audióhoz, kifordított paraméter csúszkák, paraméterenkénti zenei lüktetés és tónuskövetés moduláció, külön Deck A/B vezérlés, számszintű `.vdj.json` perzisztencia.

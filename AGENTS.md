@@ -1,6 +1,16 @@
 # PROJEKT RESET & MESTERTERV: OBS VIDEO DJ (VJ) MIXER PLUGIN
 
-Ez a dokumentum a projekt teljes kontextusát, forrásfájljait, hardveres illesztését, rendszerarchitektúráját és aktuális fejlesztési állapotát rögzíti. Bármikor bemásolható új munkamenet indításakor az azonnali folytatáshoz.
+Ez a dokumentum a projekt teljes kontextusát, forrásfájljait, hardveres illesztését, rendszerarchitektúráját és aktuális fejlesztési állapotát rögzíti.
+
+> [!TIP]
+> **MODULÁRIS RENDSZEREZÉS & SPECIFIKÁCIÓK (`docs/` mappa):**
+> A hatékony és célzott fejlesztés érdekében a részletes alrendszer-leírások különálló, tömör `.md` fájlokba lettek szervezve. Fejlesztéskor és hibajavításkor kizárólag az érintett specifikációt és forrásfájlt kell beolvasni:
+> * 🗺️ **[docs/INDEX.md](file:///c:/gitrepo/obs_vj-dj_plugin/docs/INDEX.md)**: AI Router, rendszeráttekintés, forrás-térkép és szálkezelési modell.
+> * 🔊 **[docs/AUDIO_ENGINE.md](file:///c:/gitrepo/obs_vj-dj_plugin/docs/AUDIO_ENGINE.md)**: WMF dekódolás, RAM PCM puffer, 48 kHz 3-sávos EQ/Filter DSP, élő Kick envelope follower, WASAPI Direct CUE (OUT 3-4), Beatgrid & kvantálás.
+> * 🎬 **[docs/VIDEO_SHADERS.md](file:///c:/gitrepo/obs_vj-dj_plugin/docs/VIDEO_SHADERS.md)**: OBS források (`vj_deck`, `vdj_master_mixer`), 1080p GPU méretezés (FIT/FILL), 12 Master Crossfader shader, 8 ISF visualizer shader, `.vdj.json` gyorsítótár.
+> * 🎛️ **[docs/UI_COMPONENTS.md](file:///c:/gitrepo/obs_vj-dj_plugin/docs/UI_COMPONENTS.md)**: Lebegő dialógusok (640×340 Deck, 590×340 Mixer, 540×520 VJ ablak), WaveformWidget, Jog Scratch, 3-sávos spektrum (`pow(1.8)`), session zöld pipák.
+> * 🎹 **[docs/MIDI_HARDWARE.md](file:///c:/gitrepo/obs_vj-dj_plugin/docs/MIDI_HARDWARE.md)**: Traktor Kontrol S2 MK3 USB MIDI (WinMM API), CC és Note kiosztások, szálbiztonsági szabályok.
+> * ⚙️ **[docs/BUILD_WORKFLOW.md](file:///c:/gitrepo/obs_vj-dj_plugin/docs/BUILD_WORKFLOW.md)**: CMake/MSVC build, telepítés, GitHub Actions CI és hivatalos mérföldkövek (Build #222, Build #233).
 
 ---
 
