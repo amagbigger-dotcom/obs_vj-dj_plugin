@@ -617,3 +617,17 @@ cmake --build build --config Release --parallel
 3. Másolja be a fájlt az OBS bővítmény mappájába:
    `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
 4. Indítsa el az OBS-t, és nyissa meg a keverőt az **Eszközök (Tools) $\rightarrow$ Video DJ Mixer** menüpontból.
+
+---
+
+## 8. HIVATALOS MÉRFÖLDKÖVEK ÉS TÁMPONTOK (MILESTONES)
+
+### Mérföldkő #1: Build #222 / GitHub Run #231 (Kiemelt Referencia Támpont)
+* **Verzió & Commit:** `c680bd5f72af90d939729dd54952c5ed2d60c59f`
+* **Git Tag:** `milestone-run231-build222` (GitHubon és helyileg is rögzítve)
+* **Kész bináris:** `milestones/obs_dj-vj_plugin_run231_build222.dll`
+* **SHA256:** `5CA2942365846B944C89AD3347F84D5AA141DBBF4082D7D12464214BE80C401D`
+* **Státusz:** Teljes, stabil, önálló OBS VJ/DJ Mixer (2 deckes független audio-video motor, független CUE/PGM füles mixer OUT 3-4 kimenetre, 4 Hot Cue deckenként, 12 valós idejű VJ crossfader shader, lejátszás alatti számbetöltés védelem, kék/narancs deck-színű felületek, munkamenet-alapú zöld pipák a tracklistben és szigorúan fix, vibrálásmentes ablakméretek).
+* **Visszaállítás parancsa:**
+  `Copy-Item "c:\gitrepo\obs_vj-dj_plugin\milestones\obs_dj-vj_plugin_run231_build222.dll" "C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll" -Force`
+
