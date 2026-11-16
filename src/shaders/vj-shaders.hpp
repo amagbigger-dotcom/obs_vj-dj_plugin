@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 // =============================================================================
 // VJ Visualizer Shader Suite (Direct3D 11 / OpenGL HLSL)
@@ -13,7 +14,11 @@
 //   7: DiamondVision (Axiom-Crux / mojovideotech tórusz sugárkövetés)
 // =============================================================================
 
-static const char *VJ_VISUALIZER_EFFECT = R"(
+inline const char *getVjVisualizerEffect() {
+    static std::string effect_str;
+    if (effect_str.empty()) {
+        effect_str.reserve(32768);
+        effect_str += R"(
 uniform float4x4 ViewProj;
 uniform texture2d dummy_texture;
 
@@ -174,7 +179,8 @@ float4 render_fluid_flow(float2 uv)
 
     return float4(saturate(final_color), 1.0);
 }
-
+)";
+        effect_str += R"(
 // -----------------------------------------------------------------------------
 // SHADER 1: TruchetDualLevelSpin (Forgó Labirintus)
 // -----------------------------------------------------------------------------
@@ -294,7 +300,8 @@ float4 render_triangle_twist(float2 uv)
 
     return float4(saturate(out_rgb), 1.0);
 }
-
+)";
+        effect_str += R"(
 // -----------------------------------------------------------------------------
 // SHADER 4: StringArt (Geometrikus Szálművészet)
 // -----------------------------------------------------------------------------
@@ -409,7 +416,8 @@ float4 render_dodecahedron(float2 uv) {
     }
     return float4(saturate(col), 1.0);
 }
-
+)";
+        effect_str += R"(
 // -----------------------------------------------------------------------------
 // SHADER 6: KaliCircuitsExplorer (Fraktál Áramkörök)
 // -----------------------------------------------------------------------------
@@ -561,3 +569,8 @@ technique Draw
     }
 }
 )";
+    }
+    return effect_str.c_str();
+}
+
+#define VJ_VISUALIZER_EFFECT getVjVisualizerEffect()

@@ -105,7 +105,7 @@ bool AudioAnalyzer::loadCache(const QString &file_path, TrackAnalysisResult &out
         QJsonObject vj_obj = root.value(QStringLiteral("vj_shader")).toObject();
         out_res.vj_config.shader_idx = vj_obj.value(QStringLiteral("shader_idx")).toInt(0);
         QJsonArray p_arr = vj_obj.value(QStringLiteral("params")).toArray();
-        for (int i = 0; i < std::min(8, p_arr.size()); ++i) {
+        for (int i = 0; i < std::min<int>(8, static_cast<int>(p_arr.size())); ++i) {
             QJsonObject p_obj = p_arr[i].toObject();
             out_res.vj_config.params[i].value = static_cast<float>(p_obj.value(QStringLiteral("val")).toDouble(1.0));
             out_res.vj_config.params[i].mod_mode = p_obj.value(QStringLiteral("mod")).toInt(0);

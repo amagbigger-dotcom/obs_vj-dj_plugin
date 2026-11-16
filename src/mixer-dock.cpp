@@ -1168,7 +1168,7 @@ DeckPlayer *VjFxDialog::currentDeck() const
 {
     if (!decks_)
         return nullptr;
-    return (current_deck_idx_ == 1) ? decks_->deckB() : decks_->deckA();
+    return (current_deck_idx_ == 1) ? &decks_->deckB() : &decks_->deckA();
 }
 
 void VjFxDialog::selectDeck(int deck_idx)
@@ -1191,9 +1191,9 @@ void VjFxDialog::selectDeck(int deck_idx)
 
     DeckPlayer *dp = currentDeck();
     if (dp) {
-        std::string path = dp->loadedFilePath();
-        if (!path.empty()) {
-            QFileInfo fi(QString::fromStdString(path));
+        const QString path = dp->filePath();
+        if (!path.isEmpty()) {
+            QFileInfo fi(path);
             track_title_lbl_->setText(QStringLiteral("🎵 Track: %1").arg(fi.fileName()));
         } else {
             track_title_lbl_->setText(QStringLiteral("⚠️ Nincs betöltött zeneszám (Alapértelmezett profil)"));
