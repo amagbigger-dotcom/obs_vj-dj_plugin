@@ -1,5 +1,5 @@
-#include "midi-handler.hpp"
-#include "deck-engine.hpp"
+#include "controllers/midi_handler.hpp"
+#include "engine/deck_engine.hpp"
 
 #include <obs-module.h>
 

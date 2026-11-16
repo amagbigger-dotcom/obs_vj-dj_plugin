@@ -1,6 +1,6 @@
-#include "deck-engine.hpp"
-#include "audio-analyzer.hpp"
-#include "wasapi-output.hpp"
+#include "engine/deck_engine.hpp"
+#include "audio/audio_analyzer.hpp"
+#include "audio/wasapi_output.hpp"
 
 #include <obs-module.h>
 #include <obs-frontend-api.h>

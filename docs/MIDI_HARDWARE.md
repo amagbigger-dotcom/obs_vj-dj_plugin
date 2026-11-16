@@ -5,7 +5,7 @@ Ez a dokumentum a Native Instruments TRAKTOR KONTROL S2 MK3 hardveres kontroller
 ---
 
 ## 1. FORRÁSFAJLOK ÉS FŐ OSZTÁLYOK
-* **`src/midi-handler.hpp` & `.cpp`:** `MidiHandler` (Windows Multimedia API illesztő, eszközfelderítés, bejövő üzenetek szálbiztos feldolgozása).
+* **`src/controllers/midi_handler.hpp` & `.cpp`:** `MidiHandler` (Windows Multimedia API illesztő, eszközfelderítés, bejövő üzenetek szálbiztos feldolgozása).
 
 ---
 

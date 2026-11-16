@@ -5,9 +5,9 @@ Ez a dokumentum a hangdekódolás, a memóriapufferelés, a valós idejű 48 kHz
 ---
 
 ## 1. FORRÁSFAJLOK ÉS FŐ OSZTÁLYOK
-* **`src/audio-analyzer.hpp` & `.cpp`:** `AudioAnalyzer` (Windows Media Foundation aszinkron dekódolás, valódi BPM detektálás, Kick transient és Downbeat keresés, `.vdj.json` gyorsítótárazás).
-* **`src/deck-engine.hpp` & `.cpp`:** `DeckPlayer` (PCM RAM puffer, Play/Pause/CUE állapotgép, 3-sávos EQ és DJ Filter, élő Envelope Follower, Auto-Loop logika).
-* **`src/wasapi-output.hpp` & `.cpp`:** `WasapiOutput` (Közvetlen Windows Core Audio / WASAPI endpoint streaming a dedikált DJ füles kimenetre, pl. Behringer XR18 OUT 3-4).
+* **`src/audio/audio_analyzer.hpp` & `.cpp`:** `AudioAnalyzer` (Windows Media Foundation aszinkron dekódolás, valódi BPM detektálás, Kick transient és Downbeat keresés, `.vdj.json` gyorsítótárazás).
+* **`src/engine/deck_engine.hpp` & `.cpp`:** `DeckPlayer` (PCM RAM puffer, Play/Pause/CUE állapotgép, 3-sávos EQ és DJ Filter, élő Envelope Follower, Auto-Loop logika).
+* **`src/audio/wasapi_output.hpp` & `.cpp`:** `WasapiOutput` (Közvetlen Windows Core Audio / WASAPI endpoint streaming a dedikált DJ füles kimenetre, pl. Behringer XR18 OUT 3-4).
 
 ---
 

@@ -1,6 +1,6 @@
-#include "deck-window.hpp"
-#include "deck-engine.hpp"
-#include "waveform-widget.hpp"
+#include "gui/deck_window.hpp"
+#include "engine/deck_engine.hpp"
+#include "waveform/waveform_widget.hpp"
 
 #include <obs-frontend-api.h>
 #include <obs.h>

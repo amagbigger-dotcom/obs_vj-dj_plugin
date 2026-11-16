@@ -5,10 +5,11 @@ Ez a dokumentum a Qt 6 alapú felhasználói felületeket, az ablakméreteket, a
 ---
 
 ## 1. FORRÁSFAJLOK ÉS FŐ OSZTÁLYOK
-* **`src/deck-window.hpp` & `.cpp`:** `DeckWindow` (Független lebegő Deck A és Deck B lejátszó ablakok).
-* **`src/mixer-dock.hpp` & `.cpp`:** `MixerWindow` (Központi keverőpult), `VjFxDialog` (VJ paraméter ablak), `DJSlider` (Duplaklikkes reset potméter).
-* **`src/waveform-widget.hpp` & `.cpp`:** `WaveformWidget` & `WaveformCanvas` (Zenei hullámforma és BPM sáv).
-* **`src/tracklist-dock.hpp` & `.cpp`:** `TracklistDock` (Médiakönyvtár, drag-and-drop és videókonvertáló).
+* **`src/gui/deck_window.hpp` & `.cpp`:** `DeckWindow` (Független lebegő Deck A és Deck B lejátszó ablakok).
+* **`src/gui/mixer_window.hpp` & `.cpp`:** `MixerWindow` (Központi keverőpult), `DJSlider` (Duplaklikkes reset potméter).
+* **`src/gui/vj_fx_dialog.hpp` & `.cpp`:** `VjFxDialog` (VJ paraméter ablak).
+* **`src/waveform/waveform_widget.hpp` & `.cpp`:** `WaveformWidget` & `WaveformCanvas` (Zenei hullámforma és BPM sáv).
+* **`src/gui/tracklist_dock.hpp` & `.cpp`:** `TracklistDock` (Médiakönyvtár, drag-and-drop és videókonvertáló).
 
 ---
 

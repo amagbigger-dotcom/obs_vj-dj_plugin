@@ -1,11 +1,11 @@
 #include <obs-module.h>
 #include <obs-frontend-api.h>
 #include <QWidget>
-#include "deck-engine.hpp"
-#include "deck-window.hpp"
-#include "mixer-dock.hpp"
-#include "tracklist-dock.hpp"
-#include "midi-handler.hpp"
+#include "engine/deck_engine.hpp"
+#include "gui/deck_window.hpp"
+#include "gui/mixer_window.hpp"
+#include "gui/tracklist_dock.hpp"
+#include "controllers/midi_handler.hpp"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs_vj-dj_plugin", "en-US")

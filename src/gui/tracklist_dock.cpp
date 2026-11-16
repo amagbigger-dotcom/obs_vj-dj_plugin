@@ -1,6 +1,6 @@
-#include "tracklist-dock.hpp"
-#include "deck-engine.hpp"
-#include "audio-analyzer.hpp"
+#include "gui/tracklist_dock.hpp"
+#include "engine/deck_engine.hpp"
+#include "audio/audio_analyzer.hpp"
 
 #include <obs-frontend-api.h>
 #include <obs.h>

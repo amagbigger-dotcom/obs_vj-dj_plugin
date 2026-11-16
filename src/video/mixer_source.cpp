@@ -22,8 +22,8 @@
 #include <atomic>
 #include <vector>
 
-#include "deck-engine.hpp"
-#include "shaders/fluid-flow.hpp"
+#include "engine/deck_engine.hpp"
+#include "effects/fluid_flow.hpp"
 
 extern "C" {
 

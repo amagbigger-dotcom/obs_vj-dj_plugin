@@ -4,7 +4,7 @@
 #include <vector>
 #include <functional>
 #include <cstdint>
-#include "vj-config.hpp"
+#include "effects/vj_config.hpp"
 
 struct TrackAnalysisResult {
     bool success = false;

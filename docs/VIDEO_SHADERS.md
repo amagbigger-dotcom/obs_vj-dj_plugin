@@ -5,11 +5,11 @@ Ez a dokumentum az OBS videó források életciklusát, a GPU méretezést, a 12
 ---
 
 ## 1. FORRÁSFAJLOK ÉS FŐ ELEMEK
-* **`src/deck-source.cpp`:** `vj_deck` forrás (Deck A és Deck B egyedi videó/audió kimenete az OBS jelenetekben).
-* **`src/mixer-source.cpp`:** `vdj_master_mixer` forrás (A 2 decket összefűző 1080p Master kimenet, T-Bar vezérléssel).
-* **`src/vj-config.hpp`:** VJ shader definíciók, paraméter-táblázatok és hatásos paraméterszámítás (`computeEffectiveParam`).
-* **`src/shaders/vj-shaders.hpp`:** A 8 beágyazott ISF HLSL shader forrása.
-* **`src/shaders/crossfade.effect`:** A 12 Master Crossfader shader forrása.
+* **`src/video/deck_source.cpp`:** `vj_deck` forrás (Deck A és Deck B egyedi videó/audió kimenete az OBS jelenetekben).
+* **`src/video/mixer_source.cpp`:** `vdj_master_mixer` forrás (A 2 decket összefűző 1080p Master kimenet, T-Bar vezérléssel).
+* **`src/effects/vj_config.hpp`:** VJ shader definíciók, paraméter-táblázatok és hatásos paraméterszámítás (`computeEffectiveParam`).
+* **`src/effects/vj_shaders.hpp`:** A 8 beágyazott ISF HLSL shader forrása.
+* **`src/effects/crossfade.effect`:** A 12 Master Crossfader shader forrása.
 
 ---
 

@@ -1,5 +1,5 @@
-#include "waveform-widget.hpp"
-#include "deck-engine.hpp"
+#include "waveform/waveform_widget.hpp"
+#include "engine/deck_engine.hpp"
 
 #include <QPainter>
 #include <QPainterPath>

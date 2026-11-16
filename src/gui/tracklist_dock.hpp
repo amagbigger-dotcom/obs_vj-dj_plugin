@@ -9,7 +9,7 @@
 #include <QProgressBar>
 #include <QTimer>
 #include <vector>
-#include "video-converter.hpp"
+#include "video/video_converter.hpp"
 
 struct TrackItem {
     QString title;

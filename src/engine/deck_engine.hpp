@@ -12,7 +12,7 @@
 #include <queue>
 #include <thread>
 #include <vector>
-#include "vj-config.hpp"
+#include "effects/vj_config.hpp"
 
 class DeckPlayer {
 public:

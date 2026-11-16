@@ -1,4 +1,4 @@
-#include "audio-analyzer.hpp"
+#include "audio/audio_analyzer.hpp"
 
 #ifdef _WIN32
 #include <windows.h>

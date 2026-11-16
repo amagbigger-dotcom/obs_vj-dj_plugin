@@ -3,8 +3,8 @@
 #include <graphics/matrix4.h>
 #include <media-io/audio-io.h>
 #include <util/platform.h>
-#include "deck-engine.hpp"
-#include "shaders/fluid-flow.hpp"
+#include "engine/deck_engine.hpp"
+#include "effects/fluid_flow.hpp"
 
 #ifdef _WIN32
 #include <windows.h>

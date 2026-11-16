@@ -20,28 +20,47 @@ endif()
 file(TO_CMAKE_PATH "${OBS_DIR}" OBS_DIR)
 
 set(SOURCES
+    # Core Plugin Entry
     src/plugin-main.cpp
-    src/audio-analyzer.cpp
-    src/audio-analyzer.hpp
-    src/vj-config.hpp
-    src/deck-engine.cpp
-    src/deck-engine.hpp
-    src/deck-source.cpp
-    src/deck-window.cpp
-    src/deck-window.hpp
-    src/mixer-source.cpp
-    src/mixer-dock.cpp
-    src/mixer-dock.hpp
-    src/waveform-widget.cpp
-    src/waveform-widget.hpp
-    src/video-converter.cpp
-    src/video-converter.hpp
-    src/tracklist-dock.cpp
-    src/tracklist-dock.hpp
-    src/wasapi-output.cpp
-    src/wasapi-output.hpp
-    src/midi-handler.cpp
-    src/midi-handler.hpp
+
+    # Engine (Playback & State Machine)
+    src/engine/deck_engine.cpp
+    src/engine/deck_engine.hpp
+
+    # Audio (WMF Analysis & WASAPI CUE)
+    src/audio/audio_analyzer.cpp
+    src/audio/audio_analyzer.hpp
+    src/audio/wasapi_output.cpp
+    src/audio/wasapi_output.hpp
+
+    # Video (OBS Sources & Transcoder)
+    src/video/deck_source.cpp
+    src/video/mixer_source.cpp
+    src/video/video_converter.cpp
+    src/video/video_converter.hpp
+
+    # Effects (ISF Shaders & Modulation)
+    src/effects/vj_config.hpp
+    src/effects/vj_shaders.hpp
+    src/effects/fluid_flow.hpp
+
+    # Controllers (Hardware MIDI)
+    src/controllers/midi_handler.cpp
+    src/controllers/midi_handler.hpp
+
+    # Waveform (Canvas & Spectral Rendering)
+    src/waveform/waveform_widget.cpp
+    src/waveform/waveform_widget.hpp
+
+    # GUI (Windows, Docks & Dialogs)
+    src/gui/deck_window.cpp
+    src/gui/deck_window.hpp
+    src/gui/mixer_window.cpp
+    src/gui/mixer_window.hpp
+    src/gui/tracklist_dock.cpp
+    src/gui/tracklist_dock.hpp
+    src/gui/vj_fx_dialog.cpp
+    src/gui/vj_fx_dialog.hpp
 )
 
 add_library(obs_vj-dj_plugin MODULE ${SOURCES})
@@ -82,4 +101,16 @@ target_compile_definitions(obs_vj-dj_plugin PRIVATE
     UNICODE
     _UNICODE
     NOMINMAX
+)
+
+target_precompile_headers(obs_vj-dj_plugin PRIVATE
+    <obs-module.h>
+    <obs-frontend-api.h>
+    <QWidget>
+    <QString>
+    <vector>
+    <string>
+    <atomic>
+    <memory>
+    <algorithm>
 )
