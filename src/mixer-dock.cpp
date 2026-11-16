@@ -13,6 +13,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QTimer>
 #include <QSignalBlocker>
 #include <QGuiApplication>
@@ -204,12 +205,24 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
 
     main_layout->addLayout(mixer_row, 1);
 
-    // 2. Bottom Bar: MIDI Status and Master BPM
+    // 2. Bottom Bar: MIDI Status, VJ Visualizer FX and Master BPM
     auto *bottom_row = new QHBoxLayout();
     bottom_row->setContentsMargins(4, 0, 4, 0);
     midi_status_lbl_ = new QLabel(QStringLiteral("MIDI: Initializing..."), this);
     midi_status_lbl_->setStyleSheet(QStringLiteral("font-size: 10px; font-weight: bold; color: #7f8fa4;"));
     bottom_row->addWidget(midi_status_lbl_);
+    bottom_row->addStretch(1);
+
+    auto *vj_fx_btn = new QPushButton(QStringLiteral("⚡ VJ SHADER FX"), this);
+    vj_fx_btn->setFixedHeight(20);
+    vj_fx_btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #182230; border: 1px solid #2d3e56; color: #00d2ff; font-weight: bold; font-size: 9px; padding: 1px 8px; border-radius: 3px; } "
+        "QPushButton:hover { background: #0088cc; color: #ffffff; border-color: #00d2ff; }"));
+    vj_fx_btn->setToolTip(QStringLiteral("VJ Visualizer Shader kiválasztása és zenei lüktetés/tónuskövetés beállításai"));
+    connect(vj_fx_btn, &QPushButton::clicked, this, []() {
+        vdj_open_vj_fx_dialog();
+    });
+    bottom_row->addWidget(vj_fx_btn);
     bottom_row->addStretch(1);
 
     bottom_bpm_lbl_ = new QLabel(QStringLiteral("MASTER 128.00 BPM"), this);
@@ -1012,4 +1025,131 @@ void MixerWindow::keyPressEvent(QKeyEvent *event)
         }
     }
     QDialog::keyPressEvent(event);
+}
+
+// =============================================================================
+// VJ Visualizer Beállítások Ablak (VjFxDialog)
+// =============================================================================
+static VjFxDialog *g_vj_fx_dialog = nullptr;
+
+VjFxDialog::VjFxDialog(DeckPair *decks, QWidget *parent)
+    : QDialog(parent), decks_(decks)
+{
+    setWindowTitle(QStringLiteral("VJ Visualizer Beállítások"));
+    setFixedSize(430, 250);
+    setWindowFlags(Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
+    setStyleSheet(QString::fromUtf8(MIXER_STYLESHEET));
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(14, 12, 14, 12);
+    layout->setSpacing(10);
+
+    auto *title_lbl = new QLabel(QStringLiteral("⚡ VJ AUDIO VISUALIZER GENERÁTOR"), this);
+    title_lbl->setStyleSheet(QStringLiteral("font-size: 12px; font-weight: bold; color: #00d2ff;"));
+    layout->addWidget(title_lbl);
+
+    auto *desc_lbl = new QLabel(
+        QStringLiteral("Ha a Deck-be tiszta audió fájlt (.mp3, .wav) töltesz be videó nélkül,\n"
+                       "a GPU valós időben ezt a procedurális vizuális effektet generálja a vászonra:"), this);
+    desc_lbl->setStyleSheet(QStringLiteral("font-size: 10px; color: #8da0b8;"));
+    layout->addWidget(desc_lbl);
+
+    auto *form_box = new QFrame(this);
+    form_box->setStyleSheet(QStringLiteral("background: #0f1319; border: 1px solid #1f2733; border-radius: 4px; padding: 6px;"));
+    auto *form_layout = new QVBoxLayout(form_box);
+    form_layout->setContentsMargins(8, 8, 8, 8);
+    form_layout->setSpacing(8);
+
+    auto *combo_row = new QHBoxLayout();
+    auto *combo_lbl = new QLabel(QStringLiteral("Shader Effekt:"), form_box);
+    combo_lbl->setStyleSheet(QStringLiteral("font-size: 10px; font-weight: bold; color: #ffaa00;"));
+    combo_row->addWidget(combo_lbl);
+
+    mode_combo_ = new QComboBox(form_box);
+    mode_combo_->setFixedHeight(24);
+    mode_combo_->setStyleSheet(QStringLiteral(
+        "QComboBox { background: #182230; color: #e0e6f0; border: 1px solid #2d3e56; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 3px; } "
+        "QComboBox::drop-down { border: none; } "
+        "QComboBox QAbstractItemView { background: #181d26; color: #fff; selection-background-color: #005588; }"));
+    mode_combo_->addItem(QStringLiteral("1. Fluid Flow (Organikus Folyadék - Alapértelmezett)"), 0);
+    mode_combo_->addItem(QStringLiteral("2. Truchet Spin (Forgó Geometrikus Labirintus)"), 1);
+    mode_combo_->addItem(QStringLiteral("3. Hypno Worm (Hipnotikus Féregalagút - OpArt)"), 2);
+    mode_combo_->addItem(QStringLiteral("4. Shape Twist (Geometrikus Csavarás - Triangle Twist)"), 3);
+    if (decks_) {
+        mode_combo_->setCurrentIndex(decks_->visualizerMode());
+    }
+    connect(mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+        if (decks_) decks_->setVisualizerMode(idx);
+    });
+    combo_row->addWidget(mode_combo_, 1);
+    form_layout->addLayout(combo_row);
+
+    pulse_chk_ = new QCheckBox(QStringLiteral("Zenei lüktetés (Kick & Bass Pulse dinamika)"), form_box);
+    pulse_chk_->setStyleSheet(QStringLiteral(
+        "QCheckBox { font-size: 10px; font-weight: bold; color: #c8d0de; } "
+        "QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid #334052; border-radius: 2px; background: #161b22; } "
+        "QCheckBox::indicator:checked { background: #0088cc; border-color: #00d2ff; }"));
+    pulse_chk_->setToolTip(QStringLiteral("A lábdob és mélyhang leütésekre a shader elemei és fényessége dinamikusan lüktet."));
+    pulse_chk_->setChecked(decks_ ? decks_->isVisualizerPulse() : true);
+    connect(pulse_chk_, &QCheckBox::toggled, this, [this](bool chk) {
+        if (decks_) decks_->setVisualizerPulse(chk);
+    });
+    form_layout->addWidget(pulse_chk_);
+
+    tone_chk_ = new QCheckBox(QStringLiteral("Zenei tónuskövetés (Track Spectral Tone Tracking)"), form_box);
+    tone_chk_->setStyleSheet(QStringLiteral(
+        "QCheckBox { font-size: 10px; font-weight: bold; color: #c8d0de; } "
+        "QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid #334052; border-radius: 2px; background: #161b22; } "
+        "QCheckBox::indicator:checked { background: #0088cc; border-color: #00d2ff; }"));
+    tone_chk_->setToolTip(QStringLiteral("A szám frekvenciaspektruma (mély, közép, magas) szerint finoman modulálja a shader színárnyalatait."));
+    tone_chk_->setChecked(decks_ ? decks_->isVisualizerTone() : true);
+    connect(tone_chk_, &QCheckBox::toggled, this, [this](bool chk) {
+        if (decks_) decks_->setVisualizerTone(chk);
+    });
+    form_layout->addWidget(tone_chk_);
+
+    layout->addWidget(form_box);
+
+    auto *btn_row = new QHBoxLayout();
+    btn_row->addStretch(1);
+    auto *close_btn = new QPushButton(QStringLiteral("BEZÁRÁS"), this);
+    close_btn->setFixedWidth(90);
+    close_btn->setFixedHeight(24);
+    close_btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #222c3a; color: #fff; border: 1px solid #3d4f68; border-radius: 3px; font-weight: bold; font-size: 10px; } "
+        "QPushButton:hover { background: #0088cc; border-color: #00d2ff; }"));
+    connect(close_btn, &QPushButton::clicked, this, &QDialog::accept);
+    btn_row->addWidget(close_btn);
+    layout->addLayout(btn_row);
+}
+
+VjFxDialog::~VjFxDialog()
+{
+    if (g_vj_fx_dialog == this) {
+        g_vj_fx_dialog = nullptr;
+    }
+}
+
+void vdj_open_vj_fx_dialog()
+{
+    DeckPair *decks = vdj_decks();
+    if (!decks)
+        return;
+
+    if (!g_vj_fx_dialog) {
+        QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
+        g_vj_fx_dialog = new VjFxDialog(decks, main_window);
+    }
+    g_vj_fx_dialog->show();
+    g_vj_fx_dialog->raise();
+    g_vj_fx_dialog->activateWindow();
+}
+
+void vdj_free_vj_fx_dialog()
+{
+    if (g_vj_fx_dialog) {
+        g_vj_fx_dialog->close();
+        delete g_vj_fx_dialog;
+        g_vj_fx_dialog = nullptr;
+    }
 }

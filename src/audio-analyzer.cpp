@@ -471,24 +471,41 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     result.overview_high.resize(kOverviewBuckets, 0.05f);
     const size_t samples_per_bucket = std::max<size_t>(1, total_samples / kOverviewBuckets);
 
+    std::vector<float> bucket_max(kOverviewBuckets, 0.0f);
+    std::vector<float> bucket_l(kOverviewBuckets, 0.0f);
+    std::vector<float> bucket_m(kOverviewBuckets, 0.0f);
+    std::vector<float> bucket_h(kOverviewBuckets, 0.0f);
+    float max_l_b = 0.001f, max_m_b = 0.001f, max_h_b = 0.001f, max_peak_b = 0.001f;
+
     for (size_t b = 0; b < kOverviewBuckets; ++b) {
         const size_t start = b * samples_per_bucket;
         const size_t end = std::min(start + samples_per_bucket, total_samples);
+        const size_t count = std::max<size_t>(1, end - start);
 
-        float max_val = 0.0f;
-        float max_l = 0.0f;
-        float max_m = 0.0f;
-        float max_h = 0.0f;
+        float peak_val = 0.0f;
+        float sum_l = 0.0f, sum_m = 0.0f, sum_h = 0.0f;
         for (size_t i = start; i < end; ++i) {
-            max_val = std::max(max_val, std::abs(mono_samples[i]));
-            max_l = std::max(max_l, std::abs(low_band[i]));
-            max_m = std::max(max_m, std::abs(mid_band[i]));
-            max_h = std::max(max_h, std::abs(high_band[i]));
+            peak_val = std::max(peak_val, std::abs(mono_samples[i]));
+            sum_l += std::abs(low_band[i]);
+            sum_m += std::abs(mid_band[i]);
+            sum_h += std::abs(high_band[i]);
         }
-        result.overview_peaks[b] = std::clamp(max_val, 0.05f, 1.0f);
-        result.overview_low[b] = std::clamp(max_l / max_l_all, 0.05f, 1.0f);
-        result.overview_mid[b] = std::clamp(max_m / max_m_all, 0.05f, 1.0f);
-        result.overview_high[b] = std::clamp(max_h / max_h_all, 0.05f, 1.0f);
+        bucket_max[b] = peak_val;
+        bucket_l[b] = sum_l / static_cast<float>(count);
+        bucket_m[b] = sum_m / static_cast<float>(count);
+        bucket_h[b] = sum_h / static_cast<float>(count);
+
+        if (peak_val > max_peak_b) max_peak_b = peak_val;
+        if (bucket_l[b] > max_l_b) max_l_b = bucket_l[b];
+        if (bucket_m[b] > max_m_b) max_m_b = bucket_m[b];
+        if (bucket_h[b] > max_h_b) max_h_b = bucket_h[b];
+    }
+
+    for (size_t b = 0; b < kOverviewBuckets; ++b) {
+        result.overview_peaks[b] = std::clamp(bucket_max[b] / max_peak_b, 0.05f, 1.0f);
+        result.overview_low[b]   = std::clamp(bucket_l[b] / max_l_b, 0.05f, 1.0f);
+        result.overview_mid[b]   = std::clamp(bucket_m[b] / max_m_b, 0.05f, 1.0f);
+        result.overview_high[b]  = std::clamp(bucket_h[b] / max_h_b, 0.05f, 1.0f);
     }
     result.waveform_peaks = result.overview_peaks;
 
@@ -519,7 +536,8 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
 
         const float norm_k = peak_kick / max_kick_all;
         const float norm_f = peak_full / max_full_all;
-        const float env = 0.15f * norm_f + 0.85f * std::pow(norm_k, 2.0f);
+        // Erőteljes transient kontraszt: a lábdob leütése 1.0-ig csap fel, a völgyek 0.1 körül maradnak
+        const float env = 0.10f * norm_f + 0.90f * std::pow(norm_k, 2.2f);
         result.detailed_peaks[w] = std::clamp(env, 0.05f, 1.0f);
         result.detailed_low[w] = std::clamp(peak_l / max_l_all, 0.05f, 1.0f);
         result.detailed_mid[w] = std::clamp(peak_m / max_m_all, 0.05f, 1.0f);

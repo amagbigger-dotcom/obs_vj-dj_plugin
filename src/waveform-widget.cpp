@@ -200,6 +200,11 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
         const QColor theme_core = is_deck_a_ ? QColor(0, 110, 180) : QColor(180, 60, 0);
         const QColor theme_kick = is_deck_a_ ? QColor(180, 245, 255) : QColor(255, 220, 150);
 
+        const std::vector<float> det_low = deck_->detailedLow();
+        const std::vector<float> det_mid = deck_->detailedMid();
+        const std::vector<float> det_high = deck_->detailedHigh();
+        const bool has_det_spec = !det_low.empty() && !det_mid.empty() && !det_high.empty();
+
         const double ms_per_sample = (detailed.size() > 0 && duration > 0)
             ? (static_cast<double>(duration) / static_cast<double>(detailed.size()))
             : 10.0;
@@ -214,26 +219,60 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
             const size_t idx_end = static_cast<size_t>(std::clamp<double>(static_cast<double>(std::min<int64_t>(duration - 1, t_end)) / ms_per_sample, 0.0, static_cast<double>(detailed.size() - 1)));
 
             float peak_amp = 0.0f;
+            float peak_l = 0.0f, peak_m = 0.0f, peak_h = 0.0f;
             for (size_t s = idx_start; s <= idx_end; ++s) {
-                peak_amp = std::max(peak_amp, detailed[s]);
+                if (detailed[s] > peak_amp) peak_amp = detailed[s];
+                if (has_det_spec) {
+                    if (det_low[s] > peak_l) peak_l = det_low[s];
+                    if (det_mid[s] > peak_m) peak_m = det_mid[s];
+                    if (det_high[s] > peak_h) peak_h = det_high[s];
+                }
             }
 
             const int bar_h = static_cast<int>(peak_amp * (wave_height / 2 - 2));
+            if (bar_h <= 0)
+                continue;
 
-            // Outer transient body
-            p.setPen(QPen(theme_core, 1));
-            p.drawLine(x, center_y - bar_h, x, center_y + bar_h);
+            if (has_det_spec) {
+                const float tot = peak_l + peak_m + peak_h + 0.001f;
+                const float wl = peak_l / tot;
+                const float wm = peak_m / tot;
+                const float wh = peak_h / tot;
 
-            // Bright core transient spike
-            if (bar_h > 4) {
-                p.setPen(QPen(theme_main, 1));
-                p.drawLine(x, center_y - bar_h * 2 / 3, x, center_y + bar_h * 2 / 3);
-            }
+                // 3-Sávos Színek a gördülő nézetben: Mély = Telt Kék, Közép = Meleg Narancs/Arany, Magas = Cián/Fehér
+                int r_col = static_cast<int>(std::clamp(wl * 10.0f + wm * 255.0f + wh * 120.0f, 0.0f, 255.0f));
+                int g_col = static_cast<int>(std::clamp(wl * 85.0f + wm * 140.0f + wh * 240.0f, 0.0f, 255.0f));
+                int b_col = static_cast<int>(std::clamp(wl * 255.0f + wm * 20.0f + wh * 255.0f, 0.0f, 255.0f));
 
-            // Punchy kick core highlight
-            if (peak_amp > 0.60f) {
-                p.setPen(QPen(theme_kick, 1));
-                p.drawLine(x, center_y - bar_h / 3, x, center_y + bar_h / 3);
+                p.setPen(QPen(QColor(r_col, g_col, b_col, 220), 1));
+                p.drawLine(x, center_y - bar_h, x, center_y + bar_h);
+
+                if (bar_h > 4) {
+                    int r_core = std::min(255, r_col + 35);
+                    int g_core = std::min(255, g_col + 35);
+                    int b_core = std::min(255, b_col + 35);
+                    p.setPen(QPen(QColor(r_core, g_core, b_core, 255), 1));
+                    p.drawLine(x, center_y - bar_h * 2 / 3, x, center_y + bar_h * 2 / 3);
+                }
+
+                // Lábdob leütés (Kick Transient Attack): a lábdob mély leütése borotvaéles kék-fehér tüskeként ragyog fel!
+                if (peak_l > 0.60f && peak_amp > 0.55f) {
+                    p.setPen(QPen(QColor(180, 240, 255, 255), 1));
+                    p.drawLine(x, center_y - bar_h / 2, x, center_y + bar_h / 2);
+                }
+            } else {
+                p.setPen(QPen(theme_core, 1));
+                p.drawLine(x, center_y - bar_h, x, center_y + bar_h);
+
+                if (bar_h > 4) {
+                    p.setPen(QPen(theme_main, 1));
+                    p.drawLine(x, center_y - bar_h * 2 / 3, x, center_y + bar_h * 2 / 3);
+                }
+
+                if (peak_amp > 0.60f) {
+                    p.setPen(QPen(theme_kick, 1));
+                    p.drawLine(x, center_y - bar_h / 3, x, center_y + bar_h / 3);
+                }
             }
         }
     }
@@ -339,34 +378,32 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
                 const float m = ov_mid[sp_idx];
                 const float h_val = ov_high[sp_idx];
 
-                // 3-Band Spectral Color Synthesis (Low = Blue/Purple, Mid = Orange/Gold, High = Cyan/White)
+                // 3-Band Spectral Color Synthesis (Low = Blue, Mid = Amber/Gold, High = Cyan/White)
                 const float weight_sum = l + m + h_val + 0.0001f;
-                const float r_base = (l * 40.0f + m * 255.0f + h_val * 100.0f) / weight_sum;
-                const float g_base = (l * 80.0f + m * 150.0f + h_val * 220.0f) / weight_sum;
-                const float b_base = (l * 255.0f + m * 30.0f + h_val * 255.0f) / weight_sum;
+                const float wl = l / weight_sum;
+                const float wm = m / weight_sum;
+                const float wh = h_val / weight_sum;
 
-                // As all 3 bands are simultaneously active (full frequency coverage / drops / climaxes):
-                // the color shifts progressively towards clean, brilliant WHITE!
-                const float spectral_fullness = std::clamp(std::min({l, m, h_val}) * 1.6f, 0.0f, 1.0f);
-                const int red = static_cast<int>(std::clamp(r_base + (255.0f - r_base) * spectral_fullness, 0.0f, 255.0f));
-                const int green = static_cast<int>(std::clamp(g_base + (255.0f - g_base) * spectral_fullness, 0.0f, 255.0f));
-                const int blue = static_cast<int>(std::clamp(b_base + (255.0f - b_base) * spectral_fullness, 0.0f, 255.0f));
+                const int red   = static_cast<int>(std::clamp(wl * 15.0f + wm * 255.0f + wh * 120.0f, 0.0f, 255.0f));
+                const int green = static_cast<int>(std::clamp(wl * 90.0f + wm * 150.0f + wh * 240.0f, 0.0f, 255.0f));
+                const int blue  = static_cast<int>(std::clamp(wl * 255.0f + wm * 25.0f + wh * 255.0f, 0.0f, 255.0f));
 
-                const QColor spec_outer(red, green, blue, 210);
+                const QColor spec_outer(red, green, blue, 220);
                 p.setPen(QPen(spec_outer, 1));
                 p.drawLine(ox, ov_center_y - bar_h, ox, ov_center_y + bar_h);
 
                 if (bar_h > 2) {
-                    const int r_core = std::min(255, red + 40);
-                    const int g_core = std::min(255, green + 40);
-                    const int b_core = std::min(255, blue + 40);
-                    p.setPen(QPen(QColor(r_core, g_core, b_core, 250), 1));
+                    const int r_core = std::min(255, red + 35);
+                    const int g_core = std::min(255, green + 35);
+                    const int b_core = std::min(255, blue + 35);
+                    p.setPen(QPen(QColor(r_core, g_core, b_core, 255), 1));
                     p.drawLine(ox, ov_center_y - bar_h * 2 / 3, ox, ov_center_y + bar_h * 2 / 3);
                 }
 
-                if (spectral_fullness > 0.45f || amp > 0.70f) {
-                    p.setPen(QPen(QColor(255, 255, 255, 255), 1));
-                    p.drawLine(ox, ov_center_y - bar_h / 3, ox, ov_center_y + bar_h / 3);
+                // Diszkrét fehér mag kizárólag a legmagasabb szintű összetett csúcsoknál (> 85% hangerő):
+                if (amp > 0.85f && l > 0.65f && h_val > 0.65f) {
+                    p.setPen(QPen(QColor(255, 255, 255, 240), 1));
+                    p.drawLine(ox, ov_center_y - bar_h / 4, ox, ov_center_y + bar_h / 4);
                 }
             } else {
                 // Classic gold fallback if spectral data is not yet computed
@@ -436,6 +473,9 @@ void WaveformCanvas::mousePressEvent(QMouseEvent *event)
             is_dragging_seek_ = false;
             is_sliding_grid_ = false;
             was_playing_before_scrub_ = (deck_ && deck_->isPlaying());
+            if (was_playing_before_scrub_ && deck_) {
+                deck_->pause();
+            }
             setCursor(Qt::ClosedHandCursor);
         }
     }

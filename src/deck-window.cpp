@@ -391,10 +391,10 @@ void DeckWindow::setupUi()
         "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 8px; font-weight: bold; color: #78a0d0; border-radius: 3px; padding: 0px; } "
         "QPushButton:hover { background: #26384e; color: #fff; } "
         "QPushButton:pressed { background: #0088cc; color: #fff; }"));
-    jog_minus_btn_->setToolTip(QStringLiteral("Jog Nudge: lemezt lassítja / visszatartja 20ms-mal"));
+    jog_minus_btn_->setToolTip(QStringLiteral("Jog Nudge: lemezt lassítja / visszatartja 5ms-mal"));
     connect(jog_minus_btn_, &QPushButton::clicked, this, [this]() {
         if (!deck_) return;
-        deck_->nudgePlayback(-20);
+        deck_->nudgePlayback(-5);
     });
     loop_bar->addWidget(jog_minus_btn_);
 
@@ -407,10 +407,10 @@ void DeckWindow::setupUi()
         "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 8px; font-weight: bold; color: #78a0d0; border-radius: 3px; padding: 0px; } "
         "QPushButton:hover { background: #26384e; color: #fff; } "
         "QPushButton:pressed { background: #0088cc; color: #fff; }"));
-    jog_plus_btn_->setToolTip(QStringLiteral("Jog Nudge: lemezt gyorsítja / megtolja 20ms-mal"));
+    jog_plus_btn_->setToolTip(QStringLiteral("Jog Nudge: lemezt gyorsítja / megtolja 5ms-mal"));
     connect(jog_plus_btn_, &QPushButton::clicked, this, [this]() {
         if (!deck_) return;
-        deck_->nudgePlayback(+20);
+        deck_->nudgePlayback(+5);
     });
     loop_bar->addWidget(jog_plus_btn_);
 

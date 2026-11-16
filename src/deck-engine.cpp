@@ -940,25 +940,24 @@ void DeckPlayer::updateLoop()
     if (!source_)
         return;
 
-    // Ha a felhasználó nem nyomta meg a PLAY gombot, kényszerített szüneteltetés 00:00 CUE-nál (Enforce Pause on Load/Stop)
-    if (!user_playing_.load(std::memory_order_relaxed)) {
+    // Csak média betöltésekor (Load) kényszerítünk szünetet a CUE (00:00) pozíciónál
+    if (pause_on_load_pending_.load(std::memory_order_relaxed)) {
         const obs_media_state st = obs_source_media_get_state(source_);
-        if (st == OBS_MEDIA_STATE_PLAYING || st == OBS_MEDIA_STATE_OPENING || pause_on_load_pending_.load(std::memory_order_relaxed)) {
-            obs_source_media_play_pause(source_, true);
-            const int64_t cue = std::max<int64_t>(0, cue_point_ms_.load(std::memory_order_relaxed));
-            obs_source_media_set_time(source_, static_cast<uint64_t>(cue));
-            if (st == OBS_MEDIA_STATE_PAUSED || st == OBS_MEDIA_STATE_STOPPED) {
-                pause_on_load_pending_.store(false, std::memory_order_relaxed);
-            }
+        obs_source_media_play_pause(source_, true);
+        const int64_t cue = std::max<int64_t>(0, cue_point_ms_.load(std::memory_order_relaxed));
+        obs_source_media_set_time(source_, static_cast<uint64_t>(cue));
+        if (st == OBS_MEDIA_STATE_PAUSED || st == OBS_MEDIA_STATE_STOPPED) {
+            pause_on_load_pending_.store(false, std::memory_order_relaxed);
         }
         return;
     }
 
-    // Catch asynchronous FFmpeg media load start and enforce pause at 00:00
-    if (pause_on_load_pending_.load(std::memory_order_relaxed)) {
-        obs_source_media_play_pause(source_, true);
-        obs_source_media_set_time(source_, 0);
-        pause_on_load_pending_.store(false, std::memory_order_relaxed);
+    // Normál felhasználói megállításkor (Pause/Stop) az aktuális pozíción marad a kép és a hang!
+    if (!user_playing_.load(std::memory_order_relaxed)) {
+        if (obs_source_media_get_state(source_) == OBS_MEDIA_STATE_PLAYING) {
+            obs_source_media_play_pause(source_, true);
+        }
+        return;
     }
 
     // 1. Resume saved position after speed restart without jumping to 0:00
@@ -1134,11 +1133,6 @@ double DeckPlayer::position() const
 
 int64_t DeckPlayer::currentTimeMs() const
 {
-    // Ha a felhasználó nem nyomta meg a PLAY gombot, szigorúan a CUE pozíciót (alapértelmezetten 00:00:00)
-    // adjuk vissza, így a háttérben futó analízis alatt sem ugrik vagy mozog el a hullámforma lejátszófej!
-    if (!user_playing_.load(std::memory_order_relaxed)) {
-        return cue_point_ms_.load(std::memory_order_relaxed);
-    }
     if (hasAudioBuffer()) {
         std::lock_guard<std::mutex> lock(audio_buf_mutex_);
         if (audio_sample_rate_ > 0) {
@@ -1146,7 +1140,7 @@ int64_t DeckPlayer::currentTimeMs() const
         }
     }
     if (!source_)
-        return 0;
+        return cue_point_ms_.load(std::memory_order_relaxed);
     return obs_source_media_get_time(source_);
 }
 

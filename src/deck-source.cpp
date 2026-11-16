@@ -454,8 +454,8 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                 }
                 obs_source_video_render(media);
                 gs_matrix_pop();
-            } else {
-                // Procedurális Audio-Reaktív FluidFlowSNoise VJ Shader tiszta audio fájlokhoz!
+            } else if (context->deck && context->deck->hasAudioOnlyTrack()) {
+                // Procedurális Audio-Reaktív VJ Shader Suite szigorúan csak tiszta audio fájlokhoz!
                 if (!context->fluid_effect) {
                     char *err = nullptr;
                     context->fluid_effect = gs_effect_create(FLUID_FLOW_EFFECT, "fluid_flow_effect", &err);
@@ -470,7 +470,8 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                     context->dummy_tex = gs_texture_create(1, 1, GS_RGBA, 1, &data_ptr, 0);
                 }
                 if (context->fluid_effect && context->dummy_tex) {
-                    const float time_sec = static_cast<float>(os_gettime_ns() / 1000000) / 1000.0f;
+                    DeckPair *dp = vdj_decks();
+                    const float time_sec = static_cast<float>(os_gettime_ns() / 1000000ULL) * 0.001f;
                     const float bpm_val = static_cast<float>(context->deck->bpm());
                     const float amp_val = context->deck->currentAmplitude();
                     const float bass_val = context->deck->currentBassEnergy();
@@ -478,7 +479,17 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                     const float high_val = context->deck->currentHighEnergy();
                     const bool is_b = (context->deck_channel == 1 || (context->deck && context->deck->side() == DeckPlayer::DeckSide::B));
 
+                    const float viz_mode = dp ? static_cast<float>(dp->visualizerMode()) : 0.0f;
+                    const float pulse_on = (dp && dp->isVisualizerPulse()) ? 1.0f : 0.0f;
+                    const float tone_on  = (dp && dp->isVisualizerTone()) ? 1.0f : 0.0f;
+
                     gs_eparam_t *p = nullptr;
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_mode")))
+                        gs_effect_set_float(p, viz_mode);
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "pulse_enabled")))
+                        gs_effect_set_float(p, pulse_on);
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "tone_tracking_enabled")))
+                        gs_effect_set_float(p, tone_on);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "anim_time")))
                         gs_effect_set_float(p, time_sec);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bpm")))

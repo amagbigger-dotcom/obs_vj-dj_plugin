@@ -27,6 +27,12 @@ static void open_tracklist_menu(void *data)
     vdj_open_tracklist_window();
 }
 
+static void open_vj_fx_menu(void *data)
+{
+    UNUSED_PARAMETER(data);
+    vdj_open_vj_fx_dialog();
+}
+
 // =============================================================================
 // Deck A Ablak megnyitása (Open Deck A Window - Left 1/3)
 // =============================================================================
@@ -122,12 +128,14 @@ void init_deck_ui()
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Deck B").toUtf8().constData(), open_deck_window_b, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Layout (Mindhárom megnyitása)").toUtf8().constData(), open_all_layout, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Tracklist").toUtf8().constData(), open_tracklist_menu, nullptr);
+    obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Visualizer Shader").toUtf8().constData(), open_vj_fx_menu, nullptr);
 }
 
 void free_deck_ui()
 {
     vdj_free_mixer_window();
     vdj_free_tracklist_window();
+    vdj_free_vj_fx_dialog();
     if (g_deck_window_a) {
         g_deck_window_a->close();
         delete g_deck_window_a;

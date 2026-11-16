@@ -15,6 +15,8 @@ class DeckPlayer;
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class QComboBox;
+class QCheckBox;
 
 // Custom slider that resets to its default value on double-click
 class DJSlider : public QSlider {
@@ -116,3 +118,19 @@ private:
 
 void vdj_open_mixer_window();
 void vdj_free_mixer_window();
+
+class VjFxDialog final : public QDialog {
+    Q_OBJECT
+public:
+    explicit VjFxDialog(DeckPair *decks, QWidget *parent = nullptr);
+    ~VjFxDialog() override;
+
+private:
+    DeckPair *decks_ = nullptr;
+    QComboBox *mode_combo_ = nullptr;
+    QCheckBox *pulse_chk_ = nullptr;
+    QCheckBox *tone_chk_ = nullptr;
+};
+
+void vdj_open_vj_fx_dialog();
+void vdj_free_vj_fx_dialog();

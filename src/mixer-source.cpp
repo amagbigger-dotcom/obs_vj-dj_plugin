@@ -402,18 +402,29 @@ static bool render_to_texture(MixerSource *context,
         }
         obs_source_video_render(source);
         gs_matrix_pop();
-    } else {
-        // Procedurális Audio-Reaktív FluidFlowSNoise VJ Shader tiszta audio fájlokhoz!
+    } else if (deck && deck->hasAudioOnlyTrack()) {
+        // Procedurális Audio-Reaktív VJ Shader Suite szigorúan csak tiszta audio fájlokhoz!
         if (context && context->fluid_effect && context->dummy_tex) {
+            DeckPair *dp = vdj_decks();
             const float time_sec = static_cast<float>(os_gettime_ns() / 1000000ULL) * 0.001f;
-            const float bpm_val = deck ? static_cast<float>(deck->bpm()) : 120.0f;
-            const float amp_val = deck ? deck->currentAmplitude() : 0.0f;
-            const float bass_val = deck ? deck->currentBassEnergy() : 0.0f;
-            const float mid_val = deck ? deck->currentMidEnergy() : 0.0f;
-            const float high_val = deck ? deck->currentHighEnergy() : 0.0f;
-            const bool is_b = (deck && deck->side() == DeckPlayer::DeckSide::B);
+            const float bpm_val = static_cast<float>(deck->bpm());
+            const float amp_val = deck->currentAmplitude();
+            const float bass_val = deck->currentBassEnergy();
+            const float mid_val = deck->currentMidEnergy();
+            const float high_val = deck->currentHighEnergy();
+            const bool is_b = (deck->side() == DeckPlayer::DeckSide::B);
+
+            const float viz_mode = dp ? static_cast<float>(dp->visualizerMode()) : 0.0f;
+            const float pulse_on = (dp && dp->isVisualizerPulse()) ? 1.0f : 0.0f;
+            const float tone_on  = (dp && dp->isVisualizerTone()) ? 1.0f : 0.0f;
 
             gs_eparam_t *p = nullptr;
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_mode")))
+                gs_effect_set_float(p, viz_mode);
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "pulse_enabled")))
+                gs_effect_set_float(p, pulse_on);
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "tone_tracking_enabled")))
+                gs_effect_set_float(p, tone_on);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "anim_time")))
                 gs_effect_set_float(p, time_sec);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bpm")))
@@ -874,6 +885,17 @@ static obs_properties_t *mixer_properties(void *)
     obs_property_list_add_int(cf_fx, "Pop-Art Halftone (Képregény Pontrács)", 11);
     obs_property_list_add_int(cf_fx, "Neon Kontúr (Sobel Edge Glow)", 12);
 
+    obs_property_t *viz = obs_properties_add_list(
+        props, "visualizer_mode", "Audio-Only VJ Shader Visualizer",
+        OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_list_add_int(viz, "FluidFlowSNoise (Folyadék áramlás - Alapértelmezett)", 0);
+    obs_property_list_add_int(viz, "TruchetDualLevelSpin (Forgó kettős labirintus)", 1);
+    obs_property_list_add_int(viz, "HypnoWorm (Hipnotikus féregalagút)", 2);
+    obs_property_list_add_int(viz, "TriangleSquareTwist (Geometrikus hullám csavarás)", 3);
+
+    obs_properties_add_bool(props, "visualizer_pulse", "Zenei Lüktetés (Kick & Bass Pulse Dynamics)");
+    obs_properties_add_bool(props, "visualizer_tone", "Zenei Tónuskövetés (Track Spectral Tone Tracking)");
+
     return props;
 }
 
@@ -895,6 +917,9 @@ static void mixer_update(void *data, obs_data_t *settings)
     if (decks) {
         decks->setTransitionMode(static_cast<int>(obs_data_get_int(settings, "transition")));
         decks->setCrossfadeFxMode(static_cast<int>(obs_data_get_int(settings, "crossfade_fx")));
+        decks->setVisualizerMode(static_cast<int>(obs_data_get_int(settings, "visualizer_mode")));
+        decks->setVisualizerPulse(obs_data_get_bool(settings, "visualizer_pulse"));
+        decks->setVisualizerTone(obs_data_get_bool(settings, "visualizer_tone"));
     }
 
     if (context && context->source) {
@@ -908,6 +933,9 @@ static void mixer_defaults(obs_data_t *settings)
     obs_data_set_default_string(settings, "master_device", "default");
     obs_data_set_default_int(settings, "transition", 0);
     obs_data_set_default_int(settings, "crossfade_fx", 0);
+    obs_data_set_default_int(settings, "visualizer_mode", 0);
+    obs_data_set_default_bool(settings, "visualizer_pulse", true);
+    obs_data_set_default_bool(settings, "visualizer_tone", true);
 }
 
 static const char *cue_get_name(void *)

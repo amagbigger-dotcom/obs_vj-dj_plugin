@@ -134,6 +134,9 @@ public:
     void updateLoop();
 
     bool hasVideo() const noexcept { return has_video_.load(std::memory_order_relaxed); }
+    bool hasAudioOnlyTrack() const noexcept {
+        return hasAudioBuffer() && !hasVideo() && !filePath().isEmpty();
+    }
     bool isSpeedRestarting() const noexcept { return speed_restart_phase_.load(std::memory_order_relaxed) != 0; }
     bool hasFileChanged() const noexcept { return file_changed_.load(std::memory_order_relaxed); }
     void clearFileChanged() noexcept { file_changed_.store(false, std::memory_order_relaxed); }
@@ -296,6 +299,15 @@ public:
     void setVideoScaleMode(int mode) noexcept { video_scale_mode_.store(mode, std::memory_order_relaxed); }
     int videoScaleMode() const noexcept { return video_scale_mode_.load(std::memory_order_relaxed); }
 
+    void setVisualizerMode(int m) noexcept { visualizer_mode_.store(m, std::memory_order_relaxed); }
+    int visualizerMode() const noexcept { return visualizer_mode_.load(std::memory_order_relaxed); }
+
+    void setVisualizerPulse(bool en) noexcept { visualizer_pulse_.store(en, std::memory_order_relaxed); }
+    bool isVisualizerPulse() const noexcept { return visualizer_pulse_.load(std::memory_order_relaxed); }
+
+    void setVisualizerTone(bool en) noexcept { visualizer_tone_.store(en, std::memory_order_relaxed); }
+    bool isVisualizerTone() const noexcept { return visualizer_tone_.load(std::memory_order_relaxed); }
+
     void setHeadphoneVolume(float v) noexcept;
     float headphoneVolume() const noexcept;
 
@@ -343,6 +355,9 @@ private:
     std::atomic<int> crossfade_fx_mode_{0};
     std::atomic<int> obs_output_mode_{0};
     std::atomic<int> video_scale_mode_{1};
+    std::atomic<int> visualizer_mode_{0};
+    std::atomic<bool> visualizer_pulse_{true};
+    std::atomic<bool> visualizer_tone_{true};
     std::atomic<float> headphone_volume_{1.0f};
     std::atomic<float> headphone_mix_{0.5f};
     std::atomic<int> master_mode_{0};
