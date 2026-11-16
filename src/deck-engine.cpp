@@ -203,6 +203,8 @@ void DeckPlayer::loadFile(const QString &path)
                 hot_cues_[i].store(res.hot_cues[i], std::memory_order_relaxed);
             }
             setWaveformSamples(res.overview_peaks, res.detailed_peaks);
+            setSpectralSamples(res.overview_low, res.overview_mid, res.overview_high,
+                               res.detailed_low, res.detailed_mid, res.detailed_high);
             if (!res.audio_pcm_l.empty() && !res.audio_pcm_r.empty()) {
                 setAudioBuffer(std::move(res.audio_pcm_l), std::move(res.audio_pcm_r), res.audio_sample_rate);
             }
@@ -353,10 +355,29 @@ void DeckPlayer::triggerHotCue(int index) noexcept
     if (index < 0 || index >= 4) return;
     const int64_t ms = hot_cues_[index].load(std::memory_order_relaxed);
     if (ms < 0) {
+        // Record current position snapped to the nearest beat
         const int64_t cur = currentTimeMs();
-        setHotCueMs(index, cur);
+        const double b = (bpm() > 10.0) ? bpm() : 128.0;
+        const double beat_ms = 60000.0 / b;
+        const int64_t grid = gridOffsetMs();
+        const int64_t rel = cur - grid;
+        const int64_t nearest_beat_idx = static_cast<int64_t>(std::round(static_cast<double>(rel) / beat_ms));
+        const int64_t snapped_ms = std::max<int64_t>(0, grid + static_cast<int64_t>(nearest_beat_idx * beat_ms));
+        setHotCueMs(index, snapped_ms);
     } else {
-        seekMs(ms);
+        // Quantized Hot Cue Jump:
+        // If playing, maintain phase alignment with the beat grid so no rhythmic stumble occurs!
+        if (isPlaying()) {
+            const double b = (bpm() > 10.0) ? bpm() : 128.0;
+            const double beat_ms = 60000.0 / b;
+            const int64_t grid = gridOffsetMs();
+            const int64_t cur = currentTimeMs();
+            const double cur_phase = std::fmod(std::fmod(static_cast<double>(cur - grid), beat_ms) + beat_ms, beat_ms);
+            const int64_t target = ms + static_cast<int64_t>(std::round(cur_phase));
+            seekMs(target);
+        } else {
+            seekMs(ms);
+        }
     }
 }
 
@@ -542,16 +563,65 @@ void DeckPlayer::setWaveformSamples(const std::vector<float> &overview, const st
     detailed_samples_ = detailed;
 }
 
+void DeckPlayer::setSpectralSamples(const std::vector<float> &ov_low, const std::vector<float> &ov_mid, const std::vector<float> &ov_high,
+                                    const std::vector<float> &det_low, const std::vector<float> &det_mid, const std::vector<float> &det_high)
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    overview_low_ = ov_low;
+    overview_mid_ = ov_mid;
+    overview_high_ = ov_high;
+    detailed_low_ = det_low;
+    detailed_mid_ = det_mid;
+    detailed_high_ = det_high;
+    has_spectral_ = (!overview_low_.empty() && !overview_mid_.empty() && !overview_high_.empty());
+}
+
 std::vector<float> DeckPlayer::overviewSamples() const
 {
     std::lock_guard<std::mutex> lock(waveform_mutex_);
     return overview_samples_;
 }
 
+std::vector<float> DeckPlayer::overviewLow() const
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    return overview_low_;
+}
+
+std::vector<float> DeckPlayer::overviewMid() const
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    return overview_mid_;
+}
+
+std::vector<float> DeckPlayer::overviewHigh() const
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    return overview_high_;
+}
+
 std::vector<float> DeckPlayer::detailedSamples() const
 {
     std::lock_guard<std::mutex> lock(waveform_mutex_);
     return detailed_samples_;
+}
+
+std::vector<float> DeckPlayer::detailedLow() const
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    return detailed_low_;
+}
+
+std::vector<float> DeckPlayer::detailedMid() const
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    return detailed_mid_;
+}
+
+std::vector<float> DeckPlayer::detailedHigh() const
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    return detailed_high_;
 }
 
 std::vector<float> DeckPlayer::waveformSamples() const
@@ -564,6 +634,12 @@ bool DeckPlayer::hasAnalyzedWaveform() const
 {
     std::lock_guard<std::mutex> lock(waveform_mutex_);
     return !overview_samples_.empty() || !detailed_samples_.empty();
+}
+
+bool DeckPlayer::hasSpectralData() const
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    return has_spectral_;
 }
 
 void DeckPlayer::setEqHi(float val) noexcept

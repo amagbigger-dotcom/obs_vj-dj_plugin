@@ -221,6 +221,19 @@ void TracklistDock::setupUi()
     });
     top_bar->addWidget(new_set_btn);
 
+    res_combo_ = new QComboBox(this);
+    res_combo_->setStyleSheet(QStringLiteral(
+        "QComboBox { background: #1c2635; border: 1px solid #334863; color: #00d2ff; padding: 4px 8px; font-size: 11px; font-weight: bold; border-radius: 4px; }"
+        "QComboBox QAbstractItemView { background: #151a24; color: #ffffff; selection-background-color: #0088cc; }"
+    ));
+    res_combo_->addItem(QStringLiteral("🎬 1080p FHD"), 1080);
+    res_combo_->addItem(QStringLiteral("🎬 4K UHD"), 2160);
+    res_combo_->addItem(QStringLiteral("🎬 2K QHD"), 1440);
+    res_combo_->addItem(QStringLiteral("🎬 720p HD"), 720);
+    res_combo_->addItem(QStringLiteral("🎬 Auto (Eredeti)"), 0);
+    res_combo_->setToolTip(QStringLiteral("Konvertálási profil: ha a videó kisebb, a rendszer sosem skálázza fel (No Upscaling)"));
+    top_bar->addWidget(res_combo_);
+
     main_layout->addLayout(top_bar);
 
     // Status bar & Progress
@@ -603,8 +616,8 @@ void TracklistDock::addFile(const QString &path, int target_deck)
         return;
     }
 
-    // 2. Check if already a converted 1080p VJ file
-    if (path.endsWith(QStringLiteral("_vj1080.mp4"))) {
+    // 2. Check if already a converted VJ file (_vj1080, _vj720, _vj1440, _vj4k, _vjauto)
+    if (path.contains(QStringLiteral("_vj")) && path.endsWith(QStringLiteral(".mp4"))) {
         item.is_converted = true;
         item.status = QStringLiteral("Ready");
         tracks_.push_back(item);
@@ -619,18 +632,17 @@ void TracklistDock::addFile(const QString &path, int target_deck)
     }
 
     // 3. Korábbi konvertált videó és gyorsítótár fájlok eltávolítása a tiszta újrakonvertáláshoz
-    // (Clean existing converted video and sidecar cache to guarantee fresh NVENC 1080p re-conversion)
-    const QString existing_conv = QDir(library_dir_).filePath(fi.completeBaseName() + QStringLiteral("_vj1080.mp4"));
-    if (QFile::exists(existing_conv)) {
-        QFile::remove(existing_conv);
+    const QStringList conv_suffixes = {QStringLiteral("_vj1080.mp4"), QStringLiteral("_vj720.mp4"),
+                                       QStringLiteral("_vj1440.mp4"), QStringLiteral("_vj4k.mp4"),
+                                       QStringLiteral("_vjauto.mp4")};
+    for (const auto &sfx : conv_suffixes) {
+        const QString p = QDir(library_dir_).filePath(fi.completeBaseName() + sfx);
+        if (QFile::exists(p)) QFile::remove(p);
+        if (QFile::exists(p + QStringLiteral(".vdj.json"))) QFile::remove(p + QStringLiteral(".vdj.json"));
     }
     const QString sidecar_cache = path + QStringLiteral(".vdj.json");
     if (QFile::exists(sidecar_cache)) {
         QFile::remove(sidecar_cache);
-    }
-    const QString sidecar_conv_cache = existing_conv + QStringLiteral(".vdj.json");
-    if (QFile::exists(sidecar_conv_cache)) {
-        QFile::remove(sidecar_conv_cache);
     }
 
     // 4. NVENC 1080p All-Intra videokonvertálási sorba állítás (Queue for 1080p Conversion)
@@ -640,6 +652,17 @@ void TracklistDock::addFile(const QString &path, int target_deck)
     conversion_queue_.push_back(idx);
     updateTable();
     processNextConversion();
+}
+
+VideoConverter::TargetResolution TracklistDock::selectedTargetResolution() const
+{
+    if (!res_combo_) return VideoConverter::TargetResolution::Res1080p;
+    const int val = res_combo_->currentData().toInt();
+    if (val == 2160) return VideoConverter::TargetResolution::Res4K;
+    if (val == 1440) return VideoConverter::TargetResolution::Res1440p;
+    if (val == 720) return VideoConverter::TargetResolution::Res720p;
+    if (val == 0) return VideoConverter::TargetResolution::Auto;
+    return VideoConverter::TargetResolution::Res1080p;
 }
 
 void TracklistDock::processNextConversion()
@@ -667,11 +690,19 @@ void TracklistDock::processNextConversion()
     if (cancel_btn_) {
         cancel_btn_->setVisible(true);
     }
+
+    const auto target_res = selectedTargetResolution();
+    QString profile_str = QStringLiteral("1080p");
+    if (target_res == VideoConverter::TargetResolution::Res4K) profile_str = QStringLiteral("4K");
+    else if (target_res == VideoConverter::TargetResolution::Res1440p) profile_str = QStringLiteral("2K");
+    else if (target_res == VideoConverter::TargetResolution::Res720p) profile_str = QStringLiteral("720p");
+    else if (target_res == VideoConverter::TargetResolution::Auto) profile_str = QStringLiteral("Auto");
+
     if (status_lbl_) {
-        status_lbl_->setText(QStringLiteral("Konvertálás (RTX 3060 NVENC 1080p): %1").arg(item.title));
+        status_lbl_->setText(QStringLiteral("Konvertálás (RTX NVENC %1): %2").arg(profile_str, item.title));
     }
 
-    const bool started = converter_->convertTo1080p(item.original_path, library_dir_);
+    const bool started = converter_->convertVideo(item.original_path, library_dir_, target_res);
     if (!started) {
         item.status = QStringLiteral("Nem indítható");
         updateRow(active_conversion_idx_);

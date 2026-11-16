@@ -12,10 +12,21 @@ public:
     explicit VideoConverter(QObject *parent = nullptr);
     ~VideoConverter() override;
 
+    enum class TargetResolution {
+        Auto,
+        Res720p,
+        Res1080p,
+        Res1440p,
+        Res4K
+    };
+
     static QString findFfmpegBinary();
     static bool isFfmpegAvailable();
 
-    bool convertTo1080p(const QString &input_file, const QString &output_dir);
+    bool convertVideo(const QString &input_file, const QString &output_dir, TargetResolution target_res = TargetResolution::Res1080p);
+    bool convertTo1080p(const QString &input_file, const QString &output_dir) {
+        return convertVideo(input_file, output_dir, TargetResolution::Res1080p);
+    }
     void cancel();
     bool isConverting() const { return is_converting_; }
     QString currentOutputPath() const { return current_output_path_; }
@@ -40,6 +51,7 @@ private:
     bool is_trying_nvenc_ = true;
     QString current_input_path_{};
     QString current_output_path_{};
+    QString current_filter_{};
     double total_duration_sec_ = 0.0;
     qint64 last_activity_ms_ = 0;
 };

@@ -76,10 +76,19 @@ public:
     void saveUserEdits();
 
     void setWaveformSamples(const std::vector<float> &overview, const std::vector<float> &detailed);
+    void setSpectralSamples(const std::vector<float> &ov_low, const std::vector<float> &ov_mid, const std::vector<float> &ov_high,
+                            const std::vector<float> &det_low, const std::vector<float> &det_mid, const std::vector<float> &det_high);
     std::vector<float> overviewSamples() const;
+    std::vector<float> overviewLow() const;
+    std::vector<float> overviewMid() const;
+    std::vector<float> overviewHigh() const;
     std::vector<float> detailedSamples() const;
+    std::vector<float> detailedLow() const;
+    std::vector<float> detailedMid() const;
+    std::vector<float> detailedHigh() const;
     std::vector<float> waveformSamples() const;
     bool hasAnalyzedWaveform() const;
+    bool hasSpectralData() const;
 
     void setEqHi(float val) noexcept;
     void setEqMid(float val) noexcept;
@@ -229,7 +238,14 @@ private:
 
     mutable std::mutex waveform_mutex_;
     std::vector<float> overview_samples_;
+    std::vector<float> overview_low_;
+    std::vector<float> overview_mid_;
+    std::vector<float> overview_high_;
     std::vector<float> detailed_samples_;
+    std::vector<float> detailed_low_;
+    std::vector<float> detailed_mid_;
+    std::vector<float> detailed_high_;
+    bool has_spectral_{false};
 };
 
 using DeckEngine = DeckPlayer;
@@ -266,6 +282,14 @@ public:
 
     void setObsOutputMode(int mode) noexcept;
     int obsOutputMode() const noexcept;
+
+    enum class VideoScaleMode {
+        Fit = 0,
+        Fill = 1,
+        Stretch = 2
+    };
+    void setVideoScaleMode(int mode) noexcept { video_scale_mode_.store(mode, std::memory_order_relaxed); }
+    int videoScaleMode() const noexcept { return video_scale_mode_.load(std::memory_order_relaxed); }
 
     void setHeadphoneVolume(float v) noexcept;
     float headphoneVolume() const noexcept;
@@ -313,6 +337,7 @@ private:
     std::atomic<int> transition_mode_{0};
     std::atomic<int> crossfade_fx_mode_{0};
     std::atomic<int> obs_output_mode_{0};
+    std::atomic<int> video_scale_mode_{1};
     std::atomic<float> headphone_volume_{1.0f};
     std::atomic<float> headphone_mix_{0.5f};
     std::atomic<int> master_mode_{0};

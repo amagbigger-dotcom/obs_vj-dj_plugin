@@ -410,9 +410,33 @@ static void deck_video_render(void *data, gs_effect_t *effect)
 
             if (sw > 0 && sh > 0) {
                 gs_matrix_push();
-                gs_matrix_scale3f(1920.0f / static_cast<float>(sw),
-                                  1080.0f / static_cast<float>(sh),
-                                  1.0f);
+                DeckPair *dp = vdj_decks();
+                const int scale_mode = dp ? dp->videoScaleMode() : 1; // 0 = Fit, 1 = Fill, 2 = Stretch
+
+                if (scale_mode == 0) {
+                    // FIT (Aránytartó teljes kép, fekete sávokkal)
+                    const float s = std::min(1920.0f / static_cast<float>(sw), 1080.0f / static_cast<float>(sh));
+                    const float draw_w = static_cast<float>(sw) * s;
+                    const float draw_h = static_cast<float>(sh) * s;
+                    const float off_x = (1920.0f - draw_w) * 0.5f;
+                    const float off_y = (1080.0f - draw_h) * 0.5f;
+                    gs_matrix_translate3f(off_x, off_y, 0.0f);
+                    gs_matrix_scale3f(s, s, 1.0f);
+                } else if (scale_mode == 1) {
+                    // FILL (Aránytartó teljes vászonkitöltés fekete sávok nélkül)
+                    const float s = std::max(1920.0f / static_cast<float>(sw), 1080.0f / static_cast<float>(sh));
+                    const float draw_w = static_cast<float>(sw) * s;
+                    const float draw_h = static_cast<float>(sh) * s;
+                    const float off_x = (1920.0f - draw_w) * 0.5f;
+                    const float off_y = (1080.0f - draw_h) * 0.5f;
+                    gs_matrix_translate3f(off_x, off_y, 0.0f);
+                    gs_matrix_scale3f(s, s, 1.0f);
+                } else {
+                    // STRETCH
+                    gs_matrix_scale3f(1920.0f / static_cast<float>(sw),
+                                      1080.0f / static_cast<float>(sh),
+                                      1.0f);
+                }
                 obs_source_video_render(media);
                 gs_matrix_pop();
             } else {

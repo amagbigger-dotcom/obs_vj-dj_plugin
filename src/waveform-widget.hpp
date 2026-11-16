@@ -47,6 +47,8 @@ private:
     double zoom_seconds_ = 6.0; // Default 6.0s (smoother, natural scrolling rate)
     bool is_dragging_seek_ = false;
     bool is_sliding_grid_ = false;
+    bool is_scrubbing_wave_ = false;
+    bool was_playing_before_scrub_ = false;
     int last_mouse_x_ = 0;
 
     void ensureFallbackSamples(int64_t duration_ms);

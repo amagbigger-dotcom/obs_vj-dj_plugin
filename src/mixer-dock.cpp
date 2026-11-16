@@ -731,7 +731,11 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     cf_val_row->addStretch(1);
     cf_box->addLayout(cf_val_row);
 
-    // Crossfader FX Dropdown
+    // Crossfader FX Dropdown & Canvas Scale Mode (FIT vs FILL)
+    auto *fx_scale_row = new QHBoxLayout();
+    fx_scale_row->setContentsMargins(0, 0, 0, 0);
+    fx_scale_row->setSpacing(4);
+
     auto *cf_fx_combo = new QComboBox(panel);
     cf_fx_combo->setFixedHeight(20);
     cf_fx_combo->setStyleSheet(QStringLiteral(
@@ -755,7 +759,24 @@ QWidget *MixerWindow::buildCenterMasterPanel()
     connect(cf_fx_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
         if (decks_) decks_->setCrossfadeFxMode(idx);
     });
-    cf_box->addWidget(cf_fx_combo);
+    fx_scale_row->addWidget(cf_fx_combo, 1);
+
+    auto *scale_btn = new QPushButton(decks_ && decks_->videoScaleMode() == 0 ? QStringLiteral("📺 FIT") : QStringLiteral("📺 FILL"), panel);
+    scale_btn->setFixedHeight(20);
+    scale_btn->setToolTip(QStringLiteral("OBS Vászon Képméretezés:\nFILL = Teljes vászonkitöltés fekete sávok nélkül\nFIT = Aránytartó teljes kép"));
+    scale_btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #182230; border: 1px solid #2d3e56; color: #00d2ff; font-size: 8px; font-weight: bold; padding: 1px 6px; border-radius: 3px; } "
+        "QPushButton:hover { background: #223247; border-color: #00d2ff; }"));
+    connect(scale_btn, &QPushButton::clicked, this, [scale_btn, this]() {
+        if (!decks_) return;
+        const int cur = decks_->videoScaleMode();
+        const int next = (cur == 0) ? 1 : 0;
+        decks_->setVideoScaleMode(next);
+        scale_btn->setText(next == 0 ? QStringLiteral("📺 FIT") : QStringLiteral("📺 FILL"));
+    });
+    fx_scale_row->addWidget(scale_btn);
+
+    cf_box->addLayout(fx_scale_row);
 
     crossfader_ = new DJSlider(Qt::Horizontal, 500, panel);
     crossfader_->setRange(0, 1000);

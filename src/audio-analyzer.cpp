@@ -74,6 +74,26 @@ bool AudioAnalyzer::loadCache(const QString &file_path, TrackAnalysisResult &out
         out_res.overview_peaks.push_back(static_cast<float>(val.toDouble(0.1)));
     }
 
+    const QJsonArray ov_low_arr = root.value(QStringLiteral("overview_low")).toArray();
+    const QJsonArray ov_mid_arr = root.value(QStringLiteral("overview_mid")).toArray();
+    const QJsonArray ov_high_arr = root.value(QStringLiteral("overview_high")).toArray();
+    if (!ov_low_arr.empty()) {
+        out_res.overview_low.clear();
+        out_res.overview_mid.clear();
+        out_res.overview_high.clear();
+        for (const auto &v : ov_low_arr) out_res.overview_low.push_back(static_cast<float>(v.toDouble(0.1)));
+        for (const auto &v : ov_mid_arr) out_res.overview_mid.push_back(static_cast<float>(v.toDouble(0.1)));
+        for (const auto &v : ov_high_arr) out_res.overview_high.push_back(static_cast<float>(v.toDouble(0.1)));
+    } else {
+        out_res.overview_low = out_res.overview_peaks;
+        out_res.overview_mid.resize(out_res.overview_peaks.size());
+        out_res.overview_high.resize(out_res.overview_peaks.size());
+        for (size_t i = 0; i < out_res.overview_peaks.size(); ++i) {
+            out_res.overview_mid[i] = out_res.overview_peaks[i] * 0.75f;
+            out_res.overview_high[i] = out_res.overview_peaks[i] * 0.5f;
+        }
+    }
+
     const QJsonArray det_arr = root.value(QStringLiteral("detailed_peaks")).toArray();
     out_res.detailed_peaks.clear();
     out_res.detailed_peaks.reserve(det_arr.size());
@@ -110,6 +130,14 @@ bool AudioAnalyzer::saveCache(const QString &file_path, const TrackAnalysisResul
         ov_arr.append(std::round(v * 1000.0) / 1000.0);
     }
     root.insert(QStringLiteral("overview_peaks"), ov_arr);
+
+    QJsonArray ov_l_arr, ov_m_arr, ov_h_arr;
+    for (float v : res.overview_low) ov_l_arr.append(std::round(v * 1000.0) / 1000.0);
+    for (float v : res.overview_mid) ov_m_arr.append(std::round(v * 1000.0) / 1000.0);
+    for (float v : res.overview_high) ov_h_arr.append(std::round(v * 1000.0) / 1000.0);
+    root.insert(QStringLiteral("overview_low"), ov_l_arr);
+    root.insert(QStringLiteral("overview_mid"), ov_m_arr);
+    root.insert(QStringLiteral("overview_high"), ov_h_arr);
 
     QJsonArray det_arr;
     for (float v : res.detailed_peaks) {
@@ -372,46 +400,105 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
         result.duration_ms = static_cast<int64_t>((static_cast<double>(total_samples) / static_cast<double>(sample_rate)) * 1000.0);
     }
 
-    // 1. Overview Waveform (500 points for full track strip)
+    // 1. 3-Band Frequency Separation & Kick Punch Filter
+    // Low: < 250 Hz (Bass / Kick drum)
+    // Mid: 250 Hz - 2500 Hz (Vocals / Synths / Snares)
+    // High: > 2500 Hz (Cymbals / Hats / Air)
+    const float fc_low = 250.0f;
+    const float alpha_l = std::clamp(2.0f * 3.14159f * fc_low / static_cast<float>(sample_rate), 0.001f, 0.99f);
+    const float fc_mid = 2500.0f;
+    const float alpha_m = std::clamp(2.0f * 3.14159f * fc_mid / static_cast<float>(sample_rate), 0.001f, 0.99f);
+    const float fc_kick = 160.0f;
+    const float alpha_k = std::clamp(2.0f * 3.14159f * fc_kick / static_cast<float>(sample_rate), 0.001f, 0.99f);
+
+    float lp_l1 = 0.0f, lp_l2 = 0.0f;
+    float lp_m1 = 0.0f, lp_m2 = 0.0f;
+    float lp_k1 = 0.0f, lp_k2 = 0.0f;
+
+    std::vector<float> low_band(total_samples, 0.0f);
+    std::vector<float> mid_band(total_samples, 0.0f);
+    std::vector<float> high_band(total_samples, 0.0f);
+    std::vector<float> kick_samples(total_samples, 0.0f);
+
+    float max_kick_all = 0.001f;
+    float max_full_all = 0.001f;
+    float max_l_all = 0.001f;
+    float max_m_all = 0.001f;
+    float max_h_all = 0.001f;
+
+    for (size_t i = 0; i < total_samples; ++i) {
+        const float in = mono_samples[i];
+
+        // 160 Hz kick punch filter for onset/BPM
+        lp_k1 += alpha_k * (in - lp_k1);
+        lp_k2 += alpha_k * (lp_k1 - lp_k2);
+        kick_samples[i] = lp_k2;
+
+        // 250 Hz Lowpass
+        lp_l1 += alpha_l * (in - lp_l1);
+        lp_l2 += alpha_l * (lp_l1 - lp_l2);
+        const float l_val = lp_l2;
+
+        // 2500 Hz Lowpass
+        lp_m1 += alpha_m * (in - lp_m1);
+        lp_m2 += alpha_m * (lp_m1 - lp_m2);
+        const float m_lowpass = lp_m2;
+
+        const float m_val = m_lowpass - l_val;
+        const float h_val = in - m_lowpass;
+
+        low_band[i] = l_val;
+        mid_band[i] = m_val;
+        high_band[i] = h_val;
+
+        const float abs_k = std::abs(lp_k2);
+        const float abs_f = std::abs(in);
+        const float abs_l = std::abs(l_val);
+        const float abs_m = std::abs(m_val);
+        const float abs_h = std::abs(h_val);
+
+        if (abs_k > max_kick_all) max_kick_all = abs_k;
+        if (abs_f > max_full_all) max_full_all = abs_f;
+        if (abs_l > max_l_all) max_l_all = abs_l;
+        if (abs_m > max_m_all) max_m_all = abs_m;
+        if (abs_h > max_h_all) max_h_all = abs_h;
+    }
+
+    // 2. 3-Band Overview Waveform (500 points with spectral separation)
     result.overview_peaks.resize(kOverviewBuckets, 0.05f);
+    result.overview_low.resize(kOverviewBuckets, 0.05f);
+    result.overview_mid.resize(kOverviewBuckets, 0.05f);
+    result.overview_high.resize(kOverviewBuckets, 0.05f);
     const size_t samples_per_bucket = std::max<size_t>(1, total_samples / kOverviewBuckets);
+
     for (size_t b = 0; b < kOverviewBuckets; ++b) {
         const size_t start = b * samples_per_bucket;
         const size_t end = std::min(start + samples_per_bucket, total_samples);
 
         float max_val = 0.0f;
+        float max_l = 0.0f;
+        float max_m = 0.0f;
+        float max_h = 0.0f;
         for (size_t i = start; i < end; ++i) {
             max_val = std::max(max_val, std::abs(mono_samples[i]));
+            max_l = std::max(max_l, std::abs(low_band[i]));
+            max_m = std::max(max_m, std::abs(mid_band[i]));
+            max_h = std::max(max_h, std::abs(high_band[i]));
         }
         result.overview_peaks[b] = std::clamp(max_val, 0.05f, 1.0f);
+        result.overview_low[b] = std::clamp(max_l / max_l_all, 0.05f, 1.0f);
+        result.overview_mid[b] = std::clamp(max_m / max_m_all, 0.05f, 1.0f);
+        result.overview_high[b] = std::clamp(max_h / max_h_all, 0.05f, 1.0f);
     }
     result.waveform_peaks = result.overview_peaks;
-
-    // 2. Low-Pass Filter (160 Hz) on mono samples to isolate kick drum punch
-    const float fc = 160.0f;
-    const float alpha = std::clamp(2.0f * 3.14159f * fc / static_cast<float>(sample_rate), 0.001f, 0.99f);
-    float lp1 = 0.0f;
-    float lp2 = 0.0f;
-    std::vector<float> kick_samples(total_samples, 0.0f);
-    float max_kick_all = 0.001f;
-    float max_full_all = 0.001f;
-
-    for (size_t i = 0; i < total_samples; ++i) {
-        const float in = mono_samples[i];
-        lp1 += alpha * (in - lp1);
-        lp2 += alpha * (lp1 - lp2);
-        kick_samples[i] = lp2;
-
-        const float abs_k = std::abs(lp2);
-        const float abs_f = std::abs(in);
-        if (abs_k > max_kick_all) max_kick_all = abs_k;
-        if (abs_f > max_full_all) max_full_all = abs_f;
-    }
 
     // 3. Ultra-High-Resolution Detailed Waveform (100 points/sec, 10ms window)
     const size_t samples_per_10ms = std::max<size_t>(1, static_cast<size_t>(sample_rate / 100));
     const size_t num_detailed = total_samples / samples_per_10ms;
     result.detailed_peaks.resize(num_detailed, 0.05f);
+    result.detailed_low.resize(num_detailed, 0.05f);
+    result.detailed_mid.resize(num_detailed, 0.05f);
+    result.detailed_high.resize(num_detailed, 0.05f);
 
     for (size_t w = 0; w < num_detailed; ++w) {
         const size_t start = w * samples_per_10ms;
@@ -419,15 +506,24 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
 
         float peak_kick = 0.0f;
         float peak_full = 0.0f;
+        float peak_l = 0.0f;
+        float peak_m = 0.0f;
+        float peak_h = 0.0f;
         for (size_t i = start; i < end; ++i) {
             peak_kick = std::max(peak_kick, std::abs(kick_samples[i]));
             peak_full = std::max(peak_full, std::abs(mono_samples[i]));
+            peak_l = std::max(peak_l, std::abs(low_band[i]));
+            peak_m = std::max(peak_m, std::abs(mid_band[i]));
+            peak_h = std::max(peak_h, std::abs(high_band[i]));
         }
 
         const float norm_k = peak_kick / max_kick_all;
         const float norm_f = peak_full / max_full_all;
         const float env = 0.15f * norm_f + 0.85f * std::pow(norm_k, 2.0f);
         result.detailed_peaks[w] = std::clamp(env, 0.05f, 1.0f);
+        result.detailed_low[w] = std::clamp(peak_l / max_l_all, 0.05f, 1.0f);
+        result.detailed_mid[w] = std::clamp(peak_m / max_m_all, 0.05f, 1.0f);
+        result.detailed_high[w] = std::clamp(peak_h / max_h_all, 0.05f, 1.0f);
     }
 
     // 4. Onset Novelty Curve at ~500 Hz (exact onset sample rate) for BPM autocorrelation

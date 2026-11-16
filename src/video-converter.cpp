@@ -88,7 +88,7 @@ bool VideoConverter::isFfmpegAvailable()
     return !findFfmpegBinary().isEmpty();
 }
 
-bool VideoConverter::convertTo1080p(const QString &input_file, const QString &output_dir)
+bool VideoConverter::convertVideo(const QString &input_file, const QString &output_dir, TargetResolution target_res)
 {
     if (is_converting_) {
         return false;
@@ -108,8 +108,35 @@ bool VideoConverter::convertTo1080p(const QString &input_file, const QString &ou
 
     QDir().mkpath(output_dir);
 
+    int max_w = 1920;
+    int max_h = 1080;
+    QString suffix = QStringLiteral("_vj1080.mp4");
+
+    switch (target_res) {
+    case TargetResolution::Res720p:
+        max_w = 1280; max_h = 720;
+        suffix = QStringLiteral("_vj720.mp4");
+        break;
+    case TargetResolution::Res1080p:
+        max_w = 1920; max_h = 1080;
+        suffix = QStringLiteral("_vj1080.mp4");
+        break;
+    case TargetResolution::Res1440p:
+        max_w = 2560; max_h = 1440;
+        suffix = QStringLiteral("_vj1440.mp4");
+        break;
+    case TargetResolution::Res4K:
+        max_w = 3840; max_h = 2160;
+        suffix = QStringLiteral("_vj4k.mp4");
+        break;
+    case TargetResolution::Auto:
+        max_w = 3840; max_h = 2160;
+        suffix = QStringLiteral("_vjauto.mp4");
+        break;
+    }
+
     const QFileInfo fi(input_file);
-    QString out_name = fi.completeBaseName() + QStringLiteral("_vj1080.mp4");
+    QString out_name = fi.completeBaseName() + suffix;
     QString out_path = QDir(output_dir).filePath(out_name);
 
     if (QFileInfo(out_path).absoluteFilePath() == fi.absoluteFilePath()) {
@@ -124,12 +151,17 @@ bool VideoConverter::convertTo1080p(const QString &input_file, const QString &ou
     is_trying_nvenc_ = true;
     last_activity_ms_ = QDateTime::currentMSecsSinceEpoch();
 
+    // Szigorú felszkálázás-mentes (No Upscaling) skálázó szűrő páros méretekkel:
+    // trunc(min(iw,max_w)/2)*2 : trunc(min(ih,max_h)/2)*2
+    current_filter_ = QStringLiteral("scale='trunc(min(iw,%1)/2)*2':'trunc(min(ih,%2)/2)*2':force_original_aspect_ratio=decrease")
+        .arg(max_w).arg(max_h);
+
     // Fast GPU accelerated conversion (RTX 3060 NVENC)
-    // Universal software decode into 1080p All-Intra H.264 GPU encode (-g 2 -bf 0 -pix_fmt yuv420p)
+    // Universal software decode into All-Intra H.264 GPU encode (-g 2 -bf 0 -pix_fmt yuv420p)
     QStringList args;
     args << QStringLiteral("-y");
     args << QStringLiteral("-i") << input_file;
-    args << QStringLiteral("-vf") << QStringLiteral("scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black");
+    args << QStringLiteral("-vf") << current_filter_;
     args << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc");
     args << QStringLiteral("-preset") << QStringLiteral("p4");
     args << QStringLiteral("-tune") << QStringLiteral("hq");
@@ -155,7 +187,7 @@ void VideoConverter::startCpuFallback()
     QStringList args;
     args << QStringLiteral("-y");
     args << QStringLiteral("-i") << current_input_path_;
-    args << QStringLiteral("-vf") << QStringLiteral("scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black");
+    args << QStringLiteral("-vf") << (current_filter_.isEmpty() ? QStringLiteral("scale='trunc(min(iw,1920)/2)*2':'trunc(min(ih,1080)/2)*2':force_original_aspect_ratio=decrease") : current_filter_);
     args << QStringLiteral("-c:v") << QStringLiteral("libx264");
     args << QStringLiteral("-preset") << QStringLiteral("veryfast");
     args << QStringLiteral("-crf") << QStringLiteral("18");

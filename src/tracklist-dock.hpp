@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QLineEdit>
+#include <QComboBox>
 #include <QProgressBar>
 #include <QTimer>
 #include <vector>
@@ -60,6 +61,8 @@ private:
     void loadTrackToDeck(int track_index, int deck_channel); // 0 = A, 1 = B
     void analyzeTrackAudio(int track_index);
 
+    VideoConverter::TargetResolution selectedTargetResolution() const;
+
     QString library_dir_{};
     std::vector<TrackItem> tracks_;
     std::vector<int> conversion_queue_;
@@ -67,6 +70,7 @@ private:
 
     VideoConverter *converter_ = nullptr;
     QLineEdit *dir_edit_ = nullptr;
+    QComboBox *res_combo_ = nullptr;
     QPushButton *reconv_btn_ = nullptr;
     QPushButton *cancel_btn_ = nullptr;
     QProgressBar *progress_bar_ = nullptr;

@@ -352,7 +352,31 @@ static bool render_to_texture(gs_texrender_t *target,
 
         if (src_w > 0 && src_h > 0) {
             gs_matrix_push();
-            if (src_w != width || src_h != height) {
+            DeckPair *dp = vdj_decks();
+            const int scale_mode = dp ? dp->videoScaleMode() : 1; // 0 = Fit, 1 = Fill, 2 = Stretch
+
+            if (scale_mode == 0) {
+                // FIT (Aránytartó teljes kép, fekete sávokkal ha eltér a képarány)
+                const float s = std::min(static_cast<float>(width) / static_cast<float>(src_w),
+                                         static_cast<float>(height) / static_cast<float>(src_h));
+                const float draw_w = static_cast<float>(src_w) * s;
+                const float draw_h = static_cast<float>(src_h) * s;
+                const float off_x = (static_cast<float>(width) - draw_w) * 0.5f;
+                const float off_y = (static_cast<float>(height) - draw_h) * 0.5f;
+                gs_matrix_translate3f(off_x, off_y, 0.0f);
+                gs_matrix_scale3f(s, s, 1.0f);
+            } else if (scale_mode == 1) {
+                // FILL (Aránytartó teljes vászonkitöltés fekete sávok nélkül)
+                const float s = std::max(static_cast<float>(width) / static_cast<float>(src_w),
+                                         static_cast<float>(height) / static_cast<float>(src_h));
+                const float draw_w = static_cast<float>(src_w) * s;
+                const float draw_h = static_cast<float>(src_h) * s;
+                const float off_x = (static_cast<float>(width) - draw_w) * 0.5f;
+                const float off_y = (static_cast<float>(height) - draw_h) * 0.5f;
+                gs_matrix_translate3f(off_x, off_y, 0.0f);
+                gs_matrix_scale3f(s, s, 1.0f);
+            } else {
+                // STRETCH (Nyújtás)
                 const float sx = static_cast<float>(width) / static_cast<float>(src_w);
                 const float sy = static_cast<float>(height) / static_cast<float>(src_h);
                 gs_matrix_scale3f(sx, sy, 1.0f);

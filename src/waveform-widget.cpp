@@ -310,7 +310,7 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
     marker_top.closeSubpath();
     p.fillPath(marker_top, QColor(255, 230, 0));
 
-    // 6. Track Overview Progress Strip (Rich Amber/Gold dynamic waveform)
+    // 6. Track Overview Progress Strip (3-Band Spectral Waveform with Pioneer / Traktor Color Synthesis)
     const int ov_top = h - kOverviewHeight;
     p.fillRect(0, ov_top, w, kOverviewHeight, QColor(10, 13, 18));
     p.setPen(QColor(36, 44, 56));
@@ -321,32 +321,73 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
         const int prog_x = static_cast<int>(progress * w);
         const int ov_center_y = ov_top + kOverviewHeight / 2;
 
-        // Draw clear dynamic audio waveform across the full width
+        const std::vector<float> ov_low = deck_->overviewLow();
+        const std::vector<float> ov_mid = deck_->overviewMid();
+        const std::vector<float> ov_high = deck_->overviewHigh();
+        const bool has_spec = deck_->hasSpectralData() && !ov_low.empty() && !ov_mid.empty() && !ov_high.empty();
+
+        // Draw clear dynamic audio waveform across the full width with 3-band spectral coloring
         for (int ox = 0; ox < w; ++ox) {
             const double norm = static_cast<double>(ox) / static_cast<double>(w);
             const size_t s_idx = static_cast<size_t>(norm * (overview.size() - 1));
             const float amp = overview[s_idx];
             const int bar_h = static_cast<int>(amp * (kOverviewHeight / 2 - 2));
 
-            // Outer energy contour
-            p.setPen(QPen(QColor(160, 105, 15, 200), 1));
-            p.drawLine(ox, ov_center_y - bar_h, ox, ov_center_y + bar_h);
+            if (has_spec) {
+                const size_t sp_idx = static_cast<size_t>(norm * (ov_low.size() - 1));
+                const float l = ov_low[sp_idx];
+                const float m = ov_mid[sp_idx];
+                const float h_val = ov_high[sp_idx];
 
-            // Bright core transient spike for musical sections & drops
-            if (bar_h > 2) {
-                p.setPen(QPen(QColor(255, 195, 25, 240), 1));
-                p.drawLine(ox, ov_center_y - bar_h * 2 / 3, ox, ov_center_y + bar_h * 2 / 3);
-            }
+                // 3-Band Spectral Color Synthesis (Low = Blue/Purple, Mid = Orange/Gold, High = Cyan/White)
+                const float weight_sum = l + m + h_val + 0.0001f;
+                const float r_base = (l * 40.0f + m * 255.0f + h_val * 100.0f) / weight_sum;
+                const float g_base = (l * 80.0f + m * 150.0f + h_val * 220.0f) / weight_sum;
+                const float b_base = (l * 255.0f + m * 30.0f + h_val * 255.0f) / weight_sum;
 
-            // High energy / kick spikes
-            if (amp > 0.65f) {
-                p.setPen(QPen(QColor(255, 245, 160, 255), 1));
-                p.drawLine(ox, ov_center_y - bar_h / 3, ox, ov_center_y + bar_h / 3);
+                // As all 3 bands are simultaneously active (full frequency coverage / drops / climaxes):
+                // the color shifts progressively towards clean, brilliant WHITE!
+                const float spectral_fullness = std::clamp(std::min({l, m, h_val}) * 1.6f, 0.0f, 1.0f);
+                const int red = static_cast<int>(std::clamp(r_base + (255.0f - r_base) * spectral_fullness, 0.0f, 255.0f));
+                const int green = static_cast<int>(std::clamp(g_base + (255.0f - g_base) * spectral_fullness, 0.0f, 255.0f));
+                const int blue = static_cast<int>(std::clamp(b_base + (255.0f - b_base) * spectral_fullness, 0.0f, 255.0f));
+
+                const QColor spec_outer(red, green, blue, 210);
+                p.setPen(QPen(spec_outer, 1));
+                p.drawLine(ox, ov_center_y - bar_h, ox, ov_center_y + bar_h);
+
+                if (bar_h > 2) {
+                    const int r_core = std::min(255, red + 40);
+                    const int g_core = std::min(255, green + 40);
+                    const int b_core = std::min(255, blue + 40);
+                    p.setPen(QPen(QColor(r_core, g_core, b_core, 250), 1));
+                    p.drawLine(ox, ov_center_y - bar_h * 2 / 3, ox, ov_center_y + bar_h * 2 / 3);
+                }
+
+                if (spectral_fullness > 0.45f || amp > 0.70f) {
+                    p.setPen(QPen(QColor(255, 255, 255, 255), 1));
+                    p.drawLine(ox, ov_center_y - bar_h / 3, ox, ov_center_y + bar_h / 3);
+                }
+            } else {
+                // Classic gold fallback if spectral data is not yet computed
+                p.setPen(QPen(QColor(160, 105, 15, 200), 1));
+                p.drawLine(ox, ov_center_y - bar_h, ox, ov_center_y + bar_h);
+
+                if (bar_h > 2) {
+                    p.setPen(QPen(QColor(255, 195, 25, 240), 1));
+                    p.drawLine(ox, ov_center_y - bar_h * 2 / 3, ox, ov_center_y + bar_h * 2 / 3);
+                }
+
+                if (amp > 0.65f) {
+                    p.setPen(QPen(QColor(255, 245, 160, 255), 1));
+                    p.drawLine(ox, ov_center_y - bar_h / 3, ox, ov_center_y + bar_h / 3);
+                }
             }
         }
 
         // Played progress tint
-        p.fillRect(0, ov_top, prog_x, kOverviewHeight, QColor(255, 180, 0, 45));
+        const QColor tint_col = is_deck_a_ ? QColor(0, 180, 255, 45) : QColor(255, 140, 0, 45);
+        p.fillRect(0, ov_top, prog_x, kOverviewHeight, tint_col);
 
         // Active loop segment highlight on overview bar
         if (deck_->isLooping()) {
@@ -375,14 +416,28 @@ void WaveformCanvas::mousePressEvent(QMouseEvent *event)
     last_mouse_x_ = event->pos().x();
 
     const bool is_shift = (event->modifiers() & Qt::ShiftModifier);
+    const int ov_top = height() - kOverviewHeight;
+
     if (event->button() == Qt::RightButton || (event->button() == Qt::LeftButton && is_shift)) {
         is_sliding_grid_ = true;
         is_dragging_seek_ = false;
+        is_scrubbing_wave_ = false;
         setCursor(Qt::SizeHorCursor);
     } else if (event->button() == Qt::LeftButton) {
-        is_dragging_seek_ = true;
-        is_sliding_grid_ = false;
-        mouseMoveEvent(event);
+        if (event->pos().y() >= ov_top) {
+            // Clicked on overview bar -> Quantized Seek to nearest beat!
+            is_dragging_seek_ = true;
+            is_scrubbing_wave_ = false;
+            is_sliding_grid_ = false;
+            mouseMoveEvent(event);
+        } else {
+            // Clicked on scrolling waveform -> Interactive Jog Drag / Scratch!
+            is_scrubbing_wave_ = true;
+            is_dragging_seek_ = false;
+            is_sliding_grid_ = false;
+            was_playing_before_scrub_ = (deck_ && deck_->isPlaying());
+            setCursor(Qt::ClosedHandCursor);
+        }
     }
 }
 
@@ -396,26 +451,56 @@ void WaveformCanvas::mouseMoveEvent(QMouseEvent *event)
     const int ov_top = h - kOverviewHeight;
     const int cur_x = event->pos().x();
 
-    if (is_dragging_seek_) {
-        if (event->pos().y() >= ov_top) {
-            // Jump on overview bar
-            const double norm = std::clamp(static_cast<double>(cur_x) / static_cast<double>(w), 0.0, 1.0);
-            deck_->seek(norm);
-            emit seekRequested(norm);
-        } else {
-            // Scrub on scrolling wave
+    if (is_scrubbing_wave_) {
+        // Interactive Jog Drag / Scratch on scrolling waveform
+        const int delta_x = cur_x - last_mouse_x_;
+        if (delta_x != 0) {
             const int64_t duration = deck_->durationMs();
             if (duration > 0) {
                 const double visible_ms = zoom_seconds_ * 1000.0;
                 const double ms_per_pixel = visible_ms / static_cast<double>(w);
-                const int delta_pixels = cur_x - (w / 2);
-                const int64_t target_ms = deck_->currentTimeMs() + static_cast<int64_t>(delta_pixels * ms_per_pixel);
-                const double norm = std::clamp(static_cast<double>(target_ms) / static_cast<double>(duration), 0.0, 1.0);
+
+                // Pulling mouse to the right (delta_x > 0) pulls waveform forward -> rewind time
+                // Pulling mouse to the left (delta_x < 0) pushes waveform backward -> advance time
+                const int64_t delta_ms = -static_cast<int64_t>(delta_x * ms_per_pixel);
+                const int64_t cur_ms = deck_->currentTimeMs();
+                const int64_t target_ms = std::clamp(cur_ms + delta_ms, 0LL, duration);
+
+                const double norm = static_cast<double>(target_ms) / static_cast<double>(duration);
                 deck_->seek(norm);
                 emit seekRequested(norm);
+                last_mouse_x_ = cur_x;
+                update();
             }
         }
-        update();
+    } else if (is_dragging_seek_) {
+        // Quantized seek on overview bar
+        const int64_t duration = deck_->durationMs();
+        if (duration > 0) {
+            const double norm = std::clamp(static_cast<double>(cur_x) / static_cast<double>(w), 0.0, 1.0);
+            const int64_t raw_target = static_cast<int64_t>(norm * duration);
+            const double b = (deck_->bpm() > 10.0) ? deck_->bpm() : 128.0;
+            const double beat_ms = 60000.0 / b;
+            const int64_t grid = deck_->gridOffsetMs();
+
+            // Snap to nearest beat on the beatgrid
+            const int64_t rel = raw_target - grid;
+            const int64_t nearest_beat_idx = static_cast<int64_t>(std::round(static_cast<double>(rel) / beat_ms));
+            int64_t snapped_target = grid + static_cast<int64_t>(nearest_beat_idx * beat_ms);
+
+            // If currently playing, maintain the current beat phase so beat matching stays locked
+            if (deck_->isPlaying()) {
+                const int64_t cur = deck_->currentTimeMs();
+                const double cur_phase = std::fmod(std::fmod(static_cast<double>(cur - grid), beat_ms) + beat_ms, beat_ms);
+                snapped_target += static_cast<int64_t>(std::round(cur_phase));
+            }
+
+            snapped_target = std::clamp(snapped_target, 0LL, duration);
+            const double snapped_norm = static_cast<double>(snapped_target) / static_cast<double>(duration);
+            deck_->seek(snapped_norm);
+            emit seekRequested(snapped_norm);
+            update();
+        }
     } else if (is_sliding_grid_) {
         // Drag to slide beatgrid!
         const int delta_x = cur_x - last_mouse_x_;
@@ -433,9 +518,17 @@ void WaveformCanvas::mouseMoveEvent(QMouseEvent *event)
 
 void WaveformCanvas::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton)
+    if (event->button() == Qt::LeftButton) {
+        if (is_scrubbing_wave_) {
+            is_scrubbing_wave_ = false;
+            if (was_playing_before_scrub_ && deck_) {
+                deck_->play();
+            }
+            setCursor(Qt::PointingHandCursor);
+        }
         is_dragging_seek_ = false;
-    
+    }
+
     if (event->button() == Qt::RightButton || (event->button() == Qt::LeftButton && is_sliding_grid_)) {
         is_sliding_grid_ = false;
         setCursor(Qt::PointingHandCursor);

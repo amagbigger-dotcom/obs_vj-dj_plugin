@@ -13,7 +13,13 @@ struct TrackAnalysisResult {
     int64_t hot_cues[4] = {-1, -1, -1, -1};
     int64_t duration_ms = 0;
     std::vector<float> overview_peaks;   // ~500 points for full track overview strip
+    std::vector<float> overview_low;     // Low frequencies (<250Hz, Bass/Kick)
+    std::vector<float> overview_mid;     // Mid frequencies (250Hz - 2.5kHz, Vocals/Snare)
+    std::vector<float> overview_high;    // High frequencies (>2.5kHz, Hats/Air)
     std::vector<float> detailed_peaks;   // 100 points/sec (10ms resolution) for compact high-res scrolling wave
+    std::vector<float> detailed_low;     // Detailed 100pts/sec Low
+    std::vector<float> detailed_mid;     // Detailed 100pts/sec Mid
+    std::vector<float> detailed_high;    // Detailed 100pts/sec High
     std::vector<float> waveform_peaks;   // alias for overview
     std::vector<float> audio_pcm_l;      // RAM stereo float PCM buffer (Left)
     std::vector<float> audio_pcm_r;      // RAM stereo float PCM buffer (Right)
