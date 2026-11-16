@@ -33,6 +33,20 @@ set(SOURCES
     src/audio/wasapi_output.cpp
     src/audio/wasapi_output.hpp
 
+    # Sources (Audio Decoders)
+    src/sources/wmf_decoder.cpp
+    src/sources/wmf_decoder.hpp
+
+    # Analyzer (Beats, Grid & Waveform)
+    src/analyzer/analyzer_beats.cpp
+    src/analyzer/analyzer_beats.hpp
+    src/analyzer/analyzer_waveform.cpp
+    src/analyzer/analyzer_waveform.hpp
+
+    # Track (Cache & Metadata)
+    src/track/track_cache.cpp
+    src/track/track_cache.hpp
+
     # Video (OBS Sources & Transcoder)
     src/video/deck_source.cpp
     src/video/mixer_source.cpp
