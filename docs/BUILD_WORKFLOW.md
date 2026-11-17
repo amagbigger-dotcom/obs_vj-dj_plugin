@@ -82,12 +82,12 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
   - `src/track/track_cache`: `.vdj.json` gyorsítótár, kézi szerkesztések és Hot Cue perzisztencia.
   - `src/audio/audio_analyzer`: 139 soros könnyű koordinátor homlokzat.
 
-### Mérföldkő #6: Build #243 / GitHub Run #243 (2. Fázis: UI Kezelőszervek és Widget Alrendszer Modularizáció)
-* **Verzió & Commit:** `26a8b5b`
-* **SHA256:** `E55E46CFD1659B1EC7F31C3C5B2892C984152F20567B469EA97969776F338914`
+### Mérföldkő #6: Build #243-244 / GitHub Run #244 (2. Fázis: UI Widget Modularizáció & Deck Kötés Javítás)
+* **Verzió & Commit:** `a957c23`
+* **SHA256:** `D2BA5C53F286410A11579FCA6E55E99F7DEDB264A18998FDA2E546486A2F59E7`
 * **Jellemzők:** A Deck és Mixer ablakok kezelőszerveinek kiemelése önálló `src/widget/` modulokba:
   - `src/widget/dj_slider`: Dupla-kattintásos azonnali reset képességű csúszka (féderek, EQ potméterek, crossfader).
   - `src/widget/loop_bar`: Beat Loop mátrix (1/16 .. 128) aktív narancssárga fénnyel és Jog Nudge lassító/gyorsító gombokkal.
   - `src/widget/transport_bar`: CUE, megvilágított PLAY/PAUSE, SYNC, MASTER és 4 független, színkódolt Hot Cue gomb.
   - `src/widget/tempo_control`: Tempó / Pitch fader, intelligens snap tized-kerekítő `[ − ]` és `[ + ]` 0.10 BPM léptetők, debounced sebességállítás és Deck A (kék) / Deck B (narancs) stílustémázás.
-  - `src/gui/deck_window`: 1031 sorról ~650 sorra csökkent, letisztult, áttekinthető ablakkezelő.
+  - `src/gui/deck_window`: 1031 sorról ~650 sorra csökkent; `deck_` mutató azonnal átadva a widgetek konstruktorának és a `bindDeck()` hívásnak, garantálva a Play, Cue, Loop és Pitch gombok hibátlan működését.
