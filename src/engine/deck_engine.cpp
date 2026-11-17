@@ -1303,8 +1303,7 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
     bool did_loop_wrap = false;
 
     const bool key_lock_active = key_lock_.load(std::memory_order_relaxed) &&
-                                 !jog_scratching_.load(std::memory_order_relaxed) &&
-                                 std::abs(speed_ratio - 1.0) > 0.002;
+                                 (std::abs(speed_ratio - 1.0) > 0.002);
 
     if (key_lock_active) {
         // Professzionális WSOLA (Waveform Similarity Overlap-Add) Time-Stretching
