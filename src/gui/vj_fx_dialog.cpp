@@ -205,7 +205,9 @@ void VjFxDialog::selectDeck(int deck_idx)
         }
         VjDeckConfig cfg = dp->vjConfig();
         const QSignalBlocker blocker(shader_combo_);
-        shader_combo_->setCurrentIndex(std::clamp(cfg.shader_idx, 0, 7));
+        const auto &defs = getVjShaderDefinitions();
+        const int max_idx = defs.empty() ? 0 : static_cast<int>(defs.size()) - 1;
+        shader_combo_->setCurrentIndex(std::clamp(cfg.shader_idx, 0, max_idx));
     }
 
     rebuildParamControls();

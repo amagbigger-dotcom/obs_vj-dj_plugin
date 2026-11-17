@@ -902,10 +902,18 @@ static obs_properties_t *mixer_properties(void *)
     obs_property_t *viz = obs_properties_add_list(
         props, "visualizer_mode", "Audio-Only VJ Shader Visualizer",
         OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-    obs_property_list_add_int(viz, "FluidFlowSNoise (Folyadék áramlás - Alapértelmezett)", 0);
-    obs_property_list_add_int(viz, "TruchetDualLevelSpin (Forgó kettős labirintus)", 1);
-    obs_property_list_add_int(viz, "HypnoWorm (Hipnotikus féregalagút)", 2);
-    obs_property_list_add_int(viz, "TriangleSquareTwist (Geometrikus hullám csavarás)", 3);
+    obs_property_list_add_int(viz, "1. Fluid Flow 3D (Organikus Folyadék)", 0);
+    obs_property_list_add_int(viz, "2. Truchet Spin 3D (3D Raymarching Labirintus)", 1);
+    obs_property_list_add_int(viz, "3. Hypno Worm (24-Lépéses OpArt Alagút)", 2);
+    obs_property_list_add_int(viz, "4. Shape Twist (18-Lépéses Elektro Hullám)", 3);
+    obs_property_list_add_int(viz, "5. String Art (Geometrikus Szálművészet)", 4);
+    obs_property_list_add_int(viz, "6. Dodecahedron 3D (3D Raymarching Kristály)", 5);
+    obs_property_list_add_int(viz, "7. Kali Circuits (Fraktál Áramkörök)", 6);
+    obs_property_list_add_int(viz, "8. Diamond Vision (Tórusz Sugárkövetés)", 7);
+    obs_property_list_add_int(viz, "9. Pupila (Organikus Szem & Írisz)", 8);
+    obs_property_list_add_int(viz, "10. MandalaScope (72-Lépéses Fraktál Mandala)", 9);
+    obs_property_list_add_int(viz, "11. Searching Light (Kiber Fényalagút)", 10);
+    obs_property_list_add_int(viz, "12. CubeField 3D (Végtelen Kockamező Raymarching)", 11);
 
     obs_properties_add_bool(props, "visualizer_pulse", "Zenei Lüktetés (Kick & Bass Pulse Dynamics)");
     obs_properties_add_bool(props, "visualizer_tone", "Zenei Tónuskövetés (Track Spectral Tone Tracking)");

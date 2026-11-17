@@ -34,43 +34,43 @@ struct VjDeckConfig {
 inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
     static const std::vector<VjShaderDef> defs = {
         {
-            0, "Fluid Flow", "Organikus Folyadék",
+            0, "Fluid Flow 3D", "Organikus 3D Folyadék",
             {
-                {"rate", "Sebesség / Rate", 0.0f, 3.0f, 1.5f, 0.05f},
-                {"zrate", "Z-Áramlás / Z-Rate", -3.0f, 3.0f, -1.5f, 0.05f},
-                {"depth", "Mélység / Depth", 0.60f, 0.95f, 0.85f, 0.01f},
-                {"blur", "Elmosás / Blur", 0.05f, 0.35f, 0.125f, 0.005f},
-                {"freq", "Frekvencia / Freq", 0.005f, 0.08f, 0.025f, 0.002f}
+                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.5f, 0.05f},
+                {"zrate", "Z-Áramlás / Z-Rate", -3.0f, 3.0f, -1.2f, 0.05f},
+                {"depth", "Mélység / Depth", 0.70f, 0.95f, 0.82f, 0.01f},
+                {"blur", "Elmosás / Blur", 0.05f, 0.35f, 0.15f, 0.005f},
+                {"freq", "Frekvencia 1 / Freq 1", 0.005f, 0.10f, 0.025f, 0.002f},
+                {"freq2", "Frekvencia 2 / Freq 2", 0.10f, 1.0f, 0.45f, 0.01f}
             }
         },
         {
-            1, "Truchet Spin", "Forgó Labirintus",
+            1, "Truchet Spin 3D", "3D Raymarching Labirintus",
             {
                 {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.0f, 0.05f},
                 {"zoom", "Nagyítás / Zoom", 0.5f, 4.0f, 2.0f, 0.05f},
                 {"thickness", "Vastagság / Thickness", 0.01f, 0.20f, 0.05f, 0.005f},
-                {"pulse", "Pulzus / Pulse", 0.0f, 2.0f, 0.5f, 0.02f}
+                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.5f, 0.02f}
             }
         },
         {
-            2, "Hypno Worm", "Hipnotikus Féregalagút",
+            2, "Hypno Worm", "24-Lépéses OpArt Alagút",
             {
-                {"rate", "Sebesség / Rate", -5.0f, 5.0f, 1.5f, 0.1f},
-                {"size", "Méret / Size", 1.0f, 10.0f, 8.95f, 0.1f},
+                {"rate", "Sebesség / Rate", -5.0f, 5.0f, 1.6f, 0.1f},
+                {"size", "Méret / Size", 1.0f, 15.0f, 8.95f, 0.1f},
                 {"edge", "Élesség / Edge", 3.0f, 30.0f, 23.0f, 0.5f},
-                {"amp1", "Hullám 1 / Amp 1", 0.01f, 0.25f, 0.10f, 0.005f},
-                {"amp2", "Hullám 2 / Amp 2", 0.04f, 0.25f, 0.05f, 0.005f}
+                {"amp1", "Hullám 1 / Amp 1", 0.01f, 0.35f, 0.12f, 0.005f},
+                {"amp2", "Hullám 2 / Amp 2", 0.01f, 0.30f, 0.08f, 0.005f}
             }
         },
         {
-            3, "Shape Twist", "Elektro Hullám Csavarás",
+            3, "Shape Twist", "18-Lépéses Elektro Hullám",
             {
-                {"zoom", "Nagyítás / Zoom", 0.2f, 5.0f, 1.0f, 0.05f},
-                {"rotate", "Forgatás / Rotate", 0.0f, 1.0f, 0.0f, 0.02f},
-                {"twist", "Csavarás / Twist", 0.0f, 0.5f, 0.02f, 0.005f},
-                {"tunnel", "Alagút / Tunnel", 0.25f, 1.75f, 1.1f, 0.02f},
-                {"thickness", "Vastagság / Thickness", 0.001f, 0.05f, 0.003f, 0.001f},
-                {"amplitude", "Amplitúdó / Amplitude", 0.0f, 50.0f, 5.0f, 0.5f}
+                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.5f, 0.05f},
+                {"zoom", "Nagyítás / Zoom", 0.2f, 3.0f, 1.0f, 0.05f},
+                {"amplitude", "Amplitúdó / Amp", 0.0f, 80.0f, 25.0f, 1.0f},
+                {"thickness", "Vastagság / Thickness", 0.001f, 0.03f, 0.005f, 0.001f},
+                {"twist", "Csavarás / Twist", 0.0f, 0.1f, 0.025f, 0.002f}
             }
         },
         {
@@ -86,7 +86,7 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
             }
         },
         {
-            5, "Dodecahedron", "3D Kristály Raymarching",
+            5, "Dodecahedron 3D", "3D Raymarching Kristály",
             {
                 {"Zoom", "Nagyítás / Zoom", 0.2f, 2.0f, 1.0f, 0.05f},
                 {"een", "Forma 1", 0.0f, 10.0f, 1.0f, 0.1f},
@@ -117,6 +117,57 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
                 {"Rot", "Forgatás / Rotation", 0.1f, 2.0f, 1.0f, 0.05f},
                 {"Rat", "Ráta / Ratio", -1.0f, 2.0f, 1.0f, 0.05f}
             }
+        },
+        {
+            8, "Pupila", "Organikus Szem & Írisz",
+            {
+                {"zoom", "Nagyítás / Zoom", 0.2f, 2.0f, 0.5f, 0.05f},
+                {"irisR", "Írisz Vörös (R)", 0.0f, 1.0f, 0.42f, 0.02f},
+                {"irisG", "Írisz Zöld (G)", 0.0f, 1.0f, 0.52f, 0.02f},
+                {"irisB", "Írisz Kék (B)", 0.0f, 1.0f, 0.78f, 0.02f},
+                {"borderR", "Keret Vörös", 0.0f, 1.0f, 0.0f, 0.02f},
+                {"borderG", "Keret Zöld", 0.0f, 1.0f, 0.53f, 0.02f},
+                {"borderB", "Keret Kék", 0.0f, 1.0f, 1.0f, 0.02f},
+                {"pupilPulse", "Lábdob Pupilla Pulzus", 0.0f, 2.0f, 1.0f, 0.05f}
+            }
+        },
+        {
+            9, "MandalaScope", "72-Lépéses Fraktál Mandala",
+            {
+                {"rate", "Sebesség / Rate", -5.0f, 5.0f, 1.5f, 0.1f},
+                {"sides", "Oldalak Száma / Sides", 2.0f, 32.0f, 4.0f, 1.0f},
+                {"scale", "Lépték / Scale", 0.5f, 5.0f, 2.0f, 0.1f},
+                {"multiply", "Szorzó / Multiply", 0.0f, 6.0f, 4.0f, 0.2f},
+                {"loops", "Iterációk / Loops", 6.0f, 72.0f, 28.0f, 2.0f},
+                {"mX", "Forma X / mX", 0.0f, 2.0f, 0.25f, 0.02f},
+                {"mY", "Forma Y / mY", -2.0f, 1.0f, -0.75f, 0.02f},
+                {"pulse", "Zenei Lüktetés / Pulse", 0.0f, 2.0f, 0.5f, 0.05f}
+            }
+        },
+        {
+            10, "Searching Light", "Kiber Fényalagút",
+            {
+                {"scale", "Fénysugár Vastagság", 0.0005f, 0.015f, 0.002f, 0.0002f},
+                {"modVal", "Térbeli Osztás / Mod", 0.2f, 4.0f, 1.0f, 0.05f},
+                {"zAdder", "Z-Áramlás / Speed", -1.0f, 1.0f, 0.7f, 0.05f},
+                {"cosinAdder", "Koszinusz Torzítás", -1.0f, 1.0f, 0.7f, 0.05f},
+                {"sinAdder", "Szinusz Torzítás", -1.0f, 1.0f, 0.7f, 0.05f},
+                {"finalMulti", "Fényerő / Glow", 0.1f, 2.5f, 0.8f, 0.05f},
+                {"pulse", "Kick Basszus Pulzus", 0.0f, 2.0f, 0.8f, 0.05f}
+            }
+        },
+        {
+            11, "CubeField 3D", "Végtelen Kockamező Raymarching",
+            {
+                {"speed", "Kamera Sebesség", -2.0f, 2.0f, 0.5f, 0.05f},
+                {"rot_z", "Forgatás Z / Rotation", 0.0f, 6.28f, 0.5f, 0.05f},
+                {"repeat", "Kockák Távolsága", 0.2f, 2.0f, 0.5f, 0.02f},
+                {"box_size", "Kockaméret / Box Size", 0.05f, 0.5f, 0.2f, 0.01f},
+                {"squiggle", "Hullámcsavarás", -1.0f, 3.14f, 0.5f, 0.05f},
+                {"dist1", "Térbeli Hullám 1", -1.0f, 1.0f, 0.5f, 0.05f},
+                {"dist3", "Örvényhullám", 0.0f, 1.0f, 0.5f, 0.05f},
+                {"termThres", "Köd / Term Küszöb", 1.0f, 8.0f, 5.0f, 0.1f}
+            }
         }
     };
     return defs;
@@ -124,7 +175,7 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
 
 inline VjDeckConfig getDefaultVjConfig(int shader_idx) {
     VjDeckConfig cfg;
-    cfg.shader_idx = std::clamp(shader_idx, 0, 7);
+    cfg.shader_idx = std::clamp(shader_idx, 0, 11);
     const auto &defs = getVjShaderDefinitions();
     if (cfg.shader_idx >= 0 && cfg.shader_idx < static_cast<int>(defs.size())) {
         const auto &p_defs = defs[cfg.shader_idx].params;

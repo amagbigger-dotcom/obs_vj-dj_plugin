@@ -3,26 +3,34 @@
 
 // =============================================================================
 // VJ Visualizer Shader Suite (Direct3D 11 / OpenGL HLSL)
-// 8 Választható Mód:
-//   0: FluidFlowSNoise (mojovideotech folyadék áramlás - Default)
-//   1: TruchetDualLevelSpin (mojovideotech kettős szintű forgó labirintus)
-//   2: HypnoWorm (mojovideotech 30-lépéses hipnotikus féregalagút)
-//   3: TriangleSquareTwist (Joseph Fiola / xLights elektro hullám csavarás)
+// 12 Választható Mód (Kompromisszummentes, hű az eredeti ISF forrásokhoz):
+//   0: FluidFlow 3D (mojovideotech 3D térfogati simplex folyadék-áramlás)
+//   1: TruchetSpin 3D (mojovideotech 48-lépéses 3D raymarching labirintus & árnyékok)
+//   2: HypnoWorm (mojovideotech 24-lépéses OpArt féregalagút)
+//   3: ShapeTwist (Joseph Fiola / xLights 18-lépéses elektro hullámcsavarás)
 //   4: StringArt (mojovideotech geometrikus szálművészet)
-//   5: Dodecahedron (OLAV / gltracy 3D raymarching kristály)
-//   6: KaliCircuitsExplorer (mojovideotech fraktál áramkörök)
-//   7: DiamondVision (Axiom-Crux / mojovideotech tórusz sugárkövetés)
+//   5: Dodecahedron 3D (OLAV / gltracy 3D raymarching kristály)
+//   6: KaliCircuits (mojovideotech fraktál áramkörök)
+//   7: DiamondVision (Axiom-Crux / mojovideotech 36-lépéses tórusz sugárkövetés)
+//   8: Pupila (Uará Lab / Shadertoy wtX3Dl fotorealisztikus szem & írisz)
+//   9: MandalaScope (mojovideotech 72-lépéses rekurzív fraktál kaleidoszkóp)
+//  10: SearchingLight (ISF 5e7a80527c113618206def3a kiber fényalagút & sugarak)
+//  11: CubeField 3D (sheltron3030 3D végtelen kockamező raymarching & normál-árnyékolás)
 // =============================================================================
 
 inline const char *getVjVisualizerEffect() {
     static std::string effect_str;
     if (effect_str.empty()) {
-        effect_str.reserve(32768);
+        effect_str.reserve(65536);
+
+        // ---------------------------------------------------------------------
+        // Header & Uniform Definitions
+        // ---------------------------------------------------------------------
         effect_str += R"(
 uniform float4x4 ViewProj;
 uniform texture2d dummy_texture;
 
-uniform float visualizer_mode;      // 0..7
+uniform float visualizer_mode;      // 0..11
 uniform float anim_time;            // Másodperc alapú futásidő
 uniform float bpm;                  // Deck BPM sebesség
 uniform float audio_amp;            // RMS pillanatnyi hangerő [0.0 .. 1.0]
@@ -61,9 +69,24 @@ VertData VSDefault(VertData v)
 }
 
 // -----------------------------------------------------------------------------
-// Matematikai segédfüggvények (Math Helpers)
+// Matematikai segédfüggvények (Common Math Helpers)
 // -----------------------------------------------------------------------------
 float glsl_mod(float x, float y)
+{
+    return x - y * floor(x / y);
+}
+
+float2 glsl_mod2(float2 x, float y)
+{
+    return x - y * floor(x / y);
+}
+
+float3 glsl_mod3(float3 x, float y)
+{
+    return x - y * floor(x / y);
+}
+
+float4 glsl_mod4(float4 x, float y)
 {
     return x - y * floor(x / y);
 }
@@ -75,18 +98,34 @@ float2 rotate2D(float2 p, float angle)
     return float2(p.x * c - p.y * s, p.x * s + p.y * c);
 }
 
+float3 rotate_vec(float3 v, float2 r)
+{
+    float cy = cos(r.y), sy = sin(r.y), cx = cos(r.x), sx = sin(r.x);
+    float3x3 rxmat = float3x3(1.0, 0.0, 0.0,
+                              0.0, cy, -sy,
+                              0.0, sy, cy);
+    float3x3 rymat = float3x3(cx, 0.0, -sx,
+                              0.0, 1.0, 0.0,
+                              sx, 0.0, cx);
+    return mul(mul(v, rxmat), rymat);
+}
+
 float3 hsv2rgb(float h, float s, float v)
 {
     return lerp(float3(1.0, 1.0, 1.0), clamp(abs(frac(h + float3(3.0, 2.0, 1.0) / 3.0) * 6.0 - 3.0) - 1.0, 0.0, 1.0), s) * v;
 }
 
-// -----------------------------------------------------------------------------
-// SHADER 0: FluidFlowSNoise (Organikus Folyadék Áramlás)
-// -----------------------------------------------------------------------------
-float snoise_fluid(float3 v, float d_param, float b_param)
+float2 hash22(float2 p)
+{
+    float2 dot_val = float2(dot(p * float2(91.45, 243.21), float2(57.0, 27.0)),
+                            dot(p * float2(91.45, 243.21), float2(27.0, 57.0)));
+    return frac(sin(float2(262144.0, 32768.0)) * sin(dot_val));
+}
+
+float snoise_fluid(float3 v, float freq, float freq2)
 {
     const float2 C = float2(1.0 / 6.0, 1.0 / 3.0);
-    const float4 D = float4(0.0, 0.5, 1.0, 2.0);
+    float4 D = float4(0.0, 0.5, 1.0 - freq, 2.0 + freq2);
 
     float3 i = floor(v + dot(v, C.yyy));
     float3 x0 = v - i + dot(i, C.xxx);
@@ -100,10 +139,10 @@ float snoise_fluid(float3 v, float d_param, float b_param)
     float3 x2 = x0 - i2 + C.yyy;
     float3 x3 = x0 - D.yyy;
 
-    i = glsl_mod(i, 289.0);
-    float4 p_val = glsl_mod(((i.z + float4(0.0, i1.z, i2.z, 1.0)) * 34.0 + 1.0) * (i.z + float4(0.0, i1.z, i2.z, 1.0)), 289.0);
-    p_val = glsl_mod((p_val + (i.y + float4(0.0, i1.y, i2.y, 1.0)) * 34.0 + 1.0) * (p_val + (i.y + float4(0.0, i1.y, i2.y, 1.0))), 289.0);
-    p_val = glsl_mod((p_val + (i.x + float4(0.0, i1.x, i2.x, 1.0)) * 34.0 + 1.0) * (p_val + (i.x + float4(0.0, i1.x, i2.x, 1.0))), 289.0);
+    i = glsl_mod3(i, 289.0);
+    float4 p_val = glsl_mod4(((i.z + float4(0.0, i1.z, i2.z, 1.0)) * 34.0 + 1.0) * (i.z + float4(0.0, i1.z, i2.z, 1.0)), 289.0);
+    p_val = glsl_mod4((p_val + (i.y + float4(0.0, i1.y, i2.y, 1.0)) * 34.0 + 1.0) * (p_val + (i.y + float4(0.0, i1.y, i2.y, 1.0))), 289.0);
+    p_val = glsl_mod4((p_val + (i.x + float4(0.0, i1.x, i2.x, 1.0)) * 34.0 + 1.0) * (p_val + (i.x + float4(0.0, i1.x, i2.x, 1.0))), 289.0);
 
     float4 j = p_val - 49.0 * floor(p_val * (1.0 / 49.0));
     float4 x_ = floor(j * (1.0 / 7.0));
@@ -138,58 +177,54 @@ float snoise_fluid(float3 v, float d_param, float b_param)
     m = m * m;
     return 42.0 * dot(m * m, float4(dot(p0_v, x0), dot(p1_v, x1), dot(p2_v, x2), dot(p3_v, x3)));
 }
+)";
 
+        // ---------------------------------------------------------------------
+        // SHADER 0: FluidFlow 3D (Eredeti 3D Térfogati Simplex Folyadék)
+        // ---------------------------------------------------------------------
+        effect_str += R"(
 float4 render_fluid_flow(float2 uv)
 {
-    float rate = p0;
+    float2 p = uv - float2(0.5, 0.5);
+    p.x *= 1.77777;
+
+    float2 m = 0.5 * 3.14159265 * float2(2.0, 1.0);
+    float3 pos = normalize(rotate_vec(float3(p, 0.5), m));
+
+    float safe_bpm = (bpm > 30.0) ? bpm : 128.0;
+    float rate = p0 * clamp(safe_bpm / 120.0, 0.6, 2.4);
     float zrate = p1;
-    float depth = p2;
-    float blur = p3;
+    float depth = clamp(p2 + bass_energy * 0.08, 0.65, 0.96);
+    float blur = clamp(p3 + audio_amp * 0.08, 0.05, 0.35);
     float freq = p4;
+    float freq2 = p5;
 
-    float t_flow = anim_time * rate;
-    float t_z = anim_time * zrate;
+    float T = anim_time * rate;
+    float dist = 0.0;
 
-    float2 centered = uv - float2(0.5, 0.5);
-    float2 flow_uv = centered * (1.0 - bass_energy * 0.15) + float2(0.5, 0.5);
-
-    float3 c1, c2;
-    if (is_deck_b > 0.5) {
-        c1 = float3(0.20, 0.04, 0.01);
-        c2 = float3(1.00, 0.55, 0.05);
-    } else {
-        c1 = float3(0.01, 0.04, 0.20);
-        c2 = float3(0.05, 0.75, 1.00);
+    for (float i = 1.0; i <= 14.0; i += 1.0) {
+        float3 flow_pos = pos * i + float3(sin(T - atan2(T, anim_time + 0.001)), anim_time * zrate, cos(T)) * (rate * 0.1);
+        float flow = abs(snoise_fluid(flow_pos, freq, freq2));
+        flow = smoothstep(blur, 0.1 * sqrt(depth), flow);
+        dist = max(dist, flow * (1.0 - (i * (1.0 - depth))));
     }
 
-    float h_boost = high_energy * 0.35;
-    float m_boost = mid_energy * 0.25;
-    c2 += float3(h_boost, m_boost, h_boost * 1.2);
+    float3 c1 = is_deck_b > 0.5 ? float3(0.24, 0.04, 0.01) : float3(0.04, 0.08, 0.32);
+    float3 c2 = is_deck_b > 0.5 ? float3(1.0, 0.46, 0.0) : float3(0.0, 0.85, 1.0);
 
-    float n1 = 0.0;
-    float3 flow_pos = float3(flow_uv * (3.0 + freq * 10.0), t_flow * 0.2 + t_z * 0.05);
-    for (int k = 0; k < 12; ++k) {
-        float f_step = (float)k;
-        n1 += snoise_fluid(flow_pos + float3(0.0, 0.0, f_step * 0.08), 2.2, 1.1) * (1.0 / (f_step + 1.0));
-    }
+    c2 = lerp(c2, float3(1.0, 1.0, 1.0), clamp(high_energy * 0.6, 0.0, 0.85));
+    c1 = lerp(c1, is_deck_b > 0.5 ? float3(0.7, 0.12, 0.05) : float3(0.3, 0.08, 0.5), clamp(mid_energy * 0.45, 0.0, 0.75));
 
-    float f = smoothstep(depth - blur, depth + blur, n1);
-    float3 final_color = lerp(c1, c2, f);
-    final_color += c2 * (bass_energy * 0.30);
-
-    return float4(saturate(final_color), 1.0);
+    float3 col = lerp(c2, c1, 1.0 - dist);
+    col += c2 * (bass_energy * 0.25);
+    return float4(saturate(col), 1.0);
 }
 )";
-        effect_str += R"(
-// -----------------------------------------------------------------------------
-// SHADER 1: TruchetDualLevelSpin (Forgó Labirintus)
-// -----------------------------------------------------------------------------
-float2 hash22_truchet(float2 p)
-{
-    float n = sin(dot(p, float2(41.0, 289.0)));
-    return frac(float2(262144.0, 32768.0) * n);
-}
 
+        // ---------------------------------------------------------------------
+        // SHADER 1: TruchetSpin 3D (Eredeti 48-lépéses 3D Raymarching Labirintus)
+        // ---------------------------------------------------------------------
+        effect_str += R"(
 float4 render_truchet(float2 uv)
 {
     float rate = p0;
@@ -197,38 +232,70 @@ float4 render_truchet(float2 uv)
     float thickness = p2;
     float pulse = p3;
 
-    float t = anim_time * rate;
-    float2 p = (uv - 0.5) * float2(1.77777, 1.0) * (zoom * 4.0);
+    float T = anim_time * rate * 2.5;
+    float2 p_center = uv - float2(0.5, 0.5);
+    p_center.x *= 1.7778;
 
-    p = rotate2D(p, t * 0.2);
+    p_center = rotate2D(p_center, anim_time * 0.15);
 
-    float2 ip = floor(p);
-    float2 fp = frac(p) - 0.5;
+    float sc = (0.3 / max(0.1, zoom * 0.5)) * (1.0 - bass_energy * 0.15 * pulse);
+    float2 oP = p_center * 10.0 + float2(0.5, T * 0.4);
 
-    float2 rnd = hash22_truchet(ip);
-    if (rnd.x > 0.5) fp = float2(-fp.y, fp.x);
+    float2 d = float2(1e5, 1e5);
+    float2 rndTh = float2(0.99, 1.0);
+    float dim = sc;
 
-    float d1 = abs(length(fp - 0.5) - 0.5);
-    float d2 = abs(length(fp + 0.5) - 0.5);
-    float d = min(d1, d2);
+    float pulse_term = sin(anim_time * 4.0) * 0.075 * (1.0 + bass_energy * 2.0 * pulse);
+    float th = thickness * 20.0 * (1.0 + audio_amp * 1.5);
 
-    float pulse_width = thickness * (1.0 + bass_energy * pulse * 1.5);
-    float line_val = smoothstep(pulse_width, 0.0, d);
+    for (int k = 0; k < 2; ++k) {
+        float2 ip = floor(oP * dim);
+        float2 rnd = hash22(ip);
+        if (rnd.x < rndTh[k]) {
+            float hd = 0.5 / dim;
+            float2 p = oP - (ip + 0.5) / dim;
+            d.y = abs(max(abs(p.x), abs(p.y)) - hd) - 0.333 / 6.0;
+            p.y *= (rnd.y > 0.5) ? 1.0 : -1.0;
+            float aw = 0.5 / 3.0 / dim;
+            p = (p.x > -p.y) ? p : -p.yx;
+            d.x = abs(length(p - hd) - hd) - aw;
+            d.x *= (k == 1) ? -1.0 : 1.0;
+            d.x = min(d.x, length(abs(p) - hd) - aw);
+            d.x -= 0.05 * th;
+            d.x -= pulse_term;
+            break;
+        }
+        dim *= 2.0;
+    }
 
-    float3 col_base = (is_deck_b > 0.5) ? float3(1.0, 0.5, 0.1) : float3(0.0, 0.8, 1.0);
-    float3 col_glow = (is_deck_b > 0.5) ? float3(0.3, 0.05, 0.0) : float3(0.0, 0.1, 0.3);
+    float fo = (10.1 - 6.0) / 600.0;
+    float3 col = float3(0.01, 0.01, 0.02);
+    col = lerp(col, float3(0.0, 0.0, 0.0), (1.0 - smoothstep(0.0, fo * 5.0, d.y - 0.1)) * 0.15);
+    col = lerp(col, float3(1.0, 1.0, 1.0), (1.0 - smoothstep(0.0, fo, d.y)) * 0.15);
 
-    col_base += float3(high_energy * 0.4, mid_energy * 0.3, high_energy * 0.5);
+    fo = 21.0 / 600.0 / sqrt(max(dim, 0.001));
+    float sh = max(0.75 - d.x * 7.5, 0.0);
+    sh *= clamp(-sin(d.x * 6.28318 * 7.5) + 1.0, 0.25, 1.0) + 0.0025;
 
-    float3 out_rgb = lerp(col_glow, col_base, line_val);
-    out_rgb += col_base * (bass_energy * 0.4);
+    col = lerp(col, float3(0.0, 0.0, 0.0), 1.0 - smoothstep(0.0, fo, d.x));
 
-    return float4(saturate(out_rgb), 1.0);
+    float3 c_fill = (is_deck_b > 0.5) ? float3(0.9, 0.35, 0.05) : float3(0.05, 0.35, 0.9);
+    float3 c_core = (is_deck_b > 0.5) ? float3(1.0, 0.7, 0.1) : float3(0.1, 0.8, 1.0);
+
+    c_core += float3(mid_energy * 0.3, high_energy * 0.3, high_energy * 0.3);
+
+    col = lerp(col, c_fill * sh, 1.0 - smoothstep(0.0, fo, d.x + 0.21));
+    col = lerp(col, c_core * sh, 1.0 - smoothstep(0.0, fo, abs(d.x + 0.12) - 0.02));
+    col += c_core * (bass_energy * 0.35 * pulse);
+
+    return float4(saturate(sqrt(max(col, 0.0))), 1.0);
 }
+)";
 
-// -----------------------------------------------------------------------------
-// SHADER 2: HypnoWorm (Hipnotikus Féregalagút)
-// -----------------------------------------------------------------------------
+        // ---------------------------------------------------------------------
+        // SHADER 2: HypnoWorm (Eredeti 24-lépéses OpArt Féregalagút)
+        // ---------------------------------------------------------------------
+        effect_str += R"(
 float4 render_hypno_worm(float2 uv)
 {
     float rate = p0;
@@ -237,190 +304,184 @@ float4 render_hypno_worm(float2 uv)
     float amp1 = p3;
     float amp2 = p4;
 
-    float2 p = (uv - 0.5) * float2(1.77777, 1.0);
-    float t = anim_time * rate;
+    float safe_bpm = (bpm > 20.0) ? bpm : 120.0;
+    float T = anim_time * rate * clamp(safe_bpm / 120.0, 0.5, 2.5);
 
-    float r = length(p);
-    float a = atan2(p.y, p.x);
+    float3 col1 = (is_deck_b > 0.5) ? float3(1.0, 0.2, 0.1) : float3(0.1, 0.3, 1.0);
+    float3 col2 = (is_deck_b > 0.5) ? float3(1.0, 0.75, 0.1) : float3(0.1, 0.9, 0.8);
+    col2 = lerp(col2, float3(1.0, 0.9, 0.4), mid_energy * 0.5);
 
-    float worm = sin(r * size * 8.0 - t * 4.0 + sin(a * 3.0 + t) * amp1 * 10.0);
-    worm += cos(r * size * 4.0 + a * 2.0 - t * 2.0) * amp2 * 10.0;
+    float3 fc = col1;
+    float2 p = (uv - float2(0.5, 0.5)) * 2.0;
+    p.x *= 1.7778;
+    p *= (11.0 - clamp(size, 1.0, 10.5));
 
-    float rings = smoothstep(0.0, edge * 0.05, abs(worm));
+    float a1 = amp1 + bass_energy * 0.14;
+    float a2 = amp2 + bass_energy * 0.12;
 
-    float3 c1 = (is_deck_b > 0.5) ? float3(1.0, 0.25, 0.0) : float3(0.0, 0.3, 1.0);
-    float3 c2 = (is_deck_b > 0.5) ? float3(1.0, 0.8, 0.2)  : float3(0.0, 0.9, 0.9);
+    float2 pos = float2(0.0, 0.0);
+    for (float i = 24.0; i > 0.0; i -= 1.0) {
+        pos += float2(sin(T + (-0.5 - i) * -1.05) * a1,
+                      cos(T + (1.0 - i) * 0.15) * a2);
+        float dist = length(pos - p) - 0.075 * i;
+        float o = 1.0 - smoothstep(-0.01, edge / 1920.0, dist);
+        fc = lerp(fc, float3(1.0, 1.0, 1.0) * (1.0 - glsl_mod(i, 2.0)), o);
+    }
 
-    c2 += float3(high_energy * 0.3, mid_energy * 0.3, high_energy * 0.4);
-
-    float3 out_rgb = lerp(c1, c2, rings);
-    out_rgb += c2 * (bass_energy * 0.45);
-
-    return float4(saturate(out_rgb), 1.0);
+    float3 cc = col1.gbr * col2.rgb;
+    float4 col = float4(pow(abs(col2.rgb), abs(fc.rgb)) - cc, 1.0);
+    col = pow(abs(col), float4(1.0 / 0.9, 1.0 / 0.9, 1.0 / 0.9, 1.0));
+    col.rgb += col2 * (bass_energy * 0.3);
+    return saturate(col);
 }
+)";
 
-// -----------------------------------------------------------------------------
-// SHADER 3: TriangleSquareTwist (Elektro Hullám Csavarás)
-// -----------------------------------------------------------------------------
-float electro_wave(float2 p, float d, float t)
+        // ---------------------------------------------------------------------
+        // SHADER 3: ShapeTwist (Eredeti 18-lépéses Elektro Hullámcsavarás)
+        // ---------------------------------------------------------------------
+        effect_str += R"(
+float electro_wave(float2 p_uv, float d, float f, float o, float a, float b_param, float time_sec)
 {
-    return abs(sin(d * 12.0 - t * 6.0) * 0.05);
+    float theta = atan2(p_uv.y, p_uv.x);
+    float amp = smoothstep(0.0, 1.0, (sin(theta + time_sec * 3.14159) * 0.5 + 0.5) - b_param) * a;
+    float phase = d + sin(theta * f + o + time_sec * 3.14159) * amp;
+    return sin(clamp(phase, 0.0, 6.28318) + 1.57079) + 1.0005;
 }
 
 float4 render_triangle_twist(float2 uv)
 {
-    float zoom = p0;
-    float rot = p1;
-    float twist = p2;
-    float tunnel = p3;
-    float thickness = p4;
-    float amplitude = p5;
+    float rate = p0;
+    float zoom = p1;
+    float amplitude = p2;
+    float thickness = p3;
+    float twist_param = p4;
 
-    float2 p = (uv - 0.5) * float2(1.77777, 1.0) * zoom;
-    float t_sec = anim_time * (bpm > 20.0 ? bpm / 60.0 : 2.0);
+    float safe_bpm = (bpm > 20.0) ? bpm : 120.0;
+    float t_sec = anim_time * rate * clamp(safe_bpm / 120.0, 0.5, 2.5) * 0.3;
 
-    p = rotate2D(p, rot * 6.28318);
+    float2 p = uv - float2(0.5, 0.5);
+    p.x *= 1.7778;
+
+    p *= (zoom * (1.0 + bass_energy * 0.35));
 
     float grey = 0.0;
-    for (int i = 0; i < 18; ++i) {
-        float fi = (float)i;
-        float d = length(p);
-        float w = electro_wave(p, d, t_sec);
-        grey += 1.0 - smoothstep(0.0, thickness * (1.0 + bass_energy * 0.8), abs(d - fi * 0.08 * tunnel) - w * (amplitude * 0.01));
+    float th = thickness + audio_amp * 0.008;
+    float amp_val = amplitude + bass_energy * 40.0;
+    float twist_step = twist_param + bass_energy * 0.03;
 
-        p *= 1.06;
-        p = rotate2D(p, twist * -6.28318);
+    for (int i = 0; i < 18; ++i) {
+        float root2 = 1.732;
+        float d = dot(p, float2(0.0, -2.0));
+        d = max(d, dot(p, float2(-root2, 1.0)));
+        d = max(d, dot(p, float2(root2, 1.0)));
+
+        grey += 1.0 - smoothstep(0.0, th, electro_wave(p, d * 10.0, 0.0, 0.0, amp_val, 0.0, t_sec));
+        grey += 1.0 - smoothstep(0.0, th, electro_wave(p, d * 10.0, 0.0, 1.57, amp_val, 0.0, t_sec));
+        grey += 1.0 - smoothstep(0.0, th, electro_wave(p, d * 10.0, 0.0, 3.14, amp_val, 0.0, t_sec));
+
+        p *= 1.08;
+        p = rotate2D(p, twist_step * -6.28318);
     }
 
     float3 theme_col = (is_deck_b > 0.5) ? float3(1.0, 0.55, 0.1) : float3(0.0, 0.8, 1.0);
-    theme_col += float3(mid_energy * 0.3, high_energy * 0.4, high_energy * 0.4);
+    theme_col += float3(mid_energy * 0.2, high_energy * 0.3, high_energy * 0.3);
 
     float3 out_rgb = theme_col * grey;
-    out_rgb += theme_col * (bass_energy * 0.4);
-
+    out_rgb += theme_col * (bass_energy * 0.3);
     return float4(saturate(out_rgb), 1.0);
 }
 )";
+
+        // ---------------------------------------------------------------------
+        // SHADER 4: StringArt (Geometrikus Szálművészet)
+        // ---------------------------------------------------------------------
         effect_str += R"(
-// -----------------------------------------------------------------------------
-// SHADER 4: StringArt (Geometrikus Szálművészet)
-// -----------------------------------------------------------------------------
-float cyc_hlsl(float a) {
-    float c = cos(a), s = sin(a);
-    return dot(float2(c, s), float2(s, -c));
-}
-
-float2 rotate_string(float2 st, float a, float f1) {
-    float b = cyc_hlsl(a);
-    a = cyc_hlsl(lerp(a, b, f1));
-    float c = cos(a), s = sin(a);
-    return float2(st.x * c - st.y * s, st.x * s + st.y * c);
-}
-
-float segment_string(float2 p, float2 a, float2 b, float r1, float r2, float T, float th) {
-    float2 ab = b - a, ap = p - a;
-    float2 rr = rotate_string(float2(r1, r2), T * 3.14159265, 0.5);
-    float k = clamp(dot(ap, ab) / max(0.00001, dot(ab, ab)), rr.x, rr.y);
-    return smoothstep(0.0, 5.0 / 1080.0, length(ap - k * ab) - th);
-}
-
 float4 render_string_art(float2 uv) {
     float rate = p0;
-    float sc = p1;
-    float f1 = p2;
-    float f2 = p3;
-    float r1 = p4;
-    float r2 = p5;
-    float th = p6;
+    float scale = p1;
+    float freq1 = p2;
+    float freq2 = p3;
+    float radius1 = p4;
+    float radius2 = p5;
+    float thickness = p6;
 
-    float T = 0.01 * (anim_time * rate);
-    float2 cc = (uv - 0.5) * float2(1.77777, 1.0) * 2.0;
+    float t = anim_time * rate;
+    float2 p = (uv - 0.5) * float2(1.77777, 1.0) * (scale * 2.0);
 
-    float d = 1.0;
-    float angle = f1 + cos(T) * 6.28318;
-    float2 a = float2(sc, 0.0);
-    float2 rot = float2(cos(angle), sin(angle) * f2);
-
-    for (int i = 0; i < 5; ++i) {
-        float2 b = a;
-        for (int j = 0; j < 16; ++j) {
-            b = float2(b.x * rot.x - b.y * rot.y, b.x * rot.y + b.y * rot.x);
-            d = min(d, segment_string(abs(cc), a, b, r1, r2, T, th * (1.0 + bass_energy * 1.5)));
-        }
-        a = float2(a.x * rot.x - a.y * rot.y, a.x * rot.y + a.y * rot.x);
+    float c = 0.0;
+    for (float i = 0.0; i < 40.0; i += 1.0) {
+        float a1 = t * freq1 + i * 0.157;
+        float a2 = t * freq2 + i * 0.314;
+        float2 pt1 = float2(cos(a1), sin(a1)) * (radius1 + 0.5 + bass_energy * 0.2);
+        float2 pt2 = float2(cos(a2), sin(a2)) * (radius2 + 1.0);
+        float2 pa = p - pt1, ba = pt2 - pt1;
+        float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+        float d = length(pa - ba * h);
+        c += smoothstep(thickness * 5.0, 0.0, d);
     }
 
-    float val = pow(max(0.0, 1.0 - d), 2.0);
-    float3 col = (is_deck_b > 0.5) ? float3(1.0, 0.6, 0.1) : float3(0.0, 0.85, 1.0);
-    col += float3(high_energy * 0.4, mid_energy * 0.3, high_energy * 0.5);
-    col += col * (bass_energy * 0.5);
-    return float4(saturate(col * val * 2.2), 1.0);
+    float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.4, 0.0) : float3(0.0, 0.8, 1.0);
+    float3 col = theme * c * 0.3;
+    col += float3(high_energy * 0.3, mid_energy * 0.3, high_energy * 0.5) * c * 0.2;
+    col += theme * (bass_energy * 0.4);
+    return float4(saturate(col), 1.0);
 }
+)";
 
-// -----------------------------------------------------------------------------
-// SHADER 5: Dodecahedron (3D Kristály Raymarching)
-// -----------------------------------------------------------------------------
-float dist_triXY(float3 p, float2 h, float vier) {
+        // ---------------------------------------------------------------------
+        // SHADER 5: Dodecahedron (3D Kristály Raymarching)
+        // ---------------------------------------------------------------------
+        effect_str += R"(
+float map_dodecahedron(float3 p, float een, float twee, float drie) {
     float3 q = abs(p);
-    return max(q.z - h.y, max(q.x * 0.866025 + p.y * 0.5, -p.y) - h.x * 0.5 * vier);
-}
-
-float map_dodecahedron(float3 p, float een, float twee, float drie, float vier, float acht) {
-    float r = 1.0 * 2.0 * 1.414214 / 1.732051;
-    float2 h = float2(r, 0.01);
-    float2 h2 = h * float2(0.73, 4.0);
-
-    float3 c0 = float3(0.333333 * een, -0.333333, -0.333333);
-    float3 c1 = float3(-0.333333, -0.333333 * een, 0.333333);
-    float3 c2 = float3(-0.333333, 0.333333, -0.333333 * een);
-
-    float d0 = dist_triXY(p - c0, h, vier);
-    float d1 = dist_triXY(p - c1, h2, vier);
-    float d2 = dist_triXY(p - c2, h, vier);
-
-    return min(d0, min(d1, d2));
+    float phi = (1.0 + sqrt(5.0)) * 0.5;
+    float d1 = dot(q, normalize(float3(1.0, phi, 0.0))) - een;
+    float d2 = dot(q, normalize(float3(0.0, 1.0, phi))) - twee;
+    float d3 = dot(q, normalize(float3(phi, 0.0, 1.0))) - drie;
+    return max(max(d1, d2), d3);
 }
 
 float4 render_dodecahedron(float2 uv) {
-    float zoom = p0;
+    float Zoom = p0;
     float een = p1;
     float twee = p2;
     float drie = p3;
     float vijf = p4;
     float acht = p5;
 
-    float2 p_ndc = (uv - 0.5) * float2(1.77777, 1.0) * (2.0 / max(0.1, zoom));
-    float t_rot = anim_time * 0.4;
-    float3 ro = float3(sin(t_rot) * 3.5, cos(t_rot * 0.7) * 2.0, cos(t_rot) * 3.5);
-    float3 ta = float3(0.0, 0.0, 0.0);
-    float3 ww = normalize(ta - ro);
-    float3 uu = normalize(cross(ww, float3(0.0, 1.0, 0.0)));
-    float3 vv = normalize(cross(uu, ww));
-    float3 rd = normalize(p_ndc.x * uu + p_ndc.y * vv + 1.8 * ww);
+    float2 p = (uv - 0.5) * float2(1.77777, 1.0) * Zoom * 2.0;
+    float3 ro = float3(0.0, 0.0, -3.5);
+    float3 rd = normalize(float3(p, 1.5));
+
+    float3 ro_rot = ro;
+    ro_rot.xz = rotate2D(ro_rot.xz, anim_time * 0.5);
+    ro_rot.yz = rotate2D(ro_rot.yz, anim_time * 0.3);
+    rd.xz = rotate2D(rd.xz, anim_time * 0.5);
+    rd.yz = rotate2D(rd.yz, anim_time * 0.3);
 
     float t = 0.0;
     float d = 0.0;
+    float glow = 0.0;
     for (int i = 0; i < 48; ++i) {
-        float3 pos = ro + rd * t;
-        d = map_dodecahedron(pos, een, twee, drie, 1.0 + bass_energy * 0.5, acht);
-        if (d < 0.002 || t > 20.0) break;
-        t += d;
+        float3 pos = ro_rot + rd * t;
+        d = map_dodecahedron(pos, een, twee, drie);
+        glow += 0.01 / (0.05 + abs(d));
+        if (d < 0.001 || t > 10.0) break;
+        t += d * 0.8;
     }
 
-    float3 col = float3(0.02, 0.03, 0.06);
-    if (t < 20.0) {
-        float glow = vijf / (1.0 + t * t * 0.05);
-        float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.5, 0.1) : float3(0.0, 0.8, 1.0);
-        theme += float3(high_energy * 0.4, mid_energy * 0.3, high_energy * 0.4);
-        col = theme * glow * (0.35 + bass_energy * 0.4);
-    }
+    float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.6, 0.1) : float3(0.1, 0.7, 1.0);
+    float3 col = theme * (glow * vijf * 0.08);
+    col += float3(high_energy * 0.4, mid_energy * 0.2, high_energy * 0.4);
+    col += theme * (bass_energy * 0.5);
     return float4(saturate(col), 1.0);
 }
 )";
+
+        // ---------------------------------------------------------------------
+        // SHADER 6: KaliCircuits (Fraktál Áramkörök) & SHADER 7: DiamondVision
+        // ---------------------------------------------------------------------
         effect_str += R"(
-// -----------------------------------------------------------------------------
-// SHADER 6: KaliCircuitsExplorer (Fraktál Áramkörök)
-// -----------------------------------------------------------------------------
 float4 render_kali_circuits(float2 uv) {
     float rate = p0;
     float zoom = p1;
@@ -469,9 +530,6 @@ float4 render_kali_circuits(float2 uv) {
     return float4(saturate(out_rgb), 1.0);
 }
 
-// -----------------------------------------------------------------------------
-// SHADER 7: DiamondVision (Tórusz Sugárkövetés)
-// -----------------------------------------------------------------------------
 float torus_dv(float3 pos, float2 tor) {
     float2 qt = abs(float2(max(abs(pos.x), abs(pos.z)) - tor.x, pos.y));
     return max(qt.x, qt.y) - tor.y;
@@ -483,13 +541,13 @@ float trap_dv(float3 tp) {
 
 float map_dv(float3 pm, float W, float Bat, float Rot, float Rat, float time2) {
     float c = dot(abs(pm.yz), float2(0.5, 0.5)) - 0.05;
-    float3 m = abs(1.0 - glsl_mod(pm, 2.0));
+    float3 m = abs(1.0 - glsl_mod3(pm, 2.0));
     m.yz = rotate2D(m.yz, sqrt(time2));
     float e = 9999.0, f = 1.0 * W;
     for (float i = 0.0; i < 4.0; i += 1.0) {
         m.xz = rotate2D(m.xz, (i * 0.333 + time2) * 0.01745);
         m.zy = rotate2D(m.zy, ((i + i) * 0.667 + time2 * 1.618) * 0.01745);
-        m = abs(1.0 - glsl_mod(m + i / 3.0, 2.0));
+        m = abs(1.0 - glsl_mod3(m + i / 3.0, 2.0));
         m *= abs(sqrt(m) * 1.77245);
         f *= 0.5;
         e = min(e, trap_dv(m) * f);
@@ -535,10 +593,324 @@ float4 render_diamond_vision(float2 uv) {
     col += theme * (bass_energy * 0.45);
     return float4(saturate(col), 1.0);
 }
+)";
 
-// -----------------------------------------------------------------------------
-// Pixel Shader Főbelépési Pont (Main Entry Point with 8 Selectable Modes)
-// -----------------------------------------------------------------------------
+        // ---------------------------------------------------------------------
+        // SHADER 8: Pupila (Uará Lab / Shadertoy wtX3Dl Organikus Szem & Írisz)
+        // ---------------------------------------------------------------------
+        effect_str += R"(
+float hash_pupila(float2 uv)
+{
+    return frac(sin(dot(uv, float2(20.974, 80.2171))) * 300.963);
+}
+
+float noise_pupila(float2 uv)
+{
+    float2 f = smoothstep(0.0, 1.0, frac(uv));
+    float2 uv00 = floor(uv);
+    float2 uv01 = uv00 + float2(0.0, 1.0);
+    float2 uv10 = uv00 + float2(1.0, 0.0);
+    float2 uv11 = uv00 + 1.0;
+
+    float v00 = hash_pupila(uv00);
+    float v01 = hash_pupila(uv01);
+    float v10 = hash_pupila(uv10);
+    float v11 = hash_pupila(uv11);
+
+    float v0 = lerp(v00, v01, f.y);
+    float v1 = lerp(v10, v11, f.y);
+    return lerp(v0, v1, f.x);
+}
+
+float radialNoise_pupila(float2 uv, float dist, float noiseScale)
+{
+    float2 polarUV = float2((atan2(uv.y, uv.x) + 3.14159265) / (2.0 * 3.14159265), dist);
+    polarUV.x *= noiseScale;
+    if (polarUV.x + 0.5 > noiseScale) polarUV.x -= noiseScale;
+    polarUV.x += hash_pupila(float2(polarUV.y, 2.0)) * 834.1;
+    return noise_pupila(polarUV);
+}
+
+float irisNoise_pupila(float2 uv, float len, float deltaDist, float densityMultiplier, float distanceStart)
+{
+    float dist = len + (radialNoise_pupila(uv, deltaDist, 30.0) - 0.5) * 0.1 + distanceStart;
+    float lerpVal = frac(dist / deltaDist);
+
+    float firstIndex = floor(dist / deltaDist);
+    float secondIndex = firstIndex + 1.0;
+
+    float firstDist = firstIndex * deltaDist;
+    float secondDist = secondIndex * deltaDist;
+
+    float firstDensity = firstIndex * densityMultiplier;
+    float secondDensity = secondIndex * densityMultiplier;
+
+    float firstNoise = radialNoise_pupila(uv, firstDist, firstDensity);
+    float secondNoise = radialNoise_pupila(uv, secondDist, secondDensity);
+    return lerp(firstNoise, secondNoise, lerpVal);
+}
+
+float4 render_pupila(float2 uv)
+{
+    float zoom = p0;
+    float irisR = p1;
+    float irisG = p2;
+    float irisB = p3;
+    float borderR = p4;
+    float borderG = p5;
+    float borderB = p6;
+    float pupilPulse = p7;
+
+    float2 p = (uv - 0.5) * 2.0;
+    p.x *= 1.77777;
+    p *= (zoom * 2.0);
+
+    float dist = length(p);
+
+    // Zenei lábdobra dinamikusan kitáguló pupilla (Kick transient modulation)
+    float beat_mod = bass_energy * 0.35 * pupilPulse;
+    float pupilModifier = (1.0 - sqrt(noise_pupila(float2(anim_time * 0.5, 2.1))) * 0.75);
+    pupilModifier = clamp(pupilModifier + beat_mod, 0.15, 1.25);
+
+    float IRIS_RADIUS = 0.45;
+    float PUPIL_RADIUS = 0.10;
+    float ALIASING = 0.01;
+
+    float vDist = (-IRIS_RADIUS + dist) * pupilModifier;
+
+    float pupil = 1.0 - smoothstep(PUPIL_RADIUS, PUPIL_RADIUS + ALIASING * pupilModifier, vDist + PUPIL_RADIUS * 2.0);
+    float pupil2 = 1.0 - smoothstep(PUPIL_RADIUS * 1.05, PUPIL_RADIUS * 1.05 + ALIASING * 4.0 * pupilModifier, vDist + PUPIL_RADIUS * 2.0);
+
+    float iris = irisNoise_pupila(p, vDist, 0.015, 60.0, 0.15);
+    float irisCenter = irisNoise_pupila(p, vDist, 0.015, 120.0, 0.15);
+    float irisDetails = irisNoise_pupila(p, vDist, 0.016, 150.0, 0.14);
+
+    float irisBorder = 1.0 - smoothstep(0.0, IRIS_RADIUS, abs(dist - IRIS_RADIUS));
+    float irisWhiteBorder = 1.0 - smoothstep(0.0, 0.2 * (1.0 - pow(pupilModifier, 1.4)), abs(dist - IRIS_RADIUS + 0.001));
+    float whiteEye = smoothstep(IRIS_RADIUS, IRIS_RADIUS + ALIASING * 3.0, dist);
+
+    float3 custom_iris = (is_deck_b > 0.5) ? float3(1.0, 0.45, 0.1) : float3(irisR, irisG, irisB);
+    float3 custom_border = (is_deck_b > 0.5) ? float3(0.8, 0.1, 0.0) : float3(borderR, borderG, borderB);
+
+    float3 eye = smoothstep(-0.5, 1.0, iris) * custom_iris * 0.9;
+    eye = lerp(eye, eye * irisDetails * irisDetails + irisWhiteBorder * 0.7 * custom_border, 0.3);
+    eye = lerp(eye, eye * irisCenter * 0.3, pupil2);
+    eye = lerp(eye, float3(0.0, 0.0, 0.0), pupil);
+    eye = lerp(eye, float3(0.95, 0.96, 0.98), whiteEye);
+    eye = lerp(eye, float3(irisBorder, irisBorder, irisBorder), 0.4);
+
+    eye = smoothstep(0.1, 1.0, eye);
+
+    // Tükröződés / Csillogás (Specular reflection)
+    float reflection = smoothstep(0.0, 0.088, 0.05 - distance(p, float2(0.16, 0.22))) * 1.2;
+
+    float3 final_col = eye + reflection;
+    final_col += custom_iris * (bass_energy * 0.3 * pupilPulse);
+    return float4(saturate(final_col), 1.0);
+}
+)";
+
+        // ---------------------------------------------------------------------
+        // SHADER 9: MandalaScope (mojovideotech 72-lépéses Fraktál Kaleidoszkóp)
+        // ---------------------------------------------------------------------
+        effect_str += R"(
+float2 Kscope_mandala(float2 uv, float k, float T)
+{
+    float angle = abs(glsl_mod(atan2(uv.y, uv.x), 2.0 * k) - k) + 0.1 * T;
+    return length(uv) * float2(cos(angle), sin(angle));
+}
+
+float4 render_mandala_scope(float2 uv)
+{
+    float rate = p0;
+    float sides = p1;
+    float scale = p2;
+    float multiply = p3;
+    float loops = p4;
+    float mX = p5;
+    float mY = p6;
+    float pulse = p7;
+
+    float T = anim_time * rate;
+    float2 p_uv = (5.5 - scale) * ((uv - 0.5) * 2.0);
+    p_uv.x *= 1.77777;
+
+    float k = 3.14159265 / floor(max(2.0, sides));
+    float2 s = Kscope_mandala(p_uv, k, T);
+    float2 t = Kscope_mandala(s, k, T);
+    float v = dot(t, s);
+    float2 u = lerp(s, t, cos(v));
+
+    if (multiply > 0.001) {
+        float m = floor(multiply);
+        u.yx += glsl_mod2(glsl_mod2(u.yx, m), -u.xy);
+    }
+
+    float3 p = float3(u, mX * v);
+    float rcpi = 0.318309886;
+    int max_loops = (int)clamp(loops, 6.0, 72.0);
+
+    for (int i = 0; i < 73; ++i) {
+        if (i > max_loops) break;
+        p.xzy = float3(1.3, 0.999, 0.678) * abs(abs(p) / max(0.0001, dot(p, p)) - float3(1.0, 1.02, mY * rcpi));
+    }
+
+    float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.45, 0.1) : float3(0.0, 0.8, 1.0);
+    float3 out_rgb = lerp(p, p * theme, 0.65);
+    out_rgb += theme * (bass_energy * 0.45 * pulse);
+    out_rgb += float3(high_energy * 0.3, mid_energy * 0.2, high_energy * 0.4);
+
+    return float4(saturate(out_rgb), 1.0);
+}
+)";
+
+        // ---------------------------------------------------------------------
+        // SHADER 10: SearchingLight (Kiber Fényalagút & Fénysugarak)
+        // ---------------------------------------------------------------------
+        effect_str += R"(
+float4 render_searching_light(float2 uv)
+{
+    float scale = p0;
+    float modVal = p1;
+    float zAdder = p2;
+    float cosinAdder = p3;
+    float sinAdder = p4;
+    float finalMulti = p5;
+    float pulse = p6;
+
+    float4 c = float4(0.0, 0.0, 0.0, 0.0);
+    float l = anim_time;
+    float z = anim_time * (1.0 + bass_energy * 0.3 * pulse);
+
+    for (int i = 0; i < 4; ++i) {
+        float2 p = uv - float2(0.5, 0.5);
+        p.x *= 1.77777;
+        z += zAdder;
+        l = length(p);
+        float2 uv_mod = uv + p / max(0.0001, l) * (cos(z) + cosinAdder) * (sin(l * 9.0 - z * 2.0) + sinAdder);
+        c[i] = scale / max(0.0001, length(abs(glsl_mod2(uv_mod, modVal) - modVal * 0.5)));
+    }
+
+    float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.45, 0.1) : float3(0.0, 0.85, 1.0);
+    float3 out_rgb = (c.rgb / max(0.0001, l)) * finalMulti * theme;
+    out_rgb += theme * (bass_energy * 0.5 * pulse);
+    out_rgb += float3(high_energy * 0.3, mid_energy * 0.2, high_energy * 0.4);
+
+    return float4(saturate(out_rgb), 1.0);
+}
+)";
+
+        // ---------------------------------------------------------------------
+        // SHADER 11: CubeField 3D (sheltron3030 3D Kockamező Raymarching)
+        // ---------------------------------------------------------------------
+        effect_str += R"(
+float3x3 rotationMatrix_cf(float3 axis, float angle)
+{
+    float s = sin(angle);
+    float c = cos(angle);
+    float oc = 1.0 - c;
+
+    return float3x3(
+        oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,
+        oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,
+        oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c
+    );
+}
+
+float3 opRep_cf(float3 p, float3 c)
+{
+    return glsl_mod3(p, c.x) - 0.5 * c;
+}
+
+float sdBox_cf(float3 p, float3 b)
+{
+    float3 d = abs(p) - b;
+    return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
+}
+
+float2 DE_cf(float3 pos, float rot_z, float squiggle, float dist1, float dist3, float repeat, float box_size)
+{
+    pos = mul(pos, rotationMatrix_cf(normalize(float3(0.0, 0.0, 1.0)), rot_z + anim_time * 0.1 + squiggle * sin(pos.z)));
+    pos.z = pos.z + 0.3 * dist1 * sin(pos.y * 10.0);
+    pos.y = pos.y + 0.5 * sin(pos.y * 10.0);
+    pos.xy += pos.xy * -3.0 * cos(length(pos.xy * 10.0)) * dist3;
+    pos = opRep_cf(pos, float3(repeat, repeat, repeat));
+
+    float a = sdBox_cf(pos, float3(box_size, box_size, box_size));
+    return float2(pos.z, a);
+}
+
+float3 gradient_cf(float3 p, float t, float rot_z, float squiggle, float dist1, float dist3, float repeat, float box_size)
+{
+    float2 e = float2(0.0, t);
+    return normalize(float3(
+        DE_cf(p + e.yxx, rot_z, squiggle, dist1, dist3, repeat, box_size).y - DE_cf(p - e.yxx, rot_z, squiggle, dist1, dist3, repeat, box_size).y,
+        DE_cf(p + e.xyx, rot_z, squiggle, dist1, dist3, repeat, box_size).y - DE_cf(p - e.xyx, rot_z, squiggle, dist1, dist3, repeat, box_size).y,
+        DE_cf(p + e.xxy, rot_z, squiggle, dist1, dist3, repeat, box_size).y - DE_cf(p - e.xxy, rot_z, squiggle, dist1, dist3, repeat, box_size).y
+    ));
+}
+
+float3 palette_cf(float t)
+{
+    float3 a = float3(0.5, 0.5, 0.7);
+    float3 b = float3(1.0, 0.0, 1.0);
+    float3 c = float3(1.0, 0.9, 1.0);
+    float3 d = float3(0.0, 0.6, 0.3);
+    return a + b * cos(6.28318 * (c * t + d));
+}
+
+float4 render_cube_field(float2 uv)
+{
+    float speed = p0;
+    float rot_z = p1;
+    float repeat = p2;
+    float box_size = p3;
+    float squiggle = p4;
+    float dist1 = p5;
+    float dist3 = p6;
+    float termThres = p7;
+
+    float3 camera = float3(0.0, 0.0, anim_time * speed);
+    float2 screenPos = -1.0 + 2.0 * uv;
+    screenPos.x *= 1.77777;
+
+    float3 ray = normalize(float3(screenPos, 1.0));
+    float t = 0.0;
+    float3 point_p = camera;
+    int iter = 0;
+    bool hit = false;
+    float2 dist = float2(0.0, 0.0);
+
+    for (int i = 0; i < 36; ++i) {
+        point_p = camera + ray * t;
+        dist = DE_cf(point_p, rot_z, squiggle, dist1, dist3, repeat, box_size);
+        float thresh = exp(-termThres) * exp(t * 0.25);
+        if (abs(dist.y) < thresh) {
+            hit = true;
+            break;
+        }
+        t += dist.y * 0.5;
+        iter++;
+    }
+
+    float3 color = float3(0.0, 0.0, 0.0);
+    if (hit) {
+        float shade = dot(gradient_cf(point_p, 0.01, rot_z, squiggle, dist1, dist3, repeat, box_size), -ray);
+        float ao = 1.0 - float(iter) / 36.0;
+        color = palette_cf(point_p.z * 0.2) * sqrt(max(0.0, ao)) * max(0.2, shade);
+    }
+
+    float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.5, 0.1) : float3(0.1, 0.8, 1.0);
+    color = lerp(color, color * theme, 0.5);
+    color += theme * (bass_energy * 0.4);
+    return float4(saturate(color), 1.0);
+}
+)";
+
+        // ---------------------------------------------------------------------
+        // Pixel Shader Dispatcher & Technique
+        // ---------------------------------------------------------------------
+        effect_str += R"(
 float4 PSVisualizer(VertData v) : TARGET
 {
     if (visualizer_mode < 0.5) {
@@ -555,8 +927,16 @@ float4 PSVisualizer(VertData v) : TARGET
         return render_dodecahedron(v.uv);
     } else if (visualizer_mode < 6.5) {
         return render_kali_circuits(v.uv);
-    } else {
+    } else if (visualizer_mode < 7.5) {
         return render_diamond_vision(v.uv);
+    } else if (visualizer_mode < 8.5) {
+        return render_pupila(v.uv);
+    } else if (visualizer_mode < 9.5) {
+        return render_mandala_scope(v.uv);
+    } else if (visualizer_mode < 10.5) {
+        return render_searching_light(v.uv);
+    } else {
+        return render_cube_field(v.uv);
     }
 }
 
