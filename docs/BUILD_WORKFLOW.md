@@ -256,3 +256,21 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - A 13 effekt mindegyikének 8 paramétere külön memóriaterületen tárolódik a `DeckPair`-ben. Váltáskor minden módosított beállítás megmarad.
   4. **Lock-Free OBS Render Szál:**
      - A paraméterek Direct3D 11 / HLSL átadása (`cf_p0`..`cf_p7`) 100% zéró-lock atomi olvasással történik a valós idejű renderelési ciklusban.
+
+### Mérföldkő #16: Build #275 / GitHub Run #275 (Tört Ütemes Szinkron, Kézi BPM Zárolás & Crossfade FX Dialog Stabilizálás)
+* **Verzió & Commit:** `TBD`
+* **Jellemzők:**
+  1. **Crossfade FX Dialógus Csúszka & Dropdown Stabilizáció:**
+     - Megszüntetve az 50 ms-os UI ciklusban futó destruktív `rebuildParamControls()` hívás.
+     - A csúszkák és a legördülő modulációs menük stabilak maradnak, azonnal foghatók és nem tűnnek el kattintáskor.
+  2. **Kézi BPM & Beatgrid Zárolás (`user_bpm_locked`, `user_grid_locked`):**
+     - A `.vdj.json` gyorsítótár és a motor megjegyzi a kézi beállításokat (`[edit]`, `/2`, `x2`, `TAP`, vagy rácstolás).
+     - Bármilyen háttér-analízis (pl. Camelot Key vagy Gain pótlása) szigorúan tiszteletben tartja és soha nem írja felül a felhasználó által beállított BPM-et és rácsot.
+  3. **Kétsávos (Kick + Snare) Tranzienstelítés Tört Ütemekhez:**
+     - Az `AnalyzerBeats` a 160 Hz-es lábdob mellett bevonja a 200–2500 Hz-es Mid sávot (Snare, Clap) a novelty energianövekménybe (`0.65 * kick + 0.35 * snare`).
+     - Tört ritmusoknál (Breakbeat, Drum & Bass, UK Garage) az autokorreláció a valódi 140 / 174 egész BPM-et találja meg.
+  4. **Bit-Perfect Varispeed & Adaptív Key Lock:**
+     - Kikapcsolt Key Lock mellett a lejátszás szigorúan bit-perfect matematikai mintalépkedéssel (`playback_sample_pos_ += step`) fut.
+     - Bekapcsolt Key Lock esetén az ablakkeresés adaptívan igazodik a sebességeltéréshez (`K_max = clamp(|speed - 1| * 512 + 16, 16, 192)`).
+  5. **0.001 BPM Tűpontos Sync Motor:**
+     - A Sync holtsáv lecsökkentve 0.05-ről 0.001 BPM-re.

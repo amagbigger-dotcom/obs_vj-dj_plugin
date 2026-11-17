@@ -207,5 +207,6 @@ AnalyzerWaveform::WaveformResult AnalyzerWaveform::generate(const std::vector<fl
         res.detailed_high[w] = std::clamp(peak_h / max_h_all, 0.05f, 1.0f);
     }
 
+    res.snare_samples = std::move(mid_band);
     return res;
 }

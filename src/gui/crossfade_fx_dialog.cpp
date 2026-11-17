@@ -166,15 +166,23 @@ void CrossfadeFxDialog::refresh()
 {
     if (!decks_) return;
     const int cur_mode = decks_->crossfadeFxMode();
-    {
-        const QSignalBlocker blocker(fx_combo_);
-        fx_combo_->setCurrentIndex(std::clamp(cur_mode, 0, fx_combo_->count() - 1));
+    if (cur_mode != last_fx_mode_) {
+        last_fx_mode_ = cur_mode;
+        {
+            const QSignalBlocker blocker(fx_combo_);
+            fx_combo_->setCurrentIndex(std::clamp(cur_mode, 0, fx_combo_->count() - 1));
+        }
+        rebuildParamControls();
     }
-    rebuildParamControls();
 }
 
 void CrossfadeFxDialog::rebuildParamControls()
 {
+    if (!decks_) return;
+
+    const int fx_mode = std::clamp(decks_->crossfadeFxMode(), 0, 15);
+    last_fx_mode_ = fx_mode;
+
     // Clear previous parameter rows
     QLayoutItem *item = nullptr;
     while ((item = params_layout_->takeAt(0)) != nullptr) {
@@ -183,10 +191,6 @@ void CrossfadeFxDialog::rebuildParamControls()
         }
         delete item;
     }
-
-    if (!decks_) return;
-
-    const int fx_mode = std::clamp(decks_->crossfadeFxMode(), 0, 15);
     const auto &defs = getCrossfadeFxDefinitions();
     if (fx_mode >= static_cast<int>(defs.size())) return;
 

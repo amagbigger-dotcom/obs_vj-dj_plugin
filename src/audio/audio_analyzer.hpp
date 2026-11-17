@@ -13,6 +13,8 @@ struct TrackAnalysisResult {
     int64_t cue_point_ms = 0;
     int64_t hot_cues[4] = {-1, -1, -1, -1};
     int64_t duration_ms = 0;
+    bool user_bpm_locked = false;
+    bool user_grid_locked = false;
     QString detected_key = QStringLiteral("--");
     QString camelot_key = QStringLiteral("--");
     float replay_gain_db = 0.0f;
@@ -40,7 +42,7 @@ public:
     static QString cacheFilePath(const QString &file_path);
     static bool loadCache(const QString &file_path, TrackAnalysisResult &out_res);
     static bool saveCache(const QString &file_path, const TrackAnalysisResult &res);
-    static bool updateCacheUserEdits(const QString &file_path, double bpm, int64_t grid_offset_ms, int64_t cue_point_ms);
+    static bool updateCacheUserEdits(const QString &file_path, double bpm, int64_t grid_offset_ms, int64_t cue_point_ms, int lock_bpm = -1, int lock_grid = -1);
     static bool updateCacheHotCues(const QString &file_path, const int64_t hot_cues[4]);
     static bool updateCacheVjConfig(const QString &file_path, const VjDeckConfig &config);
 

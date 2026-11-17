@@ -29,9 +29,9 @@ bool AudioAnalyzer::saveCache(const QString &file_path, const TrackAnalysisResul
     return TrackCache::save(file_path, res);
 }
 
-bool AudioAnalyzer::updateCacheUserEdits(const QString &file_path, double bpm, int64_t grid_offset_ms, int64_t cue_point_ms)
+bool AudioAnalyzer::updateCacheUserEdits(const QString &file_path, double bpm, int64_t grid_offset_ms, int64_t cue_point_ms, int lock_bpm, int lock_grid)
 {
-    return TrackCache::updateUserEdits(file_path, bpm, grid_offset_ms, cue_point_ms);
+    return TrackCache::updateUserEdits(file_path, bpm, grid_offset_ms, cue_point_ms, lock_bpm, lock_grid);
 }
 
 bool AudioAnalyzer::updateCacheHotCues(const QString &file_path, const int64_t hot_cues[4])
@@ -54,16 +54,41 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path, bool fo
     result.audio_sample_rate = 44100;
     result.success = false;
 
+    TrackAnalysisResult existing;
+    const bool has_cached = loadCache(file_path, existing);
+
     // 1. Gyorsítótár ellenőrzése (Check existing sidecar .vdj.json cache)
-    if (!force_reanalyze) {
-        if (loadCache(file_path, result)) {
-            // Csak akkor fogadjuk el késznek, ha az új hangnem (Camelot Key) már ki lett elemezve
-            const bool has_key = !result.camelot_key.isEmpty() && result.camelot_key != QStringLiteral("--");
-            if (has_key) {
-                // Gyorsítótár megléte esetén is betöltjük a sztereó RAM audio puffert
-                extractAudioOnly(file_path, result.audio_pcm_l, result.audio_pcm_r, result.audio_sample_rate);
-                return result;
+    if (!force_reanalyze && has_cached) {
+        // Csak akkor fogadjuk el késznek, ha az új hangnem (Camelot Key) már ki lett elemezve
+        const bool has_key = !existing.camelot_key.isEmpty() && existing.camelot_key != QStringLiteral("--");
+        if (has_key) {
+            // Gyorsítótár megléte esetén is betöltjük a sztereó RAM audio puffert
+            result = std::move(existing);
+            extractAudioOnly(file_path, result.audio_pcm_l, result.audio_pcm_r, result.audio_sample_rate);
+            return result;
+        }
+    }
+
+    if (has_cached) {
+        if (existing.user_bpm_locked) {
+            result.detected_bpm = existing.detected_bpm;
+            result.user_bpm_locked = true;
+        }
+        if (existing.user_grid_locked) {
+            result.grid_offset_ms = existing.grid_offset_ms;
+            result.user_grid_locked = true;
+        }
+        if (existing.cue_point_ms > 0) {
+            result.cue_point_ms = existing.cue_point_ms;
+        }
+        for (int i = 0; i < 4; ++i) {
+            if (existing.hot_cues[i] >= 0) {
+                result.hot_cues[i] = existing.hot_cues[i];
             }
+        }
+        if (existing.has_vj_config) {
+            result.has_vj_config = true;
+            result.vj_config = existing.vj_config;
         }
     }
 
@@ -93,9 +118,13 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path, bool fo
     result.waveform_peaks = result.overview_peaks;
 
     // 4. BPM detektálás, autokorreláció és Downbeat ütemrács igazítás (Beat Analysis)
-    auto beat_res = AnalyzerBeats::analyze(wave_res.kick_samples, mono_samples.size(), result.audio_sample_rate);
-    result.detected_bpm = beat_res.bpm;
-    result.grid_offset_ms = beat_res.grid_offset_ms;
+    auto beat_res = AnalyzerBeats::analyze(wave_res.kick_samples, mono_samples.size(), result.audio_sample_rate, wave_res.snare_samples);
+    if (!result.user_bpm_locked) {
+        result.detected_bpm = beat_res.bpm;
+    }
+    if (!result.user_grid_locked) {
+        result.grid_offset_ms = beat_res.grid_offset_ms;
+    }
 
     // 5. Csend-detektálás & Auto-CUE pont (-60 dBFS küszöb)
     auto silence_res = AnalyzerSilence::analyze(mono_samples, result.audio_sample_rate, -60.0f);

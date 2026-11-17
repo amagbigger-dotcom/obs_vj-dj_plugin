@@ -38,6 +38,8 @@ bool TrackCache::load(const QString &media_file_path, TrackAnalysisResult &out_r
     out_res.grid_offset_ms = static_cast<int64_t>(root.value(QStringLiteral("grid_offset_ms")).toVariant().toLongLong());
     out_res.cue_point_ms = static_cast<int64_t>(root.value(QStringLiteral("cue_point_ms")).toVariant().toLongLong());
     out_res.duration_ms = static_cast<int64_t>(root.value(QStringLiteral("duration_ms")).toVariant().toLongLong());
+    out_res.user_bpm_locked = root.value(QStringLiteral("bpm_locked")).toBool(false);
+    out_res.user_grid_locked = root.value(QStringLiteral("grid_locked")).toBool(false);
     out_res.detected_key = root.value(QStringLiteral("key")).toString(QStringLiteral("--"));
     out_res.camelot_key = root.value(QStringLiteral("camelot")).toString(QStringLiteral("--"));
     out_res.replay_gain_db = static_cast<float>(root.value(QStringLiteral("replay_gain_db")).toDouble(0.0));
@@ -146,7 +148,9 @@ bool TrackCache::save(const QString &media_file_path, const TrackAnalysisResult 
     QJsonObject root;
     root.insert(QStringLiteral("version"), 2);
     root.insert(QStringLiteral("bpm"), res.detected_bpm);
+    root.insert(QStringLiteral("bpm_locked"), res.user_bpm_locked);
     root.insert(QStringLiteral("grid_offset_ms"), static_cast<qint64>(res.grid_offset_ms));
+    root.insert(QStringLiteral("grid_locked"), res.user_grid_locked);
     root.insert(QStringLiteral("cue_point_ms"), static_cast<qint64>(res.cue_point_ms));
     root.insert(QStringLiteral("duration_ms"), static_cast<qint64>(res.duration_ms));
     root.insert(QStringLiteral("key"), res.detected_key);
@@ -272,7 +276,7 @@ bool TrackCache::updateVjConfig(const QString &media_file_path, const VjDeckConf
     return false;
 }
 
-bool TrackCache::updateUserEdits(const QString &media_file_path, double bpm, int64_t grid_offset_ms, int64_t cue_point_ms)
+bool TrackCache::updateUserEdits(const QString &media_file_path, double bpm, int64_t grid_offset_ms, int64_t cue_point_ms, int lock_bpm, int lock_grid)
 {
     const QString cache_path = filePath(media_file_path);
     QFile file(cache_path);
@@ -288,6 +292,16 @@ bool TrackCache::updateUserEdits(const QString &media_file_path, double bpm, int
         root.insert(QStringLiteral("grid_offset_ms"), static_cast<qint64>(grid_offset_ms));
     if (cue_point_ms >= 0)
         root.insert(QStringLiteral("cue_point_ms"), static_cast<qint64>(cue_point_ms));
+
+    if (lock_bpm == 1)
+        root.insert(QStringLiteral("bpm_locked"), true);
+    else if (lock_bpm == 0)
+        root.insert(QStringLiteral("bpm_locked"), false);
+
+    if (lock_grid == 1)
+        root.insert(QStringLiteral("grid_locked"), true);
+    else if (lock_grid == 0)
+        root.insert(QStringLiteral("grid_locked"), false);
 
     if (file.open(QIODevice::WriteOnly)) {
         file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));

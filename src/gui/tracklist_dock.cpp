@@ -1097,10 +1097,10 @@ void TracklistDock::setTrackBpmDirect(int row, double new_bpm)
     new_bpm = std::round(new_bpm * 100.0) / 100.0;
     tracks_[row].bpm = new_bpm;
 
-    // 1. Mentés a gyorsítótárba (.vdj.json sidecar cache)
-    AudioAnalyzer::updateCacheUserEdits(tracks_[row].file_path, new_bpm, 0, 0);
+    // 1. Mentés a gyorsítótárba (.vdj.json sidecar cache) explicit BPM zárolással
+    AudioAnalyzer::updateCacheUserEdits(tracks_[row].file_path, new_bpm, -1, -1, 1 /* lock_bpm */, -1 /* keep grid */);
     if (!tracks_[row].original_path.isEmpty() && tracks_[row].original_path != tracks_[row].file_path) {
-        AudioAnalyzer::updateCacheUserEdits(tracks_[row].original_path, new_bpm, 0, 0);
+        AudioAnalyzer::updateCacheUserEdits(tracks_[row].original_path, new_bpm, -1, -1, 1 /* lock_bpm */, -1 /* keep grid */);
     }
 
     // 2. Ha éppen be van töltve Deck A-ba vagy Deck B-be, ott is azonnal frissítjük

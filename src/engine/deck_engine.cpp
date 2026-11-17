@@ -201,6 +201,8 @@ void DeckPlayer::loadFile(const QString &path)
         if (res.success) {
             base_bpm_.store(std::clamp(res.detected_bpm, 40.0, 300.0), std::memory_order_relaxed);
             playback_bpm_.store(0.0, std::memory_order_relaxed);
+            user_bpm_locked_.store(res.user_bpm_locked, std::memory_order_relaxed);
+            user_grid_locked_.store(res.user_grid_locked, std::memory_order_relaxed);
             if (isMaster()) {
                 DeckPair *dp = vdj_decks();
                 if (dp) dp->setMasterClockBpm(res.detected_bpm);
@@ -510,10 +512,13 @@ int DeckPlayer::speed() const noexcept
     return speed_percent_.load(std::memory_order_relaxed);
 }
 
-void DeckPlayer::setBpm(double bpm) noexcept
+void DeckPlayer::setBpm(double bpm, bool user_locked) noexcept
 {
     base_bpm_.store(std::clamp(bpm, 40.0, 300.0), std::memory_order_relaxed);
     playback_bpm_.store(0.0, std::memory_order_relaxed);
+    if (user_locked) {
+        user_bpm_locked_.store(true, std::memory_order_relaxed);
+    }
     saveUserEdits();
 }
 
@@ -558,9 +563,12 @@ double DeckPlayer::beatDurationMs() const noexcept
     return (b > 1.0) ? (60000.0 / b) : 500.0;
 }
 
-void DeckPlayer::setGridOffsetMs(int64_t offset_ms) noexcept
+void DeckPlayer::setGridOffsetMs(int64_t offset_ms, bool user_locked) noexcept
 {
     grid_offset_ms_.store(offset_ms, std::memory_order_relaxed);
+    if (user_locked) {
+        user_grid_locked_.store(true, std::memory_order_relaxed);
+    }
 }
 
 int64_t DeckPlayer::gridOffsetMs() const noexcept
@@ -568,7 +576,7 @@ int64_t DeckPlayer::gridOffsetMs() const noexcept
     return grid_offset_ms_.load(std::memory_order_relaxed);
 }
 
-void DeckPlayer::nudgeGrid(int64_t delta_ms) noexcept
+void DeckPlayer::nudgeGrid(int64_t delta_ms, bool user_locked) noexcept
 {
     const double beat_ms = beatDurationMs();
     int64_t cur = grid_offset_ms_.load(std::memory_order_relaxed);
@@ -578,10 +586,13 @@ void DeckPlayer::nudgeGrid(int64_t delta_ms) noexcept
         cur = ((cur % b_ms) + b_ms) % b_ms;
     }
     grid_offset_ms_.store(cur, std::memory_order_relaxed);
+    if (user_locked) {
+        user_grid_locked_.store(true, std::memory_order_relaxed);
+    }
     saveUserEdits();
 }
 
-void DeckPlayer::setGridAnchorAtCurrent() noexcept
+void DeckPlayer::setGridAnchorAtCurrent(bool user_locked) noexcept
 {
     const int64_t now = currentTimeMs();
     const double beat_ms = beatDurationMs();
@@ -591,6 +602,9 @@ void DeckPlayer::setGridAnchorAtCurrent() noexcept
         offset = ((now % b_ms) + b_ms) % b_ms;
     }
     grid_offset_ms_.store(offset, std::memory_order_relaxed);
+    if (user_locked) {
+        user_grid_locked_.store(true, std::memory_order_relaxed);
+    }
     saveUserEdits();
 }
 
@@ -599,7 +613,13 @@ void DeckPlayer::saveUserEdits()
     const QString path = filePath();
     if (path.isEmpty())
         return;
-    AudioAnalyzer::updateCacheUserEdits(path, bpm(), gridOffsetMs(), cue_point_ms_.load(std::memory_order_relaxed));
+    AudioAnalyzer::updateCacheUserEdits(
+        path,
+        bpm(),
+        gridOffsetMs(),
+        cue_point_ms_.load(std::memory_order_relaxed),
+        user_bpm_locked_.load(std::memory_order_relaxed) ? 1 : 0,
+        user_grid_locked_.load(std::memory_order_relaxed) ? 1 : 0);
     extern void vdj_notify_track_bpm_changed(const QString &file_path, double new_bpm);
     vdj_notify_track_bpm_changed(path, bpm());
 }
@@ -1412,7 +1432,8 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
         const size_t W = 1024;
         const size_t O = 512;
         const size_t H_s = 512;
-        const int K_max = 256;
+        // Adaptív fáziskeresési tartomány a sebességeltéréssel arányosan (elkerüli a szinkópált tranziensekre ugrást és a lebegést)
+        const int K_max = std::clamp(static_cast<int>(std::abs(speed_ratio - 1.0) * 512.0) + 16, 16, 192);
 
         if (!sola_initialized_ || sola_last_grain_l_.size() != O) {
             sola_last_grain_l_.assign(O, 0.0f);
@@ -1895,7 +1916,7 @@ void DeckPair::updateSync()
             target_bpm = db->effectiveBpm();
         }
         const double diff = std::abs(da->effectiveBpm() - target_bpm);
-        if (diff > 0.05) da->syncToBpm(target_bpm);
+        if (diff > 0.001) da->syncToBpm(target_bpm);
     }
     if (db->isSync() && !db->isMaster()) {
         double target_bpm = master_bpm;
@@ -1909,7 +1930,7 @@ void DeckPair::updateSync()
             target_bpm = da->effectiveBpm();
         }
         const double diff = std::abs(db->effectiveBpm() - target_bpm);
-        if (diff > 0.05) db->syncToBpm(target_bpm);
+        if (diff > 0.001) db->syncToBpm(target_bpm);
     }
 }
 

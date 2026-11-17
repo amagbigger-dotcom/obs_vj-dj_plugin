@@ -14,5 +14,6 @@ public:
 
     static BeatResult analyze(const std::vector<float> &kick_samples,
                               size_t total_samples,
-                              uint32_t sample_rate);
+                              uint32_t sample_rate,
+                              const std::vector<float> &snare_samples = {});
 };

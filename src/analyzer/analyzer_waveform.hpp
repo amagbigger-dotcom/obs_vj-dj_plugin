@@ -16,7 +16,8 @@ public:
         std::vector<float> detailed_low;
         std::vector<float> detailed_mid;
         std::vector<float> detailed_high;
-        std::vector<float> kick_samples; // 160Hz lowpass for BPM onset
+        std::vector<float> kick_samples;  // 160Hz lowpass for Kick BPM onset
+        std::vector<float> snare_samples; // 250Hz - 2500Hz bandpass for Snare/Clap onset (Broken beat support)
     };
 
     static WaveformResult generate(const std::vector<float> &mono_samples,

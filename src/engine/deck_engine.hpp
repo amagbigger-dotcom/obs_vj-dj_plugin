@@ -68,16 +68,20 @@ public:
     void applySpeedSettings(int speed_percent);
     int speed() const noexcept;
 
-    void setBpm(double bpm) noexcept;
+    void setBpm(double bpm, bool user_locked = true) noexcept;
     double bpm() const noexcept;
     void setPlaybackBpm(double bpm) noexcept;
     double effectiveBpm() const noexcept;
     double beatDurationMs() const noexcept;
+    bool isBpmLocked() const noexcept { return user_bpm_locked_.load(std::memory_order_relaxed); }
+    void setBpmLocked(bool locked) noexcept { user_bpm_locked_.store(locked, std::memory_order_relaxed); }
 
-    void setGridOffsetMs(int64_t offset_ms) noexcept;
+    void setGridOffsetMs(int64_t offset_ms, bool user_locked = true) noexcept;
     int64_t gridOffsetMs() const noexcept;
-    void nudgeGrid(int64_t delta_ms) noexcept;
-    void setGridAnchorAtCurrent() noexcept;
+    void nudgeGrid(int64_t delta_ms, bool user_locked = true) noexcept;
+    void setGridAnchorAtCurrent(bool user_locked = true) noexcept;
+    bool isGridLocked() const noexcept { return user_grid_locked_.load(std::memory_order_relaxed); }
+    void setGridLocked(bool locked) noexcept { user_grid_locked_.store(locked, std::memory_order_relaxed); }
 
     void saveUserEdits();
 
@@ -242,6 +246,8 @@ private:
     std::atomic<bool> is_master_{false};
     std::atomic<bool> is_sync_{false};
     std::atomic<bool> key_lock_{false};
+    std::atomic<bool> user_bpm_locked_{false};
+    std::atomic<bool> user_grid_locked_{false};
     std::atomic<double> target_sync_bpm_{128.0};
     std::atomic<double> playback_bpm_{0.0};
     std::atomic<bool> pause_on_load_pending_{false};

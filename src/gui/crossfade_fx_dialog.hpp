@@ -31,4 +31,6 @@ private:
     QScrollArea *scroll_area_ = nullptr;
     QWidget *params_container_ = nullptr;
     QVBoxLayout *params_layout_ = nullptr;
+
+    int last_fx_mode_ = -1;
 };

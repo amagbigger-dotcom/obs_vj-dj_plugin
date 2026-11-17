@@ -6,13 +6,14 @@
 
 AnalyzerBeats::BeatResult AnalyzerBeats::analyze(const std::vector<float> &kick_samples,
                                                  size_t total_samples,
-                                                 uint32_t sample_rate)
+                                                 uint32_t sample_rate,
+                                                 const std::vector<float> &snare_samples)
 {
     BeatResult res;
     if (total_samples == 0 || sample_rate == 0 || kick_samples.empty())
         return res;
 
-    // 1. Onset Novelty Curve at ~500 Hz for BPM autocorrelation
+    // 1. Dual-Band Onset Novelty Curve at ~500 Hz (Kick + Snare) for broken beat / straight beat BPM autocorrelation
     const size_t samples_per_2ms = std::max<size_t>(1, static_cast<size_t>(sample_rate / 500));
     const double onset_rate = static_cast<double>(sample_rate) / static_cast<double>(samples_per_2ms);
     const size_t num_onset_windows = total_samples / samples_per_2ms;
@@ -33,10 +34,34 @@ AnalyzerBeats::BeatResult AnalyzerBeats::analyze(const std::vector<float> &kick_
         kick_energy[w] = (count > 0.0f) ? static_cast<float>(std::sqrt(sum_sq / count)) : 0.0f;
     }
 
+    std::vector<float> snare_energy;
+    if (!snare_samples.empty() && snare_samples.size() >= total_samples) {
+        snare_energy.resize(num_onset_windows, 0.0f);
+        for (size_t w = 0; w < num_onset_windows; ++w) {
+            const size_t start = w * samples_per_2ms;
+            const size_t end = std::min(start + samples_per_2ms, total_samples);
+            double sum_sq = 0.0;
+            for (size_t i = start; i < end; ++i) {
+                const float val = snare_samples[i];
+                sum_sq += val * val;
+            }
+            const float count = static_cast<float>(end - start);
+            snare_energy[w] = (count > 0.0f) ? static_cast<float>(std::sqrt(sum_sq / count)) : 0.0f;
+        }
+    }
+
     std::vector<float> novelty(num_onset_windows, 0.0f);
+    const bool have_snare = !snare_energy.empty();
     for (size_t w = 1; w < num_onset_windows; ++w) {
-        const float diff = kick_energy[w] - kick_energy[w - 1];
-        novelty[w] = (diff > 0.0f) ? diff : 0.0f;
+        const float diff_k = kick_energy[w] - kick_energy[w - 1];
+        const float nov_k = (diff_k > 0.0f) ? diff_k : 0.0f;
+        if (have_snare) {
+            const float diff_s = snare_energy[w] - snare_energy[w - 1];
+            const float nov_s = (diff_s > 0.0f) ? diff_s : 0.0f;
+            novelty[w] = 0.65f * nov_k + 0.35f * nov_s;
+        } else {
+            novelty[w] = nov_k;
+        }
     }
 
     // 2. Autocorrelation over 65 to 190 BPM with Harmonic Enhancement
