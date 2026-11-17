@@ -89,6 +89,10 @@ set(SOURCES
     src/gui/deck_window.hpp
     src/gui/mixer_window.cpp
     src/gui/mixer_window.hpp
+    src/gui/mixer_channel.cpp
+    src/gui/mixer_channel.hpp
+    src/gui/mixer_master.cpp
+    src/gui/mixer_master.hpp
     src/gui/tracklist_dock.cpp
     src/gui/tracklist_dock.hpp
     src/gui/vj_fx_dialog.cpp
