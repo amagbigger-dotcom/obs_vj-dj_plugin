@@ -104,12 +104,19 @@ jobs:
       - name: Build Plugin
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-
-          cmake --build build --config Release --parallel
+          cmake --build build --config Release 2>&1 | Tee-Object -FilePath build_output.log
           if ($LASTEXITCODE -ne 0) {
+            Write-Host "=== BUILD ERROR OUTPUT ==="
+            Get-Content build_output.log | Select-String "error|fatal|FAILED" -Context 2,2 | Out-Host
             throw "Plugin build failed."
           }
+
+      - name: Upload Build Log on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-error-log
+          path: build_output.log
 
       - name: Locate Plugin DLL
         id: locate-dll
