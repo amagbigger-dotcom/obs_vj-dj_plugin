@@ -152,7 +152,7 @@ AnalyzerKey::KeyResult AnalyzerKey::analyze(const std::vector<float> &mono_sampl
                 p_energy += goertzelEnergy(frame.data(), win_size, freq, static_cast<float>(sample_rate));
             }
             // Logaritmikus tömörítés
-            chroma[p] += std::log1pf(p_energy);
+            chroma[p] += std::log1p(p_energy);
         }
     }
 
