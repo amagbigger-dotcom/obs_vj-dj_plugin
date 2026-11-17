@@ -11,7 +11,7 @@ class DeckPlayer;
 class LoopBar : public QWidget {
     Q_OBJECT
 public:
-    explicit LoopBar(QWidget *parent = nullptr);
+    explicit LoopBar(DeckPlayer *deck = nullptr, QWidget *parent = nullptr);
 
     void bindDeck(DeckPlayer *deck);
     void refresh();

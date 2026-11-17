@@ -12,7 +12,7 @@ class DeckPlayer;
 class TempoControl : public QWidget {
     Q_OBJECT
 public:
-    explicit TempoControl(QWidget *parent = nullptr);
+    explicit TempoControl(DeckPlayer *deck = nullptr, QWidget *parent = nullptr);
     ~TempoControl() override;
 
     void bindDeck(DeckPlayer *deck);

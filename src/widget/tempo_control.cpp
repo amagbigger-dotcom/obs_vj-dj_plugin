@@ -5,8 +5,8 @@
 #include <algorithm>
 #include <QSignalBlocker>
 
-TempoControl::TempoControl(QWidget *parent)
-    : QWidget(parent)
+TempoControl::TempoControl(DeckPlayer *deck, QWidget *parent)
+    : QWidget(parent), deck_(deck)
 {
     pitch_throttle_timer_ = new QTimer(this);
     pitch_throttle_timer_->setSingleShot(true);

@@ -3,8 +3,8 @@
 
 #include <QStringList>
 
-LoopBar::LoopBar(QWidget *parent)
-    : QWidget(parent)
+LoopBar::LoopBar(DeckPlayer *deck, QWidget *parent)
+    : QWidget(parent), deck_(deck)
 {
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);

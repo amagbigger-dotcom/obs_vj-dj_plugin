@@ -63,6 +63,7 @@ DeckWindow::DeckWindow(DeckPlayer *deck, QWidget *parent)
     ));
 
     setupUi();
+    bindDeck(deck_);
     updateDeckButtonStates();
 
     refresh_timer_ = new QTimer(this);
@@ -356,19 +357,19 @@ void DeckWindow::setupUi()
     // ==========================================
     // 4. AUTO-LOOP MATRIX & JOG NUDGE
     // ==========================================
-    loop_bar_ = new LoopBar(this);
+    loop_bar_ = new LoopBar(deck_, this);
     main_layout->addWidget(loop_bar_);
 
     // ==========================================
     // 5. TRANSPORT (CUE, PLAY, SYNC, VOLUME)
     // ==========================================
-    transport_bar_ = new TransportBar(this);
+    transport_bar_ = new TransportBar(deck_, this);
     main_layout->addWidget(transport_bar_);
 
     // ==========================================
     // 6. CONTINUOUS REAL-TIME TEMPO / PITCH FADER
     // ==========================================
-    tempo_control_ = new TempoControl(this);
+    tempo_control_ = new TempoControl(deck_, this);
     main_layout->addWidget(tempo_control_);
 
     for (auto *btn : findChildren<QPushButton *>()) {

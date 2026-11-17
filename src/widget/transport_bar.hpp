@@ -10,7 +10,7 @@ class DeckPlayer;
 class TransportBar : public QWidget {
     Q_OBJECT
 public:
-    explicit TransportBar(QWidget *parent = nullptr);
+    explicit TransportBar(DeckPlayer *deck = nullptr, QWidget *parent = nullptr);
 
     void bindDeck(DeckPlayer *deck);
     void refresh();

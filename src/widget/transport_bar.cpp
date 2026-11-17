@@ -3,8 +3,8 @@
 
 #include <QSignalBlocker>
 
-TransportBar::TransportBar(QWidget *parent)
-    : QWidget(parent)
+TransportBar::TransportBar(DeckPlayer *deck, QWidget *parent)
+    : QWidget(parent), deck_(deck)
 {
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
