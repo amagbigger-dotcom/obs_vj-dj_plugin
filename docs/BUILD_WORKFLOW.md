@@ -91,3 +91,13 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
   - `src/widget/transport_bar`: CUE, megvilágított PLAY/PAUSE, SYNC, MASTER és 4 független, színkódolt Hot Cue gomb.
   - `src/widget/tempo_control`: Tempó / Pitch fader, intelligens snap tized-kerekítő `[ − ]` és `[ + ]` 0.10 BPM léptetők, debounced sebességállítás és Deck A (kék) / Deck B (narancs) stílustémázás.
   - `src/gui/deck_window`: 1031 sorról ~650 sorra csökkent; `deck_` mutató azonnal átadva a widgetek konstruktorának és a `bindDeck()` hívásnak, garantálva a Play, Cue, Loop és Pitch gombok hibátlan működését.
+
+### Mérföldkő #7: Build #245 / GitHub Run #245 (3. Fázis: Motor Alrendszer Modularizáció & Master SYNC Védelem)
+* **Verzió & Commit:** `044ab46`
+* **SHA256:** `83D421BD48FDC2CFA8AB396D490631773764E7D18EA6941853D3B8716633DC05`
+* **Jellemzők:** A motor alrendszerek modularizálása és a szinkronizációs logika javítása:
+  - `src/engine/engine_sync`: A Master deck tempója védett, SYNC gomb megnyomásakor tilos a másik deck 128-as alapértékére ugrania; a Slave deck veszi át a Master deck tempóját.
+  - `src/engine/engine_dsp`: 48 kHz-es 3-sávos EQ és DJ Filter szűrő, élő tranzienstelítő Kick envelope követő.
+  - `src/engine/engine_loop`: Ütemhelyes kvantált beat loop és ütemhossz számítások.
+  - `src/engine/engine_buffer`: Pozíció- és sebességkonverziós segédosztály.
+  - Számbilincselés: Szám betöltésekor a Master deck felismert tempója azonnal frissíti a Master Clockot is a keverőn.
