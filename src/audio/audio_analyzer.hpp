@@ -43,9 +43,10 @@ public:
     static bool updateCacheHotCues(const QString &file_path, const int64_t hot_cues[4]);
     static bool updateCacheVjConfig(const QString &file_path, const VjDeckConfig &config);
 
-    static TrackAnalysisResult analyzeFile(const QString &file_path);
+    static TrackAnalysisResult analyzeFile(const QString &file_path, bool force_reanalyze = false);
     static void analyzeFileAsync(const QString &file_path,
-                                 std::function<void(TrackAnalysisResult)> callback);
+                                 std::function<void(TrackAnalysisResult)> callback,
+                                 bool force_reanalyze = false);
 
     static bool extractAudioOnly(const QString &file_path,
                                  std::vector<float> &out_l,

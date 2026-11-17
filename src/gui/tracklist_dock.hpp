@@ -52,6 +52,7 @@ private slots:
     void onBrowseFolder();
     void onImportButtonClicked();
     void onReconvertButtonClicked();
+    void onReanalyzeButtonClicked();
     void onRefreshStatus();
     void onTableItemDoubleClicked(int row, int column);
     void onCustomContextMenuRequested(const QPoint &pos);
@@ -61,8 +62,10 @@ private:
     void updateTable();
     void updateRow(int row);
     void processNextConversion();
+    void processNextAnalysis();
+    void cancelActiveAnalysis();
     void loadTrackToDeck(int track_index, int deck_channel); // 0 = A, 1 = B
-    void analyzeTrackAudio(int track_index);
+    void analyzeTrackAudio(int track_index, bool force = false);
 
     VideoConverter::TargetResolution selectedTargetResolution() const;
 
@@ -71,10 +74,16 @@ private:
     std::vector<int> conversion_queue_;
     int active_conversion_idx_ = -1;
 
+    std::vector<int> analysis_queue_;
+    int active_analysis_idx_ = -1;
+    int total_analysis_count_ = 0;
+    int done_analysis_count_ = 0;
+
     VideoConverter *converter_ = nullptr;
     QLineEdit *dir_edit_ = nullptr;
     QComboBox *res_combo_ = nullptr;
     QPushButton *reconv_btn_ = nullptr;
+    QPushButton *reanalyze_btn_ = nullptr;
     QPushButton *cancel_btn_ = nullptr;
     QProgressBar *progress_bar_ = nullptr;
     QLabel *status_lbl_ = nullptr;

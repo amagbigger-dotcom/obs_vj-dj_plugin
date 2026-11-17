@@ -44,7 +44,7 @@ bool AudioAnalyzer::updateCacheVjConfig(const QString &file_path, const VjDeckCo
     return TrackCache::updateVjConfig(file_path, config);
 }
 
-TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
+TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path, bool force_reanalyze)
 {
     TrackAnalysisResult result;
     result.detected_bpm = 128.0;
@@ -55,18 +55,24 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     result.success = false;
 
     // 1. Gyorsítótár ellenőrzése (Check existing sidecar .vdj.json cache)
-    extern bool vdj_is_track_in_library(const QString &file_path);
-    if (vdj_is_track_in_library(file_path)) {
-        if (loadCache(file_path, result)) {
-            // Gyorsítótár megléte esetén is betöltjük a sztereó RAM audio puffert
-            extractAudioOnly(file_path, result.audio_pcm_l, result.audio_pcm_r, result.audio_sample_rate);
-            return result;
-        }
-    } else {
-        // Nem a tracklistben van: régi cache törlése és tiszta újraelemzés
-        const QString c_path = cacheFilePath(file_path);
-        if (QFile::exists(c_path)) {
-            QFile::remove(c_path);
+    if (!force_reanalyze) {
+        extern bool vdj_is_track_in_library(const QString &file_path);
+        if (vdj_is_track_in_library(file_path)) {
+            if (loadCache(file_path, result)) {
+                // Csak akkor fogadjuk el késznek, ha az új hangnem (Camelot Key) már ki lett elemezve
+                const bool has_key = !result.camelot_key.isEmpty() && result.camelot_key != QStringLiteral("--");
+                if (has_key) {
+                    // Gyorsítótár megléte esetén is betöltjük a sztereó RAM audio puffert
+                    extractAudioOnly(file_path, result.audio_pcm_l, result.audio_pcm_r, result.audio_sample_rate);
+                    return result;
+                }
+            }
+        } else {
+            // Nem a tracklistben van: régi cache törlése és tiszta újraelemzés
+            const QString c_path = cacheFilePath(file_path);
+            if (QFile::exists(c_path)) {
+                QFile::remove(c_path);
+            }
         }
     }
 
@@ -129,13 +135,14 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
 }
 
 void AudioAnalyzer::analyzeFileAsync(const QString &file_path,
-                                     std::function<void(TrackAnalysisResult)> callback)
+                                     std::function<void(TrackAnalysisResult)> callback,
+                                     bool force_reanalyze)
 {
-    std::thread([file_path, callback]() {
+    std::thread([file_path, callback, force_reanalyze]() {
 #ifdef _WIN32
         SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
 #endif
-        TrackAnalysisResult res = analyzeFile(file_path);
+        TrackAnalysisResult res = analyzeFile(file_path, force_reanalyze);
         if (callback)
             callback(std::move(res));
     }).detach();

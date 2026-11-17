@@ -252,11 +252,13 @@ private:
     double loop_fade_old_pos_ = 0.0;
     int loop_fade_rem_samples_ = 0;
     int loop_fade_total_samples_ = 0;
-    std::vector<float> sola_grain_l_;
-    std::vector<float> sola_grain_r_;
-    std::vector<float> sola_tail_l_;
-    std::vector<float> sola_tail_r_;
-    size_t sola_grain_read_idx_ = 0;
+    std::vector<float> sola_out_l_;
+    std::vector<float> sola_out_r_;
+    std::vector<float> sola_last_grain_l_;
+    std::vector<float> sola_last_grain_r_;
+    size_t sola_out_read_idx_ = 0;
+    int64_t sola_prev_in_pos_ = 0;
+    double sola_in_pos_ = 0.0;
     bool sola_initialized_ = false;
 
     EngineDspState dsp_states_[2];

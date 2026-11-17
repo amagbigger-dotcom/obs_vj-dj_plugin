@@ -5,6 +5,7 @@
 #include <obs-frontend-api.h>
 #include <obs.h>
 
+#include <set>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -210,6 +211,12 @@ void TracklistDock::setupUi()
     connect(reconv_btn_, &QPushButton::clicked, this, &TracklistDock::onReconvertButtonClicked);
     top_bar->addWidget(reconv_btn_);
 
+    reanalyze_btn_ = new QPushButton(QStringLiteral("⚡ ANALIZÁLÁS"), this);
+    reanalyze_btn_->setStyleSheet(QStringLiteral("background: #2b1f47; border: 1px solid #7c3aed; color: #e9d5ff; padding: 5px 10px; font-size: 11px; font-weight: bold; border-radius: 4px;"));
+    reanalyze_btn_->setToolTip(QStringLiteral("Kijelölt vagy hiányos dalok gyors zenei újraanalizálása (BPM, Camelot Key, Auto-CUE, ReplayGain) videokonvertálás nélkül"));
+    connect(reanalyze_btn_, &QPushButton::clicked, this, &TracklistDock::onReanalyzeButtonClicked);
+    top_bar->addWidget(reanalyze_btn_);
+
     auto *new_set_btn = new QPushButton(QStringLiteral("↺ ÚJ SZETT"), this);
     new_set_btn->setStyleSheet(QStringLiteral("background: #1c2635; border: 1px solid #334863; color: #8da0b8; padding: 5px 10px; font-size: 11px; font-weight: bold;"));
     new_set_btn->setToolTip(QStringLiteral("Lejátszott (zöld pipa) jelölések törlése új szett indításához"));
@@ -254,9 +261,16 @@ void TracklistDock::setupUi()
 
     cancel_btn_ = new QPushButton(QStringLiteral("⏹ MÉGSE"), this);
     cancel_btn_->setStyleSheet(QStringLiteral("background: #4a1c1c; border: 1px solid #7a3030; color: #ffaaaa; padding: 2px 8px; font-size: 10px; font-weight: bold; border-radius: 3px;"));
-    cancel_btn_->setToolTip(QStringLiteral("Aktuális konvertálás azonnali megszakítása és a következő számra ugrás"));
+    cancel_btn_->setToolTip(QStringLiteral("Aktuális művelet (konvertálás vagy zenei analízis) azonnali megszakítása"));
     cancel_btn_->setVisible(false);
-    connect(cancel_btn_, &QPushButton::clicked, this, &TracklistDock::cancelActiveConversion);
+    connect(cancel_btn_, &QPushButton::clicked, this, [this]() {
+        if (converter_ && converter_->isConverting()) {
+            cancelActiveConversion();
+        }
+        if (active_analysis_idx_ >= 0 || !analysis_queue_.empty()) {
+            cancelActiveAnalysis();
+        }
+    });
     status_bar->addWidget(cancel_btn_);
 
     main_layout->addLayout(status_bar);
@@ -406,6 +420,7 @@ void TracklistDock::onCustomContextMenuRequested(const QPoint &pos)
     auto *act_b = menu.addAction(QStringLiteral("▶ Betöltés a DECK B-be"));
     menu.addSeparator();
     auto *act_reconv = menu.addAction(QStringLiteral("🔄 Kényszerített újrakonvertálás (NVENC 1080p)"));
+    auto *act_reanalyze = menu.addAction(QStringLiteral("⚡ Zenei újraanalizálás (BPM & Camelot Key, videó nélkül)"));
     auto *act_change_vid = menu.addAction(QStringLiteral("📁 Videófájl hozzárendelése / cseréje..."));
     QAction *act_cancel = nullptr;
     if (converter_ && converter_->isConverting()) {
@@ -422,6 +437,8 @@ void TracklistDock::onCustomContextMenuRequested(const QPoint &pos)
         loadTrackToDeck(row, 1);
     } else if (selected == act_reconv) {
         reconvertTrack(row);
+    } else if (selected == act_reanalyze) {
+        analyzeTrackAudio(row, true);
     } else if (selected == act_change_vid) {
         const QString chosen = QFileDialog::getOpenFileName(
             this,
@@ -717,21 +734,145 @@ void TracklistDock::processNextConversion()
     }
 }
 
-void TracklistDock::analyzeTrackAudio(int track_index)
+void TracklistDock::analyzeTrackAudio(int track_index, bool force)
 {
     if (track_index < 0 || track_index >= static_cast<int>(tracks_.size())) return;
     const QString fpath = tracks_[track_index].file_path;
 
     AudioAnalyzer::analyzeFileAsync(fpath, [this, track_index](TrackAnalysisResult res) {
-        if (res.success && track_index < static_cast<int>(tracks_.size())) {
-            tracks_[track_index].bpm = res.detected_bpm;
-            tracks_[track_index].key = res.detected_key;
-            tracks_[track_index].camelot = res.camelot_key;
-            tracks_[track_index].duration_ms = res.duration_ms;
-            updateRow(track_index);
-            saveLibraryJson();
+        QMetaObject::invokeMethod(this, [this, track_index, res]() {
+            if (track_index < static_cast<int>(tracks_.size())) {
+                if (res.success || res.detected_bpm > 20.0) {
+                    tracks_[track_index].bpm = res.detected_bpm;
+                    tracks_[track_index].key = res.detected_key;
+                    tracks_[track_index].camelot = res.camelot_key;
+                    tracks_[track_index].duration_ms = res.duration_ms;
+                    updateRow(track_index);
+                    saveLibraryJson();
+                }
+            }
+        });
+    }, force);
+}
+
+void TracklistDock::onReanalyzeButtonClicked()
+{
+    if (tracks_.empty()) {
+        QMessageBox::information(this, QStringLiteral("Analizálás"), QStringLiteral("Nincsenek számok a listában."));
+        return;
+    }
+
+    analysis_queue_.clear();
+
+    // Megnézzük a kijelölt sorokat
+    auto selected_items = table_->selectedItems();
+    std::set<int> sel_rows;
+    for (auto *it : selected_items) {
+        sel_rows.insert(it->row());
+    }
+
+    if (!sel_rows.empty()) {
+        // Ha van kijelölés, a kijelölt számokat elemezzük újra
+        for (int r : sel_rows) {
+            if (r >= 0 && r < static_cast<int>(tracks_.size())) {
+                analysis_queue_.push_back(r);
+            }
         }
-    });
+    } else {
+        // Ha nincs kijelölés, az összes számot sorba állítjuk
+        for (size_t i = 0; i < tracks_.size(); ++i) {
+            analysis_queue_.push_back(static_cast<int>(i));
+        }
+    }
+
+    total_analysis_count_ = static_cast<int>(analysis_queue_.size());
+    done_analysis_count_ = 0;
+
+    if (total_analysis_count_ == 0) return;
+
+    if (status_lbl_) {
+        status_lbl_->setText(QStringLiteral("⚡ Zenei analízis indítása (%1 szám, videó nélkül)...").arg(total_analysis_count_));
+    }
+    if (progress_bar_) {
+        progress_bar_->setValue(0);
+        progress_bar_->setVisible(true);
+    }
+    if (cancel_btn_) {
+        cancel_btn_->setVisible(true);
+    }
+
+    processNextAnalysis();
+}
+
+void TracklistDock::processNextAnalysis()
+{
+    if (analysis_queue_.empty()) {
+        active_analysis_idx_ = -1;
+        if (progress_bar_) progress_bar_->setVisible(false);
+        if (cancel_btn_) cancel_btn_->setVisible(false);
+        if (status_lbl_) {
+            status_lbl_->setText(QStringLiteral("✅ Zenei analízis kész: %1 szám feldolgozva (BPM & Camelot Key frissítve).").arg(done_analysis_count_));
+        }
+        saveLibraryJson();
+        return;
+    }
+
+    active_analysis_idx_ = analysis_queue_.front();
+    analysis_queue_.erase(analysis_queue_.begin());
+
+    if (active_analysis_idx_ < 0 || active_analysis_idx_ >= static_cast<int>(tracks_.size())) {
+        processNextAnalysis();
+        return;
+    }
+
+    auto &it = tracks_[active_analysis_idx_];
+    it.status = QStringLiteral("Analizálás...");
+    updateRow(active_analysis_idx_);
+
+    if (status_lbl_) {
+        status_lbl_->setText(QStringLiteral("⚡ Zenei analízis (%1/%2): %3 (BPM & Key)...")
+                                .arg(done_analysis_count_ + 1)
+                                .arg(total_analysis_count_)
+                                .arg(it.title));
+    }
+    if (progress_bar_ && total_analysis_count_ > 0) {
+        progress_bar_->setValue((done_analysis_count_ * 100) / total_analysis_count_);
+    }
+
+    const QString path_to_analyze = it.file_path;
+    const int cur_idx = active_analysis_idx_;
+
+    AudioAnalyzer::analyzeFileAsync(path_to_analyze, [this, cur_idx](TrackAnalysisResult res) {
+        QMetaObject::invokeMethod(this, [this, cur_idx, res]() {
+            done_analysis_count_++;
+            if (cur_idx >= 0 && cur_idx < static_cast<int>(tracks_.size())) {
+                auto &track = tracks_[cur_idx];
+                if (res.success || res.detected_bpm > 20.0) {
+                    track.bpm = res.detected_bpm;
+                    track.key = res.detected_key;
+                    track.camelot = res.camelot_key;
+                    track.duration_ms = res.duration_ms;
+                    track.status = QStringLiteral("Ready");
+                } else {
+                    track.status = QStringLiteral("Kész");
+                }
+                updateRow(cur_idx);
+                saveLibraryJson();
+            }
+            processNextAnalysis();
+        });
+    }, true /* force_reanalyze */);
+}
+
+void TracklistDock::cancelActiveAnalysis()
+{
+    analysis_queue_.clear();
+    active_analysis_idx_ = -1;
+    if (progress_bar_) progress_bar_->setVisible(false);
+    if (cancel_btn_) cancel_btn_->setVisible(false);
+    if (status_lbl_) {
+        status_lbl_->setText(QStringLiteral("Zenei analízis megszakítva."));
+    }
 }
 
 void TracklistDock::updateTable()
@@ -1007,6 +1148,21 @@ void TracklistDock::loadLibraryJson()
         }
     }
     updateTable();
+
+    // Automatikus háttér-analízis a hiányos zenei kulcsú (régi verzióval konvertált) dalokra
+    for (size_t i = 0; i < tracks_.size(); ++i) {
+        if (tracks_[i].camelot.isEmpty() || tracks_[i].camelot == QStringLiteral("--")) {
+            analysis_queue_.push_back(static_cast<int>(i));
+        }
+    }
+    if (!analysis_queue_.empty()) {
+        total_analysis_count_ = static_cast<int>(analysis_queue_.size());
+        done_analysis_count_ = 0;
+        if (status_lbl_) {
+            status_lbl_->setText(QStringLiteral("⚡ Zenei háttér-analízis (%1 korábbi dal kulcsának frissítése)...").arg(total_analysis_count_));
+        }
+        processNextAnalysis();
+    }
 }
 
 void TracklistDock::updateTrackBpm(const QString &file_path, double bpm)

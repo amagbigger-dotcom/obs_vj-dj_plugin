@@ -45,7 +45,7 @@ AnalyzerBeats::BeatResult AnalyzerBeats::analyze(const std::vector<float> &kick_
     const int max_search_lag = kMaxLag * 2 + 4;
 
     std::vector<double> raw_corr(max_search_lag + 1, 0.0);
-    const size_t max_novelty_len = std::min<size_t>(novelty.size(), static_cast<size_t>(500 * 120)); // analyze up to 2 minutes
+    const size_t max_novelty_len = std::min<size_t>(novelty.size(), static_cast<size_t>(500 * 240)); // analyze up to 4 minutes
 
     for (int lag = kMinLag / 2; lag <= max_search_lag; ++lag) {
         if (static_cast<size_t>(lag) >= max_novelty_len) break;
@@ -64,13 +64,13 @@ AnalyzerBeats::BeatResult AnalyzerBeats::analyze(const std::vector<float> &kick_
     for (int lag = kMinLag; lag <= kMaxLag; ++lag) {
         // Octave harmonic summation reinforces true 4/4 fundamental beat
         double score = raw_corr[lag];
-        if (lag * 2 <= max_search_lag) score += 0.7 * raw_corr[lag * 2];
-        if (lag / 2 >= kMinLag / 2)   score += 0.5 * raw_corr[lag / 2];
+        if (lag * 2 <= max_search_lag) score += 0.4 * raw_corr[lag * 2];
+        if (lag / 2 >= kMinLag / 2)   score += 0.25 * raw_corr[lag / 2];
 
         const double bpm = (60.0 * onset_rate) / static_cast<double>(lag);
-        // Electronic music / DJ prior centered at 130 BPM (sigma 35)
-        const double prior = std::exp(-std::pow(bpm - 130.0, 2.0) / (2.0 * 35.0 * 35.0));
-        score *= prior;
+        // Széles, kíméletes DJ prior (sigma 65) tie-breakerként, megakadályozva a 90-175 BPM dalok 128-ra kényszerítését
+        const double prior = std::exp(-std::pow(bpm - 128.0, 2.0) / (2.0 * 65.0 * 65.0));
+        score *= (0.80 + 0.20 * prior);
         autocorr[lag] = score;
 
         if (score > best_score) {

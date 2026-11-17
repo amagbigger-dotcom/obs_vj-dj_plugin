@@ -451,6 +451,12 @@ void DeckPlayer::seekMs(int64_t ms)
             if (!audio_pcm_l_.empty() && playback_sample_pos_ >= audio_pcm_l_.size()) {
                 playback_sample_pos_ = static_cast<double>(audio_pcm_l_.size() - 1);
             }
+            sola_initialized_ = false;
+            sola_out_l_.clear();
+            sola_out_r_.clear();
+            sola_last_grain_l_.clear();
+            sola_last_grain_r_.clear();
+            sola_out_read_idx_ = 0;
         }
     }
     if (source_) {
@@ -1252,11 +1258,11 @@ void DeckPlayer::clearAudioBuffer()
     audio_pcm_r_.clear();
     playback_sample_pos_ = 0.0;
     sola_initialized_ = false;
-    sola_grain_l_.clear();
-    sola_grain_r_.clear();
-    sola_tail_l_.clear();
-    sola_tail_r_.clear();
-    sola_grain_read_idx_ = 0;
+    sola_out_l_.clear();
+    sola_out_r_.clear();
+    sola_last_grain_l_.clear();
+    sola_last_grain_r_.clear();
+    sola_out_read_idx_ = 0;
 }
 
 size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, uint32_t out_sr)
@@ -1296,47 +1302,40 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
 
     bool did_loop_wrap = false;
 
-    const bool key_lock_active = key_lock_.load(std::memory_order_relaxed) && std::abs(speed_ratio - 1.0) > 0.005;
+    const bool key_lock_active = key_lock_.load(std::memory_order_relaxed) &&
+                                 !jog_scratching_.load(std::memory_order_relaxed) &&
+                                 std::abs(speed_ratio - 1.0) > 0.002;
 
     if (key_lock_active) {
-        // SOLA Time-stretching a hangmagasság megőrzésére (Pitch-Preserving Time-Stretch)
-        const size_t H_s = 256; // Szintézis lépés (~5.3 ms)
-        const size_t O = 128;   // Átfedési méret (~2.7 ms)
-        const int K_max = 48;   // Fáziskeresési tartomány (±48 minta)
+        // Professzionális WSOLA (Waveform Similarity Overlap-Add) Time-Stretching
+        // Valós idejű hangmagasság-tartás recsegés és kattogás nélkül
+        const size_t W = 1024;
+        const size_t O = 512;
+        const size_t H_s = 512;
+        const int K_max = 256;
 
-        if (!sola_initialized_ || sola_tail_l_.size() != O) {
-            sola_tail_l_.resize(O, 0.0f);
-            sola_tail_r_.resize(O, 0.0f);
-            const size_t p0 = static_cast<size_t>(std::clamp(playback_sample_pos_, 0.0, static_cast<double>(total_samples > O ? total_samples - O : 0)));
+        if (!sola_initialized_ || sola_last_grain_l_.size() != O) {
+            sola_last_grain_l_.assign(O, 0.0f);
+            sola_last_grain_r_.assign(O, 0.0f);
+            const size_t p0 = static_cast<size_t>(std::clamp(playback_sample_pos_, 0.0, static_cast<double>(total_samples > (O + 2) ? total_samples - (O + 2) : 0)));
             for (size_t j = 0; j < O; ++j) {
-                sola_tail_l_[j] = audio_pcm_l_[p0 + j];
-                sola_tail_r_[j] = audio_pcm_r_[p0 + j];
+                sola_last_grain_l_[j] = audio_pcm_l_[p0 + j];
+                sola_last_grain_r_[j] = audio_pcm_r_[p0 + j];
             }
-            playback_sample_pos_ += O;
-            sola_grain_l_.clear();
-            sola_grain_r_.clear();
-            sola_grain_read_idx_ = 0;
+            sola_prev_in_pos_ = static_cast<int64_t>(p0);
+            sola_in_pos_ = static_cast<double>(p0 + O);
+            sola_out_l_.clear();
+            sola_out_r_.clear();
+            sola_out_read_idx_ = 0;
             sola_initialized_ = true;
         }
 
-        size_t out_idx = 0;
-        while (out_idx < frames) {
-            // Ha van még minta az aktuális SOLA szemcsében (grain), azt másoljuk
-            if (sola_grain_read_idx_ < sola_grain_l_.size()) {
-                const size_t avail = sola_grain_l_.size() - sola_grain_read_idx_;
-                const size_t take = std::min(avail, frames - out_idx);
-                for (size_t j = 0; j < take; ++j) {
-                    out_l[out_idx + j] = sola_grain_l_[sola_grain_read_idx_ + j];
-                    out_r[out_idx + j] = sola_grain_r_[sola_grain_read_idx_ + j];
-                }
-                sola_grain_read_idx_ += take;
-                out_idx += take;
-                continue;
-            }
-
+        // Generálunk WSOLA szemcséket, amíg nincs elég minta az out pufferben
+        while ((sola_out_l_.size() - sola_out_read_idx_) < frames) {
             // Loop ellenőrzése
             if (looping && loop_end_sample > loop_start_sample + 100.0) {
-                if (playback_sample_pos_ >= loop_end_sample) {
+                if (sola_in_pos_ >= loop_end_sample) {
+                    sola_in_pos_ = loop_start_sample;
                     playback_sample_pos_ = loop_start_sample;
                     sola_initialized_ = false;
                     did_loop_wrap = true;
@@ -1344,19 +1343,31 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
                 }
             }
 
-            // Új szemcse generálása SOLA fázisillesztéssel
-            const int H_a = std::clamp(static_cast<int>(std::round(static_cast<double>(H_s) * speed_ratio)), static_cast<int>(O / 2), static_cast<int>(H_s * 2));
-            const int64_t nom_pos = static_cast<int64_t>(playback_sample_pos_) + H_a - static_cast<int64_t>(O);
+            // Szám vége ellenőrzése
+            if (sola_in_pos_ + static_cast<double>(W + K_max) >= static_cast<double>(total_samples)) {
+                user_playing_.store(false, std::memory_order_relaxed);
+                break;
+            }
+
+            // Névleges célpozíció a tempóarány (speed_ratio) alapján
+            const int64_t p_target = static_cast<int64_t>(std::round(sola_in_pos_));
+            // Természetes akusztikai folytatás referencia-pozíciója
+            const int64_t p_ref = sola_prev_in_pos_ + static_cast<int64_t>(H_s);
 
             int best_k = 0;
-            float max_corr = -1e9f;
+            float max_corr = -1e12f;
 
-            for (int k = -K_max; k <= K_max; ++k) {
-                const int64_t cand_pos = nom_pos + k;
-                if (cand_pos < 0 || cand_pos + static_cast<int64_t>(O) >= static_cast<int64_t>(total_samples)) continue;
+            // Keresztszámítás fázisillesztéssel a természetes folytatás körül
+            for (int k = -K_max; k <= K_max; k += 2) {
+                const int64_t cand = p_target + k;
+                if (cand < 0 || cand + static_cast<int64_t>(O) >= static_cast<int64_t>(total_samples))
+                    continue;
+                if (p_ref < 0 || p_ref + static_cast<int64_t>(O) >= static_cast<int64_t>(total_samples))
+                    continue;
+
                 float corr = 0.0f;
-                for (size_t j = 0; j < O; j += 2) {
-                    corr += sola_tail_l_[j] * audio_pcm_l_[static_cast<size_t>(cand_pos) + j];
+                for (size_t j = 0; j < O; j += 4) {
+                    corr += audio_pcm_l_[static_cast<size_t>(p_ref) + j] * audio_pcm_l_[static_cast<size_t>(cand) + j];
                 }
                 if (corr > max_corr) {
                     max_corr = corr;
@@ -1364,39 +1375,52 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
                 }
             }
 
-            int64_t match_pos = nom_pos + best_k;
-            if (match_pos < 0) match_pos = 0;
-            if (match_pos + static_cast<int64_t>(H_s) >= static_cast<int64_t>(total_samples)) {
+            int64_t p_actual = p_target + best_k;
+            if (p_actual < 0) p_actual = 0;
+            if (p_actual + static_cast<int64_t>(W) >= static_cast<int64_t>(total_samples)) {
                 user_playing_.store(false, std::memory_order_relaxed);
-                while (out_idx < frames) {
-                    out_l[out_idx] = 0.0f;
-                    out_r[out_idx] = 0.0f;
-                    out_idx++;
-                }
                 break;
             }
 
-            sola_grain_l_.resize(H_s);
-            sola_grain_r_.resize(H_s);
-
-            const float inv_O = 1.0f / static_cast<float>(O);
+            // Hann raised-cosine átfedés és szintézis (512 minta)
+            const float inv_O = 3.14159265f / static_cast<float>(O);
             for (size_t j = 0; j < O; ++j) {
-                const float w = static_cast<float>(j) * inv_O;
-                sola_grain_l_[j] = (1.0f - w) * sola_tail_l_[j] + w * audio_pcm_l_[static_cast<size_t>(match_pos) + j];
-                sola_grain_r_[j] = (1.0f - w) * sola_tail_r_[j] + w * audio_pcm_r_[static_cast<size_t>(match_pos) + j];
-            }
-            for (size_t j = O; j < H_s; ++j) {
-                sola_grain_l_[j] = audio_pcm_l_[static_cast<size_t>(match_pos) + j];
-                sola_grain_r_[j] = audio_pcm_r_[static_cast<size_t>(match_pos) + j];
+                const float w = 0.5f * (1.0f - std::cos(static_cast<float>(j) * inv_O));
+                const float s_l = (1.0f - w) * sola_last_grain_l_[j] + w * audio_pcm_l_[static_cast<size_t>(p_actual) + j];
+                const float s_r = (1.0f - w) * sola_last_grain_r_[j] + w * audio_pcm_r_[static_cast<size_t>(p_actual) + j];
+                sola_out_l_.push_back(s_l);
+                sola_out_r_.push_back(s_r);
             }
 
+            // A következő szemcsével való átfedéshez elmentjük az aktuális hullám folytatását
             for (size_t j = 0; j < O; ++j) {
-                sola_tail_l_[j] = sola_grain_l_[H_s - O + j];
-                sola_tail_r_[j] = sola_grain_r_[H_s - O + j];
+                sola_last_grain_l_[j] = audio_pcm_l_[static_cast<size_t>(p_actual) + H_s + j];
+                sola_last_grain_r_[j] = audio_pcm_r_[static_cast<size_t>(p_actual) + H_s + j];
             }
 
-            playback_sample_pos_ = static_cast<double>(match_pos + H_s);
-            sola_grain_read_idx_ = 0;
+            sola_prev_in_pos_ = p_actual;
+            sola_in_pos_ += static_cast<double>(H_s) * step;
+            playback_sample_pos_ = sola_in_pos_;
+        }
+
+        // Másoljuk a szükséges kimeneti mintákat
+        size_t available = (sola_out_l_.size() > sola_out_read_idx_) ? (sola_out_l_.size() - sola_out_read_idx_) : 0;
+        size_t take = std::min(frames, available);
+        for (size_t i = 0; i < take; ++i) {
+            out_l[i] = sola_out_l_[sola_out_read_idx_ + i];
+            out_r[i] = sola_out_r_[sola_out_read_idx_ + i];
+        }
+        sola_out_read_idx_ += take;
+        for (size_t i = take; i < frames; ++i) {
+            out_l[i] = 0.0f;
+            out_r[i] = 0.0f;
+        }
+
+        // Periodikus puffer-tisztítás memóriafelhalmozódás ellen
+        if (sola_out_read_idx_ > 4096) {
+            sola_out_l_.erase(sola_out_l_.begin(), sola_out_l_.begin() + sola_out_read_idx_);
+            sola_out_r_.erase(sola_out_r_.begin(), sola_out_r_.begin() + sola_out_read_idx_);
+            sola_out_read_idx_ = 0;
         }
     } else {
         // Hagyományos vinil/szalag varispeed (sebességgel arányos pitch váltás)
