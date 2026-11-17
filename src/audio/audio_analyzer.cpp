@@ -3,6 +3,9 @@
 #include "sources/wmf_decoder.hpp"
 #include "analyzer/analyzer_waveform.hpp"
 #include "analyzer/analyzer_beats.hpp"
+#include "analyzer/analyzer_silence.hpp"
+#include "analyzer/analyzer_key.hpp"
+#include "analyzer/analyzer_gain.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -96,9 +99,31 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path)
     result.detected_bpm = beat_res.bpm;
     result.grid_offset_ms = beat_res.grid_offset_ms;
 
+    // 5. Csend-detektálás & Auto-CUE pont (-60 dBFS küszöb)
+    auto silence_res = AnalyzerSilence::analyze(mono_samples, result.audio_sample_rate, -60.0f);
+    if (silence_res.has_sound && silence_res.first_sound_ms > 0) {
+        result.cue_point_ms = silence_res.first_sound_ms;
+    } else {
+        result.cue_point_ms = 0;
+    }
+
+    // 6. Zenei Hangnem & Camelot Kerék Analízis (Musical Key & Camelot)
+    auto key_res = AnalyzerKey::analyze(mono_samples, result.audio_sample_rate);
+    if (key_res.success) {
+        result.detected_key = key_res.key_name;
+        result.camelot_key = key_res.camelot_code;
+    }
+
+    // 7. EBU R128 Hangerő Normalizálás & ReplayGain Analízis
+    auto gain_res = AnalyzerGain::analyze(mono_samples, result.audio_sample_rate);
+    if (gain_res.success) {
+        result.replay_gain_db = gain_res.replay_gain_db;
+        result.peak_amplitude = gain_res.peak_amplitude;
+    }
+
     result.success = (result.detected_bpm > 30.0) && !result.overview_peaks.empty();
 
-    // 5. Eredmény mentése .vdj.json gyorsítótárba
+    // 8. Eredmény mentése .vdj.json gyorsítótárba
     saveCache(file_path, result);
     return result;
 }

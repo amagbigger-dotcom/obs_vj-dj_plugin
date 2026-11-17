@@ -143,6 +143,10 @@ public:
     bool hasFileChanged() const noexcept { return file_changed_.load(std::memory_order_relaxed); }
     void clearFileChanged() noexcept { file_changed_.store(false, std::memory_order_relaxed); }
 
+    QString camelotKey() const;
+    QString detectedKey() const;
+    void setKeys(const QString &camelot, const QString &key);
+
     float currentBassEnergy() const noexcept;
     float currentMidEnergy() const noexcept;
     float currentHighEnergy() const noexcept;
@@ -167,6 +171,8 @@ public:
     void setMaster(bool m) noexcept { is_master_.store(m, std::memory_order_relaxed); }
     bool isSync() const noexcept { return is_sync_.load(std::memory_order_relaxed); }
     void setSync(bool s) noexcept { is_sync_.store(s, std::memory_order_relaxed); }
+    bool isKeyLock() const noexcept { return key_lock_.load(std::memory_order_relaxed); }
+    void setKeyLock(bool enable) noexcept { key_lock_.store(enable, std::memory_order_relaxed); }
     void syncToBpm(double target_bpm);
     void syncPhase(int64_t beat_time_ms);
     void syncPhaseTo(const DeckPlayer &other);
@@ -189,6 +195,8 @@ private:
     mutable std::mutex file_mutex_;
     QString file_name_{};
     QString file_path_{};
+    QString camelot_key_{QStringLiteral("--")};
+    QString detected_key_{QStringLiteral("--")};
 
     std::atomic<bool> looping_{false};
     std::atomic<bool> has_video_{false};
@@ -224,6 +232,7 @@ private:
 
     std::atomic<bool> is_master_{false};
     std::atomic<bool> is_sync_{false};
+    std::atomic<bool> key_lock_{false};
     std::atomic<double> target_sync_bpm_{128.0};
     std::atomic<double> playback_bpm_{0.0};
     std::atomic<bool> pause_on_load_pending_{false};
@@ -243,6 +252,12 @@ private:
     double loop_fade_old_pos_ = 0.0;
     int loop_fade_rem_samples_ = 0;
     int loop_fade_total_samples_ = 0;
+    std::vector<float> sola_grain_l_;
+    std::vector<float> sola_grain_r_;
+    std::vector<float> sola_tail_l_;
+    std::vector<float> sola_tail_r_;
+    size_t sola_grain_read_idx_ = 0;
+    bool sola_initialized_ = false;
 
     EngineDspState dsp_states_[2];
 

@@ -55,6 +55,7 @@ private:
     QLabel *elapsed_lbl_ = nullptr;
     QLabel *remaining_lbl_ = nullptr;
     QLineEdit *bpm_edit_ = nullptr;
+    QLabel *key_badge_lbl_ = nullptr;
     QPushButton *tap_bpm_btn_ = nullptr;
 
     WaveformCanvas *waveform_canvas_ = nullptr;

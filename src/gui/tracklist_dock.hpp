@@ -16,6 +16,8 @@ struct TrackItem {
     QString file_path;
     QString original_path;
     double bpm = 128.0;
+    QString key = QStringLiteral("--");
+    QString camelot = QStringLiteral("--");
     int64_t duration_ms = 0;
     bool is_converted = false;
     bool played = false;
@@ -84,3 +86,4 @@ void vdj_import_and_load(const QString &file_path, int deck_channel);
 void vdj_open_tracklist_window();
 void vdj_free_tracklist_window();
 bool vdj_is_track_in_library(const QString &file_path);
+void vdj_notify_track_bpm_changed(const QString &file_path, double new_bpm);

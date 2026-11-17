@@ -175,6 +175,16 @@ void DeckWindow::setupUi()
     auto *bpm_unit = new QLabel(QStringLiteral("BPM"), this);
     bpm_unit->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px; margin-left: 1px;"));
     bpm_box->addWidget(bpm_unit);
+
+    key_badge_lbl_ = new QLabel(QStringLiteral("--"), this);
+    key_badge_lbl_->setFixedSize(36, 24);
+    key_badge_lbl_->setAlignment(Qt::AlignCenter);
+    key_badge_lbl_->setStyleSheet(QStringLiteral(
+        "QLabel { background: #141b24; color: #ffcc00; font-family: 'Consolas', monospace; font-size: 11px; font-weight: bold; border: 1px solid #2e3e54; border-radius: 3px; }"
+    ));
+    key_badge_lbl_->setToolTip(QStringLiteral("Zenei hangnem (Camelot kód) a harmonikus keveréshez"));
+    bpm_box->addWidget(key_badge_lbl_);
+
     top_bar->addLayout(bpm_box);
 
     tracklist_btn_ = new QPushButton(QStringLiteral("📋"), this);
@@ -557,6 +567,16 @@ void DeckWindow::onRefresh()
     if (bpm_edit_ && !bpm_edit_->hasFocus()) {
         const double base_b = deck_->bpm();
         bpm_edit_->setText(QString::number(base_b, 'f', 2));
+    }
+    if (key_badge_lbl_) {
+        const QString c_key = deck_->camelotKey();
+        const QString m_key = deck_->detectedKey();
+        key_badge_lbl_->setText(c_key.isEmpty() ? QStringLiteral("--") : c_key);
+        if (!m_key.isEmpty() && m_key != QStringLiteral("--")) {
+            key_badge_lbl_->setToolTip(QStringLiteral("Hangnem: %1 (%2)").arg(c_key, m_key));
+        } else {
+            key_badge_lbl_->setToolTip(QStringLiteral("Zenei hangnem (Camelot kód)"));
+        }
     }
 
     // 5. Beatgrid offset

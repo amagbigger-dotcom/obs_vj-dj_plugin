@@ -110,6 +110,19 @@ TempoControl::TempoControl(DeckPlayer *deck, QWidget *parent)
     pitch_val_lbl_->setFixedWidth(135);
     layout->addWidget(pitch_val_lbl_);
 
+    key_lock_btn_ = new QPushButton(QStringLiteral("KEY LOCK"), this);
+    key_lock_btn_->setFixedSize(65, 24);
+    key_lock_btn_->setAutoDefault(false);
+    key_lock_btn_->setDefault(false);
+    key_lock_btn_->setToolTip(QStringLiteral("Hangmagasság-tartás (Key Lock / Master Tempo): a sebesség változtatásakor megőrzi az eredeti zenei hangnemet"));
+    connect(key_lock_btn_, &QPushButton::clicked, this, [this]() {
+        if (deck_) {
+            deck_->setKeyLock(!deck_->isKeyLock());
+            updateKeyLockButton();
+        }
+    });
+    layout->addWidget(key_lock_btn_);
+
     pitch_reset_btn_ = new QPushButton(QStringLiteral("0% RESET"), this);
     pitch_reset_btn_->setFixedSize(60, 24);
     pitch_reset_btn_->setAutoDefault(false);
@@ -124,6 +137,8 @@ TempoControl::TempoControl(DeckPlayer *deck, QWidget *parent)
         updateLabelsAndSlider();
     });
     layout->addWidget(pitch_reset_btn_);
+
+    updateKeyLockButton();
 }
 
 TempoControl::~TempoControl()
@@ -134,6 +149,7 @@ void TempoControl::bindDeck(DeckPlayer *deck)
 {
     deck_ = deck;
     updateLabelsAndSlider();
+    updateKeyLockButton();
 }
 
 void TempoControl::updateLabelsAndSlider()
@@ -149,8 +165,34 @@ void TempoControl::updateLabelsAndSlider()
     }
 }
 
+void TempoControl::updateKeyLockButton()
+{
+    if (!key_lock_btn_) return;
+    const bool active = deck_ && deck_->isKeyLock();
+    const bool is_a = !deck_ || (deck_->side() == DeckPlayer::DeckSide::A);
+    if (active) {
+        if (is_a) {
+            key_lock_btn_->setStyleSheet(QStringLiteral(
+                "QPushButton { background: #0088cc; border: 1px solid #00d2ff; color: #ffffff; font-weight: bold; font-size: 10px; border-radius: 3px; padding: 0px; }"
+                "QPushButton:hover { background: #00aaff; }"
+            ));
+        } else {
+            key_lock_btn_->setStyleSheet(QStringLiteral(
+                "QPushButton { background: #cc5500; border: 1px solid #ff8800; color: #ffffff; font-weight: bold; font-size: 10px; border-radius: 3px; padding: 0px; }"
+                "QPushButton:hover { background: #ff7700; }"
+            ));
+        }
+    } else {
+        key_lock_btn_->setStyleSheet(QStringLiteral(
+            "QPushButton { background: #1a222d; border: 1px solid #334358; color: #7f8fa4; font-size: 10px; border-radius: 3px; padding: 0px; }"
+            "QPushButton:hover { background: #232d3c; color: #cfd6e4; }"
+        ));
+    }
+}
+
 void TempoControl::applyTheme(bool is_a)
 {
+    updateKeyLockButton();
     if (is_a) {
         if (pitch_slider_) {
             pitch_slider_->setStyleSheet(QStringLiteral(
@@ -201,6 +243,7 @@ void TempoControl::applyTheme(bool is_a)
 void TempoControl::refresh()
 {
     if (!deck_) return;
+    updateKeyLockButton();
     if (pitch_slider_ && !pitch_slider_->isSliderDown()) {
         const int spd = deck_->speed();
         if (pitch_slider_->value() != spd) {

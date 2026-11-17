@@ -212,6 +212,7 @@ void DeckPlayer::loadFile(const QString &path)
             for (int i = 0; i < 4; ++i) {
                 hot_cues_[i].store(res.hot_cues[i], std::memory_order_relaxed);
             }
+            setKeys(res.camelot_key, res.detected_key);
             setWaveformSamples(res.overview_peaks, res.detailed_peaks);
             setSpectralSamples(res.overview_low, res.overview_mid, res.overview_high,
                                res.detailed_low, res.detailed_mid, res.detailed_high);
@@ -243,6 +244,25 @@ void DeckPlayer::setFileName(const QString &name)
 {
     std::lock_guard<std::mutex> lock(file_mutex_);
     file_name_ = name;
+}
+
+QString DeckPlayer::camelotKey() const
+{
+    std::lock_guard<std::mutex> lock(file_mutex_);
+    return camelot_key_;
+}
+
+QString DeckPlayer::detectedKey() const
+{
+    std::lock_guard<std::mutex> lock(file_mutex_);
+    return detected_key_;
+}
+
+void DeckPlayer::setKeys(const QString &camelot, const QString &key)
+{
+    std::lock_guard<std::mutex> lock(file_mutex_);
+    camelot_key_ = camelot.isEmpty() ? QStringLiteral("--") : camelot;
+    detected_key_ = key.isEmpty() ? QStringLiteral("--") : key;
 }
 
 QString DeckPlayer::filePath() const
@@ -569,6 +589,8 @@ void DeckPlayer::saveUserEdits()
     if (path.isEmpty())
         return;
     AudioAnalyzer::updateCacheUserEdits(path, bpm(), gridOffsetMs(), cue_point_ms_.load(std::memory_order_relaxed));
+    extern void vdj_notify_track_bpm_changed(const QString &file_path, double new_bpm);
+    vdj_notify_track_bpm_changed(path, bpm());
 }
 
 void DeckPlayer::setWaveformSamples(const std::vector<float> &overview, const std::vector<float> &detailed)
@@ -1229,6 +1251,12 @@ void DeckPlayer::clearAudioBuffer()
     audio_pcm_l_.clear();
     audio_pcm_r_.clear();
     playback_sample_pos_ = 0.0;
+    sola_initialized_ = false;
+    sola_grain_l_.clear();
+    sola_grain_r_.clear();
+    sola_tail_l_.clear();
+    sola_tail_r_.clear();
+    sola_grain_read_idx_ = 0;
 }
 
 size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, uint32_t out_sr)
@@ -1268,55 +1296,158 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
 
     bool did_loop_wrap = false;
 
-    for (size_t i = 0; i < frames; ++i) {
-        if (looping && loop_end_sample > loop_start_sample + 100.0) {
-            if (playback_sample_pos_ >= loop_end_sample) {
-                // Varratmentes ugrás a loop elejére 3ms-os kattanásmentesítő lágy átúsztatással (Zero-stutter wrap with 3ms de-click crossfade)
-                loop_fade_old_pos_ = playback_sample_pos_;
-                playback_sample_pos_ = loop_start_sample + (playback_sample_pos_ - loop_end_sample);
-                loop_fade_rem_samples_ = std::max(64, static_cast<int>(audio_sample_rate_ * 3 / 1000));
-                loop_fade_total_samples_ = loop_fade_rem_samples_;
-                did_loop_wrap = true;
+    const bool key_lock_active = key_lock_.load(std::memory_order_relaxed) && std::abs(speed_ratio - 1.0) > 0.005;
+
+    if (key_lock_active) {
+        // SOLA Time-stretching a hangmagasság megőrzésére (Pitch-Preserving Time-Stretch)
+        const size_t H_s = 256; // Szintézis lépés (~5.3 ms)
+        const size_t O = 128;   // Átfedési méret (~2.7 ms)
+        const int K_max = 48;   // Fáziskeresési tartomány (±48 minta)
+
+        if (!sola_initialized_ || sola_tail_l_.size() != O) {
+            sola_tail_l_.resize(O, 0.0f);
+            sola_tail_r_.resize(O, 0.0f);
+            const size_t p0 = static_cast<size_t>(std::clamp(playback_sample_pos_, 0.0, static_cast<double>(total_samples > O ? total_samples - O : 0)));
+            for (size_t j = 0; j < O; ++j) {
+                sola_tail_l_[j] = audio_pcm_l_[p0 + j];
+                sola_tail_r_[j] = audio_pcm_r_[p0 + j];
             }
+            playback_sample_pos_ += O;
+            sola_grain_l_.clear();
+            sola_grain_r_.clear();
+            sola_grain_read_idx_ = 0;
+            sola_initialized_ = true;
         }
 
-        if (playback_sample_pos_ < 0.0) {
-            playback_sample_pos_ = 0.0;
-        }
-
-        size_t idx0 = static_cast<size_t>(playback_sample_pos_);
-        if (idx0 + 1 >= total_samples) {
-            out_l[i] = 0.0f;
-            out_r[i] = 0.0f;
-            user_playing_.store(false, std::memory_order_relaxed);
-            break;
-        }
-
-        const double frac = playback_sample_pos_ - static_cast<double>(idx0);
-        float sample_l = static_cast<float>((1.0 - frac) * audio_pcm_l_[idx0] + frac * audio_pcm_l_[idx0 + 1]);
-        float sample_r = static_cast<float>((1.0 - frac) * audio_pcm_r_[idx0] + frac * audio_pcm_r_[idx0 + 1]);
-
-        // Kattanásmentesítő mikró-átúsztatás a loop végpontján (De-click crossfade)
-        if (loop_fade_rem_samples_ > 0 && loop_fade_total_samples_ > 0) {
-            const size_t old_idx = static_cast<size_t>(loop_fade_old_pos_);
-            if (old_idx + 1 < total_samples) {
-                const double old_frac = loop_fade_old_pos_ - static_cast<double>(old_idx);
-                const float old_l = static_cast<float>((1.0 - old_frac) * audio_pcm_l_[old_idx] + old_frac * audio_pcm_l_[old_idx + 1]);
-                const float old_r = static_cast<float>((1.0 - old_frac) * audio_pcm_r_[old_idx] + old_frac * audio_pcm_r_[old_idx + 1]);
-
-                const float fade_in = 1.0f - static_cast<float>(loop_fade_rem_samples_) / static_cast<float>(loop_fade_total_samples_);
-                const float fade_out = 1.0f - fade_in;
-                sample_l = sample_l * fade_in + old_l * fade_out;
-                sample_r = sample_r * fade_in + old_r * fade_out;
-                loop_fade_old_pos_ += step;
+        size_t out_idx = 0;
+        while (out_idx < frames) {
+            // Ha van még minta az aktuális SOLA szemcsében (grain), azt másoljuk
+            if (sola_grain_read_idx_ < sola_grain_l_.size()) {
+                const size_t avail = sola_grain_l_.size() - sola_grain_read_idx_;
+                const size_t take = std::min(avail, frames - out_idx);
+                for (size_t j = 0; j < take; ++j) {
+                    out_l[out_idx + j] = sola_grain_l_[sola_grain_read_idx_ + j];
+                    out_r[out_idx + j] = sola_grain_r_[sola_grain_read_idx_ + j];
+                }
+                sola_grain_read_idx_ += take;
+                out_idx += take;
+                continue;
             }
-            loop_fade_rem_samples_--;
+
+            // Loop ellenőrzése
+            if (looping && loop_end_sample > loop_start_sample + 100.0) {
+                if (playback_sample_pos_ >= loop_end_sample) {
+                    playback_sample_pos_ = loop_start_sample;
+                    sola_initialized_ = false;
+                    did_loop_wrap = true;
+                    break;
+                }
+            }
+
+            // Új szemcse generálása SOLA fázisillesztéssel
+            const int H_a = std::clamp(static_cast<int>(std::round(static_cast<double>(H_s) * speed_ratio)), static_cast<int>(O / 2), static_cast<int>(H_s * 2));
+            const int64_t nom_pos = static_cast<int64_t>(playback_sample_pos_) + H_a - static_cast<int64_t>(O);
+
+            int best_k = 0;
+            float max_corr = -1e9f;
+
+            for (int k = -K_max; k <= K_max; ++k) {
+                const int64_t cand_pos = nom_pos + k;
+                if (cand_pos < 0 || cand_pos + static_cast<int64_t>(O) >= static_cast<int64_t>(total_samples)) continue;
+                float corr = 0.0f;
+                for (size_t j = 0; j < O; j += 2) {
+                    corr += sola_tail_l_[j] * audio_pcm_l_[static_cast<size_t>(cand_pos) + j];
+                }
+                if (corr > max_corr) {
+                    max_corr = corr;
+                    best_k = k;
+                }
+            }
+
+            int64_t match_pos = nom_pos + best_k;
+            if (match_pos < 0) match_pos = 0;
+            if (match_pos + static_cast<int64_t>(H_s) >= static_cast<int64_t>(total_samples)) {
+                user_playing_.store(false, std::memory_order_relaxed);
+                while (out_idx < frames) {
+                    out_l[out_idx] = 0.0f;
+                    out_r[out_idx] = 0.0f;
+                    out_idx++;
+                }
+                break;
+            }
+
+            sola_grain_l_.resize(H_s);
+            sola_grain_r_.resize(H_s);
+
+            const float inv_O = 1.0f / static_cast<float>(O);
+            for (size_t j = 0; j < O; ++j) {
+                const float w = static_cast<float>(j) * inv_O;
+                sola_grain_l_[j] = (1.0f - w) * sola_tail_l_[j] + w * audio_pcm_l_[static_cast<size_t>(match_pos) + j];
+                sola_grain_r_[j] = (1.0f - w) * sola_tail_r_[j] + w * audio_pcm_r_[static_cast<size_t>(match_pos) + j];
+            }
+            for (size_t j = O; j < H_s; ++j) {
+                sola_grain_l_[j] = audio_pcm_l_[static_cast<size_t>(match_pos) + j];
+                sola_grain_r_[j] = audio_pcm_r_[static_cast<size_t>(match_pos) + j];
+            }
+
+            for (size_t j = 0; j < O; ++j) {
+                sola_tail_l_[j] = sola_grain_l_[H_s - O + j];
+                sola_tail_r_[j] = sola_grain_r_[H_s - O + j];
+            }
+
+            playback_sample_pos_ = static_cast<double>(match_pos + H_s);
+            sola_grain_read_idx_ = 0;
         }
+    } else {
+        // Hagyományos vinil/szalag varispeed (sebességgel arányos pitch váltás)
+        for (size_t i = 0; i < frames; ++i) {
+            if (looping && loop_end_sample > loop_start_sample + 100.0) {
+                if (playback_sample_pos_ >= loop_end_sample) {
+                    loop_fade_old_pos_ = playback_sample_pos_;
+                    playback_sample_pos_ = loop_start_sample + (playback_sample_pos_ - loop_end_sample);
+                    loop_fade_rem_samples_ = std::max(64, static_cast<int>(audio_sample_rate_ * 3 / 1000));
+                    loop_fade_total_samples_ = loop_fade_rem_samples_;
+                    did_loop_wrap = true;
+                }
+            }
 
-        out_l[i] = sample_l;
-        out_r[i] = sample_r;
+            if (playback_sample_pos_ < 0.0) {
+                playback_sample_pos_ = 0.0;
+            }
 
-        playback_sample_pos_ += step;
+            size_t idx0 = static_cast<size_t>(playback_sample_pos_);
+            if (idx0 + 1 >= total_samples) {
+                out_l[i] = 0.0f;
+                out_r[i] = 0.0f;
+                user_playing_.store(false, std::memory_order_relaxed);
+                break;
+            }
+
+            const double frac = playback_sample_pos_ - static_cast<double>(idx0);
+            float sample_l = static_cast<float>((1.0 - frac) * audio_pcm_l_[idx0] + frac * audio_pcm_l_[idx0 + 1]);
+            float sample_r = static_cast<float>((1.0 - frac) * audio_pcm_r_[idx0] + frac * audio_pcm_r_[idx0 + 1]);
+
+            if (loop_fade_rem_samples_ > 0 && loop_fade_total_samples_ > 0) {
+                const size_t old_idx = static_cast<size_t>(loop_fade_old_pos_);
+                if (old_idx + 1 < total_samples) {
+                    const double old_frac = loop_fade_old_pos_ - static_cast<double>(old_idx);
+                    const float old_l = static_cast<float>((1.0 - old_frac) * audio_pcm_l_[old_idx] + old_frac * audio_pcm_l_[old_idx + 1]);
+                    const float old_r = static_cast<float>((1.0 - old_frac) * audio_pcm_r_[old_idx] + old_frac * audio_pcm_r_[old_idx + 1]);
+
+                    const float fade_in = 1.0f - static_cast<float>(loop_fade_rem_samples_) / static_cast<float>(loop_fade_total_samples_);
+                    const float fade_out = 1.0f - fade_in;
+                    sample_l = sample_l * fade_in + old_l * fade_out;
+                    sample_r = sample_r * fade_in + old_r * fade_out;
+                    loop_fade_old_pos_ += step;
+                }
+                loop_fade_rem_samples_--;
+            }
+
+            out_l[i] = sample_l;
+            out_r[i] = sample_r;
+
+            playback_sample_pos_ += step;
+        }
     }
 
     if (did_loop_wrap && source_) {

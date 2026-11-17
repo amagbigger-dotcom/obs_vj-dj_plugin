@@ -38,6 +38,9 @@ bool TrackCache::load(const QString &media_file_path, TrackAnalysisResult &out_r
     out_res.grid_offset_ms = static_cast<int64_t>(root.value(QStringLiteral("grid_offset_ms")).toVariant().toLongLong());
     out_res.cue_point_ms = static_cast<int64_t>(root.value(QStringLiteral("cue_point_ms")).toVariant().toLongLong());
     out_res.duration_ms = static_cast<int64_t>(root.value(QStringLiteral("duration_ms")).toVariant().toLongLong());
+    out_res.detected_key = root.value(QStringLiteral("key")).toString(QStringLiteral("--"));
+    out_res.camelot_key = root.value(QStringLiteral("camelot")).toString(QStringLiteral("--"));
+    out_res.replay_gain_db = static_cast<float>(root.value(QStringLiteral("replay_gain_db")).toDouble(0.0));
 
     const QJsonArray hc_arr = root.value(QStringLiteral("hot_cues")).toArray();
     for (int i = 0; i < 4; ++i) {
@@ -111,6 +114,9 @@ bool TrackCache::save(const QString &media_file_path, const TrackAnalysisResult 
     root.insert(QStringLiteral("grid_offset_ms"), static_cast<qint64>(res.grid_offset_ms));
     root.insert(QStringLiteral("cue_point_ms"), static_cast<qint64>(res.cue_point_ms));
     root.insert(QStringLiteral("duration_ms"), static_cast<qint64>(res.duration_ms));
+    root.insert(QStringLiteral("key"), res.detected_key);
+    root.insert(QStringLiteral("camelot"), res.camelot_key);
+    root.insert(QStringLiteral("replay_gain_db"), std::round(res.replay_gain_db * 100.0) / 100.0);
 
     QJsonArray hc_arr;
     for (int i = 0; i < 4; ++i) {

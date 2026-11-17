@@ -45,11 +45,17 @@ set(SOURCES
     src/sources/wmf_decoder.cpp
     src/sources/wmf_decoder.hpp
 
-    # Analyzer (Beats, Grid & Waveform)
+    # Analyzer (Beats, Grid, Waveform, Silence, Key, Gain)
     src/analyzer/analyzer_beats.cpp
     src/analyzer/analyzer_beats.hpp
     src/analyzer/analyzer_waveform.cpp
     src/analyzer/analyzer_waveform.hpp
+    src/analyzer/analyzer_silence.cpp
+    src/analyzer/analyzer_silence.hpp
+    src/analyzer/analyzer_key.cpp
+    src/analyzer/analyzer_key.hpp
+    src/analyzer/analyzer_gain.cpp
+    src/analyzer/analyzer_gain.hpp
 
     # Track (Cache & Metadata)
     src/track/track_cache.cpp

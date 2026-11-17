@@ -13,6 +13,10 @@ struct TrackAnalysisResult {
     int64_t cue_point_ms = 0;
     int64_t hot_cues[4] = {-1, -1, -1, -1};
     int64_t duration_ms = 0;
+    QString detected_key = QStringLiteral("--");
+    QString camelot_key = QStringLiteral("--");
+    float replay_gain_db = 0.0f;
+    float peak_amplitude = 1.0f;
     std::vector<float> overview_peaks;   // ~500 points for full track overview strip
     std::vector<float> overview_low;     // Low frequencies (<250Hz, Bass/Kick)
     std::vector<float> overview_mid;     // Mid frequencies (250Hz - 2.5kHz, Vocals/Snare)

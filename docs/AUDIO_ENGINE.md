@@ -91,3 +91,27 @@ Az OBS Studio natívan globálisan csak 1 monitoring eszközt támogat. Annak é
 * **Varratmentes Auto-Loop (1/2 – 32 ütem):**
   * Ütemhossz: `loop_ms = (beats * 60 000.0) / (bpm * speed)`.
   * Kettős ellenőrzés (GUI és render ciklus) 40 ms-os debounce védelemmel, megakadályozva a visszaugrás átcsúszását vagy a dekóder túlterhelését.
+
+---
+
+## 6. ELEMZŐ ALRENDSZER, HANGNEM DETEKTÁLÁS ÉS HANGMAGASSÁG-TARTÁS (KEY LOCK)
+
+A nyílt forráskódú DJ motorok referencia megoldásai alapján a rendszer kiegészült a következő intelligens funkciókkal:
+
+### 6.1. Csend-detektálás & Auto-CUE (`AnalyzerSilence`)
+* **-60 dBFS Pásztázás:** Az audió dekódolásakor a rendszer az elejétől megkeresi az első olyan mintát, amely meghaladja a $-60\text{ dBFS}$ küszöböt (`first_sound_ms`).
+* **Automatikus CUE pont:** A zeneszámok elején található 0.5–2 másodperces üresjárat/kódolási csend automatikusan átugrásra kerül; az alapértelmezett CUE pont nem `0 ms`, hanem a dal első valós leütése.
+
+### 6.2. Zenei Hangnem & Camelot Kerék Analízis (`AnalyzerKey`)
+* **12-fokú Kroma Vektor (PCP):** Goertzel-szűrőkkel a 65 Hz – 1000 Hz zenei tartományban (2–5. oktáv) kimutatja a domináns hangokat.
+* **Krumhansl-Schmuckler Korreláció:** A kroma vektort mind a 24 dúr és moll tonális súlyprofillal összeveti Pearson korrelációval.
+* **Camelot Kód és Megjelenítés:** Eredményként kiszámolja a Camelot kulcsot (pl. `8A` = Am, `8B` = C) és a klasszikus zenei hangnemet. Megjelenik a Deck fejlécében aranyszínű jelvényként, valamint a zenetár táblázatában külön oszlopban.
+
+### 6.3. Hangerő Normalizálás & ReplayGain (`AnalyzerGain`)
+* **ITU-R BS.1770 / EBU R128 Szűrés:** K-súlyozó szűrő (Stage 1 High-Shelf + Stage 2 High-Pass), 400 ms-os kapuzott blokkokkal.
+* **ReplayGain Számítás:** Meghatározza a mért integrált LUFS-t és a standard -14 LUFS célhoz szükséges korrekciós dB értéket (`replay_gain_db`), amit a `.vdj.json` gyorsítótár elment.
+
+### 6.4. Hangmagasság-tartás / Key Lock (`DeckPlayer` SOLA Time-Stretching)
+* **`KEY LOCK` Gomb:** A sebesség/pitch fader mellett kapcsolható be/ki. Bekapcsolt állapotban kék (Deck A) vagy narancssárga (Deck B) fénnyel világít.
+* **SOLA Algoritmus (Synchronous Overlap-Add):** Amikor a tempó változik ($50\% - 150\%$), az audió minták nem közvetlen varispeed léptetéssel olvasódnak, hanem átfedő fázisillesztett szemcsékkel ($H_s = 256$, $O = 128$).
+* **Eredmény:** A zene sebessége és üteme tökéletesen követi a pitch csúszkát, de a dal hangmagassága (Key) 100%-ban változatlan marad (nincs héliumos/mélyülő hanghatás). Kikapcsolt állapotban hagyományos analóg vinil/szalag módra vált.

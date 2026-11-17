@@ -265,11 +265,12 @@ void TracklistDock::setupUi()
     // Table: Status, Title, BPM, Time, Format, Load
     // ==========================================
     table_ = new QTableWidget(this);
-    table_->setColumnCount(6);
+    table_->setColumnCount(7);
     table_->setHorizontalHeaderLabels({
         QStringLiteral("ST"),
         QStringLiteral("CÍM / FÁJLNÉV"),
         QStringLiteral("BPM"),
+        QStringLiteral("KEY"),
         QStringLiteral("IDŐ"),
         QStringLiteral("FORMÁTUM"),
         QStringLiteral("BETÖLTÉS A DECKBE")
@@ -289,16 +290,19 @@ void TracklistDock::setupUi()
     table_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
 
     table_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
-    table_->setColumnWidth(2, 75);
+    table_->setColumnWidth(2, 72);
 
     table_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed);
-    table_->setColumnWidth(3, 70);
+    table_->setColumnWidth(3, 56);
 
     table_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed);
-    table_->setColumnWidth(4, 105);
+    table_->setColumnWidth(4, 68);
 
     table_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed);
-    table_->setColumnWidth(5, 175);
+    table_->setColumnWidth(5, 100);
+
+    table_->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Fixed);
+    table_->setColumnWidth(6, 175);
 
     connect(table_, &QTableWidget::cellDoubleClicked, this, &TracklistDock::onTableItemDoubleClicked);
     connect(table_, &QTableWidget::customContextMenuRequested, this, &TracklistDock::onCustomContextMenuRequested);
@@ -721,6 +725,8 @@ void TracklistDock::analyzeTrackAudio(int track_index)
     AudioAnalyzer::analyzeFileAsync(fpath, [this, track_index](TrackAnalysisResult res) {
         if (res.success && track_index < static_cast<int>(tracks_.size())) {
             tracks_[track_index].bpm = res.detected_bpm;
+            tracks_[track_index].key = res.detected_key;
+            tracks_[track_index].camelot = res.camelot_key;
             tracks_[track_index].duration_ms = res.duration_ms;
             updateRow(track_index);
             saveLibraryJson();
@@ -790,22 +796,40 @@ void TracklistDock::updateRow(int row)
     bpm_item->setText(item.bpm > 20.0 ? QStringLiteral("%1").arg(item.bpm, 0, 'f', 2) : QStringLiteral("--"));
     bpm_item->setForeground(QColor(0, 210, 255));
 
-    // Col 3: Duration
-    auto *dur_item = table_->item(row, 3);
+    // Col 3: KEY (Camelot kód & Hangnem)
+    auto *key_item = table_->item(row, 3);
+    if (!key_item) {
+        key_item = new QTableWidgetItem();
+        key_item->setTextAlignment(Qt::AlignCenter);
+        table_->setItem(row, 3, key_item);
+    }
+    const QString display_key = (item.camelot.isEmpty() || item.camelot == QStringLiteral("--"))
+        ? QStringLiteral("--")
+        : item.camelot;
+    key_item->setText(display_key);
+    key_item->setForeground(QColor(255, 204, 0)); // Arany színű Camelot kód
+    if (!item.key.isEmpty() && item.key != QStringLiteral("--")) {
+        key_item->setToolTip(QStringLiteral("%1 (%2)").arg(item.camelot, item.key));
+    } else {
+        key_item->setToolTip(QString());
+    }
+
+    // Col 4: Duration
+    auto *dur_item = table_->item(row, 4);
     if (!dur_item) {
         dur_item = new QTableWidgetItem();
         dur_item->setTextAlignment(Qt::AlignCenter);
-        table_->setItem(row, 3, dur_item);
+        table_->setItem(row, 4, dur_item);
     }
     dur_item->setText(formatDuration(item.duration_ms));
     dur_item->setForeground(QColor(255, 170, 0));
 
-    // Col 4: Format
-    auto *fmt_item = table_->item(row, 4);
+    // Col 5: Format
+    auto *fmt_item = table_->item(row, 5);
     if (!fmt_item) {
         fmt_item = new QTableWidgetItem();
         fmt_item->setTextAlignment(Qt::AlignCenter);
-        table_->setItem(row, 4, fmt_item);
+        table_->setItem(row, 5, fmt_item);
     }
     if (item.is_converted) {
         fmt_item->setText(isAudioOnlyFile(QFileInfo(item.file_path).suffix()) ? QStringLiteral("Audio") : QStringLiteral("1080p VJ"));
@@ -815,8 +839,8 @@ void TracklistDock::updateRow(int row)
         fmt_item->setForeground(QColor(160, 175, 195));
     }
 
-    // Col 5: Load Actions Widget
-    if (!table_->cellWidget(row, 5)) {
+    // Col 6: Load Actions Widget
+    if (!table_->cellWidget(row, 6)) {
         auto *action_widget = new QWidget(table_);
         auto *act_layout = new QHBoxLayout(action_widget);
         act_layout->setContentsMargins(4, 2, 4, 2);
@@ -842,7 +866,7 @@ void TracklistDock::updateRow(int row)
         });
         act_layout->addWidget(load_b);
 
-        table_->setCellWidget(row, 5, action_widget);
+        table_->setCellWidget(row, 6, action_widget);
     }
 }
 
@@ -916,6 +940,8 @@ void TracklistDock::saveLibraryJson()
         obj[QStringLiteral("file_path")] = item.file_path;
         obj[QStringLiteral("original_path")] = item.original_path;
         obj[QStringLiteral("bpm")] = item.bpm;
+        obj[QStringLiteral("key")] = item.key;
+        obj[QStringLiteral("camelot")] = item.camelot;
         obj[QStringLiteral("duration_ms")] = static_cast<qint64>(item.duration_ms);
         obj[QStringLiteral("is_converted")] = item.is_converted;
         obj[QStringLiteral("played")] = false; // A zöld pipa munkamenet-alapú: lemezre soha nem perzisztálunk korábbi lejátszást
@@ -948,6 +974,8 @@ void TracklistDock::loadLibraryJson()
                 item.file_path = obj[QStringLiteral("file_path")].toString();
                 item.original_path = obj[QStringLiteral("original_path")].toString();
                 item.bpm = obj[QStringLiteral("bpm")].toDouble(128.0);
+                item.key = obj[QStringLiteral("key")].toString(QStringLiteral("--"));
+                item.camelot = obj[QStringLiteral("camelot")].toString(QStringLiteral("--"));
                 item.duration_ms = obj[QStringLiteral("duration_ms")].toInteger();
                 item.is_converted = obj[QStringLiteral("is_converted")].toBool();
                 item.played = false; // OBS újraindításkor mindig tiszta szettel indulunk!
@@ -958,6 +986,20 @@ void TracklistDock::loadLibraryJson()
                 }
                 item.status = st;
 
+                // Mindig betöltjük a .vdj.json-ból a felhasználó által beállított/módosított legfrissebb BPM-et és Hangnemet
+                TrackAnalysisResult c_res;
+                if (AudioAnalyzer::loadCache(item.file_path, c_res) || AudioAnalyzer::loadCache(item.original_path, c_res)) {
+                    if (c_res.detected_bpm > 20.0) {
+                        item.bpm = c_res.detected_bpm;
+                    }
+                    if (!c_res.detected_key.isEmpty() && c_res.detected_key != QStringLiteral("--")) {
+                        item.key = c_res.detected_key;
+                    }
+                    if (!c_res.camelot_key.isEmpty() && c_res.camelot_key != QStringLiteral("--")) {
+                        item.camelot = c_res.camelot_key;
+                    }
+                }
+
                 if (QFileInfo::exists(item.file_path) || QFileInfo::exists(item.original_path)) {
                     tracks_.push_back(item);
                 }
@@ -965,4 +1007,24 @@ void TracklistDock::loadLibraryJson()
         }
     }
     updateTable();
+}
+
+void TracklistDock::updateTrackBpm(const QString &file_path, double bpm)
+{
+    if (file_path.isEmpty() || bpm < 20.0) return;
+    for (size_t i = 0; i < tracks_.size(); ++i) {
+        if (tracks_[i].file_path == file_path || tracks_[i].original_path == file_path) {
+            tracks_[i].bpm = bpm;
+            updateRow(static_cast<int>(i));
+            saveLibraryJson();
+            break;
+        }
+    }
+}
+
+void vdj_notify_track_bpm_changed(const QString &file_path, double new_bpm)
+{
+    if (g_tracklist_instance) {
+        g_tracklist_instance->updateTrackBpm(file_path, new_bpm);
+    }
 }

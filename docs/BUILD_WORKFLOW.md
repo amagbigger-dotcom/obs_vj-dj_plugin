@@ -121,3 +121,15 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
     3. `SearchingLight`: Kiber-fényalagút és kereső fénynyalábok harmonikus térbeli osztással.
     4. `CubeField 3D` (sheltron3030): Végtelen 3D kockamező raymarching `opRep` domén-ismétléssel, `sdBox` távolságmezővel, gradiens felületi normál-árnyékolással és koszinusz palettával.
   - **Paraméter- és UI Kezelés:** `src/effects/vj_config.hpp` és `src/gui/vj_fx_dialog.cpp` mind a 12 shadert dinamikusan kezeli a dedikált `p0..p7` potméterekkel és zenei modulációval.
+
+### Mérföldkő #10: Build #248 / GitHub Run #248 (Intelligens Elemzők, Key Lock & Tracklist Camelot Key Oszlop)
+* **Verzió & Commit:** `f749c81` (vagy következő commit)
+* **Jellemzők:** A nyílt forráskódú referencia DJ motor legértékesebb elemző moduljainak beépítése a meglévő spektrális/BPM elemző mellé:
+  - **`AnalyzerSilence` (Auto-CUE & Csend Levágás):** -60 dBFS pásztázás, az első valódi zenei hang/leütés azonnali CUE ponttá alakítása, megszüntetve a track eleji 0.5–2 mp-es felesleges csendet.
+  - **`AnalyzerKey` (Zenei Hangnem & Camelot Kerék Analízis):** 12-fokú tonális kroma vektor és Krumhansl-Schmuckler dúr/moll korreláció; Camelot kód (pl. 8A, 11B) és zenei név (pl. Am, G) kiszámítása a harmonikus keveréshez.
+  - **`AnalyzerGain` (ReplayGain & Hangerő Normalizálás):** ITU-R BS.1770 / EBU R128 K-súlyozott integrált hangerő mérés és `replay_gain_db` korrekció tárolása a `.vdj.json`-ban.
+  - **Hangmagasság-tartó Key Lock (`DeckPlayer` SOLA Time-Stretching):** `[KEY LOCK]` gomb a tempó csúszka mellett (kék/narancs világítással); bekapcsolva a SOLA fázisillesztett algoritmus a tempó változtatásakor (50%-150%) 100%-ban megőrzi a dal eredeti hangmagasságát.
+  - **Médiatár (Tracklist) 7. Oszlop & Valós BPM Megjelenítés:**
+    - Új `KEY` oszlop a táblázatban az aranyszínű Camelot kulcs megjelenítésével.
+    - A BPM oszlop mostantól a felhasználó által beállított/szerkesztett BPM-et jeleníti meg és menti le a `.vdj.json`-ból, nem a nyers beolvasott értéket.
+    - Kétirányú értesítés: a Deckben végzett BPM módosítás azonnal átíródik a Médiatárban is (`vdj_notify_track_bpm_changed`).
