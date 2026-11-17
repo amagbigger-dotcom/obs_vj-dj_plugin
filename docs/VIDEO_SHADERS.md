@@ -1,6 +1,6 @@
 # Videó Renderelés & Shaders Specifikáció (VIDEO_SHADERS)
 
-Ez a dokumentum az OBS videó források életciklusát, a GPU méretezést, a 12 Master Crossfader shader effektet, a 8 ISF Audio-Reaktív visualizer shadert és a számszintű `.vdj.json` mentést részletezi.
+Ez a dokumentum az OBS videó források életciklusát, a GPU méretezést, a 12 Master Crossfader shader effektet, a 12 ISF Audio-Reaktív visualizer shadert és a számszintű `.vdj.json` mentést részletezi.
 
 ---
 
@@ -8,7 +8,7 @@ Ez a dokumentum az OBS videó források életciklusát, a GPU méretezést, a 12
 * **`src/video/deck_source.cpp`:** `vj_deck` forrás (Deck A és Deck B egyedi videó/audió kimenete az OBS jelenetekben).
 * **`src/video/mixer_source.cpp`:** `vdj_master_mixer` forrás (A 2 decket összefűző 1080p Master kimenet, T-Bar vezérléssel).
 * **`src/effects/vj_config.hpp`:** VJ shader definíciók, paraméter-táblázatok és hatásos paraméterszámítás (`computeEffectiveParam`).
-* **`src/effects/vj_shaders.hpp`:** A 8 beágyazott ISF HLSL shader forrása.
+* **`src/effects/vj_shaders.hpp`:** A 12 beágyazott ISF HLSL shader forrása (kompromisszummentes, eredeti forrásokhoz hű 3D raymarching).
 * **`src/effects/crossfade.effect`:** A 12 Master Crossfader shader forrása.
 
 ---
@@ -70,20 +70,24 @@ A Master Mixer 12 zenei képi átmenetet biztosít, amelyek a crossfader mozgat�
 
 ---
 
-## 4. 8 ISF AUDIO-REAKTÍV VISUALIZER SHADER (TISZTA AUDIÓHOZ)
+## 4. 12 ISF AUDIO-REAKTÍV VISUALIZER SHADER (TISZTA AUDIÓHOZ)
 
 Ha egy deckbe nem videófájlt, hanem tiszta audiófájlt (`.mp3`, `.wav`) töltünk be, a fekete kép helyett azonnal elindul a Direct3D 11 / OpenGL procedurális shader:
 
 | Index | Név | Kategória | Kifordított Paraméterek |
 | :---: | :--- | :--- | :--- |
-| **0** | **Fluid Flow** | Organikus Folyadék | `rate` (sebesség), `zrate` (Z-áramlás), `depth` (mélység), `blur` (elmosás), `freq` (frekvencia) |
-| **1** | **Truchet Spin** | Forgó Labirintus | `rate`, `zoom`, `thickness` (vastagság), `pulse` (pulzus) |
-| **2** | **Hypno Worm** | Hipnotikus Alagút | `rate`, `size`, `edge` (élesség), `amp1`, `amp2` |
-| **3** | **Shape Twist** | Elektro Hullám | `zoom`, `rotate`, `twist`, `tunnel`, `thickness`, `amplitude` |
+| **0** | **Fluid Flow 3D** | Organikus 3D Folyadék | `rate` (sebesség), `zrate` (Z-áramlás), `depth` (mélység), `blur` (elmosás), `freq`, `freq2` |
+| **1** | **Truchet Spin 3D** | 3D Raymarch Labirintus | `rate`, `zoom`, `thickness` (vastagság), `pulse` (pulzus) |
+| **2** | **Hypno Worm** | 24-Lépéses OpArt Alagút | `rate`, `size`, `edge` (élesség), `amp1`, `amp2` |
+| **3** | **Shape Twist** | 18-Lépéses Elektro Hullám | `rate`, `zoom`, `amplitude`, `thickness`, `twist` |
 | **4** | **String Art** | Szálművészet | `rate`, `scale`, `freq1`, `freq2`, `radius1`, `radius2`, `thickness` |
-| **5** | **Dodecahedron**| 3D Kristály | `zoom`, `een`, `twee`, `drie`, `vijf` (fényerő), `acht` (aranyarány) |
-| **6** | **Kali Circuits**| Fraktál Áramkör | `rate`, `zoom`, `intensity`, `focus`, `pulse`, `glow` |
-| **7** | **Diamond Vision**| Tórusz Raymarch | `speed`, `bat`, `ray`, `hue`, `rotation`, `ratio` |
+| **5** | **Dodecahedron 3D**| 3D Kristály Raymarch | `zoom`, `een`, `twee`, `drie`, `vijf` (fényerő), `acht` (aranyarány) |
+| **6** | **Kali Circuits**| Fraktál Áramkörök | `rate`, `zoom`, `intensity`, `focus`, `pulse`, `glow` |
+| **7** | **Diamond Vision**| 36-Lépéses Tórusz Raymarch | `speed`, `bat`, `ray`, `hue`, `rotation`, `ratio` |
+| **8** | **Pupila** | Organikus Szem & Írisz | `zoom`, `irisR`, `irisG`, `irisB`, `borderR`, `borderG`, `borderB`, `pupilPulse` |
+| **9** | **MandalaScope** | 72-Lépéses Fraktál Mandala | `rate`, `sides`, `scale`, `multiply`, `loops`, `mX`, `mY`, `pulse` |
+| **10**| **Searching Light** | Kiber Fényalagút | `scale`, `modVal`, `zAdder`, `cosinAdder`, `sinAdder`, `finalMulti`, `pulse` |
+| **11**| **CubeField 3D** | Végtelen Kockamező Raymarch | `speed`, `rot_z`, `repeat`, `box_size`, `squiggle`, `dist1`, `dist3`, `termThres` |
 
 ### 4.1. Paraméter Modulációs Módok (C++ oldalon számítva):
 Minden paraméterhez 4-féle mód választható a felületen:

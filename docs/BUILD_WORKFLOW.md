@@ -109,3 +109,15 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
   - `src/gui/mixer_channel`: Önálló `MixerChannelStrip` osztály csatornánkénti Gain, 3-sávos EQ (HI, MID, LOW), Filter, Headphone CUE, VIZ EQ, Volume fader, LED kivezérlésjelző és Volume FX vezérléssel.
   - `src/gui/mixer_master`: Önálló `MixerMasterPanel` osztály Master Clock, TAP tempo, ± léptetők, Master BPM szerkesztő, Headphone monitor hangerő és CUE/Master mix, 13-féle Master Crossfader shader FX, 1080p FIT/FILL képméretező gomb és Crossfader kezeléssel.
   - `src/gui/mixer_window`: 1032 sorról 265 sorra csökkent karcsúsított keretablak; a szigorú 590×340 px méret és a képernyő alsó közepére igazított elrendezés érintetlen maradt.
+
+### Mérföldkő #9: Build #247 / GitHub Run #247 (12 Eredeti Hű VJ Shader & 3D Raymarching Visszaállítás)
+* **Verzió & Commit:** `e7b38a3`
+* **SHA256:** `E678A6CF982D42AEA198C33F0CBF66574CDDFD55712197231B48AF291364B508`
+* **Jellemzők:** A VJ vizualizációs shaderek lebutításának teljes megszüntetése és 12 darab autentikus ISF shader integrálása:
+  - **Eredeti 3D Raymarching Visszaállítása:** A `FluidFlow` valódi 3D térbeli kamerát és 14-lépéses volumetrikus rétegzést kapott; a `TruchetSpin` visszakapta a teljes 48-lépéses 3D raymarchert diffúz/spekuláris fényekkel és árnyékokkal; a `HypnoWorm` és `ShapeTwist` visszaállítva a 24-lépéses OpArt és 18-lépéses elektro hullámcsavarásra.
+  - **4 Új Hű ISF Shader Integráció:**
+    1. `Pupila` (Uará Lab / wtX3Dl): Fotorealisztikus emberi szem és írisz, multi-oktávos poláris zajjal, lábdob (Kick transient) pupilla-kitágulással és tükröződéssel.
+    2. `MandalaScope` (mojovideotech): 72-iterációs rekurzív poláris fraktál kaleidoszkóp.
+    3. `SearchingLight`: Kiber-fényalagút és kereső fénynyalábok harmonikus térbeli osztással.
+    4. `CubeField 3D` (sheltron3030): Végtelen 3D kockamező raymarching `opRep` domén-ismétléssel, `sdBox` távolságmezővel, gradiens felületi normál-árnyékolással és koszinusz palettával.
+  - **Paraméter- és UI Kezelés:** `src/effects/vj_config.hpp` és `src/gui/vj_fx_dialog.cpp` mind a 12 shadert dinamikusan kezeli a dedikált `p0..p7` potméterekkel és zenei modulációval.
