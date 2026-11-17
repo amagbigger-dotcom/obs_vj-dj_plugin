@@ -555,7 +555,7 @@ static void set_color_params(MixerSource *context,
     const float raw_rate = decks ? decks->crossfadeFxRate() : 1.0f;
     const int rate_mod = decks ? decks->crossfadeFxRateMod() : 0;
 
-    const float bass_energy = (1.0f - crossfade) * deck_a.kickEnvelope() + crossfade * deck_b.kickEnvelope();
+    const float bass_energy = (1.0f - crossfade) * deck_a.currentBassEnergy() + crossfade * deck_b.currentBassEnergy();
     const float macro_tonus = (1.0f - crossfade) * deck_a.currentMacroTonus() + crossfade * deck_b.currentMacroTonus();
 
     const float eff_intensity = computeEffectiveParamSimple(raw_intensity, 0.0f, 2.0f, intensity_mod, bass_energy, macro_tonus);
