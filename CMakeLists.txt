@@ -103,6 +103,8 @@ set(SOURCES
     src/gui/tracklist_dock.hpp
     src/gui/vj_fx_dialog.cpp
     src/gui/vj_fx_dialog.hpp
+    src/gui/crossfade_fx_dialog.cpp
+    src/gui/crossfade_fx_dialog.hpp
 )
 
 add_library(obs_vj-dj_plugin MODULE ${SOURCES})

@@ -62,7 +62,7 @@ void MixerChannelStrip::setupUi()
     layout->setSpacing(3);
 
     auto addSliderRow = [this, layout](const QString &name, const QString &color,
-                                       DJSlider **out_sl, QLabel **out_val_lbl,
+                                       DJSlider **out_sl, QLabel **out_val_lbl, QLabel **out_title_lbl,
                                        int def_val, auto setter, auto formatter) {
         auto *row = new QHBoxLayout();
         row->setSpacing(4);
@@ -71,6 +71,7 @@ void MixerChannelStrip::setupUi()
         auto *lbl = new QLabel(name, this);
         lbl->setFixedWidth(26);
         lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: %1;").arg(color));
+        if (out_title_lbl) *out_title_lbl = lbl;
 
         auto *sl = new DJSlider(Qt::Horizontal, def_val, this);
         sl->setRange(-100, 100);
@@ -108,21 +109,21 @@ void MixerChannelStrip::setupUi()
     };
 
     // 1. GAIN, HI (Red), MID (Green), LOW (Blue), FLT (Saturation)
-    addSliderRow(QStringLiteral("GAIN"), QStringLiteral("#8da0b8"), &gain_slider_, &gain_val_lbl_, 0,
+    addSliderRow(QStringLiteral("GAIN"), QStringLiteral("#8da0b8"), &gain_slider_, &gain_val_lbl_, nullptr, 0,
                  [this](float v) { if (deck_) deck_->setGain(v); }, formatGain);
-    addSliderRow(QStringLiteral("HI"), QStringLiteral("#ff4444"), &hi_slider_, &hi_val_lbl_, 0,
-                 [this](float v) { if (deck_) { deck_->setEqHi(v); deck_->setRed(v); } }, formatRgb);
-    addSliderRow(QStringLiteral("MID"), QStringLiteral("#00ff88"), &mid_slider_, &mid_val_lbl_, 0,
-                 [this](float v) { if (deck_) { deck_->setEqMid(v); deck_->setGreen(v); } }, formatRgb);
-    addSliderRow(QStringLiteral("LOW"), QStringLiteral("#4488ff"), &low_slider_, &low_val_lbl_, 0,
-                 [this](float v) { if (deck_) { deck_->setEqLow(v); deck_->setBlue(v); } }, formatRgb);
-    addSliderRow(QStringLiteral("FLT"), QStringLiteral("#ffaa00"), &flt_slider_, &flt_val_lbl_, 0,
-                 [this](float v) { if (deck_) { deck_->setFilterVal(v - 1.0f); deck_->setSaturation(v); } }, formatFilter);
+    addSliderRow(QStringLiteral("HI"), QStringLiteral("#ff4444"), &hi_slider_, &hi_val_lbl_, &hi_title_lbl_, 0,
+                 [this](float v) { if (deck_) deck_->setEqHi(v); }, formatRgb);
+    addSliderRow(QStringLiteral("MID"), QStringLiteral("#00ff88"), &mid_slider_, &mid_val_lbl_, nullptr, 0,
+                 [this](float v) { if (deck_) deck_->setEqMid(v); }, formatRgb);
+    addSliderRow(QStringLiteral("LOW"), QStringLiteral("#4488ff"), &low_slider_, &low_val_lbl_, &low_title_lbl_, 0,
+                 [this](float v) { if (deck_) deck_->setEqLow(v); }, formatRgb);
+    addSliderRow(QStringLiteral("FLT"), QStringLiteral("#ffaa00"), &flt_slider_, &flt_val_lbl_, nullptr, 0,
+                 [this](float v) { if (deck_) deck_->setFilterVal(v - 1.0f); }, formatFilter);
 
-    // 2. Buttons Row: Headphone CUE & Visual EQ Toggle
+    // 2. Buttons Row: Headphone CUE, Visual EQ & RGB Invert Toggle
     auto *btn_row = new QHBoxLayout();
     btn_row->setContentsMargins(0, 2, 0, 2);
-    btn_row->setSpacing(4);
+    btn_row->setSpacing(3);
 
     hp_cue_btn_ = new QPushButton(is_deck_a_ ? QStringLiteral("🎧 CUE A") : QStringLiteral("🎧 CUE B"), this);
     hp_cue_btn_->setCheckable(true);
@@ -149,6 +150,24 @@ void MixerChannelStrip::setupUi()
         if (deck_) deck_->setVisualEqEnabled(chk);
     });
     btn_row->addWidget(viz_eq_btn_, 1);
+
+    rgb_inv_btn_ = new QPushButton(QStringLiteral("⇄ BGR"), this);
+    rgb_inv_btn_->setCheckable(true);
+    rgb_inv_btn_->setChecked(deck_ ? deck_->isRgbInverted() : false);
+    rgb_inv_btn_->setFixedHeight(22);
+    rgb_inv_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #161b24; border: 1px solid #2b3545; color: #7f8fa4; font-weight: bold; font-size: 8px; border-radius: 3px; } "
+        "QPushButton:checked { background: #382413; color: #ffaa00; border-color: #bb7700; }"));
+    rgb_inv_btn_->setToolTip(QStringLiteral("RGB & Szaturáció Megfordítása:\n"
+                                            "Bekapcsolva: HI = Kék (Blue), MID = Zöld (Green), LOW = Vörös (Red),\n"
+                                            "és a szaturáció (FLT) iránya is megfordul!"));
+    connect(rgb_inv_btn_, &QPushButton::toggled, this, [this](bool chk) {
+        if (deck_) {
+            deck_->setRgbInverted(chk);
+            updateSliderStyles(chk);
+        }
+    });
+    btn_row->addWidget(rgb_inv_btn_, 1);
 
     layout->addLayout(btn_row);
 
@@ -235,11 +254,32 @@ void MixerChannelStrip::setupUi()
     layout->addWidget(vol_fx_combo_);
 }
 
+void MixerChannelStrip::updateSliderStyles(bool inverted)
+{
+    if (hi_title_lbl_) {
+        hi_title_lbl_->setStyleSheet(inverted ? QStringLiteral("font-size: 9px; font-weight: bold; color: #4488ff;")
+                                             : QStringLiteral("font-size: 9px; font-weight: bold; color: #ff4444;"));
+        hi_title_lbl_->setToolTip(inverted ? QStringLiteral("Magashang EQ -> KÉK (Blue) csatorna")
+                                           : QStringLiteral("Magashang EQ -> VÖRÖS (Red) csatorna"));
+    }
+    if (low_title_lbl_) {
+        low_title_lbl_->setStyleSheet(inverted ? QStringLiteral("font-size: 9px; font-weight: bold; color: #ff4444;")
+                                              : QStringLiteral("font-size: 9px; font-weight: bold; color: #4488ff;"));
+        low_title_lbl_->setToolTip(inverted ? QStringLiteral("Mélyhang EQ -> VÖRÖS (Red) csatorna")
+                                            : QStringLiteral("Mélyhang EQ -> KÉK (Blue) csatorna"));
+    }
+}
+
 void MixerChannelStrip::bindDeck(DeckPlayer *deck)
 {
     deck_ = deck;
     if (viz_eq_btn_ && deck_) {
         viz_eq_btn_->setChecked(deck_->isVisualEqEnabled());
+    }
+    if (rgb_inv_btn_ && deck_) {
+        const bool inv = deck_->isRgbInverted();
+        rgb_inv_btn_->setChecked(inv);
+        updateSliderStyles(inv);
     }
     if (vol_fx_combo_ && deck_) {
         vol_fx_combo_->setCurrentIndex(deck_->volumeFxMode());
@@ -289,6 +329,13 @@ void MixerChannelStrip::refresh()
     if (viz_eq_btn_ && viz_eq_btn_->isChecked() != deck_->isVisualEqEnabled()) {
         QSignalBlocker blocker(viz_eq_btn_);
         viz_eq_btn_->setChecked(deck_->isVisualEqEnabled());
+    }
+
+    if (rgb_inv_btn_ && rgb_inv_btn_->isChecked() != deck_->isRgbInverted()) {
+        QSignalBlocker blocker(rgb_inv_btn_);
+        const bool inv = deck_->isRgbInverted();
+        rgb_inv_btn_->setChecked(inv);
+        updateSliderStyles(inv);
     }
 
     if (meter_) {

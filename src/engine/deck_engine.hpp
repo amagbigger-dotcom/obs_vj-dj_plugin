@@ -56,6 +56,9 @@ public:
     void setVolumeFxMode(int m) noexcept { volume_fx_mode_.store(m, std::memory_order_relaxed); }
     bool isVisualEqEnabled() const noexcept { return visual_eq_enabled_.load(std::memory_order_relaxed); }
     void setVisualEqEnabled(bool en) noexcept { visual_eq_enabled_.store(en, std::memory_order_relaxed); }
+    bool isRgbInverted() const noexcept { return rgb_inverted_.load(std::memory_order_relaxed); }
+    void setRgbInverted(bool inv) noexcept;
+    void updateVisualEqMapping() noexcept;
 
     void seek(double normalized_pos);
     void seekMs(int64_t ms);
@@ -214,6 +217,7 @@ private:
     std::atomic<int64_t> hot_cues_[4]{-1, -1, -1, -1};
     std::atomic<int> volume_fx_mode_{0};
     std::atomic<bool> visual_eq_enabled_{true};
+    std::atomic<bool> rgb_inverted_{false};
 
     std::atomic<double> base_bpm_{128.0};
     std::atomic<int64_t> grid_offset_ms_{0};
@@ -323,6 +327,16 @@ public:
     void setCrossfadeFxMode(int mode) noexcept { crossfade_fx_mode_.store(mode, std::memory_order_relaxed); }
     int crossfadeFxMode() const noexcept { return crossfade_fx_mode_.load(std::memory_order_relaxed); }
 
+    float crossfadeFxIntensity() const noexcept { return cf_fx_intensity_.load(std::memory_order_relaxed); }
+    void setCrossfadeFxIntensity(float val) noexcept { cf_fx_intensity_.store(std::clamp(val, 0.0f, 2.0f), std::memory_order_relaxed); }
+    int crossfadeFxIntensityMod() const noexcept { return cf_fx_intensity_mod_.load(std::memory_order_relaxed); }
+    void setCrossfadeFxIntensityMod(int m) noexcept { cf_fx_intensity_mod_.store(std::clamp(m, 0, 3), std::memory_order_relaxed); }
+
+    float crossfadeFxRate() const noexcept { return cf_fx_rate_.load(std::memory_order_relaxed); }
+    void setCrossfadeFxRate(float val) noexcept { cf_fx_rate_.store(std::clamp(val, 0.1f, 3.0f), std::memory_order_relaxed); }
+    int crossfadeFxRateMod() const noexcept { return cf_fx_rate_mod_.load(std::memory_order_relaxed); }
+    void setCrossfadeFxRateMod(int m) noexcept { cf_fx_rate_mod_.store(std::clamp(m, 0, 3), std::memory_order_relaxed); }
+
     void setObsOutputMode(int mode) noexcept;
     int obsOutputMode() const noexcept;
 
@@ -388,6 +402,10 @@ private:
     std::atomic<double> crossfader_{0.5};
     std::atomic<int> transition_mode_{0};
     std::atomic<int> crossfade_fx_mode_{0};
+    std::atomic<float> cf_fx_intensity_{1.0f};
+    std::atomic<int> cf_fx_intensity_mod_{0};
+    std::atomic<float> cf_fx_rate_{1.0f};
+    std::atomic<int> cf_fx_rate_mod_{0};
     std::atomic<int> obs_output_mode_{0};
     std::atomic<int> video_scale_mode_{1};
     std::atomic<int> visualizer_mode_{0};

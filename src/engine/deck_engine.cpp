@@ -223,8 +223,10 @@ void DeckPlayer::loadFile(const QString &path)
             if (res.has_vj_config) {
                 std::lock_guard<std::mutex> lock(vj_config_mutex_);
                 vj_config_ = res.vj_config;
-                const int s = std::clamp(vj_config_.shader_idx, 0, 11);
+                const int s = std::clamp(vj_config_.shader_idx, 0, 14);
                 vj_config_.all_shader_params[s] = vj_config_.params;
+                rgb_inverted_.store(vj_config_.rgb_inverted, std::memory_order_relaxed);
+                updateVisualEqMapping();
             }
         }
     });
@@ -788,7 +790,7 @@ void DeckPlayer::setVjParamValue(int param_idx, float val) noexcept
         {
             std::lock_guard<std::mutex> lock(vj_config_mutex_);
             vj_config_.params[param_idx].value = val;
-            const int s = std::clamp(vj_config_.shader_idx, 0, 11);
+            const int s = std::clamp(vj_config_.shader_idx, 0, 14);
             vj_config_.all_shader_params[s][param_idx].value = val;
         }
         saveVjConfigToCache();
@@ -801,7 +803,7 @@ void DeckPlayer::setVjParamMod(int param_idx, int mod) noexcept
         {
             std::lock_guard<std::mutex> lock(vj_config_mutex_);
             vj_config_.params[param_idx].mod_mode = mod;
-            const int s = std::clamp(vj_config_.shader_idx, 0, 11);
+            const int s = std::clamp(vj_config_.shader_idx, 0, 14);
             vj_config_.all_shader_params[s][param_idx].mod_mode = mod;
         }
         saveVjConfigToCache();
@@ -810,11 +812,11 @@ void DeckPlayer::setVjParamMod(int param_idx, int mod) noexcept
 
 void DeckPlayer::setVjShaderIdx(int idx) noexcept
 {
-    const int new_s = std::clamp(idx, 0, 11);
+    const int new_s = std::clamp(idx, 0, 14);
     {
         std::lock_guard<std::mutex> lock(vj_config_mutex_);
         if (vj_config_.shader_idx != new_s) {
-            const int old_s = std::clamp(vj_config_.shader_idx, 0, 11);
+            const int old_s = std::clamp(vj_config_.shader_idx, 0, 14);
             // 1. Save current active params into old shader slot
             vj_config_.all_shader_params[old_s] = vj_config_.params;
             // 2. Switch shader index
@@ -854,8 +856,45 @@ void DeckPlayer::loadVjConfigFromCache()
     if (AudioAnalyzer::loadCache(fp, res) && res.has_vj_config) {
         std::lock_guard<std::mutex> lock(vj_config_mutex_);
         vj_config_ = res.vj_config;
-        const int s = std::clamp(vj_config_.shader_idx, 0, 11);
+        const int s = std::clamp(vj_config_.shader_idx, 0, 14);
         vj_config_.all_shader_params[s] = vj_config_.params;
+        rgb_inverted_.store(vj_config_.rgb_inverted, std::memory_order_relaxed);
+        updateVisualEqMapping();
+    }
+}
+
+void DeckPlayer::setRgbInverted(bool inv) noexcept
+{
+    rgb_inverted_.store(inv, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(vj_config_mutex_);
+        vj_config_.rgb_inverted = inv;
+    }
+    updateVisualEqMapping();
+    saveVjConfigToCache();
+}
+
+void DeckPlayer::updateVisualEqMapping() noexcept
+{
+    const float hi = eq_hi_.load(std::memory_order_relaxed);
+    const float mid = eq_mid_.load(std::memory_order_relaxed);
+    const float low = eq_low_.load(std::memory_order_relaxed);
+    const float flt = filter_val_.load(std::memory_order_relaxed);
+    const bool inv = rgb_inverted_.load(std::memory_order_relaxed);
+
+    if (inv) {
+        // Megfordított sorrend: HI = Kék (Blue), MID = Zöld (Green), LOW = Vörös (Red)
+        setRed(low);
+        setGreen(mid);
+        setBlue(hi);
+        // Szaturáció iránya is megfordul:
+        setSaturation(1.0f - flt);
+    } else {
+        // Normál sorrend: HI = Vörös (Red), MID = Zöld (Green), LOW = Kék (Blue)
+        setRed(hi);
+        setGreen(mid);
+        setBlue(low);
+        setSaturation(1.0f + flt);
     }
 }
 
@@ -863,28 +902,28 @@ void DeckPlayer::setEqHi(float val) noexcept
 {
     const float cl = std::clamp(val, 0.0f, 2.0f);
     eq_hi_.store(cl, std::memory_order_relaxed);
-    setRed(cl);
+    updateVisualEqMapping();
 }
 
 void DeckPlayer::setEqMid(float val) noexcept
 {
     const float cl = std::clamp(val, 0.0f, 2.0f);
     eq_mid_.store(cl, std::memory_order_relaxed);
-    setGreen(cl);
+    updateVisualEqMapping();
 }
 
 void DeckPlayer::setEqLow(float val) noexcept
 {
     const float cl = std::clamp(val, 0.0f, 2.0f);
     eq_low_.store(cl, std::memory_order_relaxed);
-    setBlue(cl);
+    updateVisualEqMapping();
 }
 
 void DeckPlayer::setFilterVal(float val) noexcept
 {
     const float cl = std::clamp(val, -1.0f, 1.0f);
     filter_val_.store(cl, std::memory_order_relaxed);
-    setSaturation(1.0f + cl);
+    updateVisualEqMapping();
 }
 
 float DeckPlayer::eqHi() const noexcept { return eq_hi_.load(std::memory_order_relaxed); }

@@ -20,6 +20,7 @@ public:
 
 private:
     void setupUi();
+    void updateSliderStyles(bool inverted);
 
     bool is_deck_a_ = true;
     DeckPlayer *deck_ = nullptr;
@@ -38,8 +39,12 @@ private:
     QLabel *flt_val_lbl_ = nullptr;
     QLabel *vol_val_lbl_ = nullptr;
 
+    QLabel *hi_title_lbl_ = nullptr;
+    QLabel *low_title_lbl_ = nullptr;
+
     QProgressBar *meter_ = nullptr;
     QPushButton *hp_cue_btn_ = nullptr;
     QPushButton *viz_eq_btn_ = nullptr;
+    QPushButton *rgb_inv_btn_ = nullptr;
     QComboBox *vol_fx_combo_ = nullptr;
 };

@@ -1,4 +1,5 @@
 #include "gui/mixer_master.hpp"
+#include "gui/crossfade_fx_dialog.hpp"
 #include "engine/deck_engine.hpp"
 #include "controllers/midi_handler.hpp"
 #include "widget/dj_slider.hpp"
@@ -298,8 +299,29 @@ void MixerMasterPanel::setupUi()
     cf_fx_combo_->setCurrentIndex(decks_ ? decks_->crossfadeFxMode() : 0);
     connect(cf_fx_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
         if (decks_) decks_->setCrossfadeFxMode(idx);
+        if (cf_fx_dialog_) cf_fx_dialog_->refresh();
     });
     fx_scale_row->addWidget(cf_fx_combo_, 1);
+
+    cf_fx_settings_btn_ = new QPushButton(QStringLiteral("⚙ FX"), this);
+    cf_fx_settings_btn_->setFixedHeight(20);
+    cf_fx_settings_btn_->setToolTip(QStringLiteral("Crossfader Vizuális FX Paraméterek és Zenei Moduláció"));
+    cf_fx_settings_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1a2230; border: 1px solid #2d3e56; color: #ffaa00; font-size: 8px; font-weight: bold; padding: 1px 5px; border-radius: 3px; } "
+        "QPushButton:hover { background: #253347; border-color: #ffaa00; }"));
+    connect(cf_fx_settings_btn_, &QPushButton::clicked, this, [this]() {
+        if (!cf_fx_dialog_) {
+            cf_fx_dialog_ = new CrossfadeFxDialog(decks_, this);
+        }
+        if (cf_fx_dialog_->isVisible()) {
+            cf_fx_dialog_->hide();
+        } else {
+            cf_fx_dialog_->show();
+            cf_fx_dialog_->raise();
+            cf_fx_dialog_->activateWindow();
+        }
+    });
+    fx_scale_row->addWidget(cf_fx_settings_btn_);
 
     scale_btn_ = new QPushButton(decks_ && decks_->videoScaleMode() == 0 ? QStringLiteral("📺 FIT") : QStringLiteral("📺 FILL"), this);
     scale_btn_->setFixedHeight(20);
@@ -408,6 +430,10 @@ void MixerMasterPanel::refresh()
             crossfader_->setValue(cf_val);
         }
         updateCfLabel(cf_val);
+    }
+
+    if (cf_fx_dialog_ && cf_fx_dialog_->isVisible()) {
+        cf_fx_dialog_->refresh();
     }
 }
 

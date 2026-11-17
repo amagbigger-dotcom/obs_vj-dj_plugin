@@ -11,6 +11,7 @@ class QLineEdit;
 class QPushButton;
 class QComboBox;
 class QKeyEvent;
+class CrossfadeFxDialog;
 
 class MixerMasterPanel final : public QGroupBox {
     Q_OBJECT
@@ -40,7 +41,9 @@ private:
     DJSlider *crossfader_ = nullptr;
     QLabel *cf_val_lbl_ = nullptr;
     QComboBox *cf_fx_combo_ = nullptr;
+    QPushButton *cf_fx_settings_btn_ = nullptr;
     QPushButton *scale_btn_ = nullptr;
+    CrossfadeFxDialog *cf_fx_dialog_ = nullptr;
 
     DJSlider *hp_vol_slider_ = nullptr;
     QLabel *hp_vol_val_lbl_ = nullptr;

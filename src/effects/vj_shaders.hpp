@@ -916,6 +916,214 @@ float4 render_cube_field(float2 uv)
     color += theme * (bass_energy * 0.4);
     return float4(saturate(color), 1.0);
 }
+
+// -----------------------------------------------------------------------------
+// Shader 12: Electro Bands (echophons)
+// -----------------------------------------------------------------------------
+float electro_bands_func(float2 pos, float d, float f, float o, float s, float a, float b, float sz, float time_val)
+{
+    float ti = time_val * s * 0.5;
+    float theta = atan2(pos.y, pos.x);
+    float amp_val = smoothstep(0.0, 1.0, (sin(theta + time_val * 2.0) * 0.5 + 0.5) - b) * a;
+    float phase = d - sin(theta * f + o + ti * 1.5) * amp_val * 2.5;
+    return sin(clamp(phase, 0.0, 3.14159265 * sz) + 3.14159265 / max(sz, 0.001)) + 0.9999999;
+}
+
+float electro_circle(float2 pos, float r, float a, float o, float s, float f, float b, float t, float sz, float time_val)
+{
+    float d = length(pos);
+    return 1.0 - smoothstep(0.0, max(t, 0.0001), electro_bands_func(pos, d / max(r, 0.0001), f, o, s, a, b, sz, time_val));
+}
+
+float4 render_electro_bands(float2 uv)
+{
+    float radius = p0;
+    float amp = p1;
+    float band = p2;
+    float speed = p3;
+    float thickness = p4;
+    float sz = p5;
+    const float freq = 4.0;
+
+    float2 pos = uv * 2.0 - 1.0;
+    pos.x *= 1.77777;
+    pos -= float2(0.0, -0.2);
+
+    float3 color = float3(0.0, 0.0, 0.0);
+    color.r = electro_circle(pos, radius, amp, 0.0 * 3.14159265, speed * 0.01, freq, band, thickness, sz, anim_time);
+    color.g = electro_circle(pos, radius, amp, 0.1 * 3.14159265, speed * 0.02, freq, band, thickness, sz, anim_time);
+    color.b = electro_circle(pos, radius, amp, 0.2 * 3.14159265, speed * 0.03, freq, band, thickness, sz, anim_time);
+
+    float3 theme = get_base_theme_color();
+    color = lerp(color, color * theme, 0.5);
+    color += theme * (bass_energy * 0.4);
+    return float4(saturate(color), 1.0);
+}
+
+// -----------------------------------------------------------------------------
+// Shader 13: GlobularCluster (mojovideotech)
+// -----------------------------------------------------------------------------
+float map_gc(float3 p, float m_time, float warpx, float warpy, float warpz, float melt, float tilt, float horizon, float freq)
+{
+    float3 q = glsl_mod3(p + freq, 4.0) - 2.0;
+    float d1 = length(q) - 1.0;
+    d1 += 0.1 * sin(warpx * p.x) * sin(warpy * p.y + 1.0 * m_time) * sin(warpz * p.z);
+    float d2 = lerp(p.x, p.y, tilt) + horizon;
+    float h = saturate(0.5 + 0.5 * (d1 - d2) / max(melt, 0.001));
+    return lerp(d1, d2, h) - melt * h * (1.0 - h);
+}
+
+float4 render_globular_cluster(float2 uv)
+{
+    float rate = p0;
+    float warpx = p1;
+    float warpy = p2;
+    float warpz = p3;
+    float melt = p4;
+    float density = p5;
+    float depth = p6;
+    float tint = p7;
+
+    float m_time = anim_time * rate;
+    float2 p = -1.0 + 2.0 * uv;
+    p.x *= 1.77777;
+
+    float3 r0 = float3(5.0, 0.425, 39.5);
+    float3 rd = normalize(float3(p, -1.0));
+    float3 col = float3(1.0, 1.0, 1.0);
+    float tmax = 80.0;
+    float h = 1.0;
+    float t = 0.0;
+
+    for (int i = 0; i < 64; ++i) {
+        if (h < 0.0005 || t > tmax) break;
+        h = map_gc(r0 + t * rd, m_time, warpx, warpy, warpz, melt, 0.5, 4.0, 5.5);
+        t += h;
+    }
+
+    float f = 0.0;
+    if (t < tmax) {
+        float3 pos = r0 + t * rd;
+        float s = pos.x + 0.5 * pos.y + 3.0 * pos.z;
+        f = pos.z;
+        float band = glsl_mod(abs(floor(s * density)), max(depth + 0.05, 0.1));
+        col = float3(band, band, band);
+    }
+
+    float3 base_color = float3(0.8 - tint, 0.15 * f / 5.0, 0.8 + tint) - col;
+    float3 theme = get_base_theme_color();
+    float3 final_col = lerp(base_color, base_color * theme, 0.6) + theme * (bass_energy * 0.35);
+    return float4(saturate(final_col), 1.0);
+}
+
+// -----------------------------------------------------------------------------
+// Shader 14: HexTruchWarpFlow2 (mojovideotech)
+// -----------------------------------------------------------------------------
+float2 PixToHex_hlsl(float2 p)
+{
+    const float s3 = 1.7320508;
+    float cx = (1.0 / s3) * p.x - (1.0 / 3.0) * p.y;
+    float cz = (2.0 / 3.0) * p.y;
+    float cy = -cx - cz;
+    float3 c = float3(cx, cy, cz);
+    float3 r = floor(c + 0.5);
+    float3 dr = abs(r - c);
+    r -= step(dr.yzx, dr) * step(dr.zxy, dr) * dot(r, float3(1.0, 1.0, 1.0));
+    return r.xz;
+}
+
+float2 HexToPix_hlsl(float2 h)
+{
+    const float s3 = 1.7320508;
+    return float2(s3 * (h.x + 0.5 * h.y), 1.5 * h.y);
+}
+
+float HexEdgeDist_hlsl(float2 p)
+{
+    const float s3 = 1.7320508;
+    const float hs3 = 0.8660254;
+    p = abs(p);
+    return hs3 - p.x + 0.5 * min(p.x - s3 * p.y, 0.0);
+}
+
+float2 Rot2D_hlsl(float2 q, float a)
+{
+    float2 cs = sin(a + float2(1.5707963, 0.0));
+    return float2(dot(q, float2(cs.x, -cs.y)), dot(q.yx, cs));
+}
+
+float Hashfv2_hlsl(float2 p)
+{
+    return frac(sin(dot(p, float2(37.0, 39.0))) * 14449.97975);
+}
+
+float3 ShowScene_hlsl(float2 p, float T, float thickness, float arrows, float dashes, float3 c1, float3 c2, float3 c3)
+{
+    const float hs3 = 0.8660254;
+    float3 col = float3(0.0, 0.0, 0.0);
+    float3 w = float3(0.0, 0.0, 0.0);
+    float2 cId = PixToHex_hlsl(p);
+    float2 pc = HexToPix_hlsl(cId);
+    float dir = 2.0 * step(Hashfv2_hlsl(cId), 0.5) - 1.0;
+    w.xy = pc + float2(0.0, -dir);
+    w.z = dot(w.xy - p, w.xy - p);
+    float2 q = pc + float2(hs3, 0.5 * dir);
+    float d = dot(q - p, q - p);
+    if (d < w.z) w = float3(q, d);
+    q = pc + float2(-hs3, 0.5 * dir);
+    d = dot(q - p, q - p);
+    if (d < w.z) w = float3(q, d);
+    w.z = abs(sqrt(max(w.z, 0.0)) - 0.5);
+    d = HexEdgeDist_hlsl(p - pc);
+    float o = thickness * 0.1;
+    col = c1 * lerp(1.0, 0.7 + 0.3 * smoothstep(0.2, 0.8, d), smoothstep(0.02, 0.03, d));
+    if (w.z < thickness - o) {
+        col = c2 * (1.0 - 0.5 * smoothstep(0.05, thickness - o, w.z));
+        w.xy = Rot2D_hlsl(w.xy - p, 0.5 * dir * abs(T));
+        float a = glsl_mod(3.0 * atan2(dir * w.y, -w.x) / 3.14159265, 1.0) - 0.5;
+        float s = 0.01;
+        float d_iter = 1.0;
+        if (abs(glsl_mod(2.0 * a + 0.5, 1.0) - 0.5) - 0.33 < s)
+            d_iter = lerp(d_iter, min(d_iter, smoothstep(-0.025 * o, 0.25 * o, abs(w.z - clamp(0.5 * thickness + o, 0.025, 0.33)) - 0.01 - s)), dashes);
+        if (abs(a) - 0.15 < s)
+            d_iter = lerp(d_iter, min(d_iter, smoothstep(-0.05 + o, 0.5 * o, w.z - min(0.02, o) * (1.0 - a / 0.05) - 0.05 * s)), arrows);
+        if (abs(a + 0.42) - 0.25 < s)
+            d_iter = lerp(d_iter, min(d_iter, smoothstep(-0.05 + o, 0.5 * o, w.z - min(0.02, o) - s)), arrows);
+        col = lerp(c3, col - c3 * s, d_iter);
+    }
+    return col;
+}
+
+float4 render_hex_truch_warp(float2 uv)
+{
+    float scale = p0;
+    float rate = p1;
+    float motion = p2;
+    float thickness = p3;
+    float warp = p4;
+    float arrows = p5;
+    float dashes = p6;
+    float pulse = p7;
+
+    float T = anim_time * rate;
+    float2 uvn = 2.0 * uv - 1.0;
+    uvn.x *= 1.77777;
+    float2 m = float2(cos(0.01 * anim_time), sin(0.01 * anim_time));
+    uvn += m * (motion * abs(rate) * 0.1);
+    float2 tc = uvn * (10.0 / max(scale, 0.1));
+
+    float3 c1 = float3(0.2431, 0.0235, 0.2274);
+    float3 c2 = float3(0.1843, 0.1294, 0.5451);
+    float3 c3 = float3(0.5176, 0.7608, 0.1451);
+    float3 theme = get_base_theme_color();
+    c2 = lerp(c2, theme, 0.5);
+
+    float2 rot_warp = Rot2D_hlsl(float2(0.5 / 1080.0, (warp * (m.y - m.y) + length(m)) / max(scale, 0.1)), length(uvn) * 3.14159265) * warp;
+    float3 col = ShowScene_hlsl(tc + rot_warp, T, thickness, arrows, dashes, c1, c2, c3);
+    col *= (col + float3(1.75, 1.75, 1.75)) * 0.75;
+    col += theme * (bass_energy * pulse * 0.4);
+    return float4(saturate(col), 1.0);
+}
 )";
 
         // ---------------------------------------------------------------------
@@ -946,8 +1154,14 @@ float4 PSVisualizer(VertData v) : TARGET
         return render_mandala_scope(v.uv);
     } else if (visualizer_mode < 10.5) {
         return render_searching_light(v.uv);
-    } else {
+    } else if (visualizer_mode < 11.5) {
         return render_cube_field(v.uv);
+    } else if (visualizer_mode < 12.5) {
+        return render_electro_bands(v.uv);
+    } else if (visualizer_mode < 13.5) {
+        return render_globular_cluster(v.uv);
+    } else {
+        return render_hex_truch_warp(v.uv);
     }
 }
 

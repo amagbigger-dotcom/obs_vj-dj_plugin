@@ -105,10 +105,11 @@ bool TrackCache::load(const QString &media_file_path, TrackAnalysisResult &out_r
         out_res.vj_config.custom_color_g = static_cast<float>(vj_obj.value(QStringLiteral("color_g")).toDouble(-1.0));
         out_res.vj_config.custom_color_b = static_cast<float>(vj_obj.value(QStringLiteral("color_b")).toDouble(-1.0));
         out_res.vj_config.color_mod_mode = vj_obj.value(QStringLiteral("color_mod")).toInt(0);
+        out_res.vj_config.rgb_inverted = vj_obj.value(QStringLiteral("rgb_inverted")).toBool(false);
 
         if (vj_obj.contains(QStringLiteral("all_shaders"))) {
             QJsonObject all_s = vj_obj.value(QStringLiteral("all_shaders")).toObject();
-            for (int s = 0; s < 12; ++s) {
+            for (int s = 0; s < 16; ++s) {
                 const QString key = QString::number(s);
                 if (all_s.contains(key)) {
                     QJsonArray s_arr = all_s.value(key).toArray();
@@ -187,9 +188,10 @@ bool TrackCache::save(const QString &media_file_path, const TrackAnalysisResult 
         vj_obj.insert(QStringLiteral("color_g"), std::round(res.vj_config.custom_color_g * 1000.0) / 1000.0);
         vj_obj.insert(QStringLiteral("color_b"), std::round(res.vj_config.custom_color_b * 1000.0) / 1000.0);
         vj_obj.insert(QStringLiteral("color_mod"), res.vj_config.color_mod_mode);
+        vj_obj.insert(QStringLiteral("rgb_inverted"), res.vj_config.rgb_inverted);
 
         QJsonObject all_s;
-        for (int s = 0; s < 12; ++s) {
+        for (int s = 0; s < 16; ++s) {
             QJsonArray s_arr;
             for (int i = 0; i < 8; ++i) {
                 QJsonObject p_obj;
@@ -237,9 +239,10 @@ bool TrackCache::updateVjConfig(const QString &media_file_path, const VjDeckConf
     vj_obj.insert(QStringLiteral("color_g"), std::round(config.custom_color_g * 1000.0) / 1000.0);
     vj_obj.insert(QStringLiteral("color_b"), std::round(config.custom_color_b * 1000.0) / 1000.0);
     vj_obj.insert(QStringLiteral("color_mod"), config.color_mod_mode);
+    vj_obj.insert(QStringLiteral("rgb_inverted"), config.rgb_inverted);
 
     QJsonObject all_s;
-    for (int s = 0; s < 12; ++s) {
+    for (int s = 0; s < 16; ++s) {
         QJsonArray s_arr;
         for (int i = 0; i < 8; ++i) {
             QJsonObject p_obj;
