@@ -101,3 +101,11 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
   - `src/engine/engine_loop`: Ütemhelyes kvantált beat loop és ütemhossz számítások.
   - `src/engine/engine_buffer`: Pozíció- és sebességkonverziós segédosztály.
   - Számbilincselés: Szám betöltésekor a Master deck felismert tempója azonnal frissíti a Master Clockot is a keverőn.
+
+### Mérföldkő #8: Build #246 / GitHub Run #246 (4. Fázis: Mixer Ablak Modularizáció)
+* **Verzió & Commit:** `f6feccc`
+* **SHA256:** `850DCFBCB2D967A3AA37FB39F1BCAFA02027276D9178582EBAF005BB26824C6D`
+* **Jellemzők:** A monolitikus mixer ablak (`src/gui/mixer_window.cpp`) szétbontása önálló, célzott modulokba:
+  - `src/gui/mixer_channel`: Önálló `MixerChannelStrip` osztály csatornánkénti Gain, 3-sávos EQ (HI, MID, LOW), Filter, Headphone CUE, VIZ EQ, Volume fader, LED kivezérlésjelző és Volume FX vezérléssel.
+  - `src/gui/mixer_master`: Önálló `MixerMasterPanel` osztály Master Clock, TAP tempo, ± léptetők, Master BPM szerkesztő, Headphone monitor hangerő és CUE/Master mix, 13-féle Master Crossfader shader FX, 1080p FIT/FILL képméretező gomb és Crossfader kezeléssel.
+  - `src/gui/mixer_window`: 1032 sorról 265 sorra csökkent karcsúsított keretablak; a szigorú 590×340 px méret és a képernyő alsó közepére igazított elrendezés érintetlen maradt.
