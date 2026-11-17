@@ -39,6 +39,7 @@ public:
     void cancelActiveConversion();
     void loadLibraryJson();
     void saveLibraryJson();
+    void updateTrackBpm(const QString &file_path, double bpm);
     const std::vector<TrackItem>& tracks() const { return tracks_; }
 
 protected:
