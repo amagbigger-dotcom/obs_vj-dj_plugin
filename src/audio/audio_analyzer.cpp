@@ -85,6 +85,7 @@ TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path, bool fo
     result.overview_low   = std::move(wave_res.overview_low);
     result.overview_mid   = std::move(wave_res.overview_mid);
     result.overview_high  = std::move(wave_res.overview_high);
+    result.overview_tonus = std::move(wave_res.overview_tonus);
     result.detailed_peaks = std::move(wave_res.detailed_peaks);
     result.detailed_low   = std::move(wave_res.detailed_low);
     result.detailed_mid   = std::move(wave_res.detailed_mid);

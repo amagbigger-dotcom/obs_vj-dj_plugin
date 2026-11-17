@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QComboBox>
+#include <QColorDialog>
 #include <QSlider>
 #include <QScrollArea>
 #include <QFileInfo>
@@ -112,6 +113,78 @@ VjFxDialog::VjFxDialog(DeckPair *decks, QWidget *parent)
     shader_box_layout->addWidget(shader_combo_, 1);
     main_layout->addWidget(shader_box);
 
+    // Color & Modulation Frame
+    auto *color_box = new QFrame(this);
+    color_box->setStyleSheet(QStringLiteral("background: #141922; border: 1px solid #222b3a; border-radius: 4px; padding: 4px;"));
+    auto *color_box_layout = new QHBoxLayout(color_box);
+    color_box_layout->setContentsMargins(6, 3, 6, 3);
+    color_box_layout->setSpacing(6);
+
+    auto *color_lbl = new QLabel(QStringLiteral("Téma Szín:"), color_box);
+    color_lbl->setStyleSheet(QStringLiteral("font-size: 10px; font-weight: bold; color: #8da0b8;"));
+    color_box_layout->addWidget(color_lbl);
+
+    color_btn_ = new QPushButton(color_box);
+    color_btn_->setFixedHeight(22);
+    color_btn_->setFixedWidth(110);
+    color_btn_->setCursor(Qt::PointingHandCursor);
+    connect(color_btn_, &QPushButton::clicked, this, [this]() {
+        DeckPlayer *dp = currentDeck();
+        if (!dp) return;
+        VjDeckConfig cfg = dp->vjConfig();
+        QColor init_col(0, 210, 255);
+        if (cfg.custom_color_r >= 0.0f) {
+            init_col = QColor::fromRgbF(cfg.custom_color_r, cfg.custom_color_g, cfg.custom_color_b);
+        } else {
+            init_col = (current_deck_idx_ == 1) ? QColor(255, 120, 0) : QColor(0, 210, 255);
+        }
+        const QColor sel = QColorDialog::getColor(init_col, this, QStringLiteral("Válassz VJ Shader Színt"));
+        if (sel.isValid()) {
+            dp->setVjCustomColor(static_cast<float>(sel.redF()), static_cast<float>(sel.greenF()), static_cast<float>(sel.blueF()), cfg.color_mod_mode);
+            updateColorUi();
+        }
+    });
+    color_box_layout->addWidget(color_btn_);
+
+    auto *default_color_btn = new QPushButton(QStringLiteral("↺ Alap"), color_box);
+    default_color_btn->setFixedHeight(22);
+    default_color_btn->setFixedWidth(50);
+    default_color_btn->setToolTip(QStringLiteral("Visszaállítás az eredeti Deck színre"));
+    default_color_btn->setStyleSheet(QStringLiteral("QPushButton { background: #202735; color: #9bb; font-size: 9px; padding: 1px 4px; }"));
+    connect(default_color_btn, &QPushButton::clicked, this, [this]() {
+        if (DeckPlayer *dp = currentDeck()) {
+            VjDeckConfig cfg = dp->vjConfig();
+            dp->setVjCustomColor(-1.0f, -1.0f, -1.0f, cfg.color_mod_mode);
+            updateColorUi();
+        }
+    });
+    color_box_layout->addWidget(default_color_btn);
+
+    auto *mod_lbl = new QLabel(QStringLiteral("Moduláció:"), color_box);
+    mod_lbl->setStyleSheet(QStringLiteral("font-size: 10px; font-weight: bold; color: #8da0b8; margin-left: 6px;"));
+    color_box_layout->addWidget(mod_lbl);
+
+    color_mod_combo_ = new QComboBox(color_box);
+    color_mod_combo_->setFixedHeight(22);
+    color_mod_combo_->setStyleSheet(QStringLiteral(
+        "QComboBox { background: #1c2534; color: #fff; border: 1px solid #334460; font-size: 9px; font-weight: bold; padding: 1px 4px; border-radius: 3px; } "
+        "QComboBox::drop-down { border: none; } "
+        "QComboBox QAbstractItemView { background: #141a24; color: #fff; selection-background-color: #0077aa; }"));
+    color_mod_combo_->addItem(QStringLiteral("🔒 Fix Szín"), 0);
+    color_mod_combo_->addItem(QStringLiteral("🥁 Lábdob Pulzus"), 1);
+    color_mod_combo_->addItem(QStringLiteral("📈 Zenei Tónus"), 2);
+    color_mod_combo_->addItem(QStringLiteral("🌈 Színkör"), 3);
+
+    connect(color_mod_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+        if (DeckPlayer *dp = currentDeck()) {
+            VjDeckConfig cfg = dp->vjConfig();
+            dp->setVjCustomColor(cfg.custom_color_r, cfg.custom_color_g, cfg.custom_color_b, idx);
+        }
+    });
+    color_box_layout->addWidget(color_mod_combo_, 1);
+
+    main_layout->addWidget(color_box);
+
     // Scrollable Parameters Container
     auto *scroll_area = new QScrollArea(this);
     scroll_area->setWidgetResizable(true);
@@ -141,6 +214,7 @@ VjFxDialog::VjFxDialog(DeckPair *decks, QWidget *parent)
         if (DeckPlayer *dp = currentDeck()) {
             int s_idx = shader_combo_->currentIndex();
             dp->setVjConfig(getDefaultVjConfig(s_idx));
+            updateColorUi();
             rebuildParamControls();
         }
     });
@@ -210,7 +284,39 @@ void VjFxDialog::selectDeck(int deck_idx)
         shader_combo_->setCurrentIndex(std::clamp(cfg.shader_idx, 0, max_idx));
     }
 
+    updateColorUi();
     rebuildParamControls();
+}
+
+void VjFxDialog::updateColorUi()
+{
+    DeckPlayer *dp = currentDeck();
+    if (!dp || !color_btn_ || !color_mod_combo_)
+        return;
+
+    const VjDeckConfig cfg = dp->vjConfig();
+    const bool is_deck_b = (current_deck_idx_ == 1);
+    QColor c(0, 210, 255);
+    QString label_text;
+    if (cfg.custom_color_r >= 0.0f) {
+        c = QColor::fromRgbF(std::clamp(cfg.custom_color_r, 0.0f, 1.0f),
+                             std::clamp(cfg.custom_color_g, 0.0f, 1.0f),
+                             std::clamp(cfg.custom_color_b, 0.0f, 1.0f));
+        label_text = c.name().toUpper();
+    } else {
+        c = is_deck_b ? QColor(255, 120, 0) : QColor(0, 210, 255);
+        label_text = is_deck_b ? QStringLiteral("Deck B (Narancs)") : QStringLiteral("Deck A (Kék)");
+    }
+
+    const QString text_col = (c.lightness() > 140) ? QStringLiteral("#000") : QStringLiteral("#fff");
+    color_btn_->setText(label_text);
+    color_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background-color: %1; color: %2; border: 1px solid #556677; font-weight: bold; font-size: 9px; border-radius: 3px; } "
+        "QPushButton:hover { border: 1px solid #ffffff; }"
+    ).arg(c.name(), text_col));
+
+    const QSignalBlocker blocker(color_mod_combo_);
+    color_mod_combo_->setCurrentIndex(std::clamp(cfg.color_mod_mode, 0, 3));
 }
 
 void VjFxDialog::rebuildParamControls()

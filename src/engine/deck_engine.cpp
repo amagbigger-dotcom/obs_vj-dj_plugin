@@ -216,12 +216,15 @@ void DeckPlayer::loadFile(const QString &path)
             setWaveformSamples(res.overview_peaks, res.detailed_peaks);
             setSpectralSamples(res.overview_low, res.overview_mid, res.overview_high,
                                res.detailed_low, res.detailed_mid, res.detailed_high);
+            setTonusSamples(res.overview_tonus);
             if (!res.audio_pcm_l.empty() && !res.audio_pcm_r.empty()) {
                 setAudioBuffer(std::move(res.audio_pcm_l), std::move(res.audio_pcm_r), res.audio_sample_rate);
             }
             if (res.has_vj_config) {
                 std::lock_guard<std::mutex> lock(vj_config_mutex_);
                 vj_config_ = res.vj_config;
+                const int s = std::clamp(vj_config_.shader_idx, 0, 11);
+                vj_config_.all_shader_params[s] = vj_config_.params;
             }
         }
     });
@@ -456,7 +459,7 @@ void DeckPlayer::seekMs(int64_t ms)
             sola_out_r_.clear();
             sola_last_grain_l_.clear();
             sola_last_grain_r_.clear();
-            sola_out_read_idx_ = 0;
+            sola_out_read_pos_ = 0.0;
         }
     }
     if (source_) {
@@ -619,6 +622,37 @@ void DeckPlayer::setSpectralSamples(const std::vector<float> &ov_low, const std:
     has_spectral_ = (!overview_low_.empty() && !overview_mid_.empty() && !overview_high_.empty());
 }
 
+void DeckPlayer::setTonusSamples(const std::vector<float> &tonus)
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    overview_tonus_ = tonus;
+}
+
+std::vector<float> DeckPlayer::overviewTonus() const
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    return overview_tonus_;
+}
+
+float DeckPlayer::currentMacroTonus() const noexcept
+{
+    std::lock_guard<std::mutex> lock(waveform_mutex_);
+    if (overview_tonus_.empty()) {
+        return 0.5f;
+    }
+    const int64_t dur = durationMs();
+    if (dur <= 0) {
+        return 0.5f;
+    }
+    const int64_t cur = currentTimeMs();
+    const double ratio = std::clamp(static_cast<double>(cur) / static_cast<double>(dur), 0.0, 1.0);
+    const double pos = ratio * static_cast<double>(overview_tonus_.size() - 1);
+    const size_t idx0 = static_cast<size_t>(pos);
+    const size_t idx1 = std::min(idx0 + 1, overview_tonus_.size() - 1);
+    const float frac = static_cast<float>(pos - static_cast<double>(idx0));
+    return (1.0f - frac) * overview_tonus_[idx0] + frac * overview_tonus_[idx1];
+}
+
 std::vector<float> DeckPlayer::overviewSamples() const
 {
     std::lock_guard<std::mutex> lock(waveform_mutex_);
@@ -754,6 +788,8 @@ void DeckPlayer::setVjParamValue(int param_idx, float val) noexcept
         {
             std::lock_guard<std::mutex> lock(vj_config_mutex_);
             vj_config_.params[param_idx].value = val;
+            const int s = std::clamp(vj_config_.shader_idx, 0, 11);
+            vj_config_.all_shader_params[s][param_idx].value = val;
         }
         saveVjConfigToCache();
     }
@@ -765,6 +801,8 @@ void DeckPlayer::setVjParamMod(int param_idx, int mod) noexcept
         {
             std::lock_guard<std::mutex> lock(vj_config_mutex_);
             vj_config_.params[param_idx].mod_mode = mod;
+            const int s = std::clamp(vj_config_.shader_idx, 0, 11);
+            vj_config_.all_shader_params[s][param_idx].mod_mode = mod;
         }
         saveVjConfigToCache();
     }
@@ -772,11 +810,30 @@ void DeckPlayer::setVjParamMod(int param_idx, int mod) noexcept
 
 void DeckPlayer::setVjShaderIdx(int idx) noexcept
 {
+    const int new_s = std::clamp(idx, 0, 11);
     {
         std::lock_guard<std::mutex> lock(vj_config_mutex_);
-        if (vj_config_.shader_idx != idx) {
-            vj_config_ = getDefaultVjConfig(idx);
+        if (vj_config_.shader_idx != new_s) {
+            const int old_s = std::clamp(vj_config_.shader_idx, 0, 11);
+            // 1. Save current active params into old shader slot
+            vj_config_.all_shader_params[old_s] = vj_config_.params;
+            // 2. Switch shader index
+            vj_config_.shader_idx = new_s;
+            // 3. Restore per-shader customized params
+            vj_config_.params = vj_config_.all_shader_params[new_s];
         }
+    }
+    saveVjConfigToCache();
+}
+
+void DeckPlayer::setVjCustomColor(float r, float g, float b, int mod_mode) noexcept
+{
+    {
+        std::lock_guard<std::mutex> lock(vj_config_mutex_);
+        vj_config_.custom_color_r = r;
+        vj_config_.custom_color_g = g;
+        vj_config_.custom_color_b = b;
+        vj_config_.color_mod_mode = mod_mode;
     }
     saveVjConfigToCache();
 }
@@ -797,6 +854,8 @@ void DeckPlayer::loadVjConfigFromCache()
     if (AudioAnalyzer::loadCache(fp, res) && res.has_vj_config) {
         std::lock_guard<std::mutex> lock(vj_config_mutex_);
         vj_config_ = res.vj_config;
+        const int s = std::clamp(vj_config_.shader_idx, 0, 11);
+        vj_config_.all_shader_params[s] = vj_config_.params;
     }
 }
 
@@ -1060,6 +1119,11 @@ void DeckPlayer::updateLoop()
         }
     }
 
+    const int64_t loop_video_seek = pending_loop_video_seek_ms_.exchange(-1, std::memory_order_acq_rel);
+    if (loop_video_seek >= 0 && source_) {
+        obs_source_media_set_time(source_, static_cast<uint64_t>(loop_video_seek));
+    }
+
     // 2. Seamless Auto-Loop execution with seek debounce
     if (!isLooping()) {
         return;
@@ -1262,7 +1326,7 @@ void DeckPlayer::clearAudioBuffer()
     sola_out_r_.clear();
     sola_last_grain_l_.clear();
     sola_last_grain_r_.clear();
-    sola_out_read_idx_ = 0;
+    sola_out_read_pos_ = 0.0;
 }
 
 size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, uint32_t out_sr)
@@ -1300,13 +1364,12 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
     const double loop_start_sample = (static_cast<double>(loop_start_ms) * static_cast<double>(audio_sample_rate_)) / 1000.0;
     const double loop_end_sample = (static_cast<double>(loop_end_ms) * static_cast<double>(audio_sample_rate_)) / 1000.0;
 
-    bool did_loop_wrap = false;
-
     const bool key_lock_active = key_lock_.load(std::memory_order_relaxed);
+    const bool is_near_unity = std::abs(speed_ratio - 1.0) < 0.0005;
 
-    if (key_lock_active) {
+    if (key_lock_active && !is_near_unity) {
         // Professzionális WSOLA (Waveform Similarity Overlap-Add) Time-Stretching
-        // Valós idejű hangmagasság-tartás recsegés és kattogás nélkül
+        // Valós idejű hangmagasság-tartás recsegés és frekvencia-elcsúszás nélkül
         const size_t W = 1024;
         const size_t O = 512;
         const size_t H_s = 512;
@@ -1324,22 +1387,24 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
             sola_in_pos_ = static_cast<double>(p0 + O);
             sola_out_l_.clear();
             sola_out_r_.clear();
-            sola_out_read_idx_ = 0;
+            sola_out_read_pos_ = 0.0;
             sola_initialized_ = true;
         }
 
+        // Resampling lépés az audio mintavételezésről (pl. 44.1k) az OBS kimenetre (pl. 48.0k)
+        const double sr_step = static_cast<double>(audio_sample_rate_) / static_cast<double>(out_sr);
+        const double needed_sola_samples = static_cast<double>(frames) * sr_step + 4.0;
+
         // Generálunk WSOLA szemcséket, amíg nincs elég minta az out pufferben
-        while ((sola_out_l_.size() - sola_out_read_idx_) < frames) {
+        while ((static_cast<double>(sola_out_l_.size()) - sola_out_read_pos_) < needed_sola_samples) {
             // Varratmentes kattogásmentes loop visszaugrás (Seamless Loop Wrap)
             if (looping && loop_end_sample > loop_start_sample + 100.0) {
                 if (sola_in_pos_ >= loop_end_sample) {
                     const double overshoot = sola_in_pos_ - loop_end_sample;
                     sola_in_pos_ = loop_start_sample + overshoot;
                     playback_sample_pos_ = sola_in_pos_;
-                    // Megőrizzük sola_last_grain tartalmát a loop végéről, így a következő
-                    // 512 mintás Hann ablak észrevétlenül, kattanásmentesen átfedi a loop végét és elejét!
-                    sola_prev_in_pos_ = static_cast<int64_t>(loop_start_sample) - static_cast<int64_t>(H_s);
-                    did_loop_wrap = true;
+                    sola_prev_in_pos_ = static_cast<int64_t>(loop_start_sample);
+                    pending_loop_video_seek_ms_.store(loop_start_ms, std::memory_order_release);
                 }
             }
 
@@ -1358,7 +1423,6 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
             float min_diff = 1e12f;
 
             // Fázisillesztés keresése Sum of Absolute Differences (SAD) segítségével
-            // Ez immunis a hangerőcsúcsokra (pl. lábdob tranziensek), és pontos fázisátfedést ad
             for (int k = -K_max; k <= K_max; k += 2) {
                 const int64_t cand = p_target + k;
                 if (cand < 0 || cand + static_cast<int64_t>(O) >= static_cast<int64_t>(total_samples))
@@ -1401,39 +1465,52 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
             }
 
             sola_prev_in_pos_ = p_actual;
-            sola_in_pos_ += static_cast<double>(H_s) * step;
+            sola_in_pos_ += static_cast<double>(H_s) * speed_ratio;
             playback_sample_pos_ = sola_in_pos_;
         }
 
-        // Másoljuk a szükséges kimeneti mintákat
-        size_t available = (sola_out_l_.size() > sola_out_read_idx_) ? (sola_out_l_.size() - sola_out_read_idx_) : 0;
-        size_t take = std::min(frames, available);
-        for (size_t i = 0; i < take; ++i) {
-            out_l[i] = sola_out_l_[sola_out_read_idx_ + i];
-            out_r[i] = sola_out_r_[sola_out_read_idx_ + i];
-        }
-        sola_out_read_idx_ += take;
-        for (size_t i = take; i < frames; ++i) {
-            out_l[i] = 0.0f;
-            out_r[i] = 0.0f;
+        // Másoljuk a szükséges kimeneti mintákat lineáris interpolációval 44.1k -> 48k
+        for (size_t i = 0; i < frames; ++i) {
+            const size_t idx0 = static_cast<size_t>(sola_out_read_pos_);
+            if (idx0 + 1 < sola_out_l_.size()) {
+                const double frac = sola_out_read_pos_ - static_cast<double>(idx0);
+                out_l[i] = static_cast<float>((1.0 - frac) * sola_out_l_[idx0] + frac * sola_out_l_[idx0 + 1]);
+                out_r[i] = static_cast<float>((1.0 - frac) * sola_out_r_[idx0] + frac * sola_out_r_[idx0 + 1]);
+            } else if (idx0 < sola_out_l_.size()) {
+                out_l[i] = sola_out_l_[idx0];
+                out_r[i] = sola_out_r_[idx0];
+            } else {
+                out_l[i] = 0.0f;
+                out_r[i] = 0.0f;
+            }
+            sola_out_read_pos_ += sr_step;
         }
 
         // Periodikus puffer-tisztítás memóriafelhalmozódás ellen
-        if (sola_out_read_idx_ > 4096) {
-            sola_out_l_.erase(sola_out_l_.begin(), sola_out_l_.begin() + sola_out_read_idx_);
-            sola_out_r_.erase(sola_out_r_.begin(), sola_out_r_.begin() + sola_out_read_idx_);
-            sola_out_read_idx_ = 0;
+        if (sola_out_read_pos_ > 4096.0) {
+            const size_t drop = static_cast<size_t>(sola_out_read_pos_);
+            sola_out_l_.erase(sola_out_l_.begin(), sola_out_l_.begin() + drop);
+            sola_out_r_.erase(sola_out_r_.begin(), sola_out_r_.begin() + drop);
+            sola_out_read_pos_ -= static_cast<double>(drop);
         }
     } else {
-        // Hagyományos vinil/szalag varispeed (sebességgel arányos pitch váltás)
+        // Ha visszatértünk 1.0x sebességre, a WSOLA puffert alaphelyzetbe állítjuk
+        if (sola_initialized_) {
+            sola_initialized_ = false;
+            sola_out_l_.clear();
+            sola_out_r_.clear();
+            sola_out_read_pos_ = 0.0;
+        }
+
+        // Hagyományos vinil/szalag varispeed és 1.0x bit-perfect tiszta lejátszás
         for (size_t i = 0; i < frames; ++i) {
             if (looping && loop_end_sample > loop_start_sample + 100.0) {
                 if (playback_sample_pos_ >= loop_end_sample) {
                     loop_fade_old_pos_ = playback_sample_pos_;
                     playback_sample_pos_ = loop_start_sample + (playback_sample_pos_ - loop_end_sample);
-                    loop_fade_rem_samples_ = std::max(256, static_cast<int>(audio_sample_rate_ * 10 / 1000)); // 10 ms sima átfedés
+                    loop_fade_rem_samples_ = std::max(256, static_cast<int>(audio_sample_rate_ * 15 / 1000)); // 15 ms lágy átfedés
                     loop_fade_total_samples_ = loop_fade_rem_samples_;
-                    did_loop_wrap = true;
+                    pending_loop_video_seek_ms_.store(loop_start_ms, std::memory_order_release);
                 }
             }
 
@@ -1461,8 +1538,9 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
                     const float old_r = static_cast<float>((1.0 - old_frac) * audio_pcm_r_[old_idx] + old_frac * audio_pcm_r_[old_idx + 1]);
 
                     const float phase = static_cast<float>(loop_fade_total_samples_ - loop_fade_rem_samples_) / static_cast<float>(loop_fade_total_samples_);
-                    const float fade_in = 0.5f * (1.0f - std::cos(3.14159265f * phase));
-                    const float fade_out = 1.0f - fade_in;
+                    // Equal-power crossfade (kattanásmentes, energiát megőrző átmenet)
+                    const float fade_in = std::sin(phase * 1.5707963f);
+                    const float fade_out = std::cos(phase * 1.5707963f);
                     sample_l = sample_l * fade_in + old_l * fade_out;
                     sample_r = sample_r * fade_in + old_r * fade_out;
                     loop_fade_old_pos_ += step;
@@ -1475,11 +1553,6 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
 
             playback_sample_pos_ += step;
         }
-    }
-
-    if (did_loop_wrap && source_) {
-        // A videó forrás háttérbeli igazítása a loop elejére (Sync video in background)
-        obs_source_media_set_time(source_, static_cast<uint64_t>(loop_start_ms));
     }
 
     return frames;

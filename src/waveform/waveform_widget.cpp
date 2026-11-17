@@ -366,14 +366,17 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
         const std::vector<float> ov_low = deck_->overviewLow();
         const std::vector<float> ov_mid = deck_->overviewMid();
         const std::vector<float> ov_high = deck_->overviewHigh();
+        const std::vector<float> ov_tonus = deck_->overviewTonus();
         const bool has_spec = deck_->hasSpectralData() && !ov_low.empty() && !ov_mid.empty() && !ov_high.empty();
+        const bool has_tonus = !ov_tonus.empty();
 
         // Draw clear dynamic audio waveform across the full width with 3-band spectral coloring
         for (int ox = 0; ox < w; ++ox) {
             const double norm = static_cast<double>(ox) / static_cast<double>(w);
             const size_t s_idx = static_cast<size_t>(norm * (overview.size() - 1));
             const float amp = overview[s_idx];
-            const int bar_h = static_cast<int>(amp * (kOverviewHeight / 2 - 2));
+            const int bar_h = static_cast<int>(amp * (kOverviewHeight / 2 - 4));
+            const float tonus = has_tonus ? ov_tonus[std::min<size_t>(static_cast<size_t>(norm * (ov_tonus.size() - 1)), ov_tonus.size() - 1)] : 0.5f;
 
             if (has_spec) {
                 const size_t sp_idx = static_cast<size_t>(norm * (ov_low.size() - 1));
@@ -390,9 +393,11 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
                 const float wm = pow_m / weight_sum;
                 const float wh = pow_h / weight_sum;
 
-                const int red   = static_cast<int>(std::clamp(wl * 0.0f   + wm * 255.0f + wh * 0.0f,   0.0f, 255.0f));
-                const int green = static_cast<int>(std::clamp(wl * 70.0f  + wm * 160.0f + wh * 240.0f, 0.0f, 255.0f));
-                const int blue  = static_cast<int>(std::clamp(wl * 255.0f + wm * 0.0f   + wh * 255.0f, 0.0f, 255.0f));
+                // Modulate warmth and saturation with the smooth macroscopic tonus progression
+                const float ton_warmth = std::clamp((tonus - 0.40f) * 1.6f, 0.0f, 1.0f);
+                const int red   = static_cast<int>(std::clamp(wl * 0.0f   + wm * 255.0f + wh * 0.0f   + ton_warmth * 45.0f, 0.0f, 255.0f));
+                const int green = static_cast<int>(std::clamp(wl * 70.0f  + wm * 160.0f + wh * 240.0f - ton_warmth * 25.0f, 0.0f, 255.0f));
+                const int blue  = static_cast<int>(std::clamp(wl * 255.0f + wm * 0.0f   + wh * 255.0f - ton_warmth * 65.0f, 0.0f, 255.0f));
 
                 const QColor spec_outer(red, green, blue, 220);
                 p.setPen(QPen(spec_outer, 1));
@@ -426,6 +431,14 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
                     p.drawLine(ox, ov_center_y - bar_h / 3, ox, ov_center_y + bar_h / 3);
                 }
             }
+
+            // Sleek Macroscopic Tonus (Build-Up) Indicator Ribbon along the bottom of the overview bar
+            const int ton_h = std::clamp(static_cast<int>(tonus * 3.5f), 1, 3);
+            const int ton_r = static_cast<int>(std::clamp(tonus * 255.0f, 0.0f, 255.0f));
+            const int ton_g = static_cast<int>(std::clamp((1.0f - std::abs(tonus - 0.5f) * 2.0f) * 220.0f, 0.0f, 255.0f));
+            const int ton_b = static_cast<int>(std::clamp((1.0f - tonus) * 255.0f, 0.0f, 255.0f));
+            p.setPen(QPen(QColor(ton_r, ton_g, ton_b, 200), 1));
+            p.drawLine(ox, ov_top + kOverviewHeight - 1 - ton_h, ox, ov_top + kOverviewHeight - 1);
         }
 
         // Played progress tint
@@ -627,15 +640,51 @@ WaveformWidget::WaveformWidget(DeckPlayer *deck, bool is_deck_a, QWidget *parent
     header_layout->addWidget(bpm_label_);
 
     edit_bpm_btn_ = new QPushButton(QStringLiteral("edit"), header_frame);
-    edit_bpm_btn_->setFixedSize(36, 22);
+    edit_bpm_btn_->setFixedSize(32, 22);
     edit_bpm_btn_->setStyleSheet(QStringLiteral(
         "QPushButton { background: #1c222c; color: #a0abbd; border: 1px solid #2e3848; border-radius: 2px; font-size: 10px; font-weight: bold; } "
         "QPushButton:hover { background: #2a3444; color: #fff; }"));
     edit_bpm_btn_->setToolTip(QStringLiteral("Manually edit exact BPM value"));
     header_layout->addWidget(edit_bpm_btn_);
 
+    auto *half_bpm_btn = new QPushButton(QStringLiteral("/2"), header_frame);
+    half_bpm_btn->setFixedSize(26, 22);
+    half_bpm_btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c222c; color: #a0abbd; border: 1px solid #2e3848; border-radius: 2px; font-size: 10px; font-weight: bold; } "
+        "QPushButton:hover { background: #2a3444; color: #fff; }"));
+    half_bpm_btn->setToolTip(QStringLiteral("BPM Felezése (/2)"));
+    connect(half_bpm_btn, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        const double cur = deck_->bpm();
+        if (cur > 60.0) {
+            const double val = std::round((cur / 2.0) * 100.0) / 100.0;
+            deck_->setBpm(val);
+            emit bpmChanged(val);
+            refreshWaveform();
+        }
+    });
+    header_layout->addWidget(half_bpm_btn);
+
+    auto *double_bpm_btn = new QPushButton(QStringLiteral("×2"), header_frame);
+    double_bpm_btn->setFixedSize(26, 22);
+    double_bpm_btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c222c; color: #a0abbd; border: 1px solid #2e3848; border-radius: 2px; font-size: 10px; font-weight: bold; } "
+        "QPushButton:hover { background: #2a3444; color: #fff; }"));
+    double_bpm_btn->setToolTip(QStringLiteral("BPM Duplázása (×2)"));
+    connect(double_bpm_btn, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        const double cur = deck_->bpm();
+        if (cur > 20.0 && cur < 150.0) {
+            const double val = std::round((cur * 2.0) * 100.0) / 100.0;
+            deck_->setBpm(val);
+            emit bpmChanged(val);
+            refreshWaveform();
+        }
+    });
+    header_layout->addWidget(double_bpm_btn);
+
     tap_btn_ = new QPushButton(QStringLiteral("TAP"), header_frame);
-    tap_btn_->setFixedSize(36, 22);
+    tap_btn_->setFixedSize(32, 22);
     tap_btn_->setStyleSheet(QStringLiteral(
         "QPushButton { background: #1c222c; color: #ffffff; border: 1px solid #2e3848; border-radius: 2px; font-size: 10px; font-weight: bold; } "
         "QPushButton:hover { background: #2a3444; } "

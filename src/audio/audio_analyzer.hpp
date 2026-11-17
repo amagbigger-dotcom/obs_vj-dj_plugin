@@ -21,6 +21,7 @@ struct TrackAnalysisResult {
     std::vector<float> overview_low;     // Low frequencies (<250Hz, Bass/Kick)
     std::vector<float> overview_mid;     // Mid frequencies (250Hz - 2.5kHz, Vocals/Snare)
     std::vector<float> overview_high;    // High frequencies (>2.5kHz, Hats/Air)
+    std::vector<float> overview_tonus;   // Lassú makro-struktúra zenei tónus és fokozódás [0.0 .. 1.0]
     std::vector<float> detailed_peaks;   // 100 points/sec (10ms resolution) for compact high-res scrolling wave
     std::vector<float> detailed_low;     // Detailed 100pts/sec Low
     std::vector<float> detailed_mid;     // Detailed 100pts/sec Mid

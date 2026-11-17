@@ -80,10 +80,12 @@ public:
     void setWaveformSamples(const std::vector<float> &overview, const std::vector<float> &detailed);
     void setSpectralSamples(const std::vector<float> &ov_low, const std::vector<float> &ov_mid, const std::vector<float> &ov_high,
                             const std::vector<float> &det_low, const std::vector<float> &det_mid, const std::vector<float> &det_high);
+    void setTonusSamples(const std::vector<float> &tonus);
     std::vector<float> overviewSamples() const;
     std::vector<float> overviewLow() const;
     std::vector<float> overviewMid() const;
     std::vector<float> overviewHigh() const;
+    std::vector<float> overviewTonus() const;
     std::vector<float> detailedSamples() const;
     std::vector<float> detailedLow() const;
     std::vector<float> detailedMid() const;
@@ -91,6 +93,7 @@ public:
     std::vector<float> waveformSamples() const;
     bool hasAnalyzedWaveform() const;
     bool hasSpectralData() const;
+    float currentMacroTonus() const noexcept;
 
     void setEqHi(float val) noexcept;
     void setEqMid(float val) noexcept;
@@ -158,6 +161,7 @@ public:
     void setVjParamValue(int param_idx, float val) noexcept;
     void setVjParamMod(int param_idx, int mod) noexcept;
     void setVjShaderIdx(int idx) noexcept;
+    void setVjCustomColor(float r, float g, float b, int mod_mode) noexcept;
     void saveVjConfigToCache();
     void loadVjConfigFromCache();
 
@@ -252,11 +256,12 @@ private:
     double loop_fade_old_pos_ = 0.0;
     int loop_fade_rem_samples_ = 0;
     int loop_fade_total_samples_ = 0;
+    std::atomic<int64_t> pending_loop_video_seek_ms_{-1};
     std::vector<float> sola_out_l_;
     std::vector<float> sola_out_r_;
     std::vector<float> sola_last_grain_l_;
     std::vector<float> sola_last_grain_r_;
-    size_t sola_out_read_idx_ = 0;
+    double sola_out_read_pos_ = 0.0;
     int64_t sola_prev_in_pos_ = 0;
     double sola_in_pos_ = 0.0;
     bool sola_initialized_ = false;
@@ -268,6 +273,7 @@ private:
     std::vector<float> overview_low_;
     std::vector<float> overview_mid_;
     std::vector<float> overview_high_;
+    std::vector<float> overview_tonus_;
     std::vector<float> detailed_samples_;
     std::vector<float> detailed_low_;
     std::vector<float> detailed_mid_;

@@ -23,12 +23,21 @@ struct VjShaderDef {
 
 struct VjParamConfig {
     float value = 1.0f;
-    int mod_mode = 0; // 0: Kézi (Manual/Off), 1: Zene Üteme (Beat Pulse), 2: Tónusos (Spectral), 3: Mindkettő (Both)
+    int mod_mode = 0; // 0: Kézi (Manual/Off), 1: Zene Üteme (Beat Pulse), 2: Tónusos (Macro-Build-up), 3: Mindkettő (Both)
 };
 
 struct VjDeckConfig {
     int shader_idx = 0;
+    // Mind a 12 shader egyedi potméter-beállításai külön-külön eltárolva
+    std::array<std::array<VjParamConfig, 8>, 12> all_shader_params;
+    // Az éppen aktív shader paraméterei
     std::array<VjParamConfig, 8> params;
+
+    // Egyedi színbeállítások (szabadon módosítható, nem kötelező a deck-színhez rendelni)
+    float custom_color_r = -1.0f; // -1.0 = Alapértelmezett Deck szín, 0.0..1.0 = Egyedi szín
+    float custom_color_g = -1.0f;
+    float custom_color_b = -1.0f;
+    int color_mod_mode = 0; // 0: Fix, 1: Beat Pulse (Kick), 2: Zenei Tónus (Macro-Build-up), 3: Színkör (Rainbow)
 };
 
 inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
@@ -177,18 +186,28 @@ inline VjDeckConfig getDefaultVjConfig(int shader_idx) {
     VjDeckConfig cfg;
     cfg.shader_idx = std::clamp(shader_idx, 0, 11);
     const auto &defs = getVjShaderDefinitions();
-    if (cfg.shader_idx >= 0 && cfg.shader_idx < static_cast<int>(defs.size())) {
-        const auto &p_defs = defs[cfg.shader_idx].params;
-        for (size_t i = 0; i < p_defs.size() && i < 8; ++i) {
-            cfg.params[i].value = p_defs[i].def_val;
-            cfg.params[i].mod_mode = 0;
+    for (size_t s = 0; s < 12 && s < defs.size(); ++s) {
+        const auto &p_defs = defs[s].params;
+        for (size_t i = 0; i < 8; ++i) {
+            if (i < p_defs.size()) {
+                cfg.all_shader_params[s][i].value = p_defs[i].def_val;
+                cfg.all_shader_params[s][i].mod_mode = 0;
+            } else {
+                cfg.all_shader_params[s][i].value = 0.0f;
+                cfg.all_shader_params[s][i].mod_mode = 0;
+            }
         }
     }
+    cfg.params = cfg.all_shader_params[cfg.shader_idx];
+    cfg.custom_color_r = -1.0f;
+    cfg.custom_color_g = -1.0f;
+    cfg.custom_color_b = -1.0f;
+    cfg.color_mod_mode = 0;
     return cfg;
 }
 
 inline float computeEffectiveParam(const VjParamDef &def, float base_val, int mod_mode,
-                                   float bass_energy, float tone_balance)
+                                   float bass_energy, float tone_balance, float macro_tonus = 0.5f)
 {
     float val = base_val;
     const float span = def.max_val - def.min_val;
@@ -196,11 +215,84 @@ inline float computeEffectiveParam(const VjParamDef &def, float base_val, int mo
         // Beat / Kick pulse modulation (lábdob leütésre tágul / lüktet)
         val += (bass_energy - 0.20f) * (span * 0.40f);
     } else if (mod_mode == 2) {
-        // Tone / Spectral balance modulation (magashang vs mélyhang arány)
-        val += (tone_balance - 0.50f) * (span * 0.45f);
+        // Zenei tónus és lassú építkezés (fokozódás a dropig)
+        val += (macro_tonus - 0.50f) * (span * 0.55f);
     } else if (mod_mode == 3) {
-        // Both Beat + Tone
-        val += (bass_energy - 0.20f) * (span * 0.25f) + (tone_balance - 0.50f) * (span * 0.25f);
+        // Mindkettő: Beat + Macro-Tonus
+        val += (bass_energy - 0.20f) * (span * 0.25f) + (macro_tonus - 0.50f) * (span * 0.35f);
     }
     return std::clamp(val, def.min_val, def.max_val);
+}
+
+inline void computeThemeColor(const VjDeckConfig &cfg, bool is_deck_b, float anim_time, float bpm,
+                              float bass_energy, float macro_tonus,
+                              float &out_r, float &out_g, float &out_b, float &out_active)
+{
+    float r = is_deck_b ? 1.0f : 0.0f;
+    float g = is_deck_b ? 0.45f : 0.8f;
+    float b = is_deck_b ? 0.0f : 1.0f;
+    const bool is_custom = (cfg.custom_color_r >= 0.0f && cfg.custom_color_g >= 0.0f && cfg.custom_color_b >= 0.0f);
+    if (is_custom) {
+        r = std::clamp(cfg.custom_color_r, 0.0f, 1.0f);
+        g = std::clamp(cfg.custom_color_g, 0.0f, 1.0f);
+        b = std::clamp(cfg.custom_color_b, 0.0f, 1.0f);
+    }
+
+    if (!is_custom && cfg.color_mod_mode == 0) {
+        out_r = r;
+        out_g = g;
+        out_b = b;
+        out_active = 0.0f; // Alapértelmezett Deck A (Kék) / Deck B (Narancs) shader téma
+        return;
+    }
+
+    out_active = 1.0f; // Egyedi szín vagy zenei moduláció aktív
+
+    switch (cfg.color_mod_mode) {
+    case 1: { // 🥁 Kick / Basszus pulzus (lüktetés a lábdob energiájára)
+        const float pulse = 0.60f + 0.80f * std::clamp(bass_energy, 0.0f, 1.0f);
+        out_r = std::clamp(r * pulse, 0.0f, 1.0f);
+        out_g = std::clamp(g * pulse, 0.0f, 1.0f);
+        out_b = std::clamp(b * pulse, 0.0f, 1.0f);
+        break;
+    }
+    case 2: { // 📈 Zenei Tónus / Felépülés (átmenet a hűvös kiállásból a tüzes dropig)
+        const float t = std::clamp(macro_tonus, 0.0f, 1.0f);
+        const float cool_r = 0.0f, cool_g = 0.5f, cool_b = 1.0f;
+        const float hot_r  = 1.0f, hot_g  = 0.2f, hot_b  = 0.05f;
+        if (is_custom) {
+            const float factor = 0.45f + 0.75f * t;
+            out_r = std::clamp(r * factor + (1.0f - r) * t * 0.35f, 0.0f, 1.0f);
+            out_g = std::clamp(g * factor, 0.0f, 1.0f);
+            out_b = std::clamp(b * (1.15f - 0.4f * t), 0.0f, 1.0f);
+        } else {
+            out_r = (1.0f - t) * cool_r + t * hot_r;
+            out_g = (1.0f - t) * cool_g + t * hot_g;
+            out_b = (1.0f - t) * cool_b + t * hot_b;
+        }
+        break;
+    }
+    case 3: { // 🌈 Színkör Ciklus (BPM tempóra forgó szivárvány)
+        const float speed_factor = (bpm > 30.0f ? bpm : 120.0f) / 120.0f;
+        const float hue = std::fmod(anim_time * 0.12f * speed_factor, 1.0f);
+        const float h6 = hue * 6.0f;
+        const int i = static_cast<int>(h6);
+        const float f = h6 - static_cast<float>(i);
+        const float q = 1.0f - f;
+        switch (i % 6) {
+        case 0: out_r = 1.0f; out_g = f;    out_b = 0.0f; break;
+        case 1: out_r = q;    out_g = 1.0f; out_b = 0.0f; break;
+        case 2: out_r = 0.0f; out_g = 1.0f; out_b = f;    break;
+        case 3: out_r = 0.0f; out_g = q;    out_b = 1.0f; break;
+        case 4: out_r = f;    out_g = 0.0f; out_b = 1.0f; break;
+        default: out_r = 1.0f; out_g = 0.0f; out_b = q;   break;
+        }
+        break;
+    }
+    default: // 0: Fix egyedi szín
+        out_r = r;
+        out_g = g;
+        out_b = b;
+        break;
+    }
 }

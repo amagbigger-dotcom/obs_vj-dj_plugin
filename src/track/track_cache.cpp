@@ -85,15 +85,49 @@ bool TrackCache::load(const QString &media_file_path, TrackAnalysisResult &out_r
         out_res.detailed_peaks.push_back(static_cast<float>(val.toDouble(0.1)));
     }
 
+    const QJsonArray ton_arr = root.value(QStringLiteral("overview_tonus")).toArray();
+    if (!ton_arr.empty()) {
+        out_res.overview_tonus.clear();
+        out_res.overview_tonus.reserve(ton_arr.size());
+        for (const auto &val : ton_arr) {
+            out_res.overview_tonus.push_back(static_cast<float>(val.toDouble(0.5)));
+        }
+    } else {
+        out_res.overview_tonus.assign(out_res.overview_peaks.size(), 0.5f);
+    }
+
     if (root.contains(QStringLiteral("vj_shader"))) {
         QJsonObject vj_obj = root.value(QStringLiteral("vj_shader")).toObject();
-        out_res.vj_config.shader_idx = vj_obj.value(QStringLiteral("shader_idx")).toInt(0);
+        const int s_idx = std::clamp(vj_obj.value(QStringLiteral("shader_idx")).toInt(0), 0, 11);
+        out_res.vj_config = getDefaultVjConfig(s_idx);
+        out_res.vj_config.shader_idx = s_idx;
+        out_res.vj_config.custom_color_r = static_cast<float>(vj_obj.value(QStringLiteral("color_r")).toDouble(-1.0));
+        out_res.vj_config.custom_color_g = static_cast<float>(vj_obj.value(QStringLiteral("color_g")).toDouble(-1.0));
+        out_res.vj_config.custom_color_b = static_cast<float>(vj_obj.value(QStringLiteral("color_b")).toDouble(-1.0));
+        out_res.vj_config.color_mod_mode = vj_obj.value(QStringLiteral("color_mod")).toInt(0);
+
+        if (vj_obj.contains(QStringLiteral("all_shaders"))) {
+            QJsonObject all_s = vj_obj.value(QStringLiteral("all_shaders")).toObject();
+            for (int s = 0; s < 12; ++s) {
+                const QString key = QString::number(s);
+                if (all_s.contains(key)) {
+                    QJsonArray s_arr = all_s.value(key).toArray();
+                    for (int i = 0; i < std::min<int>(8, static_cast<int>(s_arr.size())); ++i) {
+                        QJsonObject p_obj = s_arr[i].toObject();
+                        out_res.vj_config.all_shader_params[s][i].value = static_cast<float>(p_obj.value(QStringLiteral("val")).toDouble(1.0));
+                        out_res.vj_config.all_shader_params[s][i].mod_mode = p_obj.value(QStringLiteral("mod")).toInt(0);
+                    }
+                }
+            }
+        }
+
         QJsonArray p_arr = vj_obj.value(QStringLiteral("params")).toArray();
         for (int i = 0; i < std::min<int>(8, static_cast<int>(p_arr.size())); ++i) {
             QJsonObject p_obj = p_arr[i].toObject();
             out_res.vj_config.params[i].value = static_cast<float>(p_obj.value(QStringLiteral("val")).toDouble(1.0));
             out_res.vj_config.params[i].mod_mode = p_obj.value(QStringLiteral("mod")).toInt(0);
         }
+        out_res.vj_config.all_shader_params[s_idx] = out_res.vj_config.params;
         out_res.has_vj_config = true;
     }
 
@@ -130,13 +164,15 @@ bool TrackCache::save(const QString &media_file_path, const TrackAnalysisResult 
     }
     root.insert(QStringLiteral("overview_peaks"), ov_arr);
 
-    QJsonArray ov_l_arr, ov_m_arr, ov_h_arr;
+    QJsonArray ov_l_arr, ov_m_arr, ov_h_arr, ov_t_arr;
     for (float v : res.overview_low) ov_l_arr.append(std::round(v * 1000.0) / 1000.0);
     for (float v : res.overview_mid) ov_m_arr.append(std::round(v * 1000.0) / 1000.0);
     for (float v : res.overview_high) ov_h_arr.append(std::round(v * 1000.0) / 1000.0);
+    for (float v : res.overview_tonus) ov_t_arr.append(std::round(v * 1000.0) / 1000.0);
     root.insert(QStringLiteral("overview_low"), ov_l_arr);
     root.insert(QStringLiteral("overview_mid"), ov_m_arr);
     root.insert(QStringLiteral("overview_high"), ov_h_arr);
+    root.insert(QStringLiteral("overview_tonus"), ov_t_arr);
 
     QJsonArray det_arr;
     for (float v : res.detailed_peaks) {
@@ -147,6 +183,24 @@ bool TrackCache::save(const QString &media_file_path, const TrackAnalysisResult 
     if (res.has_vj_config) {
         QJsonObject vj_obj;
         vj_obj.insert(QStringLiteral("shader_idx"), res.vj_config.shader_idx);
+        vj_obj.insert(QStringLiteral("color_r"), std::round(res.vj_config.custom_color_r * 1000.0) / 1000.0);
+        vj_obj.insert(QStringLiteral("color_g"), std::round(res.vj_config.custom_color_g * 1000.0) / 1000.0);
+        vj_obj.insert(QStringLiteral("color_b"), std::round(res.vj_config.custom_color_b * 1000.0) / 1000.0);
+        vj_obj.insert(QStringLiteral("color_mod"), res.vj_config.color_mod_mode);
+
+        QJsonObject all_s;
+        for (int s = 0; s < 12; ++s) {
+            QJsonArray s_arr;
+            for (int i = 0; i < 8; ++i) {
+                QJsonObject p_obj;
+                p_obj.insert(QStringLiteral("val"), std::round(res.vj_config.all_shader_params[s][i].value * 10000.0) / 10000.0);
+                p_obj.insert(QStringLiteral("mod"), res.vj_config.all_shader_params[s][i].mod_mode);
+                s_arr.append(p_obj);
+            }
+            all_s.insert(QString::number(s), s_arr);
+        }
+        vj_obj.insert(QStringLiteral("all_shaders"), all_s);
+
         QJsonArray p_arr;
         for (int i = 0; i < 8; ++i) {
             QJsonObject p_obj;
@@ -179,6 +233,24 @@ bool TrackCache::updateVjConfig(const QString &media_file_path, const VjDeckConf
 
     QJsonObject vj_obj;
     vj_obj.insert(QStringLiteral("shader_idx"), config.shader_idx);
+    vj_obj.insert(QStringLiteral("color_r"), std::round(config.custom_color_r * 1000.0) / 1000.0);
+    vj_obj.insert(QStringLiteral("color_g"), std::round(config.custom_color_g * 1000.0) / 1000.0);
+    vj_obj.insert(QStringLiteral("color_b"), std::round(config.custom_color_b * 1000.0) / 1000.0);
+    vj_obj.insert(QStringLiteral("color_mod"), config.color_mod_mode);
+
+    QJsonObject all_s;
+    for (int s = 0; s < 12; ++s) {
+        QJsonArray s_arr;
+        for (int i = 0; i < 8; ++i) {
+            QJsonObject p_obj;
+            p_obj.insert(QStringLiteral("val"), std::round(config.all_shader_params[s][i].value * 10000.0) / 10000.0);
+            p_obj.insert(QStringLiteral("mod"), config.all_shader_params[s][i].mod_mode);
+            s_arr.append(p_obj);
+        }
+        all_s.insert(QString::number(s), s_arr);
+    }
+    vj_obj.insert(QStringLiteral("all_shaders"), all_s);
+
     QJsonArray p_arr;
     for (int i = 0; i < 8; ++i) {
         QJsonObject p_obj;

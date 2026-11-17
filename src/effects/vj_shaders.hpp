@@ -38,6 +38,13 @@ uniform float bass_energy;          // Lábdob / Mélyhang transient lüktetés 
 uniform float mid_energy;           // Középtartomány energia [0.0 .. 1.0]
 uniform float high_energy;          // Magashang energia [0.0 .. 1.0]
 uniform float is_deck_b;            // 0.0 = Deck A, 1.0 = Deck B
+uniform float4 custom_theme_color;  // rgb = szín, a = felülírási kapcsoló (0.0 = alapértelmezett, 1.0 = egyedi)
+
+float3 get_base_theme_color()
+{
+    float3 def_col = (is_deck_b > 0.5) ? float3(1.0, 0.46, 0.0) : float3(0.0, 0.85, 1.0);
+    return lerp(def_col, custom_theme_color.rgb, saturate(custom_theme_color.a));
+}
 
 // Kifordított ISF Paraméterek (Effektív értékek a C++ oldali moduláció után)
 uniform float p0;
@@ -209,11 +216,12 @@ float4 render_fluid_flow(float2 uv)
         dist = max(dist, flow * (1.0 - (i * (1.0 - depth))));
     }
 
-    float3 c1 = is_deck_b > 0.5 ? float3(0.24, 0.04, 0.01) : float3(0.04, 0.08, 0.32);
-    float3 c2 = is_deck_b > 0.5 ? float3(1.0, 0.46, 0.0) : float3(0.0, 0.85, 1.0);
+    float3 th_base = get_base_theme_color();
+    float3 c1 = th_base * 0.25;
+    float3 c2 = th_base * 1.15;
 
     c2 = lerp(c2, float3(1.0, 1.0, 1.0), clamp(high_energy * 0.6, 0.0, 0.85));
-    c1 = lerp(c1, is_deck_b > 0.5 ? float3(0.7, 0.12, 0.05) : float3(0.3, 0.08, 0.5), clamp(mid_energy * 0.45, 0.0, 0.75));
+    c1 = lerp(c1, th_base * 0.7 + float3(0.08, 0.04, 0.08), clamp(mid_energy * 0.45, 0.0, 0.75));
 
     float3 col = lerp(c2, c1, 1.0 - dist);
     col += c2 * (bass_energy * 0.25);
@@ -279,8 +287,9 @@ float4 render_truchet(float2 uv)
 
     col = lerp(col, float3(0.0, 0.0, 0.0), 1.0 - smoothstep(0.0, fo, d.x));
 
-    float3 c_fill = (is_deck_b > 0.5) ? float3(0.9, 0.35, 0.05) : float3(0.05, 0.35, 0.9);
-    float3 c_core = (is_deck_b > 0.5) ? float3(1.0, 0.7, 0.1) : float3(0.1, 0.8, 1.0);
+    float3 th_base1 = get_base_theme_color();
+    float3 c_fill = th_base1 * 0.65;
+    float3 c_core = th_base1 * 1.15;
 
     c_core += float3(mid_energy * 0.3, high_energy * 0.3, high_energy * 0.3);
 
@@ -307,8 +316,9 @@ float4 render_hypno_worm(float2 uv)
     float safe_bpm = (bpm > 20.0) ? bpm : 120.0;
     float T = anim_time * rate * clamp(safe_bpm / 120.0, 0.5, 2.5);
 
-    float3 col1 = (is_deck_b > 0.5) ? float3(1.0, 0.2, 0.1) : float3(0.1, 0.3, 1.0);
-    float3 col2 = (is_deck_b > 0.5) ? float3(1.0, 0.75, 0.1) : float3(0.1, 0.9, 0.8);
+    float3 th_base2 = get_base_theme_color();
+    float3 col1 = th_base2;
+    float3 col2 = th_base2 * 0.75 + float3(0.15, 0.15, 0.15);
     col2 = lerp(col2, float3(1.0, 0.9, 0.4), mid_energy * 0.5);
 
     float3 fc = col1;
@@ -383,7 +393,7 @@ float4 render_triangle_twist(float2 uv)
         p = rotate2D(p, twist_step * -6.28318);
     }
 
-    float3 theme_col = (is_deck_b > 0.5) ? float3(1.0, 0.55, 0.1) : float3(0.0, 0.8, 1.0);
+    float3 theme_col = get_base_theme_color();
     theme_col += float3(mid_energy * 0.2, high_energy * 0.3, high_energy * 0.3);
 
     float3 out_rgb = theme_col * grey;
@@ -420,7 +430,7 @@ float4 render_string_art(float2 uv) {
         c += smoothstep(thickness * 5.0, 0.0, d);
     }
 
-    float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.4, 0.0) : float3(0.0, 0.8, 1.0);
+    float3 theme = get_base_theme_color();
     float3 col = theme * c * 0.3;
     col += float3(high_energy * 0.3, mid_energy * 0.3, high_energy * 0.5) * c * 0.2;
     col += theme * (bass_energy * 0.4);
@@ -470,7 +480,7 @@ float4 render_dodecahedron(float2 uv) {
         t += d * 0.8;
     }
 
-    float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.6, 0.1) : float3(0.1, 0.7, 1.0);
+    float3 theme = get_base_theme_color();
     float3 col = theme * (glow * vijf * 0.08);
     col += float3(high_energy * 0.4, mid_energy * 0.2, high_energy * 0.4);
     col += theme * (bass_energy * 0.5);
@@ -519,7 +529,7 @@ float4 render_kali_circuits(float2 uv) {
     float circ = pow(max(0.0, (w - ot2) / max(0.0001, w)), 6.0);
     S += max(pow(max(0.0, (w - ot) / max(0.0001, w)), 0.25), circ);
 
-    float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.5, 0.1) : float3(0.0, 0.8, 1.0);
+    float3 theme = get_base_theme_color();
     float3 col = normalize(0.1 + float3(0.45, 0.75, M * 0.1));
     color += col * (0.4 + glsl_mod(M / 9.0 - T * pulse + ot2 * 2.0, 1.0));
     color += theme * circ * (10.0 - M) * 2.5;
@@ -588,7 +598,7 @@ float4 render_diamond_vision(float2 uv) {
     }
     col += hsv2rgb(d, 1.0, 1.0) * md * 20.0;
 
-    float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.6, 0.2) : float3(0.2, 0.8, 1.0);
+    float3 theme = get_base_theme_color();
     col = lerp(col, col * theme, 0.6);
     col += theme * (bass_energy * 0.45);
     return float4(saturate(col), 1.0);
@@ -689,8 +699,9 @@ float4 render_pupila(float2 uv)
     float irisWhiteBorder = 1.0 - smoothstep(0.0, 0.2 * (1.0 - pow(pupilModifier, 1.4)), abs(dist - IRIS_RADIUS + 0.001));
     float whiteEye = smoothstep(IRIS_RADIUS, IRIS_RADIUS + ALIASING * 3.0, dist);
 
-    float3 custom_iris = (is_deck_b > 0.5) ? float3(1.0, 0.45, 0.1) : float3(irisR, irisG, irisB);
-    float3 custom_border = (is_deck_b > 0.5) ? float3(0.8, 0.1, 0.0) : float3(borderR, borderG, borderB);
+    float3 th_iris = get_base_theme_color();
+    float3 custom_iris = (custom_theme_color.a > 0.5) ? th_iris : ((is_deck_b > 0.5) ? float3(1.0, 0.45, 0.1) : float3(irisR, irisG, irisB));
+    float3 custom_border = (custom_theme_color.a > 0.5) ? (th_iris * 0.7) : ((is_deck_b > 0.5) ? float3(0.8, 0.1, 0.0) : float3(borderR, borderG, borderB));
 
     float3 eye = smoothstep(-0.5, 1.0, iris) * custom_iris * 0.9;
     eye = lerp(eye, eye * irisDetails * irisDetails + irisWhiteBorder * 0.7 * custom_border, 0.3);
@@ -755,7 +766,7 @@ float4 render_mandala_scope(float2 uv)
         p.xzy = float3(1.3, 0.999, 0.678) * abs(abs(p) / max(0.0001, dot(p, p)) - float3(1.0, 1.02, mY * rcpi));
     }
 
-    float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.45, 0.1) : float3(0.0, 0.8, 1.0);
+    float3 theme = get_base_theme_color();
     float3 out_rgb = lerp(p, p * theme, 0.65);
     out_rgb += theme * (bass_energy * 0.45 * pulse);
     out_rgb += float3(high_energy * 0.3, mid_energy * 0.2, high_energy * 0.4);
@@ -791,7 +802,7 @@ float4 render_searching_light(float2 uv)
         c[i] = scale / max(0.0001, length(abs(glsl_mod2(uv_mod, modVal) - modVal * 0.5)));
     }
 
-    float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.45, 0.1) : float3(0.0, 0.85, 1.0);
+    float3 theme = get_base_theme_color();
     float3 out_rgb = (c.rgb / max(0.0001, l)) * finalMulti * theme;
     out_rgb += theme * (bass_energy * 0.5 * pulse);
     out_rgb += float3(high_energy * 0.3, mid_energy * 0.2, high_energy * 0.4);
@@ -900,7 +911,7 @@ float4 render_cube_field(float2 uv)
         color = palette_cf(point_p.z * 0.2) * sqrt(max(0.0, ao)) * max(0.2, shade);
     }
 
-    float3 theme = (is_deck_b > 0.5) ? float3(1.0, 0.5, 0.1) : float3(0.1, 0.8, 1.0);
+    float3 theme = get_base_theme_color();
     color = lerp(color, color * theme, 0.5);
     color += theme * (bass_energy * 0.4);
     return float4(saturate(color), 1.0);

@@ -480,6 +480,7 @@ static void deck_video_render(void *data, gs_effect_t *effect)
 
                     VjDeckConfig v_cfg = context->deck->vjConfig();
                     const float viz_mode = static_cast<float>(v_cfg.shader_idx);
+                    const float macro_tonus = context->deck->currentMacroTonus();
 
                     const auto &defs = getVjShaderDefinitions();
                     float p_vals[8] = {0.0f};
@@ -490,7 +491,7 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                         for (size_t i = 0; i < p_defs.size() && i < 8; ++i) {
                             p_vals[i] = computeEffectiveParam(p_defs[i], v_cfg.params[i].value,
                                                               v_cfg.params[i].mod_mode,
-                                                              bass_val, tone_balance);
+                                                              bass_val, tone_balance, macro_tonus);
                         }
                     }
 
@@ -511,6 +512,15 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                         gs_effect_set_float(p, high_val);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "is_deck_b")))
                         gs_effect_set_float(p, is_b ? 1.0f : 0.0f);
+
+                    float theme_r = 0.0f, theme_g = 0.0f, theme_b = 0.0f, theme_act = 0.0f;
+                    computeThemeColor(v_cfg, is_b, time_sec, bpm_val, bass_val, macro_tonus,
+                                      theme_r, theme_g, theme_b, theme_act);
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "custom_theme_color"))) {
+                        struct vec4 c_vec;
+                        vec4_set(&c_vec, theme_r, theme_g, theme_b, theme_act);
+                        gs_effect_set_vec4(p, &c_vec);
+                    }
 
                     char p_name[4] = "p0";
                     for (int i = 0; i < 8; ++i) {

@@ -125,6 +125,54 @@ AnalyzerWaveform::WaveformResult AnalyzerWaveform::generate(const std::vector<fl
         res.overview_high[b]  = std::clamp(bucket_h[b] / max_band_energy, 0.01f, 1.0f);
     }
 
+    // 2b. Lassú, zenei makro-struktúrát és fokozódást követő szűrő (Macro-Tonus & Structural Build-up Follower)
+    // 8 bucket-os (~5.5 másodperc, 2-3 zenei ütem) simítás, ami kiszűri az egyes dobütések rángatózását,
+    // és a zene valódi strukturális dinamikáját, felépítését (intro -> kiállás -> build-up -> drop) mutatja
+    constexpr int kSmoothRadius = 8;
+    std::vector<float> kernel(2 * kSmoothRadius + 1);
+    float k_sum = 0.0f;
+    for (int r = -kSmoothRadius; r <= kSmoothRadius; ++r) {
+        const float w = std::exp(-static_cast<float>(r * r) / (2.0f * 3.5f * 3.5f));
+        kernel[r + kSmoothRadius] = w;
+        k_sum += w;
+    }
+    for (float &w : kernel) w /= k_sum;
+
+    std::vector<float> smooth_l(kOverviewBuckets, 0.0f);
+    std::vector<float> smooth_m(kOverviewBuckets, 0.0f);
+    std::vector<float> smooth_h(kOverviewBuckets, 0.0f);
+
+    for (int b = 0; b < static_cast<int>(kOverviewBuckets); ++b) {
+        float sl = 0.0f, sm = 0.0f, sh = 0.0f;
+        for (int r = -kSmoothRadius; r <= kSmoothRadius; ++r) {
+            const int idx = std::clamp(b + r, 0, static_cast<int>(kOverviewBuckets - 1));
+            const float kw = kernel[r + kSmoothRadius];
+            sl += res.overview_low[idx] * kw;
+            sm += res.overview_mid[idx] * kw;
+            sh += res.overview_high[idx] * kw;
+        }
+        smooth_l[b] = sl;
+        smooth_m[b] = sm;
+        smooth_h[b] = sh;
+    }
+
+    res.overview_low = smooth_l;
+    res.overview_mid = smooth_m;
+    res.overview_high = smooth_h;
+
+    res.overview_tonus.resize(kOverviewBuckets, 0.5f);
+    float max_tonus = 0.001f;
+    std::vector<float> raw_tonus(kOverviewBuckets, 0.0f);
+    for (size_t b = 0; b < kOverviewBuckets; ++b) {
+        // Tónus = Zenei feszültség: magas és közép frekvenciás telítettség a mély energiával kombinálva
+        const float t_val = smooth_l[b] * 0.7f + smooth_m[b] * 1.3f + smooth_h[b] * 1.5f;
+        raw_tonus[b] = t_val;
+        if (t_val > max_tonus) max_tonus = t_val;
+    }
+    for (size_t b = 0; b < kOverviewBuckets; ++b) {
+        res.overview_tonus[b] = std::clamp(raw_tonus[b] / max_tonus, 0.05f, 1.0f);
+    }
+
     // 3. Ultra-High-Resolution Detailed Waveform (100 points/sec, 10ms window)
     const size_t samples_per_10ms = std::max<size_t>(1, static_cast<size_t>(sample_rate / 100));
     const size_t num_detailed = total_samples / samples_per_10ms;

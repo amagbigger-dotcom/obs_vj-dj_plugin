@@ -11,6 +11,7 @@ public:
         std::vector<float> overview_low;
         std::vector<float> overview_mid;
         std::vector<float> overview_high;
+        std::vector<float> overview_tonus; // Lassú makro-struktúra zenei tónus és fokozódás [0.0 .. 1.0]
         std::vector<float> detailed_peaks;
         std::vector<float> detailed_low;
         std::vector<float> detailed_mid;
