@@ -122,8 +122,10 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
     4. `CubeField 3D` (sheltron3030): Végtelen 3D kockamező raymarching `opRep` domén-ismétléssel, `sdBox` távolságmezővel, gradiens felületi normál-árnyékolással és koszinusz palettával.
   - **Paraméter- és UI Kezelés:** `src/effects/vj_config.hpp` és `src/gui/vj_fx_dialog.cpp` mind a 12 shadert dinamikusan kezeli a dedikált `p0..p7` potméterekkel és zenei modulációval.
 
-### Mérföldkő #10: Build #248 / GitHub Run #248 (Intelligens Elemzők, Key Lock & Tracklist Camelot Key Oszlop)
-* **Verzió & Commit:** `f749c81` (vagy következő commit)
+### Mérföldkő #10: Build #248 / GitHub Run #261 (Intelligens Elemzők, Key Lock & Tracklist Camelot Key Oszlop)
+* **Verzió & Commit:** `483129a`
+* **SHA256:** `CEF342C7309275516BAD0C99642061191ACCAEA20DB7455E24E957D51C63EEEE`
+* **Kész bináris mentés:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` és `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (667 648 bájt)
 * **Jellemzők:** A nyílt forráskódú referencia DJ motor legértékesebb elemző moduljainak beépítése a meglévő spektrális/BPM elemző mellé:
   - **`AnalyzerSilence` (Auto-CUE & Csend Levágás):** -60 dBFS pásztázás, az első valódi zenei hang/leütés azonnali CUE ponttá alakítása, megszüntetve a track eleji 0.5–2 mp-es felesleges csendet.
   - **`AnalyzerKey` (Zenei Hangnem & Camelot Kerék Analízis):** 12-fokú tonális kroma vektor és Krumhansl-Schmuckler dúr/moll korreláció; Camelot kód (pl. 8A, 11B) és zenei név (pl. Am, G) kiszámítása a harmonikus keveréshez.
