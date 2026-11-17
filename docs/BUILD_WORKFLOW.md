@@ -153,3 +153,26 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
   - **Valós BPM Detektálás Finomhangolása:**
     - 4 perces pásztázási ablak a hosszú bevezetővel rendelkező dalokhoz.
     - Szélesített, finom DJ prior ($\sigma = 65$, 20% tie-breaker), amely megszünteti a 90–175 BPM közötti dalok mesterséges 128 BPM-re erőltetését.
+
+### Mérföldkő #12: Build #250 / GitHub Run #267 (FFT Kroma Kulcsdetektálás, Kattogásmentes Loop Átfedés & BPM /2, x2, 3/2 Vezérlők)
+* **Verzió & Commit:** `ff28a2f`
+* **SHA256:** `ADA378D3F21C6601F444D2BC48B8993C59ABCE4C4DEB316B5828CC6DBF73BF58`
+* **Kész bináris mentés:** `milestones/obs_dj-vj_plugin_run267_build250.dll` (685 056 bájt)
+* **Telepítve:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
+* **Jellemzők & Megoldott Problémák:**
+  - **FFT Kroma 24-Hangnem Detektálás (`AnalyzerKey`):**
+    - A Goertzel szűrő mélyfrekvenciás $1/\omega^2$ torzítása felszámolva: 2048 pontos valós FFT Hann ablakkal és spektrális fehérítéssel.
+    - Kizárólag a 130 Hz (C3) és 2100 Hz közötti tiszta harmonikus tartományt elemzi, teljesen kiküszöbölve a 40–90 Hz-es lábdob energiát.
+    - Képkockánkénti L2 normalizálás és logaritmikus kompresszió: mind a 24 zenei hangnem (1A–12B Camelot) pontosan és megbízhatóan felismerésre kerül.
+  - **Kattogásmentes Varratmentes Loop Visszaugrás:**
+    - Key Lock / WSOLA módban a puffer és szemcse megőrzésre kerül a loop végéről; az 512 mintás Hann átfedés zökkenőmentesen és kattanás nélkül köti össze a loop végét az elejével.
+    - Varispeed módban 10 ms-os simított Hann raised-cosine crossfade garantálja a pattogásmentes loopolást.
+  - **Key Lock Pop & Holttér Megszüntetése:**
+    - Eltávolítva a `(abs(speed - 1.0) > 0.002)` durva ugrási küszöb; a hangmagasság-tartás finom tempómozgatásnál is észrevétlenül és folyamatosan dolgozik.
+    - WSOLA Sum of Absolute Differences (SAD) fázisillesztés a dinamikatartomány torzításának kivédésére.
+  - **BPM Oktáv Védelem & Felhasználói Vezérlők:**
+    - Az elemző felismeri és a 90–175 BPM közötti tánczenei tartományba emeli az eddig 65–71 BPM-re felezett ritmusokat.
+    - Deck ablak felső sávjában azonnali `[/2]`, `[x2]`, `[3/2]` gombok a BPM gyors felezéséhez, duplázásához és másfélszerezéséhez.
+    - Médiatár (Tracklist) jobb klikkes menü: `⚡ BPM Duplázása (x2)`, `⚡ BPM Felezése (/2)`, `⚡ BPM Másfélszerezése (x1.5)`.
+    - Dupla kattintás a táblázat BPM oszlopán: azonnali numerikus párbeszédablak közvetlen kézi BPM megadáshoz.
+    - `.vdj.json` gyorsítótár és `vj_tracklist.json` szinkronizáció és perzisztencia.
