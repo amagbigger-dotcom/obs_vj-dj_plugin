@@ -13,6 +13,7 @@
 #include <thread>
 #include <vector>
 #include "effects/vj_config.hpp"
+#include "effects/crossfade_fx_config.hpp"
 #include "engine/engine_dsp.hpp"
 
 class DeckPlayer {
@@ -337,6 +338,12 @@ public:
     int crossfadeFxRateMod() const noexcept { return cf_fx_rate_mod_.load(std::memory_order_relaxed); }
     void setCrossfadeFxRateMod(int m) noexcept { cf_fx_rate_mod_.store(std::clamp(m, 0, 3), std::memory_order_relaxed); }
 
+    float crossfadeFxParamValue(int fx_mode, int param_idx) const noexcept;
+    void setCrossfadeFxParamValue(int fx_mode, int param_idx, float val) noexcept;
+    int crossfadeFxParamMod(int fx_mode, int param_idx) const noexcept;
+    void setCrossfadeFxParamMod(int fx_mode, int param_idx, int mod) noexcept;
+    void resetCrossfadeFxParams(int fx_mode) noexcept;
+
     void setObsOutputMode(int mode) noexcept;
     int obsOutputMode() const noexcept;
 
@@ -406,6 +413,8 @@ private:
     std::atomic<int> cf_fx_intensity_mod_{0};
     std::atomic<float> cf_fx_rate_{1.0f};
     std::atomic<int> cf_fx_rate_mod_{0};
+    std::atomic<float> cf_fx_params_val_[16][8];
+    std::atomic<int> cf_fx_params_mod_[16][8];
     std::atomic<int> obs_output_mode_{0};
     std::atomic<int> video_scale_mode_{1};
     std::atomic<int> visualizer_mode_{0};

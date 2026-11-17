@@ -316,6 +316,7 @@ void MixerMasterPanel::setupUi()
         if (cf_fx_dialog_->isVisible()) {
             cf_fx_dialog_->hide();
         } else {
+            cf_fx_dialog_->refresh();
             cf_fx_dialog_->show();
             cf_fx_dialog_->raise();
             cf_fx_dialog_->activateWindow();

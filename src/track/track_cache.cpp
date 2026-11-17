@@ -98,7 +98,7 @@ bool TrackCache::load(const QString &media_file_path, TrackAnalysisResult &out_r
 
     if (root.contains(QStringLiteral("vj_shader"))) {
         QJsonObject vj_obj = root.value(QStringLiteral("vj_shader")).toObject();
-        const int s_idx = std::clamp(vj_obj.value(QStringLiteral("shader_idx")).toInt(0), 0, 11);
+        const int s_idx = std::clamp(vj_obj.value(QStringLiteral("shader_idx")).toInt(0), 0, 14);
         out_res.vj_config = getDefaultVjConfig(s_idx);
         out_res.vj_config.shader_idx = s_idx;
         out_res.vj_config.custom_color_r = static_cast<float>(vj_obj.value(QStringLiteral("color_r")).toDouble(-1.0));

@@ -1603,10 +1603,64 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
 
 DeckPair::DeckPair()
 {
+    const auto &defs = getCrossfadeFxDefinitions();
+    for (size_t m = 0; m < 16; ++m) {
+        for (size_t i = 0; i < 8; ++i) {
+            float def_val = 1.0f;
+            if (m < defs.size() && i < defs[m].params.size()) {
+                def_val = defs[m].params[i].def_val;
+            }
+            cf_fx_params_val_[m][i].store(def_val, std::memory_order_relaxed);
+            cf_fx_params_mod_[m][i].store(0, std::memory_order_relaxed);
+        }
+    }
+
     updateAudioMix();
 
     cue_thread_running_.store(true, std::memory_order_relaxed);
     cue_thread_ = std::thread(&DeckPair::cueWorkerLoop, this);
+}
+
+float DeckPair::crossfadeFxParamValue(int fx_mode, int param_idx) const noexcept
+{
+    const int m = std::clamp(fx_mode, 0, 15);
+    const int i = std::clamp(param_idx, 0, 7);
+    return cf_fx_params_val_[m][i].load(std::memory_order_relaxed);
+}
+
+void DeckPair::setCrossfadeFxParamValue(int fx_mode, int param_idx, float val) noexcept
+{
+    const int m = std::clamp(fx_mode, 0, 15);
+    const int i = std::clamp(param_idx, 0, 7);
+    cf_fx_params_val_[m][i].store(val, std::memory_order_relaxed);
+}
+
+int DeckPair::crossfadeFxParamMod(int fx_mode, int param_idx) const noexcept
+{
+    const int m = std::clamp(fx_mode, 0, 15);
+    const int i = std::clamp(param_idx, 0, 7);
+    return cf_fx_params_mod_[m][i].load(std::memory_order_relaxed);
+}
+
+void DeckPair::setCrossfadeFxParamMod(int fx_mode, int param_idx, int mod) noexcept
+{
+    const int m = std::clamp(fx_mode, 0, 15);
+    const int i = std::clamp(param_idx, 0, 7);
+    cf_fx_params_mod_[m][i].store(std::clamp(mod, 0, 3), std::memory_order_relaxed);
+}
+
+void DeckPair::resetCrossfadeFxParams(int fx_mode) noexcept
+{
+    const int m = std::clamp(fx_mode, 0, 15);
+    const auto &defs = getCrossfadeFxDefinitions();
+    for (size_t i = 0; i < 8; ++i) {
+        float def_val = 1.0f;
+        if (m < static_cast<int>(defs.size()) && i < defs[m].params.size()) {
+            def_val = defs[m].params[i].def_val;
+        }
+        cf_fx_params_val_[m][i].store(def_val, std::memory_order_relaxed);
+        cf_fx_params_mod_[m][i].store(0, std::memory_order_relaxed);
+    }
 }
 
 DeckPair::~DeckPair()

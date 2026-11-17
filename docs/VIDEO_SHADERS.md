@@ -69,15 +69,28 @@ A Master Mixer 12 zenei képi átmenetet biztosít, amelyek a crossfader mozgat�
 14. **Pop-Art Halftone:** Képregény nyomdai pontrács.
 15. **Neon Sobel Edge:** Éldetektált neonszínű körvonalak.
 
-### 3.1. Crossfader FX Paraméterezés & Zenei Moduláció (`CrossfadeFxDialog`)
-A Crossfader melletti **`[ ⚙ FX ]`** gombbal megnyitható a Crossfader Vizuális FX beállító ablaka:
-* **Intensity (Erősség / Intenzitás):** 0.0x – 2.0x skála (alapértelmezett: 1.0x).
-* **Rate (Ráta / Lépték / Sebesség):** 0.1x – 3.0x skála (alapértelmezett: 1.0x).
-* **2 Zenei Modulációs Algoritmus:**
-  1. `🥁 Kick Pulzus (Beat Pulse)`: A leütések pillanatában azonnal kitágítja az effekt intenzitását és rátáját a pillanatnyi lábdob transient energiája (`bass_energy`) alapján.
-  2. `📈 Zenei Tónus (Macro-Build-up)`: A sáv makroszkopikus felépülését, zenei sűrűsödését és fokozódását követi le simított Gauss-súlyozású energiagörbével (`macro_tonus`), a kiállásoktól a dropig fokozva a hatást.
-  3. `⚡ Mindkettő (Both)`: Egyszerre kombinálja a gyors lábdob lüktetést és a makroszkopikus fokozódást.
-  4. `✋ Kézi (Off)`: Statikus beállítás.
+### 3.1. Crossfader FX Kifordított Paraméterek & Egyedi Zenei Moduláció (`CrossfadeFxDialog`)
+A Crossfader melletti **`[ ⚙ FX ]`** gombbal megnyitható a Crossfader Vizuális FX beállító ablaka (480 × 440 px):
+* **Effektenként Kifordított 8 Egyedi Paraméter (`src/effects/crossfade_fx_config.hpp`):**
+  - **Kaleidoszkóp (Mirror Fold):** `sides` (Tükrök száma: 2–16), `rot_speed` (Forgási sebesség), `zoom`, `fold_angle`, `center_x`, `center_y`, `blend`.
+  - **Spirális Örvény (Swirl Vortex):** `twist` (Csavarás szöge), `radius`, `dir` (Forgásirány), `zoom`, `center_x`, `center_y`.
+  - **Halszem Optika (Fisheye Lens):** `distortion`, `zoom`, `vignette`, `center_x`, `center_y`.
+  - **RGB Split (Kromatikus Aberráció):** `distance` (Szétválási távolság), `angle`, `green_shift`, `blur`, `sat_boost`.
+  - **Radial Zoom Blur:** `amount`, `samples`, `center_x`, `center_y`, `decay`, `glow`.
+  - **Pixelesedés (Pixelate):** `max_grid`, `min_grid`, `aspect`, `grid_border`, `color_quant`.
+  - **Luma Dissolve:** `softness`, `glow`, `glow_r`, `glow_g`, `glow_b`, `invert`.
+  - **Folyadék Hullámzás (Liquid Ripple):** `wave_count`, `speed`, `amplitude`, `aspect_x`, `decay`, `surge`.
+  - **Glitch Displacement:** `bands`, `speed`, `shift`, `jitter_freq`, `color_split`.
+  - **CRT / VHS Scanline:** `density`, `intensity`, `curvature`, `flash`, `vignette`.
+  - **Pop-Art Halftone:** `grid_x`, `grid_y`, `dot_size`, `softness`, `posterize`, `brightness`.
+  - **Neon Kontúr (Sobel Edge):** `thickness`, `glow`, `neon_color`, `threshold`, `blend_base`.
+  - **Normál Átúsztatás (Fade):** `curve` (Görbület), `smoothness` (S-Curve lágyság).
+* **Egyenkénti Zenei Mozgató / Modulációs Algoritmusok (Minden paraméterhez külön-külön választható!):**
+  1. `🥁 Kick Pulzus (Beat Pulse)`: A leütések pillanatában azonnal megrántja az adott paraméter értékét a lábdob transient energiája (`bass_energy`) alapján.
+  2. `📈 Zenei Tónus (Macro-Tonus)`: A sáv makroszkopikus felépülését, zenei sűrűsödését követi le Gauss-simított energiagörbével (`macro_tonus`), a kiállásoktól a dropig fokozva a paraméter hatását.
+  3. `⚡ Mindkettő (Both)`: Kombinálja a gyors lábdob lüktetést és a makroszkopikus felépülést.
+  4. `✋ Kézi (Off)`: Statikus potméter beállítás.
+* **Effektenkénti Memória:** Minden Crossfade FX egyedi paraméter-beállítása külön-külön tárolódik a memóriában, így effektek közötti váltáskor minden korábbi beállítás megmarad.
 
 ---
 
