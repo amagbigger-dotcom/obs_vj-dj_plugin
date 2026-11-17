@@ -125,13 +125,31 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
 ### Mérföldkő #10: Build #248 / GitHub Run #261 (Intelligens Elemzők, Key Lock & Tracklist Camelot Key Oszlop)
 * **Verzió & Commit:** `483129a`
 * **SHA256:** `CEF342C7309275516BAD0C99642061191ACCAEA20DB7455E24E957D51C63EEEE`
-* **Kész bináris mentés:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` és `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (667 648 bájt)
+* **Kész bináris mentés:** `milestones/obs_dj-vj_plugin_run261_build248.dll` (667 648 bájt)
 * **Jellemzők:** A nyílt forráskódú referencia DJ motor legértékesebb elemző moduljainak beépítése a meglévő spektrális/BPM elemző mellé:
   - **`AnalyzerSilence` (Auto-CUE & Csend Levágás):** -60 dBFS pásztázás, az első valódi zenei hang/leütés azonnali CUE ponttá alakítása, megszüntetve a track eleji 0.5–2 mp-es felesleges csendet.
   - **`AnalyzerKey` (Zenei Hangnem & Camelot Kerék Analízis):** 12-fokú tonális kroma vektor és Krumhansl-Schmuckler dúr/moll korreláció; Camelot kód (pl. 8A, 11B) és zenei név (pl. Am, G) kiszámítása a harmonikus keveréshez.
   - **`AnalyzerGain` (ReplayGain & Hangerő Normalizálás):** ITU-R BS.1770 / EBU R128 K-súlyozott integrált hangerő mérés és `replay_gain_db` korrekció tárolása a `.vdj.json`-ban.
-  - **Hangmagasság-tartó Key Lock (`DeckPlayer` SOLA Time-Stretching):** `[KEY LOCK]` gomb a tempó csúszka mellett (kék/narancs világítással); bekapcsolva a SOLA fázisillesztett algoritmus a tempó változtatásakor (50%-150%) 100%-ban megőrzi a dal eredeti hangmagasságát.
+  - **Hangmagasság-tartó Key Lock (`DeckPlayer` Time-Stretching):** `[KEY LOCK]` gomb a tempó csúszka mellett (kék/narancs világítással).
   - **Médiatár (Tracklist) 7. Oszlop & Valós BPM Megjelenítés:**
     - Új `KEY` oszlop a táblázatban az aranyszínű Camelot kulcs megjelenítésével.
-    - A BPM oszlop mostantól a felhasználó által beállított/szerkesztett BPM-et jeleníti meg és menti le a `.vdj.json`-ból, nem a nyers beolvasott értéket.
-    - Kétirányú értesítés: a Deckben végzett BPM módosítás azonnal átíródik a Médiatárban is (`vdj_notify_track_bpm_changed`).
+    - A BPM oszlop a felhasználó által beállított/szerkesztett BPM-et jeleníti meg és menti le a `.vdj.json`-ból.
+
+### Mérföldkő #11: Build #249 / GitHub Run #263 (Zenei Újraanalizálás & Kristálytiszta WSOLA Key Lock)
+* **Verzió & Commit:** `e4cc9ef`
+* **SHA256:** `69BBBA7B8CA8859136D5E69B8DA41CA51A8CEA3D17F662062975588262E865FC`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (678 400 bájt)
+* **Jellemzők:** A felhasználói visszajelzések alapján végzett mélyreható akusztikai és kezelőfelületi javítások:
+  - **Kristálytiszta WSOLA (Waveform Similarity Overlap-Add) Hangmagasság-tartás:**
+    - Megszüntetve a szemcseugrás miatti fáziskimaradások és a 200 Hz-es akusztikai recsegés.
+    - $W = 1024$ minta (~21.3 ms), $O = 512$ minta (~10.7 ms, 50% átfedés), Hann raised-cosine simítás.
+    - Keresztkorrelációs fázisillesztés ($\pm 256$ minta) a természetes akusztikai folytatás alapján, bit-pontos pass-through 100% sebességnél.
+    - Nullázott seek és loop állapotok, feszített valós idejű szálbiztonság.
+  - **Külön Zenei Analizáló Gomb & Háttérfolyamat (`⚡ ANALIZÁLÁS`):**
+    - Nem kell órákig All-Intra videót konvertálni: egyetlen gombnyomásra csak az audiót dekódolja és futtatja le a spektrális, BPM, Camelot Key, Auto-CUE és Gain számításokat.
+    - Kijelölt dalokra vagy a teljes médiatárra futtatható folyamatjelzővel és `[⏹ MÉGSE]` megszakítási lehetőséggel.
+    - Jobb egérgombos menüben: `⚡ Zenei újraanalizálás (BPM & Camelot Key, videó nélkül)`.
+    - Automatikus háttér-analízis indul az OBS megnyitásakor minden korábbi számra, amely még nem rendelkezik Camelot kulccsal.
+  - **Valós BPM Detektálás Finomhangolása:**
+    - 4 perces pásztázási ablak a hosszú bevezetővel rendelkező dalokhoz.
+    - Szélesített, finom DJ prior ($\sigma = 65$, 20% tie-breaker), amely megszünteti a 90–175 BPM közötti dalok mesterséges 128 BPM-re erőltetését.
