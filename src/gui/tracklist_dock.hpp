@@ -40,6 +40,7 @@ public:
     void loadLibraryJson();
     void saveLibraryJson();
     void updateTrackBpm(const QString &file_path, double bpm);
+    void setTrackBpmDirect(int row, double new_bpm);
     const std::vector<TrackItem>& tracks() const { return tracks_; }
 
 protected:

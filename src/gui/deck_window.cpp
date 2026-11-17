@@ -176,6 +176,48 @@ void DeckWindow::setupUi()
     bpm_unit->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px; margin-left: 1px;"));
     bpm_box->addWidget(bpm_unit);
 
+    auto make_bpm_btn = [this](const QString &text, const QString &tip) {
+        auto *btn = new QPushButton(text, this);
+        btn->setFixedSize(22, 22);
+        btn->setAutoDefault(false);
+        btn->setDefault(false);
+        btn->setFocusPolicy(Qt::NoFocus);
+        btn->setStyleSheet(QStringLiteral(
+            "QPushButton { background: #1c2635; color: #8da0b8; border: 1px solid #2e3e54; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 0px; }"
+            "QPushButton:hover { background: #26354a; color: #00d2ff; border-color: #00d2ff; }"
+            "QPushButton:pressed { background: #0088cc; color: #ffffff; }"
+        ));
+        btn->setToolTip(tip);
+        return btn;
+    };
+
+    bpm_half_btn_ = make_bpm_btn(QStringLiteral("/2"), QStringLiteral("BPM Felezése (/2)"));
+    connect(bpm_half_btn_, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        const double b = std::round((deck_->bpm() / 2.0) * 100.0) / 100.0;
+        deck_->setBpm(b);
+        if (bpm_edit_) bpm_edit_->setText(QString::number(b, 'f', 2));
+    });
+    bpm_box->addWidget(bpm_half_btn_);
+
+    bpm_double_btn_ = make_bpm_btn(QStringLiteral("x2"), QStringLiteral("BPM Duplázása (x2)"));
+    connect(bpm_double_btn_, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        const double b = std::round((deck_->bpm() * 2.0) * 100.0) / 100.0;
+        deck_->setBpm(b);
+        if (bpm_edit_) bpm_edit_->setText(QString::number(b, 'f', 2));
+    });
+    bpm_box->addWidget(bpm_double_btn_);
+
+    bpm_trip_btn_ = make_bpm_btn(QStringLiteral("3/2"), QStringLiteral("BPM Másfélszerezése / Triola (x1.5)"));
+    connect(bpm_trip_btn_, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        const double b = std::round((deck_->bpm() * 1.5) * 100.0) / 100.0;
+        deck_->setBpm(b);
+        if (bpm_edit_) bpm_edit_->setText(QString::number(b, 'f', 2));
+    });
+    bpm_box->addWidget(bpm_trip_btn_);
+
     key_badge_lbl_ = new QLabel(QStringLiteral("--"), this);
     key_badge_lbl_->setFixedSize(36, 24);
     key_badge_lbl_->setAlignment(Qt::AlignCenter);

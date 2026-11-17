@@ -1302,8 +1302,7 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
 
     bool did_loop_wrap = false;
 
-    const bool key_lock_active = key_lock_.load(std::memory_order_relaxed) &&
-                                 (std::abs(speed_ratio - 1.0) > 0.002);
+    const bool key_lock_active = key_lock_.load(std::memory_order_relaxed);
 
     if (key_lock_active) {
         // Professzionális WSOLA (Waveform Similarity Overlap-Add) Time-Stretching
@@ -1331,14 +1330,16 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
 
         // Generálunk WSOLA szemcséket, amíg nincs elég minta az out pufferben
         while ((sola_out_l_.size() - sola_out_read_idx_) < frames) {
-            // Loop ellenőrzése
+            // Varratmentes kattogásmentes loop visszaugrás (Seamless Loop Wrap)
             if (looping && loop_end_sample > loop_start_sample + 100.0) {
                 if (sola_in_pos_ >= loop_end_sample) {
-                    sola_in_pos_ = loop_start_sample;
-                    playback_sample_pos_ = loop_start_sample;
-                    sola_initialized_ = false;
+                    const double overshoot = sola_in_pos_ - loop_end_sample;
+                    sola_in_pos_ = loop_start_sample + overshoot;
+                    playback_sample_pos_ = sola_in_pos_;
+                    // Megőrizzük sola_last_grain tartalmát a loop végéről, így a következő
+                    // 512 mintás Hann ablak észrevétlenül, kattanásmentesen átfedi a loop végét és elejét!
+                    sola_prev_in_pos_ = static_cast<int64_t>(loop_start_sample) - static_cast<int64_t>(H_s);
                     did_loop_wrap = true;
-                    break;
                 }
             }
 
@@ -1354,9 +1355,10 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
             const int64_t p_ref = sola_prev_in_pos_ + static_cast<int64_t>(H_s);
 
             int best_k = 0;
-            float max_corr = -1e12f;
+            float min_diff = 1e12f;
 
-            // Keresztszámítás fázisillesztéssel a természetes folytatás körül
+            // Fázisillesztés keresése Sum of Absolute Differences (SAD) segítségével
+            // Ez immunis a hangerőcsúcsokra (pl. lábdob tranziensek), és pontos fázisátfedést ad
             for (int k = -K_max; k <= K_max; k += 2) {
                 const int64_t cand = p_target + k;
                 if (cand < 0 || cand + static_cast<int64_t>(O) >= static_cast<int64_t>(total_samples))
@@ -1364,12 +1366,13 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
                 if (p_ref < 0 || p_ref + static_cast<int64_t>(O) >= static_cast<int64_t>(total_samples))
                     continue;
 
-                float corr = 0.0f;
+                float diff = 0.0f;
                 for (size_t j = 0; j < O; j += 4) {
-                    corr += audio_pcm_l_[static_cast<size_t>(p_ref) + j] * audio_pcm_l_[static_cast<size_t>(cand) + j];
+                    diff += std::abs(audio_pcm_l_[static_cast<size_t>(p_ref) + j] -
+                                     audio_pcm_l_[static_cast<size_t>(cand) + j]);
                 }
-                if (corr > max_corr) {
-                    max_corr = corr;
+                if (diff < min_diff) {
+                    min_diff = diff;
                     best_k = k;
                 }
             }
@@ -1428,7 +1431,7 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
                 if (playback_sample_pos_ >= loop_end_sample) {
                     loop_fade_old_pos_ = playback_sample_pos_;
                     playback_sample_pos_ = loop_start_sample + (playback_sample_pos_ - loop_end_sample);
-                    loop_fade_rem_samples_ = std::max(64, static_cast<int>(audio_sample_rate_ * 3 / 1000));
+                    loop_fade_rem_samples_ = std::max(256, static_cast<int>(audio_sample_rate_ * 10 / 1000)); // 10 ms sima átfedés
                     loop_fade_total_samples_ = loop_fade_rem_samples_;
                     did_loop_wrap = true;
                 }
@@ -1457,7 +1460,15 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
                     const float old_l = static_cast<float>((1.0 - old_frac) * audio_pcm_l_[old_idx] + old_frac * audio_pcm_l_[old_idx + 1]);
                     const float old_r = static_cast<float>((1.0 - old_frac) * audio_pcm_r_[old_idx] + old_frac * audio_pcm_r_[old_idx + 1]);
 
-                    const float fade_in = 1.0f - static_cast<float>(loop_fade_rem_samples_) / static_cast<float>(loop_fade_total_samples_);
+                    const float phase = static_cast<float>(loop_fade_total_samples_ - loop_fade_rem_samples_) / static_cast<float>(loop_fade_total_samples_);
+                    const float fade_in = 0.5f * (1.0f - std::cos(3.14159265f * phase));
+                    const float fade_out = 1.0f - fade_in;
+                    sample_l = sample_l * fade_in + old_l * fade_out;
+                    sample_r = sample_r * fade_in + old_r * fade_out;
+                    loop_fade_old_pos_ += step;
+                }
+                loop_fade_rem_samples_--;
+            }
                     const float fade_out = 1.0f - fade_in;
                     sample_l = sample_l * fade_in + old_l * fade_out;
                     sample_r = sample_r * fade_in + old_r * fade_out;

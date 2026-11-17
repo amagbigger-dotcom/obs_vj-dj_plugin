@@ -54,21 +54,46 @@ static const std::array<float, 12> kProfileMinor = {
     6.33f, 2.68f, 3.52f, 5.38f, 2.60f, 3.53f, 2.54f, 4.75f, 3.98f, 2.69f, 3.34f, 3.17f
 };
 
-// Goertzel algoritmus DFT energiához adott célfrekvencián
-inline float goertzelEnergy(const float *samples, size_t n, float target_freq, float sr)
+// In-place Radix-2 Cooley-Tukey FFT for complex numbers (re, im)
+static void fft2048(std::array<float, 2048> &re, std::array<float, 2048> &im)
 {
-    const float omega = 2.0f * PI_F * target_freq / sr;
-    const float coeff = 2.0f * std::cos(omega);
-    float s_prev = 0.0f;
-    float s_prev2 = 0.0f;
-
-    for (size_t i = 0; i < n; ++i) {
-        const float s = samples[i] + coeff * s_prev - s_prev2;
-        s_prev2 = s_prev;
-        s_prev = s;
+    constexpr size_t N = 2048;
+    size_t j = 0;
+    for (size_t i = 0; i < N - 1; ++i) {
+        if (i < j) {
+            std::swap(re[i], re[j]);
+            std::swap(im[i], im[j]);
+        }
+        size_t k = N / 2;
+        while (k <= j) {
+            j -= k;
+            k /= 2;
+        }
+        j += k;
     }
-
-    return std::max(0.0f, s_prev * s_prev + s_prev2 * s_prev2 - coeff * s_prev * s_prev2);
+    for (size_t len = 2; len <= N; len <<= 1) {
+        const float angle = -2.0f * PI_F / static_cast<float>(len);
+        const float wlen_re = std::cos(angle);
+        const float wlen_im = std::sin(angle);
+        for (size_t i = 0; i < N; i += len) {
+            float w_re = 1.0f;
+            float w_im = 0.0f;
+            const size_t half = len >> 1;
+            for (size_t k = 0; k < half; ++k) {
+                const float u_re = re[i + k];
+                const float u_im = im[i + k];
+                const float v_re = re[i + k + half] * w_re - im[i + k + half] * w_im;
+                const float v_im = re[i + k + half] * w_im + im[i + k + half] * w_re;
+                re[i + k] = u_re + v_re;
+                im[i + k] = u_im + v_im;
+                re[i + k + half] = u_re - v_re;
+                im[i + k + half] = u_im - v_im;
+                const float next_w_re = w_re * wlen_re - w_im * wlen_im;
+                w_im = w_re * wlen_im + w_im * wlen_re;
+                w_re = next_w_re;
+            }
+        }
+    }
 }
 
 // Pearson korreláció két 12 elemű profil között
@@ -109,59 +134,79 @@ AnalyzerKey::KeyResult AnalyzerKey::analyze(const std::vector<float> &mono_sampl
         return result;
     }
 
-    // 1. Frekvenciatáblázat generálása (12 hang * 4 oktáv: Octave 2..5, 65 Hz - 1000 Hz)
-    // A domináns harmóniák a zenei basszus és középtartományban találhatók a legtisztábban
-    std::array<std::array<float, 4>, 12> note_frequencies;
-    for (int p = 0; p < 12; ++p) {
-        for (int oct = 2; oct <= 5; ++oct) {
-            // A4 = 440 Hz (p = 9, oct = 4)
-            const float semi_offset = static_cast<float>(p - 9) + static_cast<float>(oct - 4) * 12.0f;
-            note_frequencies[p][oct - 2] = 440.0f * std::pow(2.0f, semi_offset / 12.0f);
-        }
-    }
-
-    // 2. Kroma (Pitch Class Profile) vektor akkumulálása
-    std::array<float, 12> chroma = {0.0f};
-
-    const size_t win_size = 2048;
+    constexpr size_t win_size = 2048;
     const size_t hop_size = 4096; // ~92 ms ugrás 44.1 kHz-en
     const size_t total_samples = mono_samples.size();
 
-    // Hanning ablak előszámítása
-    std::vector<float> window(win_size);
+    // Hann ablak előszámítása
+    std::array<float, win_size> window;
     for (size_t i = 0; i < win_size; ++i) {
         window[i] = 0.5f * (1.0f - std::cos(2.0f * PI_F * static_cast<float>(i) / static_cast<float>(win_size - 1)));
     }
 
-    std::vector<float> frame(win_size);
+    std::array<float, 12> total_chroma = {0.0f};
+
+    const float bin_hz = static_cast<float>(sample_rate) / static_cast<float>(win_size);
+    // Frekvenciatartomány a harmóniákhoz: 130 Hz (C3) - 2100 Hz (C7)
+    // Ez teljesen kizárja a lábdob és szub-basszus energiát (40-100 Hz), ami torzítaná a hangnemet
+    const size_t min_bin = std::max<size_t>(1, static_cast<size_t>(130.0f / bin_hz));
+    const size_t max_bin = std::min<size_t>(win_size / 2, static_cast<size_t>(2100.0f / bin_hz));
+
+    std::array<float, win_size> re;
+    std::array<float, win_size> im;
 
     for (size_t pos = 0; pos + win_size <= total_samples; pos += hop_size) {
         float frame_energy = 0.0f;
         for (size_t i = 0; i < win_size; ++i) {
-            frame[i] = mono_samples[pos + i] * window[i];
-            frame_energy += frame[i] * frame[i];
+            const float s = mono_samples[pos + i] * window[i];
+            re[i] = s;
+            im[i] = 0.0f;
+            frame_energy += s * s;
         }
 
         // Csendes részek átugrása
         if (frame_energy < 0.001f) continue;
 
-        for (int p = 0; p < 12; ++p) {
-            float p_energy = 0.0f;
-            for (int oct_idx = 0; oct_idx < 4; ++oct_idx) {
-                const float freq = note_frequencies[p][oct_idx];
-                p_energy += goertzelEnergy(frame.data(), win_size, freq, static_cast<float>(sample_rate));
+        fft2048(re, im);
+
+        std::array<float, 12> frame_chroma = {0.0f};
+
+        for (size_t k = min_bin; k <= max_bin; ++k) {
+            const float freq = static_cast<float>(k) * bin_hz;
+            const float mag = std::sqrt(re[k] * re[k] + im[k] * im[k]);
+
+            // Folyamatos MIDI hangmagasság (A4 = 440 Hz -> MIDI 69)
+            const float pitch = 12.0f * (std::log(freq / 440.0f) / 0.69314718056f) + 69.0f;
+            const int note = static_cast<int>(std::round(pitch));
+            const int p = ((note % 12) + 12) % 12;
+
+            const float dist = std::abs(pitch - static_cast<float>(note));
+            if (dist < 0.5f) {
+                // Koszinuszos interpoláció a hangmagasság pontosságáért
+                const float w = 0.5f * (1.0f + std::cos(PI_F * dist / 0.5f));
+                // Spektrális fehérítés és logaritmikus kompresszió
+                frame_chroma[p] += w * std::log1p(10.0f * mag);
             }
-            // Logaritmikus tömörítés
-            chroma[p] += std::log1p(p_energy);
+        }
+
+        // Képkockánkénti normalizálás (per-frame whitening)
+        // Így a halk énekes / szintis részek ugyanolyan súllyal számítanak, mint a hangos zúzások
+        float f_sum_sq = 0.0f;
+        for (float v : frame_chroma) f_sum_sq += v * v;
+        if (f_sum_sq > 1e-6f) {
+            const float inv_f = 1.0f / std::sqrt(f_sum_sq);
+            for (int p = 0; p < 12; ++p) {
+                total_chroma[p] += frame_chroma[p] * inv_f;
+            }
         }
     }
 
     // Normalizálás L2 normával
     float sum_sq = 0.0f;
-    for (float v : chroma) sum_sq += v * v;
+    for (float v : total_chroma) sum_sq += v * v;
     if (sum_sq > 1e-6f) {
         const float inv_norm = 1.0f / std::sqrt(sum_sq);
-        for (float &v : chroma) v *= inv_norm;
+        for (float &v : total_chroma) v *= inv_norm;
     } else {
         return result;
     }
@@ -177,7 +222,7 @@ AnalyzerKey::KeyResult AnalyzerKey::analyze(const std::vector<float> &mono_sampl
         for (int i = 0; i < 12; ++i) {
             rotated_profile[(i + root) % 12] = kProfileMajor[i];
         }
-        const float corr = pearsonCorrelation(chroma, rotated_profile);
+        const float corr = pearsonCorrelation(total_chroma, rotated_profile);
         if (corr > best_corr) {
             best_corr = corr;
             best_key_idx = root;
@@ -191,7 +236,7 @@ AnalyzerKey::KeyResult AnalyzerKey::analyze(const std::vector<float> &mono_sampl
         for (int i = 0; i < 12; ++i) {
             rotated_profile[(i + root) % 12] = kProfileMinor[i];
         }
-        const float corr = pearsonCorrelation(chroma, rotated_profile);
+        const float corr = pearsonCorrelation(total_chroma, rotated_profile);
         if (corr > best_corr) {
             best_corr = corr;
             best_key_idx = root;
@@ -199,7 +244,8 @@ AnalyzerKey::KeyResult AnalyzerKey::analyze(const std::vector<float> &mono_sampl
         }
     }
 
-    result.success = (best_corr > 0.1f);
+    result.success = (best_corr > 0.05f);
+    result.confidence = best_corr;
     result.confidence = best_corr;
 
     if (is_minor) {

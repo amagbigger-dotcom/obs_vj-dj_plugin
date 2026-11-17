@@ -79,6 +79,16 @@ AnalyzerBeats::BeatResult AnalyzerBeats::analyze(const std::vector<float> &kick_
         }
     }
 
+    // Octave ambiguity resolution: Prefer the standard dance tempo octave (90 - 175 BPM)
+    // Megakadályozza, hogy a 130-142 BPM tánczenéket 65-71 BPM-re felezze a lábdob-párok miatt
+    const double raw_detected_bpm = (60.0 * onset_rate) / static_cast<double>(best_lag);
+    if (raw_detected_bpm < 88.0) {
+        const int half_lag = best_lag / 2;
+        if (half_lag >= kMinLag && raw_corr[half_lag] > 0.35 * raw_corr[best_lag]) {
+            best_lag = half_lag;
+        }
+    }
+
     // 3. Sub-sample Parabolic Peak Interpolation for 0.05 BPM accuracy
     double fine_lag = static_cast<double>(best_lag);
     if (best_lag > kMinLag && best_lag < kMaxLag) {

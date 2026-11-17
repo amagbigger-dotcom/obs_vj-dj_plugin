@@ -13,6 +13,7 @@
 #include <QMessageBox>
 #include <QShortcut>
 #include <QMenu>
+#include <QInputDialog>
 #include <QStandardPaths>
 #include <QFileInfo>
 #include <QDir>
@@ -419,6 +420,10 @@ void TracklistDock::onCustomContextMenuRequested(const QPoint &pos)
     auto *act_a = menu.addAction(QStringLiteral("▶ Betöltés a DECK A-ba"));
     auto *act_b = menu.addAction(QStringLiteral("▶ Betöltés a DECK B-be"));
     menu.addSeparator();
+    auto *act_bpm_double = menu.addAction(QStringLiteral("⚡ BPM Duplázása (x2)"));
+    auto *act_bpm_half   = menu.addAction(QStringLiteral("⚡ BPM Felezése (/2)"));
+    auto *act_bpm_trip   = menu.addAction(QStringLiteral("⚡ BPM Másfélszerezése (x1.5)"));
+    menu.addSeparator();
     auto *act_reconv = menu.addAction(QStringLiteral("🔄 Kényszerített újrakonvertálás (NVENC 1080p)"));
     auto *act_reanalyze = menu.addAction(QStringLiteral("⚡ Zenei újraanalizálás (BPM & Camelot Key, videó nélkül)"));
     auto *act_change_vid = menu.addAction(QStringLiteral("📁 Videófájl hozzárendelése / cseréje..."));
@@ -435,6 +440,12 @@ void TracklistDock::onCustomContextMenuRequested(const QPoint &pos)
         loadTrackToDeck(row, 0);
     } else if (selected == act_b) {
         loadTrackToDeck(row, 1);
+    } else if (selected == act_bpm_double) {
+        setTrackBpmDirect(row, tracks_[row].bpm * 2.0);
+    } else if (selected == act_bpm_half) {
+        setTrackBpmDirect(row, tracks_[row].bpm / 2.0);
+    } else if (selected == act_bpm_trip) {
+        setTrackBpmDirect(row, tracks_[row].bpm * 1.5);
     } else if (selected == act_reconv) {
         reconvertTrack(row);
     } else if (selected == act_reanalyze) {
@@ -1058,8 +1069,56 @@ void TracklistDock::loadTrackToDeck(int track_index, int deck_channel)
 
 void TracklistDock::onTableItemDoubleClicked(int row, int column)
 {
-    Q_UNUSED(column);
+    if (column == 2) {
+        // BPM oszlop dupla kattintás: azonnali kézi beírás
+        if (row >= 0 && row < static_cast<int>(tracks_.size())) {
+            bool ok = false;
+            const double cur_b = tracks_[row].bpm;
+            const double new_b = QInputDialog::getDouble(
+                this,
+                QStringLiteral("BPM Módosítása"),
+                QStringLiteral("Szám: %1\n\nAdd meg a szám pontos BPM értékét:").arg(tracks_[row].title),
+                cur_b, 40.0, 300.0, 2, &ok
+            );
+            if (ok && new_b >= 40.0 && new_b <= 300.0) {
+                setTrackBpmDirect(row, new_b);
+            }
+            return;
+        }
+    }
     loadTrackToDeck(row, 0); // Default load to Deck A on double-click
+}
+
+void TracklistDock::setTrackBpmDirect(int row, double new_bpm)
+{
+    if (row < 0 || row >= static_cast<int>(tracks_.size()) || new_bpm < 20.0)
+        return;
+
+    new_bpm = std::round(new_bpm * 100.0) / 100.0;
+    tracks_[row].bpm = new_bpm;
+
+    // 1. Mentés a gyorsítótárba (.vdj.json sidecar cache)
+    AudioAnalyzer::updateCacheUserEdits(tracks_[row].file_path, new_bpm, 0, 0);
+    if (!tracks_[row].original_path.isEmpty() && tracks_[row].original_path != tracks_[row].file_path) {
+        AudioAnalyzer::updateCacheUserEdits(tracks_[row].original_path, new_bpm, 0, 0);
+    }
+
+    // 2. Ha éppen be van töltve Deck A-ba vagy Deck B-be, ott is azonnal frissítjük
+    const QString clean_path = QDir::cleanPath(tracks_[row].file_path);
+    const QString clean_orig = QDir::cleanPath(tracks_[row].original_path);
+    auto check_deck = [&](DeckPlayer *deck) {
+        if (!deck) return;
+        const QString deck_p = QDir::cleanPath(deck->filePath());
+        if (deck_p.compare(clean_path, Qt::CaseInsensitive) == 0 ||
+            deck_p.compare(clean_orig, Qt::CaseInsensitive) == 0) {
+            deck->setBpm(new_bpm);
+        }
+    };
+    check_deck(vj_deck_a());
+    check_deck(vj_deck_b());
+
+    updateRow(row);
+    saveLibraryJson();
 }
 
 void TracklistDock::onRefreshStatus()
@@ -1168,9 +1227,11 @@ void TracklistDock::loadLibraryJson()
 void TracklistDock::updateTrackBpm(const QString &file_path, double bpm)
 {
     if (file_path.isEmpty() || bpm < 20.0) return;
+    const QString clean_target = QDir::cleanPath(file_path);
     for (size_t i = 0; i < tracks_.size(); ++i) {
-        if (tracks_[i].file_path == file_path || tracks_[i].original_path == file_path) {
-            tracks_[i].bpm = bpm;
+        if (QDir::cleanPath(tracks_[i].file_path).compare(clean_target, Qt::CaseInsensitive) == 0 ||
+            QDir::cleanPath(tracks_[i].original_path).compare(clean_target, Qt::CaseInsensitive) == 0) {
+            tracks_[i].bpm = std::round(bpm * 100.0) / 100.0;
             updateRow(static_cast<int>(i));
             saveLibraryJson();
             break;
