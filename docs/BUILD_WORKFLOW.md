@@ -257,8 +257,11 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
   4. **Lock-Free OBS Render Szál:**
      - A paraméterek Direct3D 11 / HLSL átadása (`cf_p0`..`cf_p7`) 100% zéró-lock atomi olvasással történik a valós idejű renderelési ciklusban.
 
-### Mérföldkő #16: Build #275 / GitHub Run #275 (Tört Ütemes Szinkron, Kézi BPM Zárolás & Crossfade FX Dialog Stabilizálás)
-* **Verzió & Commit:** `TBD`
+### Mérföldkő #16: Build #276 / GitHub Run #276 (Tört Ütemes Szinkron, Kézi BPM Zárolás & Crossfade FX Dialog Stabilizálás)
+* **Verzió & Commit:** `8b17a5f`
+* **SHA256:** `471C11DFF8B2E9F8DC7DE6AF101B74011AEB47E6982BE5CBF79E8174A9029848`
+* **GitHub Run ID:** `44202002435`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (751 616 bájt)
 * **Jellemzők:**
   1. **Crossfade FX Dialógus Csúszka & Dropdown Stabilizáció:**
      - Megszüntetve az 50 ms-os UI ciklusban futó destruktív `rebuildParamControls()` hívás.
