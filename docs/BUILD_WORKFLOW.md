@@ -224,3 +224,35 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - #13 **GlobularCluster** (mojovideotech): 3D gömbhalmaz torzulás és volumetrikus örvénylés.
      - #14 **HexTruchWarpFlow2** (mojovideotech): procedurális hexagonális Truchet rácsáramlás.
      - Teljes per-track és per-shader potméter memória mind a 15 shaderre.
+
+### Mérföldkő #15: Build #274 / GitHub Run #274 (Kifordított Crossfade FX Paraméterek & Egyenkénti Zenei Moduláció)
+* **Verzió & Commit:** `9798de7`
+* **SHA256:** `32AE7B5504021EA9044675B532D282DBF5453B4ECB55C60376B1BAA833CCAB8B`
+* **GitHub Run ID:** `44189017987`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (751 616 bájt)
+* **Jellemzők:**
+  1. **Effektenként Kifordított 8 Egyedi Paraméter (`CrossfadeFxDialog`, 480 × 440 px):**
+     - Nem csupán globális intenzitás és ráta állítható, hanem mind a 13 Crossfade FX átmenethez ki lettek fordítva a valódi, specifikus paraméterek:
+       * **Kaleidoszkóp (Mirror Fold):** `sides` (Tükrök száma: 2–16 valós poláris tükrözéssel), `rot_speed` (Forgási sebesség), `zoom`, `fold_angle`, `center_x`, `center_y`, `blend`.
+       * **Spirális Örvény (Swirl Vortex):** `twist` (Csavarás szöge), `radius`, `dir` (Forgásirány), `zoom`, `center_x`, `center_y`.
+       * **Halszem Optika (Fisheye Lens):** `distortion`, `zoom`, `vignette`, `center_x`, `center_y`.
+       * **RGB Split (Kromatikus Aberráció):** `distance` (Szétválási távolság), `angle`, `green_shift`, `blur`, `sat_boost`.
+       * **Radial Zoom Blur:** `amount`, `samples`, `center_x`, `center_y`, `decay`, `glow`.
+       * **Pixelesedés (Pixelate):** `max_grid`, `min_grid`, `aspect`, `grid_border`, `color_quant`.
+       * **Luma Dissolve:** `softness`, `glow`, `glow_r`, `glow_g`, `glow_b`, `invert`.
+       * **Folyadék Hullámzás (Liquid Ripple):** `wave_count`, `speed`, `amplitude`, `aspect_x`, `decay`, `surge`.
+       * **Glitch Displacement:** `bands`, `speed`, `shift`, `jitter_freq`, `color_split`.
+       * **CRT / VHS Scanline:** `density`, `intensity`, `curvature`, `flash`, `vignette`.
+       * **Pop-Art Halftone:** `grid_x`, `grid_y`, `dot_size`, `softness`, `posterize`, `brightness`.
+       * **Neon Kontúr (Sobel Edge):** `thickness`, `glow`, `neon_color`, `threshold`, `blend_base`.
+       * **Normál Átúsztatás (Fade):** `curve` (Görbület), `smoothness` (S-Curve lágyság).
+  2. **Paraméterenkénti Független Zenei Modulációs Algoritmusok:**
+     - Minden egyes csúszka mellett önálló modulációs választó található:
+       * `✋ Kézi (Off)`: Statikus beállítás.
+       * `🥁 Kick Pulzus`: Az adott paraméter értéke a lábdob leütések pillanatában azonnal megrándul a valós idejű basszus tranziensek (`bass_energy`) alapján.
+       * `📈 Zenei Tónus`: A zene strukturális felépülését követő Gauss-simított makro-tónus (`macro_tonus`) arányában növeli az adott paramétert a kiállásoktól a drop felé haladva.
+       * `⚡ Mindkettő`: A lassú zenei fokozódásra ráül a dobütések gyors lüktetése.
+  3. **Effektenkénti Paraméter Memória (Per-Effect Persistence):**
+     - A 13 effekt mindegyikének 8 paramétere külön memóriaterületen tárolódik a `DeckPair`-ben. Váltáskor minden módosított beállítás megmarad.
+  4. **Lock-Free OBS Render Szál:**
+     - A paraméterek Direct3D 11 / HLSL átadása (`cf_p0`..`cf_p7`) 100% zéró-lock atomi olvasással történik a valós idejű renderelési ciklusban.
