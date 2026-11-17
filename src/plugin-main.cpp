@@ -5,6 +5,7 @@
 #include "gui/deck_window.hpp"
 #include "gui/mixer_window.hpp"
 #include "gui/tracklist_dock.hpp"
+#include "gui/vj_fx_dialog.hpp"
 #include "controllers/midi_handler.hpp"
 
 OBS_DECLARE_MODULE()
