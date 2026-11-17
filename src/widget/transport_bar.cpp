@@ -3,8 +3,6 @@
 
 #include <QSignalBlocker>
 
-extern DeckPair *vdj_decks();
-
 TransportBar::TransportBar(QWidget *parent)
     : QWidget(parent)
 {

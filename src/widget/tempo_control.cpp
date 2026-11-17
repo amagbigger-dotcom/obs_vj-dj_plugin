@@ -5,8 +5,6 @@
 #include <algorithm>
 #include <QSignalBlocker>
 
-extern DeckPair *vdj_decks();
-
 TempoControl::TempoControl(QWidget *parent)
     : QWidget(parent)
 {
