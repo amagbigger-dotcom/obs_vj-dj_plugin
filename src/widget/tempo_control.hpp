@@ -1,0 +1,35 @@
+#pragma once
+
+#include <QWidget>
+#include <QPushButton>
+#include <QLabel>
+#include <QSlider>
+#include <QTimer>
+#include <QHBoxLayout>
+
+class DeckPlayer;
+
+class TempoControl : public QWidget {
+    Q_OBJECT
+public:
+    explicit TempoControl(QWidget *parent = nullptr);
+    ~TempoControl() override;
+
+    void bindDeck(DeckPlayer *deck);
+    void applyTheme(bool is_a);
+    void refresh();
+
+private:
+    void updateLabelsAndSlider();
+
+    DeckPlayer *deck_ = nullptr;
+    QTimer *pitch_throttle_timer_ = nullptr;
+    int pending_throttle_speed_ = 100;
+
+    QLabel *tempo_hdr_ = nullptr;
+    QPushButton *bend_minus_btn_ = nullptr;
+    QSlider *pitch_slider_ = nullptr;
+    QPushButton *bend_plus_btn_ = nullptr;
+    QLabel *pitch_val_lbl_ = nullptr;
+    QPushButton *pitch_reset_btn_ = nullptr;
+};

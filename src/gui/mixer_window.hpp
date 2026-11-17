@@ -12,36 +12,13 @@
 
 class DeckPair;
 class DeckPlayer;
+#include "widget/dj_slider.hpp"
+
 class QLabel;
 class QLineEdit;
 class QPushButton;
 class QComboBox;
 class QCheckBox;
-
-// Custom slider that resets to its default value on double-click
-class DJSlider : public QSlider {
-    Q_OBJECT
-public:
-    explicit DJSlider(Qt::Orientation orientation, int default_val, QWidget *parent = nullptr)
-        : QSlider(orientation, parent), default_val_(default_val) {}
-
-    void setDefaultValue(int val) { default_val_ = val; }
-    int defaultValue() const { return default_val_; }
-
-protected:
-    void mouseDoubleClickEvent(QMouseEvent *event) override {
-        if (event->button() == Qt::LeftButton) {
-            setValue(default_val_);
-            emit sliderMoved(default_val_);
-            event->accept();
-            return;
-        }
-        QSlider::mouseDoubleClickEvent(event);
-    }
-
-private:
-    int default_val_ = 0;
-};
 
 class MixerWindow final : public QDialog {
     Q_OBJECT

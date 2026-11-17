@@ -12,6 +12,9 @@
 
 class DeckPlayer;
 class WaveformCanvas;
+class LoopBar;
+class TransportBar;
+class TempoControl;
 
 class DeckWindow : public QDialog {
     Q_OBJECT
@@ -41,8 +44,6 @@ private:
 
     DeckPlayer *deck_ = nullptr;
     QTimer *refresh_timer_ = nullptr;
-    QTimer *pitch_throttle_timer_ = nullptr;
-    int pending_throttle_speed_ = 100;
 
     // Kezelőszervek és gombok (UI Controls & Buttons)
     QPushButton *open_btn_ = nullptr;
@@ -69,31 +70,11 @@ private:
     QLabel *zoom_lbl_ = nullptr;
     QPushButton *zoom_in_btn_ = nullptr;
 
-    // Loops
-    std::vector<QPushButton *> loop_btns_;
-
-    // Transport
-    QPushButton *cue_btn_ = nullptr;
-    QPushButton *play_btn_ = nullptr;
-    QPushButton *sync_btn_ = nullptr;
-    QPushButton *master_btn_ = nullptr;
-    QPushButton *hot_cue_btns_[4] = {nullptr, nullptr, nullptr, nullptr};
-
-    void updateHotCueButtons();
-
-    // Tempo & Jog Nudge
-    QSlider *pitch_slider_ = nullptr;
-    QLabel *pitch_val_lbl_ = nullptr;
-    QPushButton *pitch_reset_btn_ = nullptr;
-    QPushButton *bend_minus_btn_ = nullptr;
-    QPushButton *bend_plus_btn_ = nullptr;
-    QPushButton *jog_minus_btn_ = nullptr;
-    QPushButton *jog_plus_btn_ = nullptr;
+    // Subsystem Widgets (Loop, Transport, Tempo)
+    LoopBar *loop_bar_ = nullptr;
+    TransportBar *transport_bar_ = nullptr;
+    TempoControl *tempo_control_ = nullptr;
 
     // Tap tempo helpers
     std::vector<qint64> tap_times_;
-
-    // Loop state caching to avoid redundant style recalculation / jitter
-    bool last_looping_ = false;
-    int last_loop_idx_ = -1;
 };

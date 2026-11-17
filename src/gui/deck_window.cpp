@@ -1,6 +1,9 @@
 #include "gui/deck_window.hpp"
 #include "engine/deck_engine.hpp"
 #include "waveform/waveform_widget.hpp"
+#include "widget/loop_bar.hpp"
+#include "widget/transport_bar.hpp"
+#include "widget/tempo_control.hpp"
 
 #include <obs-frontend-api.h>
 #include <obs.h>
@@ -62,14 +65,6 @@ DeckWindow::DeckWindow(DeckPlayer *deck, QWidget *parent)
     setupUi();
     updateDeckButtonStates();
 
-    pitch_throttle_timer_ = new QTimer(this);
-    pitch_throttle_timer_->setSingleShot(true);
-    connect(pitch_throttle_timer_, &QTimer::timeout, this, [this]() {
-        if (deck_) {
-            deck_->applySpeedSettings(pending_throttle_speed_);
-        }
-    });
-
     refresh_timer_ = new QTimer(this);
     connect(refresh_timer_, &QTimer::timeout, this, &DeckWindow::onRefresh);
     refresh_timer_->start(25);
@@ -77,10 +72,6 @@ DeckWindow::DeckWindow(DeckPlayer *deck, QWidget *parent)
 
 DeckWindow::~DeckWindow()
 {
-    if (pitch_throttle_timer_) {
-        pitch_throttle_timer_->stop();
-        delete pitch_throttle_timer_;
-    }
     if (refresh_timer_) {
         refresh_timer_->stop();
         delete refresh_timer_;
@@ -365,282 +356,20 @@ void DeckWindow::setupUi()
     // ==========================================
     // 4. AUTO-LOOP MATRIX & JOG NUDGE
     // ==========================================
-    auto *loop_bar = new QHBoxLayout();
-    loop_bar->setSpacing(3);
-
-    auto *loop_hdr = new QLabel(QStringLiteral("LOOP:"), this);
-    loop_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px;"));
-    loop_bar->addWidget(loop_hdr);
-
-    const QStringList loop_labels = {
-        "1/16", "1/8", "1/4", "1/2", "1", "2", "4", "8", "16", "32", "64", "128"
-    };
-    for (int i = 0; i < loop_labels.size(); i++) {
-        auto *btn = new QPushButton(loop_labels[i], this);
-        btn->setFixedSize(30, 22);
-        btn->setStyleSheet(QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 8px;"));
-        connect(btn, &QPushButton::clicked, this, [this, i]() {
-            if (!deck_) return;
-            if (deck_->isLooping() && deck_->loopBeatIndex() == i) {
-                deck_->setLooping(false);
-            } else {
-                deck_->setLoopBeatIndex(i);
-                deck_->setLooping(true);
-            }
-        });
-        loop_btns_.push_back(btn);
-        loop_bar->addWidget(btn);
-    }
-
-    loop_bar->addSpacing(4);
-
-    auto *jog_hdr = new QLabel(QStringLiteral("JOG:"), this);
-    jog_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px;"));
-    loop_bar->addWidget(jog_hdr);
-
-    jog_minus_btn_ = new QPushButton(QStringLiteral("◀ NUDGE"), this);
-    jog_minus_btn_->setFixedSize(48, 22);
-    jog_minus_btn_->setAutoRepeat(true);
-    jog_minus_btn_->setAutoRepeatDelay(250);
-    jog_minus_btn_->setAutoRepeatInterval(80);
-    jog_minus_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 8px; font-weight: bold; color: #78a0d0; border-radius: 3px; padding: 0px; } "
-        "QPushButton:hover { background: #26384e; color: #fff; } "
-        "QPushButton:pressed { background: #0088cc; color: #fff; }"));
-    jog_minus_btn_->setToolTip(QStringLiteral("Jog Nudge: lemezt lassítja / visszatartja 5ms-mal"));
-    connect(jog_minus_btn_, &QPushButton::clicked, this, [this]() {
-        if (!deck_) return;
-        deck_->nudgePlayback(-5);
-    });
-    loop_bar->addWidget(jog_minus_btn_);
-
-    jog_plus_btn_ = new QPushButton(QStringLiteral("NUDGE ▶"), this);
-    jog_plus_btn_->setFixedSize(48, 22);
-    jog_plus_btn_->setAutoRepeat(true);
-    jog_plus_btn_->setAutoRepeatDelay(250);
-    jog_plus_btn_->setAutoRepeatInterval(80);
-    jog_plus_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 8px; font-weight: bold; color: #78a0d0; border-radius: 3px; padding: 0px; } "
-        "QPushButton:hover { background: #26384e; color: #fff; } "
-        "QPushButton:pressed { background: #0088cc; color: #fff; }"));
-    jog_plus_btn_->setToolTip(QStringLiteral("Jog Nudge: lemezt gyorsítja / megtolja 5ms-mal"));
-    connect(jog_plus_btn_, &QPushButton::clicked, this, [this]() {
-        if (!deck_) return;
-        deck_->nudgePlayback(+5);
-    });
-    loop_bar->addWidget(jog_plus_btn_);
-
-    loop_bar->addStretch(1);
-    main_layout->addLayout(loop_bar);
+    loop_bar_ = new LoopBar(this);
+    main_layout->addWidget(loop_bar_);
 
     // ==========================================
     // 5. TRANSPORT (CUE, PLAY, SYNC, VOLUME)
     // ==========================================
-    auto *transport_bar = new QHBoxLayout();
-    transport_bar->setSpacing(8);
-
-    cue_btn_ = new QPushButton(QStringLiteral("CUE"), this);
-    cue_btn_->setFixedSize(65, 34);
-    cue_btn_->setStyleSheet(QStringLiteral("background: #2a3444; border: 2px solid #586884; font-size: 12px; font-weight: bold; color: #ffffff; border-radius: 4px; padding: 0px;"));
-    connect(cue_btn_, &QPushButton::clicked, this, [this]() {
-        if (deck_) deck_->cue();
-    });
-    transport_bar->addWidget(cue_btn_);
-
-    play_btn_ = new QPushButton(QStringLiteral("▶ PLAY"), this);
-    play_btn_->setFixedSize(90, 34);
-    play_btn_->setStyleSheet(QStringLiteral("background: #1e3a24; border: 2px solid #00cc44; font-size: 13px; font-weight: bold; color: #ffffff; border-radius: 4px; padding: 0px;"));
-    connect(play_btn_, &QPushButton::clicked, this, [this]() {
-        if (deck_) deck_->togglePlayback();
-    });
-    transport_bar->addWidget(play_btn_);
-
-    sync_btn_ = new QPushButton(QStringLiteral("SYNC"), this);
-    sync_btn_->setFixedSize(65, 34);
-    sync_btn_->setCheckable(true);
-    sync_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2634; border: 2px solid #385070; font-size: 11px; font-weight: bold; color: #78a0d0; border-radius: 4px; padding: 0px; }"
-        "QPushButton:checked { background: #005588; border-color: #00d2ff; color: #ffffff; }"
-    ));
-    connect(sync_btn_, &QPushButton::clicked, this, [this]() {
-        if (!deck_) return;
-        DeckPair *decks = vdj_decks();
-        if (decks) {
-            const int ch = (deck_->side() == DeckPlayer::DeckSide::B) ? 1 : 0;
-            const bool new_sync = !deck_->isSync();
-            decks->setSync(ch, new_sync);
-            sync_btn_->setChecked(new_sync);
-        }
-    });
-    transport_bar->addWidget(sync_btn_);
-
-    master_btn_ = new QPushButton(QStringLiteral("MASTER"), this);
-    master_btn_->setFixedSize(65, 34);
-    master_btn_->setCheckable(true);
-    master_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2634; border: 2px solid #385070; font-size: 11px; font-weight: bold; color: #78a0d0; border-radius: 4px; padding: 0px; }"
-        "QPushButton:checked { background: #d97706; border-color: #f59e0b; color: #ffffff; }"
-    ));
-    connect(master_btn_, &QPushButton::clicked, this, [this]() {
-        if (!deck_) return;
-        DeckPair *decks = vdj_decks();
-        if (decks) {
-            const int ch = (deck_->side() == DeckPlayer::DeckSide::B) ? 1 : 0;
-            decks->setDeckMaster(ch);
-        }
-    });
-    transport_bar->addWidget(master_btn_);
-
-    auto *hc_hdr = new QLabel(QStringLiteral("HOT CUE:"), this);
-    hc_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px; margin-left: 6px;"));
-    transport_bar->addWidget(hc_hdr);
-
-    for (int i = 0; i < 4; ++i) {
-        auto *btn = new QPushButton(QString::asprintf("%d", i + 1), this);
-        btn->setFixedSize(30, 34);
-        btn->setContextMenuPolicy(Qt::CustomContextMenu);
-        hot_cue_btns_[i] = btn;
-        transport_bar->addWidget(btn);
-
-        connect(btn, &QPushButton::clicked, this, [this, i]() {
-            if (!deck_) return;
-            deck_->triggerHotCue(i);
-            updateHotCueButtons();
-        });
-
-        connect(btn, &QPushButton::customContextMenuRequested, this, [this, i](const QPoint &) {
-            if (!deck_) return;
-            deck_->clearHotCue(i);
-            updateHotCueButtons();
-        });
-    }
-
-    updateHotCueButtons();
-
-    transport_bar->addStretch(1);
-    main_layout->addLayout(transport_bar);
+    transport_bar_ = new TransportBar(this);
+    main_layout->addWidget(transport_bar_);
 
     // ==========================================
     // 6. CONTINUOUS REAL-TIME TEMPO / PITCH FADER
     // ==========================================
-    auto *tempo_bar = new QHBoxLayout();
-    tempo_bar->setSpacing(6);
-
-    auto *tempo_hdr = new QLabel(QStringLiteral("TEMPO:"), this);
-    tempo_hdr->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 10px;"));
-    tempo_bar->addWidget(tempo_hdr);
-
-    bend_minus_btn_ = new QPushButton(QStringLiteral("−"), this);
-    bend_minus_btn_->setFixedSize(28, 24);
-    bend_minus_btn_->setAutoRepeat(true);
-    bend_minus_btn_->setAutoRepeatDelay(350);
-    bend_minus_btn_->setAutoRepeatInterval(100);
-    bend_minus_btn_->setToolTip(QStringLiteral("Tempo léptetés: első klikk kerekít tizedre, utána −0.10 BPM"));
-    connect(bend_minus_btn_, &QPushButton::clicked, this, [this]() {
-        if (!deck_) return;
-        const double cur_eff = deck_->effectiveBpm();
-        double target_bpm = 0.0;
-        if (std::abs(cur_eff - (std::round(cur_eff * 10.0) / 10.0)) < 0.005) {
-            target_bpm = (std::round(cur_eff * 10.0) - 1.0) / 10.0;
-        } else {
-            target_bpm = std::floor(cur_eff * 10.0) / 10.0;
-        }
-        target_bpm = std::round(target_bpm * 100.0) / 100.0;
-        deck_->setPlaybackBpm(target_bpm);
-
-        const double eff_bpm = deck_->effectiveBpm();
-        const double base_bpm = (deck_->bpm() > 1.0) ? deck_->bpm() : 128.0;
-        const double diff_pct = (eff_bpm / base_bpm - 1.0) * 100.0;
-        pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+.1f%%)", eff_bpm, diff_pct));
-        if (pitch_slider_) {
-            QSignalBlocker b(pitch_slider_);
-            pitch_slider_->setValue(deck_->speed());
-        }
-    });
-    tempo_bar->addWidget(bend_minus_btn_);
-
-    pitch_slider_ = new QSlider(Qt::Horizontal, this);
-    pitch_slider_->setRange(50, 150);
-    pitch_slider_->setValue(100);
-    pitch_slider_->setTracking(true);
-
-    connect(pitch_slider_, &QSlider::valueChanged, this, [this](int val) {
-        if (deck_) {
-            if (deck_->isSync()) {
-                deck_->setSync(false);
-                DeckPair *dp = vdj_decks();
-                if (dp) {
-                    const int ch = (deck_->side() == DeckPlayer::DeckSide::B) ? 1 : 0;
-                    dp->setSync(ch, false);
-                }
-            }
-            deck_->setSpeed(val);
-        }
-        const double eff_bpm = deck_ ? deck_->effectiveBpm() : 128.0;
-        const double base_bpm = (deck_ && deck_->bpm() > 1.0) ? deck_->bpm() : 128.0;
-        const double diff_pct = (eff_bpm / base_bpm - 1.0) * 100.0;
-        pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+.1f%%)", eff_bpm, diff_pct));
-
-        // Debounced speed update: reset timer on every move so FFmpeg only reloads once user pauses/settles
-        pending_throttle_speed_ = val;
-        pitch_throttle_timer_->start(350);
-    });
-
-    connect(pitch_slider_, &QSlider::sliderReleased, this, [this]() {
-        pitch_throttle_timer_->stop();
-        if (deck_ && pitch_slider_) {
-            deck_->applySpeedSettings(pitch_slider_->value());
-        }
-    });
-    tempo_bar->addWidget(pitch_slider_, 1);
-
-    bend_plus_btn_ = new QPushButton(QStringLiteral("+"), this);
-    bend_plus_btn_->setFixedSize(28, 24);
-    bend_plus_btn_->setAutoRepeat(true);
-    bend_plus_btn_->setAutoRepeatDelay(350);
-    bend_plus_btn_->setAutoRepeatInterval(100);
-    bend_plus_btn_->setToolTip(QStringLiteral("Tempo léptetés: első klikk kerekít tizedre, utána +0.10 BPM"));
-    connect(bend_plus_btn_, &QPushButton::clicked, this, [this]() {
-        if (!deck_) return;
-        const double cur_eff = deck_->effectiveBpm();
-        double target_bpm = 0.0;
-        if (std::abs(cur_eff - (std::round(cur_eff * 10.0) / 10.0)) < 0.005) {
-            target_bpm = (std::round(cur_eff * 10.0) + 1.0) / 10.0;
-        } else {
-            target_bpm = std::ceil(cur_eff * 10.0) / 10.0;
-        }
-        target_bpm = std::round(target_bpm * 100.0) / 100.0;
-        deck_->setPlaybackBpm(target_bpm);
-
-        const double eff_bpm = deck_->effectiveBpm();
-        const double base_bpm = (deck_->bpm() > 1.0) ? deck_->bpm() : 128.0;
-        const double diff_pct = (eff_bpm / base_bpm - 1.0) * 100.0;
-        pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+.1f%%)", eff_bpm, diff_pct));
-        if (pitch_slider_) {
-            QSignalBlocker b(pitch_slider_);
-            pitch_slider_->setValue(deck_->speed());
-        }
-    });
-    tempo_bar->addWidget(bend_plus_btn_);
-
-    pitch_val_lbl_ = new QLabel(QStringLiteral("128.00 BPM (+0.0%)"), this);
-    pitch_val_lbl_->setStyleSheet(QStringLiteral("color: #00d2ff; font-family: monospace; font-weight: bold; font-size: 11px;"));
-    pitch_val_lbl_->setFixedWidth(135);
-    tempo_bar->addWidget(pitch_val_lbl_);
-
-    pitch_reset_btn_ = new QPushButton(QStringLiteral("0% RESET"), this);
-    pitch_reset_btn_->setFixedSize(60, 24);
-    pitch_reset_btn_->setStyleSheet(QStringLiteral("background: #2a3444; border-color: #48566e; color: #cfd6e4; font-size: 10px; padding: 0px;"));
-    connect(pitch_reset_btn_, &QPushButton::clicked, this, [this]() {
-        if (pitch_slider_) pitch_slider_->setValue(100);
-        if (deck_) {
-            deck_->applySpeedSettings(100);
-            deck_->setPlaybackBpm(deck_->bpm());
-        }
-    });
-    tempo_bar->addWidget(pitch_reset_btn_);
-
-    main_layout->addLayout(tempo_bar);
+    tempo_control_ = new TempoControl(this);
+    main_layout->addWidget(tempo_control_);
 
     for (auto *btn : findChildren<QPushButton *>()) {
         btn->setAutoDefault(false);
@@ -654,6 +383,9 @@ void DeckWindow::bindDeck(DeckPlayer *deck)
     if (waveform_canvas_) {
         waveform_canvas_->setDeck(deck_, !deck_ || deck_->side() == DeckPlayer::DeckSide::A);
     }
+    if (loop_bar_) loop_bar_->bindDeck(deck);
+    if (transport_bar_) transport_bar_->bindDeck(deck);
+    if (tempo_control_) tempo_control_->bindDeck(deck);
     updateDeckButtonStates();
     fitTo1080p();
 }
@@ -696,31 +428,13 @@ void DeckWindow::applyTheme(bool is_a)
         if (time_container_) {
             time_container_->setStyleSheet(QStringLiteral("QFrame { background: #060d16; border: 1px solid #14283d; border-radius: 4px; }"));
         }
-        if (pitch_slider_) {
-            pitch_slider_->setStyleSheet(QStringLiteral(
-                "QSlider::groove:horizontal { height: 6px; background: #08101a; border: 1px solid #152c42; border-radius: 3px; } "
-                "QSlider::handle:horizontal { background: #00d2ff; width: 18px; margin: -5px 0; border-radius: 3px; border: 1px solid #ffffff; } "
-                "QSlider::handle:horizontal:hover { background: #38e0ff; }"));
-        }
         if (vj_shader_btn_) {
             vj_shader_btn_->setStyleSheet(QStringLiteral(
                 "QPushButton { background: #101e30; border: 1px solid #00d2ff; color: #00d2ff; font-size: 10px; font-weight: bold; border-radius: 3px; }"
                 "QPushButton:hover { background: #0088cc; color: #ffffff; }"));
         }
-        if (bend_minus_btn_) {
-            bend_minus_btn_->setStyleSheet(QStringLiteral(
-                "QPushButton { background: #101e30; border: 1px solid #1c3756; border-radius: 3px; color: #00d2ff; font-size: 13px; font-weight: bold; padding: 0px; } "
-                "QPushButton:hover { background: #192f4c; border-color: #00d2ff; color: #ffffff; } "
-                "QPushButton:pressed { background: #0088cc; color: #ffffff; }"));
-        }
-        if (bend_plus_btn_) {
-            bend_plus_btn_->setStyleSheet(QStringLiteral(
-                "QPushButton { background: #101e30; border: 1px solid #1c3756; border-radius: 3px; color: #00d2ff; font-size: 13px; font-weight: bold; padding: 0px; } "
-                "QPushButton:hover { background: #192f4c; border-color: #00d2ff; color: #ffffff; } "
-                "QPushButton:pressed { background: #0088cc; color: #ffffff; }"));
-        }
-        if (pitch_val_lbl_) {
-            pitch_val_lbl_->setStyleSheet(QStringLiteral("color: #00d2ff; font-family: monospace; font-weight: bold; font-size: 11px;"));
+        if (tempo_control_) {
+            tempo_control_->applyTheme(true);
         }
     } else {
         // =====================================================================
@@ -751,31 +465,13 @@ void DeckWindow::applyTheme(bool is_a)
         if (time_container_) {
             time_container_->setStyleSheet(QStringLiteral("QFrame { background: #140a04; border: 1px solid #3d2312; border-radius: 4px; }"));
         }
-        if (pitch_slider_) {
-            pitch_slider_->setStyleSheet(QStringLiteral(
-                "QSlider::groove:horizontal { height: 6px; background: #140b05; border: 1px solid #3b200e; border-radius: 3px; } "
-                "QSlider::handle:horizontal { background: #ff8800; width: 18px; margin: -5px 0; border-radius: 3px; border: 1px solid #ffffff; } "
-                "QSlider::handle:horizontal:hover { background: #ffa538; }"));
-        }
         if (vj_shader_btn_) {
             vj_shader_btn_->setStyleSheet(QStringLiteral(
                 "QPushButton { background: #2c1a0c; border: 1px solid #ff8800; color: #ff8800; font-size: 10px; font-weight: bold; border-radius: 3px; }"
                 "QPushButton:hover { background: #cc5500; color: #ffffff; }"));
         }
-        if (bend_minus_btn_) {
-            bend_minus_btn_->setStyleSheet(QStringLiteral(
-                "QPushButton { background: #2c1a0c; border: 1px solid #4f2e15; border-radius: 3px; color: #ff8800; font-size: 13px; font-weight: bold; padding: 0px; } "
-                "QPushButton:hover { background: #442813; border-color: #ff8800; color: #ffffff; } "
-                "QPushButton:pressed { background: #cc5500; color: #ffffff; }"));
-        }
-        if (bend_plus_btn_) {
-            bend_plus_btn_->setStyleSheet(QStringLiteral(
-                "QPushButton { background: #2c1a0c; border: 1px solid #4f2e15; border-radius: 3px; color: #ff8800; font-size: 13px; font-weight: bold; padding: 0px; } "
-                "QPushButton:hover { background: #442813; border-color: #ff8800; color: #ffffff; } "
-                "QPushButton:pressed { background: #cc5500; color: #ffffff; }"));
-        }
-        if (pitch_val_lbl_) {
-            pitch_val_lbl_->setStyleSheet(QStringLiteral("color: #ff8800; font-family: monospace; font-weight: bold; font-size: 11px;"));
+        if (tempo_control_) {
+            tempo_control_->applyTheme(false);
         }
     }
 }
@@ -868,84 +564,10 @@ void DeckWindow::onRefresh()
         .arg(offset >= 0 ? "+" : "")
         .arg(offset));
 
-    // 6. Play button state
-    const bool is_playing = deck_->isPlaying();
-    if (is_playing) {
-        play_btn_->setText(QStringLiteral("⏸ PAUSE"));
-        play_btn_->setStyleSheet(QStringLiteral("background: #00aa44; border: 2px solid #00ff55; font-size: 13px; font-weight: bold; color: #ffffff; border-radius: 4px; padding: 0px;"));
-    } else {
-        play_btn_->setText(QStringLiteral("▶ PLAY"));
-        play_btn_->setStyleSheet(QStringLiteral("background: #1e3a24; border: 2px solid #00cc44; font-size: 13px; font-weight: bold; color: #ffffff; border-radius: 4px; padding: 0px;"));
-    }
-
-    // 7. Master & Sync button states
-    const bool is_m = deck_->isMaster();
-    if (master_btn_->isChecked() != is_m) {
-        QSignalBlocker b(master_btn_);
-        master_btn_->setChecked(is_m);
-    }
-    if (sync_btn_->isChecked() != deck_->isSync()) {
-        QSignalBlocker b(sync_btn_);
-        sync_btn_->setChecked(deck_->isSync());
-    }
-
-    // 8. Loop buttons highlight (állapotváltáskor frissül, 0px paddinggal, hogy a méret soha ne mozduljon)
-    const bool looping = deck_->isLooping();
-    const int loop_idx = deck_->loopBeatIndex();
-    if (looping != last_looping_ || loop_idx != last_loop_idx_) {
-        last_looping_ = looping;
-        last_loop_idx_ = loop_idx;
-        for (size_t i = 0; i < loop_btns_.size(); i++) {
-            if (looping && static_cast<int>(i) == loop_idx) {
-                loop_btns_[i]->setStyleSheet(QStringLiteral("background: #ff8800; border: 1px solid #ffaa00; color: #000000; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 8px;"));
-            } else {
-                loop_btns_[i]->setStyleSheet(QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 8px;"));
-            }
-        }
-    }
-
-    // 9. Pitch slider synchronization (if user isn't dragging it)
-    if (pitch_slider_ && !pitch_slider_->isSliderDown()) {
-        const int spd = deck_->speed();
-        if (pitch_slider_->value() != spd) {
-            QSignalBlocker b(pitch_slider_);
-            pitch_slider_->setValue(spd);
-        }
-        const double eff_bpm = deck_->effectiveBpm();
-        const double base_bpm = (deck_->bpm() > 1.0) ? deck_->bpm() : 128.0;
-        const double diff_pct = (eff_bpm / base_bpm - 1.0) * 100.0;
-        pitch_val_lbl_->setText(QString::asprintf("%.2f BPM (%+.1f%%)", eff_bpm, diff_pct));
-    }
-
-    // 10. Hot Cue buttons state update
-    updateHotCueButtons();
-}
-
-void DeckWindow::updateHotCueButtons()
-{
-    if (!deck_) return;
-    const char *hc_colors[4] = {"#ff8800", "#00d2ff", "#00ff66", "#ff00bb"};
-    for (int i = 0; i < 4; ++i) {
-        auto *btn = hot_cue_btns_[i];
-        if (!btn) continue;
-        const int64_t ms = deck_->hotCueMs(i);
-        if (ms >= 0) {
-            const int total_sec = static_cast<int>(ms / 1000);
-            const int m = total_sec / 60;
-            const int s = total_sec % 60;
-            const int cs = static_cast<int>((ms % 1000) / 10);
-            btn->setStyleSheet(QStringLiteral(
-                "QPushButton { background: %1; border: 2px solid #ffffff; font-size: 13px; font-weight: bold; color: #000000; border-radius: 4px; padding: 0px; } "
-                "QPushButton:hover { background: #ffffff; color: %1; }")
-                .arg(hc_colors[i]));
-            btn->setToolTip(QString::asprintf("Hot Cue %d: %02d:%02d.%02d (Kattintás: Ugrás, Jobb-klikk: Törlés)", i + 1, m, s, cs));
-        } else {
-            btn->setStyleSheet(QStringLiteral(
-                "QPushButton { background: #181f2a; border: 1px solid #324155; font-size: 11px; font-weight: bold; color: #5f748f; border-radius: 4px; padding: 0px; } "
-                "QPushButton:hover { background: #263447; color: #ffffff; border-color: #4a6280; }"));
-            btn->setToolTip(QString::asprintf("Hot Cue %d: Üres (Kattintás: Rögzítés az aktuális pozíciónál)", i + 1));
-        }
-    }
+    // 6. Subsystem Widgets Refresh (Loop, Transport, Tempo)
+    if (loop_bar_) loop_bar_->refresh();
+    if (transport_bar_) transport_bar_->refresh();
+    if (tempo_control_) tempo_control_->refresh();
 }
 
 // =============================================================================

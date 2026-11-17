@@ -66,6 +66,16 @@ set(SOURCES
     src/waveform/waveform_widget.cpp
     src/waveform/waveform_widget.hpp
 
+    # Widget (Reusable UI Controls)
+    src/widget/dj_slider.cpp
+    src/widget/dj_slider.hpp
+    src/widget/loop_bar.cpp
+    src/widget/loop_bar.hpp
+    src/widget/transport_bar.cpp
+    src/widget/transport_bar.hpp
+    src/widget/tempo_control.cpp
+    src/widget/tempo_control.hpp
+
     # GUI (Windows, Docks & Dialogs)
     src/gui/deck_window.cpp
     src/gui/deck_window.hpp
