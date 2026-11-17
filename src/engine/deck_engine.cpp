@@ -1469,13 +1469,6 @@ size_t DeckPlayer::readAudioFrames(float *out_l, float *out_r, size_t frames, ui
                 }
                 loop_fade_rem_samples_--;
             }
-                    const float fade_out = 1.0f - fade_in;
-                    sample_l = sample_l * fade_in + old_l * fade_out;
-                    sample_r = sample_r * fade_in + old_r * fade_out;
-                    loop_fade_old_pos_ += step;
-                }
-                loop_fade_rem_samples_--;
-            }
 
             out_l[i] = sample_l;
             out_r[i] = sample_r;
