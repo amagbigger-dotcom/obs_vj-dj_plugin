@@ -50,7 +50,7 @@ A `DeckPair::videoScaleMode` vezérli mind a preview-kat, mind a Master vásznat
 
 ---
 
-## 3. 12 MASTER CROSSFADER SHADER EFFEKT
+## 3. 12 MASTER CROSSFADER SHADER EFFEKT & PARAMÉTEREZHETŐSÉG
 
 A Master Mixer 12 zenei képi átmenetet biztosít, amelyek a crossfader mozgatásakor fokozatosan fejtik ki hatásukat:
 1. **Linear Fade:** Standard lineáris fényerő átúsztatás.
@@ -59,18 +59,29 @@ A Master Mixer 12 zenei képi átmenetet biztosít, amelyek a crossfader mozgat�
 4. **Hard Cut:** Határozott vágás a felezőponton (0.50).
 5. **Swirl:** Örvénylő csavarás a kép középpontjából.
 6. **Fisheye:** Dinamikus halszemoptika görbület.
-7. **RGB Split (Kromatikus Aberráció):** Vörös, zöld és kék csatornák szétcsúszása.
-8. **Zoom Blur:** Sugárirányú sebességelmosás a középpontból.
+7. **RGB Split (Kromatikus Aberráció):** Vörös és kék csatornák szétcsúszása.
+8. **Radial Zoom Blur:** Sugárirányú sebességelmosás a középpontból.
 9. **Pixelate:** Mozaikszerű pixelesedés a felezőponton.
-10. **Luma Dissolve:** Fényesség-alapú zajos feloszlás.
-11. **Ripple:** Körkörös vízfodrozódás.
-12. **Kaleidoscope:** 6-ágú tükröződő kaleidoszkóp forma.
+10. **Luma Dissolve:** Fényesség-alapú zajos feloszlás és arany parázslás.
+11. **Ripple (Folyadék Hullámzás):** Körkörös vízfodrozódás és törés.
+12. **Kaleidoscope (Mirror Fold):** 8-ágú tükröződő kaleidoszkóp forma.
 13. **Glitch & Scanline:** Digitális adáshiba és CRT képsorok.
-14. **Neon Sobel Edge:** Éldetektált neonszínű körvonalak.
+14. **Pop-Art Halftone:** Képregény nyomdai pontrács.
+15. **Neon Sobel Edge:** Éldetektált neonszínű körvonalak.
+
+### 3.1. Crossfader FX Paraméterezés & Zenei Moduláció (`CrossfadeFxDialog`)
+A Crossfader melletti **`[ ⚙ FX ]`** gombbal megnyitható a Crossfader Vizuális FX beállító ablaka:
+* **Intensity (Erősség / Intenzitás):** 0.0x – 2.0x skála (alapértelmezett: 1.0x).
+* **Rate (Ráta / Lépték / Sebesség):** 0.1x – 3.0x skála (alapértelmezett: 1.0x).
+* **2 Zenei Modulációs Algoritmus:**
+  1. `🥁 Kick Pulzus (Beat Pulse)`: A leütések pillanatában azonnal kitágítja az effekt intenzitását és rátáját a pillanatnyi lábdob transient energiája (`bass_energy`) alapján.
+  2. `📈 Zenei Tónus (Macro-Build-up)`: A sáv makroszkopikus felépülését, zenei sűrűsödését és fokozódását követi le simított Gauss-súlyozású energiagörbével (`macro_tonus`), a kiállásoktól a dropig fokozva a hatást.
+  3. `⚡ Mindkettő (Both)`: Egyszerre kombinálja a gyors lábdob lüktetést és a makroszkopikus fokozódást.
+  4. `✋ Kézi (Off)`: Statikus beállítás.
 
 ---
 
-## 4. 12 ISF AUDIO-REAKTÍV VISUALIZER SHADER (TISZTA AUDIÓHOZ)
+## 4. 15 ISF AUDIO-REAKTÍV VISUALIZER SHADER (TISZTA AUDIÓHOZ)
 
 Ha egy deckbe nem videófájlt, hanem tiszta audiófájlt (`.mp3`, `.wav`) töltünk be, a fekete kép helyett azonnal elindul a Direct3D 11 / OpenGL procedurális shader:
 
@@ -88,6 +99,9 @@ Ha egy deckbe nem videófájlt, hanem tiszta audiófájlt (`.mp3`, `.wav`) tölt
 | **9** | **MandalaScope** | 72-Lépéses Fraktál Mandala | `rate`, `sides`, `scale`, `multiply`, `loops`, `mX`, `mY`, `pulse` |
 | **10**| **Searching Light** | Kiber Fényalagút | `scale`, `modVal`, `zAdder`, `cosinAdder`, `sinAdder`, `finalMulti`, `pulse` |
 | **11**| **CubeField 3D** | Végtelen Kockamező Raymarch | `speed`, `rot_z`, `repeat`, `box_size`, `squiggle`, `dist1`, `dist3`, `termThres` |
+| **12**| **Electro Bands** | Pulzáló Neon Szalagok | `radius`, `amp`, `band`, `speed`, `thickness`, `size` |
+| **13**| **GlobularCluster** | 3D Gömbhalmaz Torzulás | `rate`, `warpx`, `warpy`, `warpz`, `melt`, `density`, `depth`, `tint` |
+| **14**| **HexTruchWarpFlow2**| Hexagonális Truchet Áramlás | `scale`, `rate`, `motion`, `thickness`, `warp`, `arrows`, `dashes`, `pulse` |
 
 ### 4.1. Paraméter Modulációs Módok (C++ oldalon számítva):
 Minden paraméterhez 4-féle mód választható a felületen:

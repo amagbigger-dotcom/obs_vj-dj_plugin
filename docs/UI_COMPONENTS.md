@@ -21,8 +21,9 @@ A felületek **nem OBS dokkoló panelek**, hanem független lebegő dialógusok 
 | :--- | :--- | :---: | :--- |
 | **DeckWindow A** | `Eszközök -> OBS VJ Deck A` | **640 × 340 px** | Waveform, Jog Scratch, 4 Hot Cue, Loop Mátrix (1/2–32), Pitch Fader, `[ ⚡ VJ ]` gomb |
 | **DeckWindow B** | `Eszközök -> OBS VJ Deck B` | **640 × 340 px** | Megegyezik a Deck A-val, narancssárga kiemeléssel |
-| **MixerWindow** | `Eszközök -> Video DJ Mixer` | **590 × 340 px** | 3-sávos EQ és Gain, Filter, Master Crossfader, CUE/PGM füles mix, WASAPI választó, OBS T-Bar szinkron |
-| **VjFxDialog** | `[ ⚡ VJ ]` gomb a Deckeken | **540 × 520 px** | Deck A/B gyorsváltó, 8 shader választó, kifordított paraméter csúszkák és modulációs módok |
+| **MixerWindow** | `Eszközök -> Video DJ Mixer` | **590 × 340 px** | 3-sávos EQ és Gain, `[ ⇄ BGR ]` inverzió, Filter, Master Crossfader, `[ ⚙ FX ]` beállítások, CUE/PGM füles mix, WASAPI választó, OBS T-Bar szinkron |
+| **VjFxDialog** | `[ ⚡ VJ ]` gomb a Deckeken | **540 × 520 px** | Deck A/B gyorsváltó, 15 shader választó, kifordított paraméter csúszkák és modulációs módok |
+| **CrossfadeFxDialog** | `[ ⚙ FX ]` gomb a Mixeren | **380 × 215 px** | Master Crossfader visual FX intenzitás és ráta csúszkák, Kick pulzus és Zenei Tónus modulációk |
 | **TracklistDock** | `Eszközök -> OBS VJ Tracklist` | Rugalmas Dock | Drag-and-drop lista, keresőmező, session zöld pipák, 720p–4K konverter |
 
 ---

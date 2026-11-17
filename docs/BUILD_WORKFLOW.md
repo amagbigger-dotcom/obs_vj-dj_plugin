@@ -203,3 +203,24 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
     - Médiatár (Tracklist) jobb klikkes menü: `⚡ BPM Duplázása (x2)`, `⚡ BPM Felezése (/2)`, `⚡ BPM Másfélszerezése (x1.5)`.
     - Dupla kattintás a táblázat BPM oszlopán: azonnali numerikus párbeszédablak közvetlen kézi BPM megadáshoz.
     - `.vdj.json` gyorsítótár és `vj_tracklist.json` szinkronizáció és perzisztencia.
+
+### Mérföldkő #14: Build #272 / GitHub Run #272 (RGB/BGR & Szaturáció Inverzió, Crossfader FX Moduláció & 3 Új Hű ISF Shader)
+* **Verzió & Commit:** `2be2012`
+* **SHA256:** `915AA888D321809C71BB833E5F95B87E0719793CD2D404FCB75163A7FB798B42`
+* **GitHub Run ID:** `44181503348`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (750 592 bájt)
+* **Jellemzők:**
+  1. **RGB/BGR és Szaturáció Irány Inverzió (`[ ⇄ BGR ]` Gomb):**
+     - Mindkét keverőcsatornán egyedi toggle gomb az EQ potméterek képi színkorrekciós leképezésének és a szaturáció irányának megfordítására.
+     - Normál mód (`[ ⇄ BGR ]` kikapcsolva): HI = Red, MID = Green, LOW = Blue, Filter = $1.0 + \text{flt}$.
+     - Megfordított mód (`[ ⇄ RGB ]` bekapcsolva): HI = Blue, MID = Green, LOW = Red, Filter = $1.0 - \text{flt}$ (a potméter ellenkező irányba színez/telít).
+     - Mind a Traktor S2 fizikai potméterei, mind a felületi EQ csúszkák támogatják az inverziót, és a beállítás elmentődik a `.vdj.json`-ba.
+  2. **Crossfader Vizuális FX Paraméterezés & Zenei Moduláció (`CrossfadeFxDialog`):**
+     - A Master Crossfader átmeneti effektjei (12+ shader) valós időben paraméterezhetővé váltak az `intensity` (0.0x–2.0x) és `rate` (0.1x–3.0x) értékekkel.
+     - A Crossfader melletti `[ ⚙ FX ]` gombbal megnyitható kompakt dialógus (380×215 px).
+     - 4 modulációs algoritmus: `Kézi (Off)`, `Lábdob pulzus (Kick)`, `Zenei Tónus (Macro-Tonus)` és `Mindkettő (Both)`.
+  3. **3 Új Magas Hűségű ISF Shader Integrálása (Összesen 15 Shader):**
+     - #12 **Electro Bands** (echophons): pulzáló neon energiasávok a lábdob és frekvencia dinamikájára.
+     - #13 **GlobularCluster** (mojovideotech): 3D gömbhalmaz torzulás és volumetrikus örvénylés.
+     - #14 **HexTruchWarpFlow2** (mojovideotech): procedurális hexagonális Truchet rácsáramlás.
+     - Teljes per-track és per-shader potméter memória mind a 15 shaderre.
