@@ -1,4 +1,8 @@
 #include "engine/deck_engine.hpp"
+#include "engine/engine_dsp.hpp"
+#include "engine/engine_loop.hpp"
+#include "engine/engine_sync.hpp"
+#include "engine/engine_buffer.hpp"
 #include "audio/audio_analyzer.hpp"
 #include "audio/wasapi_output.hpp"
 
@@ -197,6 +201,10 @@ void DeckPlayer::loadFile(const QString &path)
         if (res.success) {
             base_bpm_.store(std::clamp(res.detected_bpm, 40.0, 300.0), std::memory_order_relaxed);
             playback_bpm_.store(0.0, std::memory_order_relaxed);
+            if (isMaster()) {
+                DeckPair *dp = vdj_decks();
+                if (dp) dp->setMasterClockBpm(res.detected_bpm);
+            }
             grid_offset_ms_.store(res.grid_offset_ms, std::memory_order_relaxed);
             if (res.cue_point_ms > 0) {
                 cue_point_ms_.store(res.cue_point_ms, std::memory_order_relaxed);
@@ -886,82 +894,13 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
     const float f_val = filter_val_.load(std::memory_order_relaxed);
 
     const size_t ch = channel_idx % 2;
-    FilterState &st = dsp_states_[ch];
+    LiveEnvelopes envs;
+    LiveEnvelopes *penvs = (channel_idx == 0) ? &envs : nullptr;
 
-    const float sr = (sample_rate > 0) ? static_cast<float>(sample_rate) : 48000.0f;
-    const float w_low = 2.0f * 3.14159265f * 260.0f / sr;
-    const float alpha_low = std::clamp(w_low / (1.0f + w_low), 0.001f, 0.95f);
+    EngineDsp::process(channel_data, num_frames, channel_idx, sample_rate,
+                       g_low, g_mid, g_hi, f_val, dsp_states_[ch], penvs);
 
-    const float w_high = 2.0f * 3.14159265f * 3200.0f / sr;
-    const float alpha_high = std::clamp(w_high / (1.0f + w_high), 0.001f, 0.95f);
-
-    // Initialize smoothed values on first block
-    if (st.cur_low < 0.001f) st.cur_low = g_low;
-    if (st.cur_mid < 0.001f) st.cur_mid = g_mid;
-    if (st.cur_hi < 0.001f)  st.cur_hi  = g_hi;
-
-    const float smooth_rate = 0.002f; // ~10 ms smooth time at 48kHz (imperceptible latency, zero crackle)
-
-    float sum_sq_in = 0.0f;
-    float sum_sq_low = 0.0f;
-    float sum_sq_mid = 0.0f;
-    float sum_sq_high = 0.0f;
-
-    for (size_t i = 0; i < num_frames; ++i) {
-        const float in = channel_data[i];
-
-        // Smooth parameters per sample to eliminate all zipper noise & crackle
-        st.cur_low += (g_low - st.cur_low) * smooth_rate;
-        st.cur_mid += (g_mid - st.cur_mid) * smooth_rate;
-        st.cur_hi  += (g_hi  - st.cur_hi)  * smooth_rate;
-        st.cur_flt += (f_val - st.cur_flt) * smooth_rate;
-
-        st.lp += alpha_low * (in - st.lp);
-        st.hp += alpha_high * (in - st.hp);
-
-        const float low_band = st.lp;
-        const float high_band = in - st.hp;
-        const float mid_band = in - low_band - high_band;
-
-        sum_sq_in += in * in;
-        sum_sq_low += low_band * low_band;
-        sum_sq_mid += mid_band * mid_band;
-        sum_sq_high += high_band * high_band;
-
-        float out = low_band * st.cur_low + mid_band * st.cur_mid + high_band * st.cur_hi;
-
-        // DJ Filter: continuous tracking prevents stale DC offsets and pops
-        if (st.cur_flt < -0.001f) {
-            // Low Pass: cutoff from ~18000 Hz down to 200 Hz
-            const float norm = 1.0f + st.cur_flt;
-            const float cutoff = 200.0f + norm * norm * 17800.0f;
-            const float a_lp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.001f, 0.95f);
-            st.dj_lp += a_lp * (out - st.dj_lp);
-            st.dj_hp += 0.05f * (0.0f - st.dj_hp);
-            out = st.dj_lp;
-        } else if (st.cur_flt > 0.001f) {
-            // High Pass: cutoff from ~20 Hz up to 8000 Hz
-            const float norm = st.cur_flt;
-            const float cutoff = 20.0f + norm * norm * 7980.0f;
-            const float a_hp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.001f, 0.95f);
-            st.dj_hp += a_hp * (out - st.dj_hp);
-            st.dj_lp += 0.05f * (out - st.dj_lp);
-            out = out - st.dj_hp;
-        } else {
-            st.dj_lp += 0.05f * (out - st.dj_lp);
-            st.dj_hp += 0.05f * (0.0f - st.dj_hp);
-        }
-
-        channel_data[i] = std::clamp(out, -1.2f, 1.2f);
-    }
-
-    if (channel_idx == 0 && num_frames > 0) {
-        const float inv = 1.0f / static_cast<float>(num_frames);
-        const float raw_amp  = std::clamp(std::sqrt(sum_sq_in   * inv) * 2.5f, 0.0f, 1.0f);
-        const float raw_bass = std::clamp(std::sqrt(sum_sq_low  * inv) * 3.8f, 0.0f, 1.0f);
-        const float raw_mid  = std::clamp(std::sqrt(sum_sq_mid  * inv) * 3.2f, 0.0f, 1.0f);
-        const float raw_high = std::clamp(std::sqrt(sum_sq_high * inv) * 3.0f, 0.0f, 1.0f);
-
+    if (penvs) {
         auto updateEnvelope = [](std::atomic<float> &atom, float target) {
             float cur = atom.load(std::memory_order_relaxed);
             if (target > cur) {
@@ -972,10 +911,10 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
             atom.store(cur, std::memory_order_relaxed);
         };
 
-        updateEnvelope(live_amp_, raw_amp);
-        updateEnvelope(live_bass_, raw_bass);
-        updateEnvelope(live_mid_, raw_mid);
-        updateEnvelope(live_high_, raw_high);
+        updateEnvelope(live_amp_, envs.amp);
+        updateEnvelope(live_bass_, envs.bass);
+        updateEnvelope(live_mid_, envs.mid);
+        updateEnvelope(live_high_, envs.high);
     }
 }
 
@@ -996,35 +935,18 @@ void DeckPlayer::setLooping(bool looping)
         return;
     }
 
-    // 12 fokozatú Loop mátrix: 1/16-tól 128 ütemig (1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16, 32, 64, 128)
-    static const double BEAT_MULTIPLIERS[] = {
-        0.0625, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0
-    };
     const int idx = loop_beat_index_.load(std::memory_order_relaxed);
-    const double num_beats = BEAT_MULTIPLIERS[std::clamp(idx, 0, 11)];
-
     const double beat_ms = beatDurationMs();
-    const int64_t loop_len = static_cast<int64_t>(std::round(num_beats * beat_ms));
+    const int64_t loop_len = EngineLoop::calculateLoopLengthMs(beat_ms, idx);
 
     int64_t start = 0;
     const bool already_looping = looping_.load(std::memory_order_relaxed);
 
     if (already_looping) {
-        // Ha a loop már aktív, az eleje MINDIG a rögzített pozícióban marad, csak a végét változtatjuk!
         start = loop_start_ms_.load(std::memory_order_relaxed);
     } else {
-        // Új loop aktiválásakor: kvantált igazítás a legközelebbi ütemre
         const int64_t current = currentTimeMs();
-        start = current;
-        if (beat_ms > 20.0) {
-            const int64_t grid_off = gridOffsetMs();
-            const double rel = static_cast<double>(current - grid_off) / beat_ms;
-            const int64_t beat_idx = static_cast<int64_t>(std::round(rel));
-            const int64_t quant_start = grid_off + static_cast<int64_t>(std::round(beat_idx * beat_ms));
-            if (std::abs(current - quant_start) < static_cast<int64_t>(beat_ms * 0.85) && quant_start >= 0) {
-                start = quant_start;
-            }
-        }
+        start = EngineLoop::quantizeLoopStart(current, gridOffsetMs(), beat_ms);
     }
 
     const int64_t min_len = static_cast<int64_t>(std::max(10.0, beat_ms * 0.05));
@@ -1539,24 +1461,13 @@ double DeckPair::masterClockBpm() const noexcept
 double DeckPair::effectiveMasterBpm() const noexcept
 {
     const int mode = master_mode_.load(std::memory_order_relaxed);
-    if (mode == MASTER_CLOCK) {
-        return master_clock_bpm_.load(std::memory_order_relaxed);
-    }
-    if (mode == MASTER_DECK_A && vj_deck_a()) {
-        return vj_deck_a()->effectiveBpm();
-    }
-    if (mode == MASTER_DECK_B && vj_deck_b()) {
-        return vj_deck_b()->effectiveBpm();
-    }
-    if (mode == MASTER_EXT_MIDI) {
-        return master_clock_bpm_.load(std::memory_order_relaxed);
-    }
-    // Ha nincs explicit master kijelölve, az éppen játszó deck tempóját követjük
-    if (vj_deck_a() && vj_deck_a()->isPlaying())
-        return vj_deck_a()->effectiveBpm();
-    if (vj_deck_b() && vj_deck_b()->isPlaying())
-        return vj_deck_b()->effectiveBpm();
-    return master_clock_bpm_.load(std::memory_order_relaxed);
+    const double clk = master_clock_bpm_.load(std::memory_order_relaxed);
+    const bool da_p = vj_deck_a() ? vj_deck_a()->isPlaying() : false;
+    const double da_bpm = vj_deck_a() ? vj_deck_a()->effectiveBpm() : 128.0;
+    const bool db_p = vj_deck_b() ? vj_deck_b()->isPlaying() : false;
+    const double db_bpm = vj_deck_b() ? vj_deck_b()->effectiveBpm() : 128.0;
+
+    return EngineSync::calculateEffectiveMasterBpm(mode, clk, da_p, da_bpm, db_p, db_bpm);
 }
 
 void DeckPair::setSync(int deck_idx, bool sync_enabled)
@@ -1566,16 +1477,28 @@ void DeckPair::setSync(int deck_idx, bool sync_enabled)
     if (!target) return;
     target->setSync(sync_enabled);
     if (sync_enabled) {
-        const int mode = master_mode_.load(std::memory_order_relaxed);
-        double target_bpm = effectiveMasterBpm();
-        if (mode == MASTER_CLOCK || mode == MASTER_EXT_MIDI) {
-            target_bpm = effectiveMasterBpm();
-        } else if (other && other->isPlaying()) {
-            target_bpm = other->effectiveBpm();
-        } else if (other && other->bpm() > 10.0) {
-            target_bpm = other->bpm();
+        // Ha a cél deck a Master, a saját tempója a referencia: tilos elállítani a másik deck 128-as alapértékére!
+        if (target->isMaster()) {
+            if (other && other->isPlaying() && target->isPlaying()) {
+                target->syncPhaseTo(*other);
+            }
+            return;
         }
-        target->syncToBpm(target_bpm);
+
+        const int mode = master_mode_.load(std::memory_order_relaxed);
+        const double clk = master_clock_bpm_.load(std::memory_order_relaxed);
+        const bool other_master = other ? other->isMaster() : false;
+        const bool other_playing = other ? other->isPlaying() : false;
+        const double other_eff = other ? other->effectiveBpm() : 128.0;
+        const bool other_track = other ? (other->durationMs() > 0) : false;
+        const double other_base = other ? other->bpm() : 128.0;
+
+        const double target_bpm = EngineSync::calculateTargetBpmForSync(
+            target->isMaster(), mode, clk, other_master, other_playing, other_eff, other_track, other_base);
+
+        if (target_bpm > 30.0) {
+            target->syncToBpm(target_bpm);
+        }
 
         // Ütemfázis azonnali összehangolása (Beat Phase Alignment)
         if (other && (other->isPlaying() || target->isPlaying())) {
@@ -1598,6 +1521,9 @@ void DeckPair::setDeckMaster(int deck_idx)
             setMasterMode(MASTER_CLOCK);
         } else {
             setMasterMode(MASTER_DECK_A);
+            if (vj_deck_a() && vj_deck_a()->bpm() > 10.0) {
+                master_clock_bpm_.store(vj_deck_a()->effectiveBpm(), std::memory_order_relaxed);
+            }
         }
     } else {
         if (masterMode() == MASTER_DECK_B) {
@@ -1605,6 +1531,9 @@ void DeckPair::setDeckMaster(int deck_idx)
             setMasterMode(MASTER_CLOCK);
         } else {
             setMasterMode(MASTER_DECK_B);
+            if (vj_deck_b() && vj_deck_b()->bpm() > 10.0) {
+                master_clock_bpm_.store(vj_deck_b()->effectiveBpm(), std::memory_order_relaxed);
+            }
         }
     }
 }
@@ -1617,8 +1546,7 @@ void DeckPair::updateSync()
 
     const int mode = master_mode_.load(std::memory_order_relaxed);
 
-    // Automatikus Master átadás a másik deckre, ha a Master deck leállt vagy a track végére ért,
-    // megelőzve, hogy az új szám betöltése elhúzza a közönségnek szóló deck tempóját
+    // Automatikus Master átadás a másik deckre, ha a Master deck leállt vagy a track végére ért
     if (mode == MASTER_DECK_A && (!da->isPlaying() || da->isAtEnd())) {
         if (db->isPlaying()) {
             setMasterMode(MASTER_DECK_B);
@@ -1633,10 +1561,12 @@ void DeckPair::updateSync()
 
     if (da->isSync() && !da->isMaster()) {
         double target_bpm = master_bpm;
-        if (mode == MASTER_DECK_B && db->isPlaying()) {
+        if (mode == MASTER_DECK_B) {
             target_bpm = db->effectiveBpm();
         } else if (mode == MASTER_CLOCK || mode == MASTER_EXT_MIDI) {
             target_bpm = master_bpm;
+        } else if (db->isMaster()) {
+            target_bpm = db->effectiveBpm();
         } else if (db->isPlaying()) {
             target_bpm = db->effectiveBpm();
         }
@@ -1645,10 +1575,12 @@ void DeckPair::updateSync()
     }
     if (db->isSync() && !db->isMaster()) {
         double target_bpm = master_bpm;
-        if (mode == MASTER_DECK_A && da->isPlaying()) {
+        if (mode == MASTER_DECK_A) {
             target_bpm = da->effectiveBpm();
         } else if (mode == MASTER_CLOCK || mode == MASTER_EXT_MIDI) {
             target_bpm = master_bpm;
+        } else if (da->isMaster()) {
+            target_bpm = da->effectiveBpm();
         } else if (da->isPlaying()) {
             target_bpm = da->effectiveBpm();
         }

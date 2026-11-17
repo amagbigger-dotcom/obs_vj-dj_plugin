@@ -13,6 +13,7 @@
 #include <thread>
 #include <vector>
 #include "effects/vj_config.hpp"
+#include "engine/engine_dsp.hpp"
 
 class DeckPlayer {
 public:
@@ -243,16 +244,7 @@ private:
     int loop_fade_rem_samples_ = 0;
     int loop_fade_total_samples_ = 0;
 
-    struct FilterState {
-        float lp = 0.0f;
-        float hp = 0.0f;
-        float dj_lp = 0.0f;
-        float dj_hp = 0.0f;
-        float cur_low = 1.0f;
-        float cur_mid = 1.0f;
-        float cur_hi = 1.0f;
-        float cur_flt = 0.0f;
-    } dsp_states_[2];
+    EngineDspState dsp_states_[2];
 
     mutable std::mutex waveform_mutex_;
     std::vector<float> overview_samples_;

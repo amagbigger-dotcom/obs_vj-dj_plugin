@@ -26,6 +26,14 @@ set(SOURCES
     # Engine (Playback & State Machine)
     src/engine/deck_engine.cpp
     src/engine/deck_engine.hpp
+    src/engine/engine_dsp.cpp
+    src/engine/engine_dsp.hpp
+    src/engine/engine_loop.cpp
+    src/engine/engine_loop.hpp
+    src/engine/engine_sync.cpp
+    src/engine/engine_sync.hpp
+    src/engine/engine_buffer.cpp
+    src/engine/engine_buffer.hpp
 
     # Audio (WMF Analysis & WASAPI CUE)
     src/audio/audio_analyzer.cpp
