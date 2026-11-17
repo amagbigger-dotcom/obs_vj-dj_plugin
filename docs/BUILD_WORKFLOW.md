@@ -158,6 +158,33 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
 * **Verzió & Commit:** `ff28a2f`
 * **SHA256:** `ADA378D3F21C6601F444D2BC48B8993C59ABCE4C4DEB316B5828CC6DBF73BF58`
 * **Kész bináris mentés:** `milestones/obs_dj-vj_plugin_run267_build250.dll` (685 056 bájt)
+
+### Mérföldkő #13: Build #251 / GitHub Run #268 (Key Lock 44.1k->48k Resampling, Shader Potméter Memória, Egyedi Színmoduláció & Makro-Tónus)
+* **Verzió & Commit:** `cb3cb8a`
+* **SHA256:** `AB2FB42FCDE6D634B302534CD852DB8091158E655D8387A4A5ABB879C9F86DDC`
+* **GitHub Run ID:** `44157498011`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (686 080 bájt)
+* **Jellemzők:** A felhasználó által jelzett 4 kulcsfontosságú hiba és funkcionális hiányosság teljes körű megoldása:
+  1. **Key Lock 100% Tempó Elhangolódás Megszüntetése (44.1 kHz $\rightarrow$ 48.0 kHz Resampling):**
+     - A hangfájlokból származó 44.1 kHz-es WSOLA szemcsék ezentúl nem közvetlenül kerülnek az OBS 48.0 kHz-es kimenetére (+1.47 félhangos mesterséges transzponálást okozva), hanem valós idejű lineáris interpolációval reszamplálódnak `sr_step = audio_sample_rate_ / out_sr` sebességgel.
+     - 1.0x eredeti sebességnél (`|speed_ratio - 1.0| < 0.0005`) 100% bit-pontos bypass lép életbe: nulla fázistorzítás, nulla CPU terhelés, kristálytiszta eredeti hangzás.
+     - A valós idejű audioszál szinkron `obs_source_media_set_time` hívásai kiváltva egy aszinkron atomi ugrásjelzőre (`pending_loop_video_seek_ms_`), megszüntetve a loop visszaugráskor jelentkező puffer-kimaradást és kattanást.
+  2. **Shaderek Potmétereinek Számonkénti és Shaderenkénti Megőrzése (Per-Shader Persistence):**
+     - A `VjDeckConfig` mostantól mind a 12 shader egyedi paramétereit (`all_shader_params[12][8]`) külön-külön tárolja el a memóriában és a `.vdj.json` gyorsítótárban.
+     - Shaderváltáskor az előző shader módosított értékei azonnal elmentődnek, az új shader kiválasztásakor pedig a hozzá tartozó korábbi egyedi potméter-állások töltődnek vissza ahelyett, hogy defaultra állnának.
+  3. **Szabad Vizuális Színbeállítás & Zenei Színmoduláció:**
+     - A színek nincsenek többé kényszerűen a Deck A (kék) és Deck B (narancs) profilhoz láncolva.
+     - A VJ ablakban új színválasztó (`QColorDialog`) és 4-féle modulációs algoritmus kapott helyet:
+       * `0: 🔒 Fix Szín`: Kiválasztott egyedi szín megjelenítése.
+       * `1: 🥁 Lábdob Pulzus`: A lábdob energiájára lüktető fényerő és szaturáció.
+       * `2: 📈 Zenei Tónus`: Dinamikus színátmenet a nyugodt, hűvös kiállásokból a tüzes, intenzív drop felé haladva.
+       * `3: 🌈 Színkör Ciklus`: A BPM tempóra és az időkódra folyamatosan forgó szivárvány spektrum.
+     - Mind a 12 ISF shader HLSL renderelője megkapta a `custom_theme_color` uniformot.
+  4. **Lassú, Zenei Felépülést Követő Makro-Tónus Algoritmus:**
+     - Az azonnali dobütéseken ugráló, zajos tónus helyett egy 8-bucketos (~5.5 másodperc, 2-3 zenei ütem) Gauss-szűrő követi a zene valódi strukturális fokozódását és energiáját (`overview_tonus`).
+     - A pozíció áttekintő ablak alsó sávján egy finom makro-tónus feszültség-szalag jelenik meg, az áttekintő hullámforma színezése pedig a track felépítését tükrözi (hideg bevezető $\rightarrow$ arany feszültség $\rightarrow$ meleg, tüzes drop).
+  5. **BPM /2 és ×2 Gombok a DISP Fejlécben:**
+     - A hullámforma felső információs fejlécében közvetlen gyorsgombok a fél- és duplatempós BPM azonnali, egykattintásos beállításához és szinkronizálásához.
 * **Telepítve:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 * **Jellemzők & Megoldott Problémák:**
   - **FFT Kroma 24-Hangnem Detektálás (`AnalyzerKey`):**
