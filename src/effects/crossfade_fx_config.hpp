@@ -24,8 +24,23 @@ struct CrossfadeFxDef {
 
 struct CrossfadeFxParamConfig {
     float value = 1.0f;
-    int mod_mode = 0; // 0: Kézi (Off), 1: 🥁 Kick Pulzus, 2: 📈 Zenei Tónus, 3: ⚡ Mindkettő
+    float mod_depth = 0.0f; // -1.0f .. +1.0f (0.0f = Középállás / Inaktív)
+    int mod_mode = 0;       // 0: Kézi, 1: Bass, 2: Mid, 3: High, 4: Tónus, 5: LFO 1, 6: LFO 2, 7: Bass+Tónus
 };
+
+inline const std::vector<const char*>& getModulationSourceNames() {
+    static const std::vector<const char*> names = {
+        "✋ Kézi (Nincs)",
+        "🥁 Bass Pulse (<250Hz)",
+        "🎯 Mid Pulse (250-5kHz)",
+        "✨ High Pulse (>5kHz)",
+        "📈 Zenei Tónus (Macro)",
+        "〰 LFO 1 (BPM Synced)",
+        "∿ LFO 2 (BPM Synced)",
+        "⚡ Bass + Tónus"
+    };
+    return names;
+}
 
 inline const std::vector<CrossfadeFxDef>& getCrossfadeFxDefinitions() {
     static const std::vector<CrossfadeFxDef> defs = {
@@ -42,9 +57,7 @@ inline const std::vector<CrossfadeFxDef>& getCrossfadeFxDefinitions() {
                 {"twist", "Csavarás Szöge / Twist", 0.5f, 10.0f, 3.14f, 0.1f},
                 {"radius", "Hatósugár / Radius", 0.2f, 3.0f, 1.0f, 0.05f},
                 {"dir", "Forgásirány / Direction", -1.0f, 1.0f, 1.0f, 0.1f},
-                {"zoom", "Nagyítás / Zoom", 0.5f, 2.5f, 1.0f, 0.05f},
-                {"center_x", "Középpont X", 0.0f, 1.0f, 0.5f, 0.01f},
-                {"center_y", "Középpont Y", 0.0f, 1.0f, 0.5f, 0.01f}
+                {"zoom", "Nagyítás / Zoom", 0.5f, 2.5f, 1.0f, 0.05f}
             }
         },
         {
@@ -52,9 +65,7 @@ inline const std::vector<CrossfadeFxDef>& getCrossfadeFxDefinitions() {
             {
                 {"distortion", "Görbület / Distortion", 0.1f, 4.0f, 0.9f, 0.05f},
                 {"zoom", "Nagyítás / Zoom", 0.5f, 3.0f, 1.0f, 0.05f},
-                {"vignette", "Peremsötétedés / Vignette", 0.0f, 2.0f, 0.0f, 0.05f},
-                {"center_x", "Középpont X", 0.0f, 1.0f, 0.5f, 0.01f},
-                {"center_y", "Középpont Y", 0.0f, 1.0f, 0.5f, 0.01f}
+                {"vignette", "Peremsötétedés / Vignette", 0.0f, 2.0f, 0.0f, 0.05f}
             }
         },
         {
@@ -72,8 +83,6 @@ inline const std::vector<CrossfadeFxDef>& getCrossfadeFxDefinitions() {
             {
                 {"amount", "Elmosás Erőssége / Amount", 0.005f, 0.12f, 0.035f, 0.002f},
                 {"samples", "Mintavétel / Samples", 2.0f, 8.0f, 6.0f, 1.0f},
-                {"center_x", "Középpont X", 0.0f, 1.0f, 0.5f, 0.01f},
-                {"center_y", "Középpont Y", 0.0f, 1.0f, 0.5f, 0.01f},
                 {"decay", "Csillapodás / Falloff", 0.2f, 2.0f, 1.0f, 0.05f},
                 {"glow", "Ragyogás / Glow", 0.0f, 2.0f, 0.0f, 0.05f}
             }
@@ -111,15 +120,14 @@ inline const std::vector<CrossfadeFxDef>& getCrossfadeFxDefinitions() {
             }
         },
         {
-            8, "Kaleidoszkóp (Mirror Fold)", "Többtükrös Poláris Tükrözés",
+            8, "Kaleidoszkóp (Mirror Fold)", "Többtükrös Poláris Szimmetria",
             {
                 {"sides", "Tükrök Száma / Mirrors (Sides)", 2.0f, 16.0f, 6.0f, 1.0f},
-                {"rot_speed", "Forgási Sebesség / Speed", 0.0f, 5.0f, 1.0f, 0.1f},
-                {"zoom", "Nagyítás / Zoom", 0.3f, 3.0f, 1.0f, 0.05f},
-                {"fold_angle", "Hajtási Szög / Angle", 0.2f, 3.14f, 1.5708f, 0.05f},
-                {"center_x", "Középpont X", 0.0f, 1.0f, 0.5f, 0.01f},
-                {"center_y", "Középpont Y", 0.0f, 1.0f, 0.5f, 0.01f},
-                {"blend", "Keverés Erőssége / Blend", 0.2f, 2.0f, 1.25f, 0.05f}
+                {"rot_speed", "Forgási Sebesség / Speed", -3.0f, 3.0f, 0.5f, 0.05f},
+                {"zoom", "Nagyítás / Zoom", 0.2f, 3.0f, 1.0f, 0.05f},
+                {"pan_x", "Belső Képeltolás X / Pan X", -1.0f, 1.0f, 0.0f, 0.02f},
+                {"pan_y", "Belső Képeltolás Y / Pan Y", -1.0f, 1.0f, 0.0f, 0.02f},
+                {"blend", "Keverés Erőssége / Blend", 0.0f, 1.0f, 1.0f, 0.05f}
             }
         },
         {
@@ -167,20 +175,45 @@ inline const std::vector<CrossfadeFxDef>& getCrossfadeFxDefinitions() {
     return defs;
 }
 
-inline float computeCrossfadeEffectiveParam(const CrossfadeFxParamDef &def, float base_val, int mod_mode,
-                                            float bass_energy, float macro_tonus = 0.5f)
+inline float computeCrossfadeEffectiveParam(const CrossfadeFxParamDef &def, float base_val,
+                                            float mod_depth, int mod_mode,
+                                            float bass_energy, float mid_energy, float high_energy,
+                                            float macro_tonus = 0.5f,
+                                            float lfo1 = 0.0f, float lfo2 = 0.0f)
 {
-    float val = base_val;
-    const float span = def.max_val - def.min_val;
-    if (mod_mode == 1) {
-        // 🥁 Kick Pulzus (Beat pulse)
-        val += (bass_energy - 0.20f) * (span * 0.40f);
-    } else if (mod_mode == 2) {
-        // 📈 Zenei Tónus (Macro-Tonus build-up)
-        val += (macro_tonus - 0.50f) * (span * 0.55f);
-    } else if (mod_mode == 3) {
-        // ⚡ Mindkettő: Beat + Macro-Tonus
-        val += (bass_energy - 0.20f) * (span * 0.25f) + (macro_tonus - 0.50f) * (span * 0.35f);
+    if (std::abs(mod_depth) < 0.001f || mod_mode == 0) {
+        return std::clamp(base_val, def.min_val, def.max_val);
     }
+
+    float sig = 0.0f;
+    switch (mod_mode) {
+    case 1: // 🥁 Bass Pulse (<250Hz)
+        sig = std::clamp((bass_energy - 0.20f) * 1.35f, -0.5f, 1.0f);
+        break;
+    case 2: // 🎯 Mid Pulse (250-5kHz)
+        sig = std::clamp((mid_energy - 0.20f) * 1.35f, -0.5f, 1.0f);
+        break;
+    case 3: // ✨ High Pulse (>5kHz)
+        sig = std::clamp((high_energy - 0.20f) * 1.35f, -0.5f, 1.0f);
+        break;
+    case 4: // 📈 Zenei Tónus (Macro-Tonus build-up)
+        sig = std::clamp((macro_tonus - 0.50f) * 2.0f, -1.0f, 1.0f);
+        break;
+    case 5: // 〰 LFO 1 (BPM Synced)
+        sig = lfo1;
+        break;
+    case 6: // ∿ LFO 2 (BPM Synced)
+        sig = lfo2;
+        break;
+    case 7: // ⚡ Bass + Tónus
+        sig = std::clamp(((bass_energy - 0.20f) * 0.8f) + ((macro_tonus - 0.50f) * 1.0f), -1.0f, 1.0f);
+        break;
+    default:
+        sig = 0.0f;
+        break;
+    }
+
+    const float span = def.max_val - def.min_val;
+    float val = base_val + (mod_depth * sig * span * 0.5f);
     return std::clamp(val, def.min_val, def.max_val);
 }

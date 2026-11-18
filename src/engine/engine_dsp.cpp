@@ -15,10 +15,10 @@ void EngineDsp::process(float *channel_data,
         return;
 
     const float sr = (sample_rate > 0) ? static_cast<float>(sample_rate) : 48000.0f;
-    const float w_low = 2.0f * 3.14159265f * 260.0f / sr;
+    const float w_low = 2.0f * 3.14159265f * 250.0f / sr;
     const float alpha_low = std::clamp(w_low / (1.0f + w_low), 0.001f, 0.95f);
 
-    const float w_high = 2.0f * 3.14159265f * 3200.0f / sr;
+    const float w_high = 2.0f * 3.14159265f * 5000.0f / sr;
     const float alpha_high = std::clamp(w_high / (1.0f + w_high), 0.001f, 0.95f);
 
     // Initialize smoothed values on first block

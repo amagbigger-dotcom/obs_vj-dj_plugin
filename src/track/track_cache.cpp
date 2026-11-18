@@ -119,6 +119,7 @@ bool TrackCache::load(const QString &media_file_path, TrackAnalysisResult &out_r
                         QJsonObject p_obj = s_arr[i].toObject();
                         out_res.vj_config.all_shader_params[s][i].value = static_cast<float>(p_obj.value(QStringLiteral("val")).toDouble(1.0));
                         out_res.vj_config.all_shader_params[s][i].mod_mode = p_obj.value(QStringLiteral("mod")).toInt(0);
+                        out_res.vj_config.all_shader_params[s][i].mod_depth = static_cast<float>(p_obj.value(QStringLiteral("depth")).toDouble(0.0));
                     }
                 }
             }
@@ -129,6 +130,7 @@ bool TrackCache::load(const QString &media_file_path, TrackAnalysisResult &out_r
             QJsonObject p_obj = p_arr[i].toObject();
             out_res.vj_config.params[i].value = static_cast<float>(p_obj.value(QStringLiteral("val")).toDouble(1.0));
             out_res.vj_config.params[i].mod_mode = p_obj.value(QStringLiteral("mod")).toInt(0);
+            out_res.vj_config.params[i].mod_depth = static_cast<float>(p_obj.value(QStringLiteral("depth")).toDouble(0.0));
         }
         out_res.vj_config.all_shader_params[s_idx] = out_res.vj_config.params;
         out_res.has_vj_config = true;
@@ -201,6 +203,7 @@ bool TrackCache::save(const QString &media_file_path, const TrackAnalysisResult 
                 QJsonObject p_obj;
                 p_obj.insert(QStringLiteral("val"), std::round(res.vj_config.all_shader_params[s][i].value * 10000.0) / 10000.0);
                 p_obj.insert(QStringLiteral("mod"), res.vj_config.all_shader_params[s][i].mod_mode);
+                p_obj.insert(QStringLiteral("depth"), std::round(res.vj_config.all_shader_params[s][i].mod_depth * 1000.0) / 1000.0);
                 s_arr.append(p_obj);
             }
             all_s.insert(QString::number(s), s_arr);
@@ -212,6 +215,7 @@ bool TrackCache::save(const QString &media_file_path, const TrackAnalysisResult 
             QJsonObject p_obj;
             p_obj.insert(QStringLiteral("val"), std::round(res.vj_config.params[i].value * 10000.0) / 10000.0);
             p_obj.insert(QStringLiteral("mod"), res.vj_config.params[i].mod_mode);
+            p_obj.insert(QStringLiteral("depth"), std::round(res.vj_config.params[i].mod_depth * 1000.0) / 1000.0);
             p_arr.append(p_obj);
         }
         vj_obj.insert(QStringLiteral("params"), p_arr);
@@ -252,6 +256,7 @@ bool TrackCache::updateVjConfig(const QString &media_file_path, const VjDeckConf
             QJsonObject p_obj;
             p_obj.insert(QStringLiteral("val"), std::round(config.all_shader_params[s][i].value * 10000.0) / 10000.0);
             p_obj.insert(QStringLiteral("mod"), config.all_shader_params[s][i].mod_mode);
+            p_obj.insert(QStringLiteral("depth"), std::round(config.all_shader_params[s][i].mod_depth * 1000.0) / 1000.0);
             s_arr.append(p_obj);
         }
         all_s.insert(QString::number(s), s_arr);
@@ -263,6 +268,7 @@ bool TrackCache::updateVjConfig(const QString &media_file_path, const VjDeckConf
         QJsonObject p_obj;
         p_obj.insert(QStringLiteral("val"), std::round(config.params[i].value * 10000.0) / 10000.0);
         p_obj.insert(QStringLiteral("mod"), config.params[i].mod_mode);
+        p_obj.insert(QStringLiteral("depth"), std::round(config.params[i].mod_depth * 1000.0) / 1000.0);
         p_arr.append(p_obj);
     }
     vj_obj.insert(QStringLiteral("params"), p_arr);

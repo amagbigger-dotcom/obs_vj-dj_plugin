@@ -4,6 +4,7 @@
 #include <vector>
 #include <array>
 #include <algorithm>
+#include <cmath>
 
 struct VjParamDef {
     const char *id;
@@ -23,7 +24,8 @@ struct VjShaderDef {
 
 struct VjParamConfig {
     float value = 1.0f;
-    int mod_mode = 0; // 0: Kézi (Manual/Off), 1: Zene Üteme (Beat Pulse), 2: Tónusos (Macro-Build-up), 3: Mindkettő (Both)
+    float mod_depth = 0.0f; // -1.0f .. +1.0f (0.0 = Középállás / Inaktív)
+    int mod_mode = 0;       // 0: Kézi, 1: Bass, 2: Mid, 3: High, 4: Tónus, 5: LFO 1, 6: LFO 2, 7: Bass+Tónus
 };
 
 struct VjDeckConfig {
@@ -53,7 +55,9 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
                 {"depth", "Mélység / Depth", 0.70f, 0.95f, 0.82f, 0.01f},
                 {"blur", "Elmosás / Blur", 0.05f, 0.35f, 0.15f, 0.005f},
                 {"freq", "Frekvencia 1 / Freq 1", 0.005f, 0.10f, 0.025f, 0.002f},
-                {"freq2", "Frekvencia 2 / Freq 2", 0.10f, 1.0f, 0.45f, 0.01f}
+                {"freq2", "Frekvencia 2 / Freq 2", 0.10f, 1.0f, 0.45f, 0.01f},
+                {"detail", "Részletesség / Detail", 1.0f, 6.0f, 3.0f, 0.5f},
+                {"glow", "Fényerő / Glow", 0.5f, 3.0f, 1.2f, 0.05f}
             }
         },
         {
@@ -62,7 +66,11 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
                 {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.0f, 0.05f},
                 {"zoom", "Nagyítás / Zoom", 0.5f, 4.0f, 2.0f, 0.05f},
                 {"thickness", "Vastagság / Thickness", 0.01f, 0.20f, 0.05f, 0.005f},
-                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.5f, 0.02f}
+                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.5f, 0.02f},
+                {"twist", "Csavarás / Twist", 0.0f, 3.14f, 0.5f, 0.05f},
+                {"glow", "Neon Ragyogás / Glow", 0.1f, 3.0f, 1.0f, 0.05f},
+                {"speed_z", "Z-Áramlás / Speed Z", -2.0f, 2.0f, 0.5f, 0.05f},
+                {"roughness", "Érdesség / Roughness", 0.0f, 1.0f, 0.2f, 0.02f}
             }
         },
         {
@@ -72,7 +80,10 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
                 {"size", "Méret / Size", 1.0f, 15.0f, 8.95f, 0.1f},
                 {"edge", "Élesség / Edge", 3.0f, 30.0f, 23.0f, 0.5f},
                 {"amp1", "Hullám 1 / Amp 1", 0.01f, 0.35f, 0.12f, 0.005f},
-                {"amp2", "Hullám 2 / Amp 2", 0.01f, 0.30f, 0.08f, 0.005f}
+                {"amp2", "Hullám 2 / Amp 2", 0.01f, 0.30f, 0.08f, 0.005f},
+                {"twist", "Alagút Csavarás / Twist", -2.0f, 2.0f, 0.0f, 0.05f},
+                {"rings", "Gyűrű Sűrűség / Rings", 5.0f, 40.0f, 18.0f, 1.0f},
+                {"glow", "Neon Peremfény / Glow", 0.2f, 3.0f, 1.0f, 0.05f}
             }
         },
         {
@@ -82,7 +93,10 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
                 {"zoom", "Nagyítás / Zoom", 0.2f, 3.0f, 1.0f, 0.05f},
                 {"amplitude", "Amplitúdó / Amp", 0.0f, 80.0f, 25.0f, 1.0f},
                 {"thickness", "Vastagság / Thickness", 0.001f, 0.03f, 0.005f, 0.001f},
-                {"twist", "Csavarás / Twist", 0.0f, 0.1f, 0.025f, 0.002f}
+                {"twist", "Csavarás / Twist", 0.0f, 0.1f, 0.025f, 0.002f},
+                {"freq", "Hullám Frekvencia / Freq", 0.5f, 5.0f, 2.0f, 0.1f},
+                {"glow", "Neon Izzás / Glow", 0.1f, 3.0f, 1.0f, 0.05f},
+                {"decay", "Csillapodás / Decay", 0.1f, 2.0f, 0.8f, 0.05f}
             }
         },
         {
@@ -94,7 +108,8 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
                 {"freq2", "Frekvencia 2", 0.0f, 2.0f, 1.25f, 0.02f},
                 {"radius1", "Belső Sugár / R1", -0.5f, 1.5f, 0.0f, 0.02f},
                 {"radius2", "Külső Sugár / R2", 0.5f, 2.5f, 1.0f, 0.02f},
-                {"thickness", "Szálvastagság", 0.0001f, 0.005f, 0.001f, 0.0001f}
+                {"thickness", "Szálvastagság", 0.0001f, 0.005f, 0.001f, 0.0001f},
+                {"phase", "Fáziseltolás / Phase", 0.0f, 3.14f, 0.5f, 0.05f}
             }
         },
         {
@@ -105,7 +120,9 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
                 {"twee", "Forma 2", 0.0f, 10.0f, 5.0f, 0.1f},
                 {"drie", "Forma 3", 0.0f, 10.0f, 5.0f, 0.1f},
                 {"vijf", "Fényerő / Brightness", 0.0f, 8.0f, 4.4f, 0.1f},
-                {"acht", "Aranyarány / Golden", 0.1f, 3.0f, 1.0f, 0.05f}
+                {"acht", "Aranyarány / Golden", 0.1f, 3.0f, 1.0f, 0.05f},
+                {"rot_spd", "Forgási Ráta / Rot Speed", -3.0f, 3.0f, 0.8f, 0.05f},
+                {"edge_glow", "Él Ragyogás / Edge Glow", 0.1f, 3.0f, 1.2f, 0.05f}
             }
         },
         {
@@ -116,7 +133,9 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
                 {"intensity", "Intenzitás", 0.01f, 0.05f, 0.03f, 0.002f},
                 {"focus", "Fókusz / Focus", 0.5f, 5.0f, 2.14f, 0.05f},
                 {"pulse", "Pulzus / Pulse", 6.0f, 60.0f, 30.0f, 1.0f},
-                {"glow", "Izzás / Glow", -50.0f, 50.0f, 10.0f, 1.0f}
+                {"glow", "Izzás / Glow", -50.0f, 50.0f, 10.0f, 1.0f},
+                {"iter_steps", "Fraktál Mélység / Steps", 4.0f, 20.0f, 11.0f, 1.0f},
+                {"shift_y", "Térbeli Eltolás / Shift Y", -1.0f, 1.0f, 0.0f, 0.05f}
             }
         },
         {
@@ -127,7 +146,9 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
                 {"W", "Sugárkövetés / Ray", 0.0f, 2.0f, 1.0f, 0.05f},
                 {"R", "Színárnyalat / HUE", -1.0f, 1.0f, 1.0f, 0.05f},
                 {"Rot", "Forgatás / Rotation", 0.1f, 2.0f, 1.0f, 0.05f},
-                {"Rat", "Ráta / Ratio", -1.0f, 2.0f, 1.0f, 0.05f}
+                {"Rat", "Ráta / Ratio", -1.0f, 2.0f, 1.0f, 0.05f},
+                {"zoom", "Nagyítás / Zoom", 0.2f, 3.0f, 1.0f, 0.05f},
+                {"glow", "Fényerő / Glow", 0.2f, 3.0f, 1.1f, 0.05f}
             }
         },
         {
@@ -165,7 +186,8 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
                 {"cosinAdder", "Koszinusz Torzítás", -1.0f, 1.0f, 0.7f, 0.05f},
                 {"sinAdder", "Szinusz Torzítás", -1.0f, 1.0f, 0.7f, 0.05f},
                 {"finalMulti", "Fényerő / Glow", 0.1f, 2.5f, 0.8f, 0.05f},
-                {"pulse", "Kick Basszus Pulzus", 0.0f, 2.0f, 0.8f, 0.05f}
+                {"pulse", "Kick Basszus Pulzus", 0.0f, 2.0f, 0.8f, 0.05f},
+                {"rot_spd", "Forgási Ráta / Rot Speed", -2.0f, 2.0f, 0.4f, 0.05f}
             }
         },
         {
@@ -189,7 +211,9 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
                 {"band", "Sáv / Band", -1.0f, 1.0f, 0.75f, 0.05f},
                 {"speed", "Sebesség / Speed", 0.0f, 2.0f, 0.33f, 0.05f},
                 {"thickness", "Vastagság / Thick", 0.1f, 10.0f, 1.05f, 0.1f},
-                {"size", "Méretarány / Size", 5.0f, 100.0f, 47.5f, 1.0f}
+                {"size", "Méretarány / Size", 5.0f, 100.0f, 47.5f, 1.0f},
+                {"twist", "Szalagcsavarás / Twist", -2.0f, 2.0f, 0.0f, 0.05f},
+                {"glow", "Neon Izzás / Glow", 0.2f, 3.0f, 1.2f, 0.05f}
             }
         },
         {
@@ -231,9 +255,11 @@ inline VjDeckConfig getDefaultVjConfig(int shader_idx) {
         for (size_t i = 0; i < 8; ++i) {
             if (i < p_defs.size()) {
                 cfg.all_shader_params[s][i].value = p_defs[i].def_val;
+                cfg.all_shader_params[s][i].mod_depth = 0.0f;
                 cfg.all_shader_params[s][i].mod_mode = 0;
             } else {
                 cfg.all_shader_params[s][i].value = 0.0f;
+                cfg.all_shader_params[s][i].mod_depth = 0.0f;
                 cfg.all_shader_params[s][i].mod_mode = 0;
             }
         }
@@ -247,40 +273,71 @@ inline VjDeckConfig getDefaultVjConfig(int shader_idx) {
     return cfg;
 }
 
-inline float computeEffectiveParamSimple(float base_val, float min_val, float max_val, int mod_mode,
-                                         float bass_energy, float macro_tonus = 0.5f)
+inline float computeEffectiveParam(const VjParamDef &def, float base_val, float mod_depth, int mod_mode,
+                                   float bass_energy, float mid_energy, float high_energy,
+                                   float macro_tonus = 0.5f, float lfo1 = 0.0f, float lfo2 = 0.0f)
 {
-    float val = base_val;
-    const float span = max_val - min_val;
-    if (mod_mode == 1) {
-        // Beat / Kick pulse modulation (lábdob leütésre tágul / lüktet)
-        val += (bass_energy - 0.20f) * (span * 0.40f);
-    } else if (mod_mode == 2) {
-        // Zenei tónus és lassú építkezés (fokozódás a dropig)
-        val += (macro_tonus - 0.50f) * (span * 0.55f);
-    } else if (mod_mode == 3) {
-        // Mindkettő: Beat + Macro-Tonus
-        val += (bass_energy - 0.20f) * (span * 0.25f) + (macro_tonus - 0.50f) * (span * 0.35f);
+    if (std::abs(mod_depth) < 0.001f || mod_mode == 0) {
+        return std::clamp(base_val, def.min_val, def.max_val);
     }
-    return std::clamp(val, min_val, max_val);
+
+    float sig = 0.0f;
+    switch (mod_mode) {
+    case 1: // 🥁 Bass Pulse (<250Hz)
+        sig = std::clamp((bass_energy - 0.20f) * 1.35f, -0.5f, 1.0f);
+        break;
+    case 2: // 🎯 Mid Pulse (250-5kHz)
+        sig = std::clamp((mid_energy - 0.20f) * 1.35f, -0.5f, 1.0f);
+        break;
+    case 3: // ✨ High Pulse (>5kHz)
+        sig = std::clamp((high_energy - 0.20f) * 1.35f, -0.5f, 1.0f);
+        break;
+    case 4: // 📈 Zenei Tónus (Macro-Build-up)
+        sig = std::clamp((macro_tonus - 0.50f) * 2.0f, -1.0f, 1.0f);
+        break;
+    case 5: // 〰 LFO 1 (BPM Synced)
+        sig = lfo1;
+        break;
+    case 6: // ∿ LFO 2 (BPM Synced)
+        sig = lfo2;
+        break;
+    case 7: // ⚡ Bass + Tónus
+        sig = std::clamp(((bass_energy - 0.20f) * 0.8f) + ((macro_tonus - 0.50f) * 1.0f), -1.0f, 1.0f);
+        break;
+    default:
+        sig = 0.0f;
+        break;
+    }
+
+    const float span = def.max_val - def.min_val;
+    float val = base_val + (mod_depth * sig * span * 0.5f);
+    return std::clamp(val, def.min_val, def.max_val);
 }
 
-inline float computeEffectiveParam(const VjParamDef &def, float base_val, int mod_mode,
-                                   float bass_energy, float tone_balance, float macro_tonus = 0.5f)
+inline float computeEffectiveParamSimple(float base_val, float min_val, float max_val,
+                                         float mod_depth, int mod_mode,
+                                         float bass_energy, float mid_energy, float high_energy,
+                                         float macro_tonus = 0.5f, float lfo1 = 0.0f, float lfo2 = 0.0f)
 {
-    float val = base_val;
-    const float span = def.max_val - def.min_val;
-    if (mod_mode == 1) {
-        // Beat / Kick pulse modulation (lábdob leütésre tágul / lüktet)
-        val += (bass_energy - 0.20f) * (span * 0.40f);
-    } else if (mod_mode == 2) {
-        // Zenei tónus és lassú építkezés (fokozódás a dropig)
-        val += (macro_tonus - 0.50f) * (span * 0.55f);
-    } else if (mod_mode == 3) {
-        // Mindkettő: Beat + Macro-Tonus
-        val += (bass_energy - 0.20f) * (span * 0.25f) + (macro_tonus - 0.50f) * (span * 0.35f);
+    if (std::abs(mod_depth) < 0.001f || mod_mode == 0) {
+        return std::clamp(base_val, min_val, max_val);
     }
-    return std::clamp(val, def.min_val, def.max_val);
+
+    float sig = 0.0f;
+    switch (mod_mode) {
+    case 1: sig = std::clamp((bass_energy - 0.20f) * 1.35f, -0.5f, 1.0f); break;
+    case 2: sig = std::clamp((mid_energy - 0.20f) * 1.35f, -0.5f, 1.0f); break;
+    case 3: sig = std::clamp((high_energy - 0.20f) * 1.35f, -0.5f, 1.0f); break;
+    case 4: sig = std::clamp((macro_tonus - 0.50f) * 2.0f, -1.0f, 1.0f); break;
+    case 5: sig = lfo1; break;
+    case 6: sig = lfo2; break;
+    case 7: sig = std::clamp(((bass_energy - 0.20f) * 0.8f) + ((macro_tonus - 0.50f) * 1.0f), -1.0f, 1.0f); break;
+    default: sig = 0.0f; break;
+    }
+
+    const float span = max_val - min_val;
+    float val = base_val + (mod_depth * sig * span * 0.5f);
+    return std::clamp(val, min_val, max_val);
 }
 
 inline void computeThemeColor(const VjDeckConfig &cfg, bool is_deck_b, float anim_time, float bpm,

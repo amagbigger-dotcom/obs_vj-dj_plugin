@@ -120,7 +120,7 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
         float radius = max(cf_p1, 0.1);
         float dir_mult = (cf_p2 >= 0.0) ? 1.0 : -1.0;
         float zoom = max(cf_p3, 0.1);
-        float2 center = float2(cf_p4, cf_p5);
+        float2 center = float2(0.5, 0.5);
         float2 p_swirl = (uv - center) / zoom;
         float r_swirl = length(p_swirl);
         float dir = ((is_b > 0.5) ? -1.0 : 1.0) * dir_mult;
@@ -134,7 +134,8 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
         // Mode 2: Halszem Optika (Fisheye Lens)
         float distortion = cf_p0;
         float zoom = max(cf_p1, 0.1);
-        float2 center = float2(cf_p3, cf_p4);
+        float vignette = cf_p2;
+        float2 center = float2(0.5, 0.5);
         float2 p_fish = (uv - center) / zoom;
         float r_fish2 = dot(p_fish, p_fish);
         float dist_val = 1.0 + mid * distortion * r_fish2 * intensity * rate;
@@ -173,22 +174,29 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
         return uv + warp;
     }
     else if (mode > 7.5 && mode < 8.5) {
-        // Mode 8: Kaleidoszkóp (Mirror Fold) - N-tükrös poláris szimmetria
+        // Mode 8: Kaleidoszkóp (Mirror Fold) - N-tükrös tiszta poláris szimmetria belső képeltolással
         float sides = max(floor(cf_p0 + 0.5), 2.0);
         float rot_spd = cf_p1;
         float zoom = max(cf_p2, 0.1);
-        float fold_ang = cf_p3;
-        float2 center = float2(cf_p4, cf_p5);
-        float blend_p = cf_p6;
+        float pan_x = cf_p3;
+        float pan_y = cf_p4;
+        float blend_p = cf_p5;
 
-        float2 kp = (uv - center) / zoom;
+        float2 kp = uv - float2(0.5, 0.5);
+        kp.x *= 1.7777778; // 16:9 aránykorrekció a tökéletes körszimmetriához
         float kr = length(kp);
-        float ka = atan2(kp.y, kp.x) + anim_time * rot_spd * 0.5 + mid * fold_ang * rate;
+        float ka = atan2(kp.y, kp.x) + anim_time * rot_spd * 0.5;
         float tau = 6.2831853;
         float seg = tau / sides;
-        ka = fmod(abs(ka), seg);
-        if (ka > 0.5 * seg) ka = seg - ka;
-        float2 kal_uv = float2(cos(ka), sin(ka)) * kr * zoom + center;
+        // Folytonos háromszöghullámú poláris hajtás (varratmentes tükrözés):
+        float a_mod = frac(ka / seg);
+        if (a_mod < 0.0) a_mod += 1.0;
+        float fold = abs(a_mod * 2.0 - 1.0);
+        float folded_a = fold * (seg * 0.5);
+        float2 folded_dir = float2(cos(folded_a), sin(folded_a));
+        float2 kal_uv = folded_dir * (kr / zoom);
+        kal_uv.x /= 1.7777778; // inverz képarány
+        kal_uv += float2(0.5, 0.5) + float2(pan_x, pan_y); // Középpont fixen (0.5, 0.5) + belső képeltolás
         return lerp(uv, kal_uv, saturate(mid * blend_p * intensity));
     }
     else if (mode > 8.5 && mode < 9.5) {
@@ -280,7 +288,7 @@ float4 PS(VertData v) : TARGET
     }
     // Mode 4: Radial Zoom Blur (Suhanó nagyítás)
     else if (cf_fx_mode > 3.5 && cf_fx_mode < 4.5 && cf_fx_mid > 0.005) {
-        float2 center = float2(cf_p2, cf_p3);
+        float2 center = float2(0.5, 0.5);
         float2 to_c_a = center - uv_a;
         float2 to_c_b = center - uv_b;
         float z_step = cf_fx_mid * cf_p0 * cf_param_intensity;
@@ -290,7 +298,7 @@ float4 PS(VertData v) : TARGET
         float w_total = 1.0;
         for (int i = 1; i <= 8; ++i) {
             if (i <= max_s) {
-                float w = max(1.0 - (float)i * 0.12 * cf_p4, 0.05);
+                float w = max(1.0 - (float)i * 0.12 * cf_p2, 0.05);
                 sum_a += sample_deck_with_vol_fx(image_a, uv_a + to_c_a * ((float)i * z_step), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a) * w;
                 sum_b += sample_deck_with_vol_fx(image_b, uv_b + to_c_b * ((float)i * z_step), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b) * w;
                 w_total += w;
@@ -298,9 +306,9 @@ float4 PS(VertData v) : TARGET
         }
         a = sum_a / w_total;
         b = sum_b / w_total;
-        if (cf_p5 > 0.01) {
-            a.rgb += a.rgb * cf_p5 * cf_fx_mid;
-            b.rgb += b.rgb * cf_p5 * cf_fx_mid;
+        if (cf_p3 > 0.01) {
+            a.rgb += a.rgb * cf_p3 * cf_fx_mid;
+            b.rgb += b.rgb * cf_p3 * cf_fx_mid;
         }
     }
 
@@ -512,12 +520,18 @@ static bool render_to_texture(MixerSource *context,
             float p_vals[8] = {0.0f};
             const float tone_balance = (high_val + mid_val * 0.5f) / (bass_val + mid_val + high_val + 0.001f);
 
+            DeckPair *d_pair = vdj_decks();
+            const float lfo1 = d_pair ? d_pair->currentLfo1Value() : 0.0f;
+            const float lfo2 = d_pair ? d_pair->currentLfo2Value() : 0.0f;
+
             if (v_cfg.shader_idx >= 0 && v_cfg.shader_idx < static_cast<int>(defs.size())) {
                 const auto &p_defs = defs[v_cfg.shader_idx].params;
                 for (size_t i = 0; i < p_defs.size() && i < 8; ++i) {
                     p_vals[i] = computeEffectiveParam(p_defs[i], v_cfg.params[i].value,
+                                                      v_cfg.params[i].mod_depth,
                                                       v_cfg.params[i].mod_mode,
-                                                      bass_val, tone_balance, macro_tonus);
+                                                      bass_val, mid_val, high_val,
+                                                      macro_tonus, lfo1, lfo2);
                 }
             }
 
@@ -644,10 +658,14 @@ static void set_color_params(MixerSource *context,
     const int rate_mod = decks ? decks->crossfadeFxRateMod() : 0;
 
     const float bass_energy = (1.0f - crossfade) * deck_a.currentBassEnergy() + crossfade * deck_b.currentBassEnergy();
+    const float mid_energy = (1.0f - crossfade) * deck_a.currentMidEnergy() + crossfade * deck_b.currentMidEnergy();
+    const float high_energy = (1.0f - crossfade) * deck_a.currentHighEnergy() + crossfade * deck_b.currentHighEnergy();
     const float macro_tonus = (1.0f - crossfade) * deck_a.currentMacroTonus() + crossfade * deck_b.currentMacroTonus();
+    const float lfo1 = decks ? decks->currentLfo1Value() : 0.0f;
+    const float lfo2 = decks ? decks->currentLfo2Value() : 0.0f;
 
-    const float eff_intensity = computeEffectiveParamSimple(raw_intensity, 0.0f, 2.0f, intensity_mod, bass_energy, macro_tonus);
-    const float eff_rate = computeEffectiveParamSimple(raw_rate, 0.1f, 3.0f, rate_mod, bass_energy, macro_tonus);
+    const float eff_intensity = computeEffectiveParamSimple(raw_intensity, 0.0f, 2.0f, 0.0f, intensity_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
+    const float eff_rate = computeEffectiveParamSimple(raw_rate, 0.1f, 3.0f, 0.0f, rate_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
 
     if ((param = gs_effect_get_param_by_name(context->effect, "cf_param_intensity")))
         gs_effect_set_float(param, eff_intensity);
@@ -664,15 +682,17 @@ static void set_color_params(MixerSource *context,
         p_str[4] = static_cast<char>('0' + i);
         float p_val = 1.0f;
         int p_mod = 0;
+        float p_depth = 0.0f;
         if (decks) {
             p_val = decks->crossfadeFxParamValue(active_fx, i);
             p_mod = decks->crossfadeFxParamMod(active_fx, i);
+            p_depth = decks->crossfadeFxParamModDepth(active_fx, i);
         }
         float eff_p = p_val;
         if (i < static_cast<int>(p_defs.size())) {
-            eff_p = computeCrossfadeEffectiveParam(p_defs[i], p_val, p_mod, bass_energy, macro_tonus);
+            eff_p = computeCrossfadeEffectiveParam(p_defs[i], p_val, p_depth, p_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
         } else {
-            eff_p = computeEffectiveParamSimple(p_val, 0.0f, 10.0f, p_mod, bass_energy, macro_tonus);
+            eff_p = computeEffectiveParamSimple(p_val, 0.0f, 10.0f, p_depth, p_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
         }
         if ((param = gs_effect_get_param_by_name(context->effect, p_str)))
             gs_effect_set_float(param, eff_p);

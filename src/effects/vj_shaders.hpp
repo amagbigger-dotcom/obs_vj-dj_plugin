@@ -205,11 +205,13 @@ float4 render_fluid_flow(float2 uv)
     float blur = clamp(p3 + audio_amp * 0.08, 0.05, 0.35);
     float freq = p4;
     float freq2 = p5;
+    float detail = clamp(p6, 1.0, 6.0);
+    float glow = max(p7, 0.1);
 
     float T = anim_time * rate;
     float dist = 0.0;
 
-    for (float i = 1.0; i <= 14.0; i += 1.0) {
+    for (float i = 1.0; i <= 8.0 + detail * 2.0; i += 1.0) {
         float3 flow_pos = pos * i + float3(sin(T - atan2(T, anim_time + 0.001)), anim_time * zrate, cos(T)) * (rate * 0.1);
         float flow = abs(snoise_fluid(flow_pos, freq, freq2));
         flow = smoothstep(blur, 0.1 * sqrt(depth), flow);
@@ -223,7 +225,7 @@ float4 render_fluid_flow(float2 uv)
     c2 = lerp(c2, float3(1.0, 1.0, 1.0), clamp(high_energy * 0.6, 0.0, 0.85));
     c1 = lerp(c1, th_base * 0.7 + float3(0.08, 0.04, 0.08), clamp(mid_energy * 0.45, 0.0, 0.75));
 
-    float3 col = lerp(c2, c1, 1.0 - dist);
+    float3 col = lerp(c2, c1, 1.0 - dist) * glow;
     col += c2 * (bass_energy * 0.25);
     return float4(saturate(col), 1.0);
 }
@@ -239,12 +241,16 @@ float4 render_truchet(float2 uv)
     float zoom = p1;
     float thickness = p2;
     float pulse = p3;
+    float twist = p4;
+    float glow = max(p5, 0.1);
+    float speed_z = p6;
+    float roughness = clamp(p7, 0.0, 1.0);
 
-    float T = anim_time * rate * 2.5;
+    float T = anim_time * rate * 2.5 + anim_time * speed_z;
     float2 p_center = uv - float2(0.5, 0.5);
     p_center.x *= 1.7778;
 
-    p_center = rotate2D(p_center, anim_time * 0.15);
+    p_center = rotate2D(p_center, anim_time * 0.15 + twist * length(p_center));
 
     float sc = (0.3 / max(0.1, zoom * 0.5)) * (1.0 - bass_energy * 0.15 * pulse);
     float2 oP = p_center * 10.0 + float2(0.5, T * 0.4);
@@ -254,7 +260,7 @@ float4 render_truchet(float2 uv)
     float dim = sc;
 
     float pulse_term = sin(anim_time * 4.0) * 0.075 * (1.0 + bass_energy * 2.0 * pulse);
-    float th = thickness * 20.0 * (1.0 + audio_amp * 1.5);
+    float th = (thickness + roughness * 0.05) * 20.0 * (1.0 + audio_amp * 1.5);
 
     for (int k = 0; k < 2; ++k) {
         float2 ip = floor(oP * dim);
@@ -296,6 +302,7 @@ float4 render_truchet(float2 uv)
     col = lerp(col, c_fill * sh, 1.0 - smoothstep(0.0, fo, d.x + 0.21));
     col = lerp(col, c_core * sh, 1.0 - smoothstep(0.0, fo, abs(d.x + 0.12) - 0.02));
     col += c_core * (bass_energy * 0.35 * pulse);
+    col *= glow;
 
     return float4(saturate(sqrt(max(col, 0.0))), 1.0);
 }
@@ -312,6 +319,9 @@ float4 render_hypno_worm(float2 uv)
     float edge = p2;
     float amp1 = p3;
     float amp2 = p4;
+    float twist = p5;
+    float rings = clamp(p6, 5.0, 40.0);
+    float glow = max(p7, 0.2);
 
     float safe_bpm = (bpm > 20.0) ? bpm : 120.0;
     float T = anim_time * rate * clamp(safe_bpm / 120.0, 0.5, 2.5);
@@ -324,13 +334,15 @@ float4 render_hypno_worm(float2 uv)
     float3 fc = col1;
     float2 p = (uv - float2(0.5, 0.5)) * 2.0;
     p.x *= 1.7778;
+    p = rotate2D(p, twist * length(p));
     p *= (11.0 - clamp(size, 1.0, 10.5));
 
     float a1 = amp1 + bass_energy * 0.14;
     float a2 = amp2 + bass_energy * 0.12;
 
     float2 pos = float2(0.0, 0.0);
-    for (float i = 24.0; i > 0.0; i -= 1.0) {
+    for (float i = 40.0; i > 0.0; i -= 1.0) {
+        if (i > rings) continue;
         pos += float2(sin(T + (-0.5 - i) * -1.05) * a1,
                       cos(T + (1.0 - i) * 0.15) * a2);
         float dist = length(pos - p) - 0.075 * i;
@@ -342,6 +354,7 @@ float4 render_hypno_worm(float2 uv)
     float4 col = float4(pow(abs(col2.rgb), abs(fc.rgb)) - cc, 1.0);
     col = pow(abs(col), float4(1.0 / 0.9, 1.0 / 0.9, 1.0 / 0.9, 1.0));
     col.rgb += col2 * (bass_energy * 0.3);
+    col.rgb *= glow;
     return saturate(col);
 }
 )";
@@ -365,6 +378,9 @@ float4 render_triangle_twist(float2 uv)
     float amplitude = p2;
     float thickness = p3;
     float twist_param = p4;
+    float freq_val = max(p5, 0.5);
+    float glow = max(p6, 0.1);
+    float decay = clamp(p7, 0.1, 2.0);
 
     float safe_bpm = (bpm > 20.0) ? bpm : 120.0;
     float t_sec = anim_time * rate * clamp(safe_bpm / 120.0, 0.5, 2.5) * 0.3;
@@ -385,9 +401,9 @@ float4 render_triangle_twist(float2 uv)
         d = max(d, dot(p, float2(-root2, 1.0)));
         d = max(d, dot(p, float2(root2, 1.0)));
 
-        grey += 1.0 - smoothstep(0.0, th, electro_wave(p, d * 10.0, 0.0, 0.0, amp_val, 0.0, t_sec));
-        grey += 1.0 - smoothstep(0.0, th, electro_wave(p, d * 10.0, 0.0, 1.57, amp_val, 0.0, t_sec));
-        grey += 1.0 - smoothstep(0.0, th, electro_wave(p, d * 10.0, 0.0, 3.14, amp_val, 0.0, t_sec));
+        grey += (1.0 - smoothstep(0.0, th, electro_wave(p, d * 10.0, freq_val, 0.0, amp_val, 0.0, t_sec))) * decay;
+        grey += (1.0 - smoothstep(0.0, th, electro_wave(p, d * 10.0, freq_val, 1.57, amp_val, 0.0, t_sec))) * decay;
+        grey += (1.0 - smoothstep(0.0, th, electro_wave(p, d * 10.0, freq_val, 3.14, amp_val, 0.0, t_sec))) * decay;
 
         p *= 1.08;
         p = rotate2D(p, twist_step * -6.28318);
@@ -396,7 +412,7 @@ float4 render_triangle_twist(float2 uv)
     float3 theme_col = get_base_theme_color();
     theme_col += float3(mid_energy * 0.2, high_energy * 0.3, high_energy * 0.3);
 
-    float3 out_rgb = theme_col * grey;
+    float3 out_rgb = theme_col * grey * glow;
     out_rgb += theme_col * (bass_energy * 0.3);
     return float4(saturate(out_rgb), 1.0);
 }
@@ -414,14 +430,15 @@ float4 render_string_art(float2 uv) {
     float radius1 = p4;
     float radius2 = p5;
     float thickness = p6;
+    float phase = p7;
 
     float t = anim_time * rate;
     float2 p = (uv - 0.5) * float2(1.77777, 1.0) * (scale * 2.0);
 
     float c = 0.0;
     for (float i = 0.0; i < 40.0; i += 1.0) {
-        float a1 = t * freq1 + i * 0.157;
-        float a2 = t * freq2 + i * 0.314;
+        float a1 = t * freq1 + i * 0.157 + phase;
+        float a2 = t * freq2 + i * 0.314 + phase * 0.5;
         float2 pt1 = float2(cos(a1), sin(a1)) * (radius1 + 0.5 + bass_energy * 0.2);
         float2 pt2 = float2(cos(a2), sin(a2)) * (radius2 + 1.0);
         float2 pa = p - pt1, ba = pt2 - pt1;
@@ -458,16 +475,18 @@ float4 render_dodecahedron(float2 uv) {
     float drie = p3;
     float vijf = p4;
     float acht = p5;
+    float rot_spd = p6;
+    float edge_glow = max(p7, 0.1);
 
     float2 p = (uv - 0.5) * float2(1.77777, 1.0) * Zoom * 2.0;
     float3 ro = float3(0.0, 0.0, -3.5);
     float3 rd = normalize(float3(p, 1.5));
 
     float3 ro_rot = ro;
-    ro_rot.xz = rotate2D(ro_rot.xz, anim_time * 0.5);
-    ro_rot.yz = rotate2D(ro_rot.yz, anim_time * 0.3);
-    rd.xz = rotate2D(rd.xz, anim_time * 0.5);
-    rd.yz = rotate2D(rd.yz, anim_time * 0.3);
+    ro_rot.xz = rotate2D(ro_rot.xz, anim_time * rot_spd * 0.5);
+    ro_rot.yz = rotate2D(ro_rot.yz, anim_time * rot_spd * 0.3);
+    rd.xz = rotate2D(rd.xz, anim_time * rot_spd * 0.5);
+    rd.yz = rotate2D(rd.yz, anim_time * rot_spd * 0.3);
 
     float t = 0.0;
     float d = 0.0;
@@ -481,7 +500,7 @@ float4 render_dodecahedron(float2 uv) {
     }
 
     float3 theme = get_base_theme_color();
-    float3 col = theme * (glow * vijf * 0.08);
+    float3 col = theme * (glow * vijf * 0.08 * edge_glow);
     col += float3(high_energy * 0.4, mid_energy * 0.2, high_energy * 0.4);
     col += theme * (bass_energy * 0.5);
     return float4(saturate(col), 1.0);
@@ -499,10 +518,13 @@ float4 render_kali_circuits(float2 uv) {
     float focus = p3;
     float pulse = p4;
     float glow = p5;
+    float iter_steps = clamp(p6, 4.0, 20.0);
+    float shift_y = p7;
 
     float T = anim_time * 0.08 * rate;
     float Z = (1.05 - clamp(zoom, 0.1, 1.0));
     float2 pos = (uv - 0.5) * float2(1.77777, 1.0);
+    pos.y += shift_y;
     float2 p = pos * Z;
 
     float a = T * 3.14159;
@@ -516,7 +538,7 @@ float4 render_kali_circuits(float2 uv) {
     float ot2 = 1000.0;
     float M = 0.0;
 
-    for (int i = 0; i < 9; ++i) {
+    for (int i = 0; i < int(iter_steps); ++i) {
         z = abs(z) / clamp(dot(z, z), 0.1, 0.5) - T;
         float l = length(z);
         float o = min(max(abs(min(z.x, z.y)), -l + 0.25), abs(l - 0.25));
@@ -572,9 +594,11 @@ float4 render_diamond_vision(float2 uv) {
     float R = p3;
     float Rot = p4;
     float Rat = p5;
+    float zoom = max(p6, 0.2);
+    float glow = max(p7, 0.2);
 
     float time2 = anim_time * Speed * 10.0 + 50.0;
-    float2 ps = (uv - 0.5) * float2(1.77777, 1.0) * 2.0;
+    float2 ps = (uv - 0.5) * float2(1.77777, 1.0) * (2.0 / zoom);
 
     float3 co = float3(time2 * 0.05, 0.0, 0.0);
     float3 rd = normalize(float3(ps.x, ps.y, 1.0 - length(ps) * 0.5));
@@ -601,6 +625,7 @@ float4 render_diamond_vision(float2 uv) {
     float3 theme = get_base_theme_color();
     col = lerp(col, col * theme, 0.6);
     col += theme * (bass_energy * 0.45);
+    col *= glow;
     return float4(saturate(col), 1.0);
 }
 )";
@@ -788,6 +813,7 @@ float4 render_searching_light(float2 uv)
     float sinAdder = p4;
     float finalMulti = p5;
     float pulse = p6;
+    float rot_spd = p7;
 
     float4 c = float4(0.0, 0.0, 0.0, 0.0);
     float l = anim_time;
@@ -796,6 +822,7 @@ float4 render_searching_light(float2 uv)
     for (int i = 0; i < 4; ++i) {
         float2 p = uv - float2(0.5, 0.5);
         p.x *= 1.77777;
+        p = rotate2D(p, anim_time * rot_spd);
         z += zAdder;
         l = length(p);
         float2 uv_mod = uv + p / max(0.0001, l) * (cos(z) + cosinAdder) * (sin(l * 9.0 - z * 2.0) + sinAdder);
@@ -943,11 +970,14 @@ float4 render_electro_bands(float2 uv)
     float speed = p3;
     float thickness = p4;
     float sz = p5;
+    float twist = p6;
+    float glow = max(p7, 0.1);
     const float freq = 4.0;
 
     float2 pos = uv * 2.0 - 1.0;
     pos.x *= 1.77777;
     pos -= float2(0.0, -0.2);
+    pos = rotate2D(pos, twist * length(pos));
 
     float3 color = float3(0.0, 0.0, 0.0);
     color.r = electro_circle(pos, radius, amp, 0.0 * 3.14159265, speed * 0.01, freq, band, thickness, sz, anim_time);
@@ -957,6 +987,7 @@ float4 render_electro_bands(float2 uv)
     float3 theme = get_base_theme_color();
     color = lerp(color, color * theme, 0.5);
     color += theme * (bass_energy * 0.4);
+    color *= glow;
     return float4(saturate(color), 1.0);
 }
 

@@ -6,6 +6,7 @@
 #include <QHBoxLayout>
 #include <QFrame>
 #include <QLabel>
+#include <QLineEdit>
 #include <QSlider>
 #include <QComboBox>
 #include <QPushButton>
@@ -46,7 +47,7 @@ CrossfadeFxDialog::CrossfadeFxDialog(DeckPair *decks, QWidget *parent)
     g_cf_fx_dialog = this;
 
     setWindowTitle(QStringLiteral("Crossfader Vizuális FX Paraméterek & Moduláció"));
-    setFixedSize(480, 440);
+    setFixedSize(540, 520);
     setWindowFlags(Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
     setStyleSheet(QString::fromUtf8(CF_FX_STYLESHEET));
 
@@ -146,7 +147,7 @@ void CrossfadeFxDialog::setupUi()
 
     // Bottom Action Row
     auto *bottom_row = new QHBoxLayout();
-    auto *hint_lbl = new QLabel(QStringLiteral("Minden paraméter függetlenül vezérelhető Kézzel, Kick pulzussal vagy Zenei Tónussal."), this);
+    auto *hint_lbl = new QLabel(QStringLiteral("Paraméterek: [Érték beírás / ± Gombok] | Moduláció: [Forrás választó + Bipoláris -100%..+100% Mod Depth]"), this);
     hint_lbl->setStyleSheet(QStringLiteral("font-size: 8px; color: #64758d;"));
     bottom_row->addWidget(hint_lbl, 1);
 
@@ -204,74 +205,213 @@ void CrossfadeFxDialog::rebuildParamControls()
         return;
     }
 
+    const auto &src_names = getModulationSourceNames();
+
     for (size_t i = 0; i < cur_def.params.size() && i < 8; ++i) {
         const auto &p_def = cur_def.params[i];
         const int p_idx = static_cast<int>(i);
         const float cur_val = decks_->crossfadeFxParamValue(fx_mode, p_idx);
         const int cur_mod = decks_->crossfadeFxParamMod(fx_mode, p_idx);
+        const float cur_depth = decks_->crossfadeFxParamModDepth(fx_mode, p_idx);
 
-        auto *row_frame = new QFrame(params_container_);
-        row_frame->setStyleSheet(QStringLiteral(
-            "QFrame { background: #161b24; border: 1px solid #242f3f; border-radius: 4px; padding: 4px; }"));
-        auto *row_layout = new QHBoxLayout(row_frame);
-        row_layout->setContentsMargins(8, 4, 8, 4);
-        row_layout->setSpacing(8);
+        auto *card_frame = new QFrame(params_container_);
+        card_frame->setStyleSheet(QStringLiteral(
+            "QFrame { background: #141922; border: 1px solid #222d3d; border-radius: 4px; padding: 3px; }"));
+        auto *card_layout = new QVBoxLayout(card_frame);
+        card_layout->setContentsMargins(6, 4, 6, 4);
+        card_layout->setSpacing(4);
 
-        // Parameter Name Label
-        auto *name_lbl = new QLabel(QString::fromUtf8(p_def.name), row_frame);
-        name_lbl->setFixedWidth(145);
-        name_lbl->setStyleSheet(QStringLiteral("font-size: 10px; font-weight: bold; color: #d0d8e8;"));
-        row_layout->addWidget(name_lbl);
+        // -------------------------------------------------------------
+        // ROW 1: Alapérték (Base Value)
+        // -------------------------------------------------------------
+        auto *row1 = new QHBoxLayout();
+        row1->setContentsMargins(0, 0, 0, 0);
+        row1->setSpacing(6);
 
-        // Value Label
-        auto *val_lbl = new QLabel(QString::number(cur_val, 'f', 2), row_frame);
-        val_lbl->setFixedWidth(40);
-        val_lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        val_lbl->setStyleSheet(QStringLiteral("font-size: 10px; font-family: monospace; color: #ffaa00; font-weight: bold;"));
-        row_layout->addWidget(val_lbl);
+        // Param Name
+        auto *name_lbl = new QLabel(QString::fromUtf8(p_def.name), card_frame);
+        name_lbl->setFixedWidth(135);
+        name_lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #d0d8e8;"));
+        row1->addWidget(name_lbl);
 
-        // Slider
-        auto *slider = new QSlider(Qt::Horizontal, row_frame);
-        slider->setRange(0, 1000);
+        // Stepper [-]
+        auto *btn_minus = new QPushButton(QStringLiteral("-"), card_frame);
+        btn_minus->setFixedSize(18, 18);
+        btn_minus->setStyleSheet(QStringLiteral(
+            "QPushButton { background: #1a222e; color: #a0b0c8; border: 1px solid #2d3b4e; border-radius: 2px; font-weight: bold; font-size: 10px; padding: 0; } "
+            "QPushButton:hover { background: #253346; color: #00d2ff; border-color: #00d2ff; }"));
+        row1->addWidget(btn_minus);
+
+        // Clickable numeric edit box
+        auto *val_edit = new QLineEdit(QString::number(cur_val, 'f', 2), card_frame);
+        val_edit->setFixedWidth(46);
+        val_edit->setFixedHeight(18);
+        val_edit->setAlignment(Qt::AlignCenter);
+        val_edit->setStyleSheet(QStringLiteral(
+            "QLineEdit { background: #0c1017; color: #00d2ff; border: 1px solid #253549; border-radius: 2px; font-family: monospace; font-size: 9px; font-weight: bold; } "
+            "QLineEdit:focus { border: 1px solid #00d2ff; background: #121924; color: #fff; }"));
+        row1->addWidget(val_edit);
+
+        // Stepper [+]
+        auto *btn_plus = new QPushButton(QStringLiteral("+"), card_frame);
+        btn_plus->setFixedSize(18, 18);
+        btn_plus->setStyleSheet(QStringLiteral(
+            "QPushButton { background: #1a222e; color: #a0b0c8; border: 1px solid #2d3b4e; border-radius: 2px; font-weight: bold; font-size: 10px; padding: 0; } "
+            "QPushButton:hover { background: #253346; color: #00d2ff; border-color: #00d2ff; }"));
+        row1->addWidget(btn_plus);
+
+        // Base slider
+        auto *base_slider = new QSlider(Qt::Horizontal, card_frame);
+        base_slider->setRange(0, 1000);
         float norm = (p_def.max_val > p_def.min_val) ? ((cur_val - p_def.min_val) / (p_def.max_val - p_def.min_val)) : 0.0f;
         norm = std::clamp(norm, 0.0f, 1.0f);
-        slider->setValue(static_cast<int>(norm * 1000.0f));
-        slider->setStyleSheet(QStringLiteral(
-            "QSlider::groove:horizontal { height: 4px; background: #263345; border-radius: 2px; } "
+        base_slider->setValue(static_cast<int>(norm * 1000.0f));
+        base_slider->setStyleSheet(QStringLiteral(
+            "QSlider::groove:horizontal { height: 4px; background: #202b3a; border-radius: 2px; } "
             "QSlider::sub-page:horizontal { background: #0088cc; border-radius: 2px; } "
-            "QSlider::handle:horizontal { background: #00d2ff; width: 12px; margin: -4px 0; border-radius: 6px; }"));
+            "QSlider::handle:horizontal { background: #00d2ff; width: 10px; margin: -3px 0; border-radius: 5px; }"));
+        row1->addWidget(base_slider, 1);
 
-        connect(slider, &QSlider::valueChanged, this, [this, fx_mode, p_idx, p_def, val_lbl](int sval) {
-            float val = p_def.min_val + (static_cast<float>(sval) / 1000.0f) * (p_def.max_val - p_def.min_val);
-            val_lbl->setText(QString::number(val, 'f', 2));
-            if (decks_) {
-                decks_->setCrossfadeFxParamValue(fx_mode, p_idx, val);
-            }
-        });
-        row_layout->addWidget(slider, 1);
+        card_layout->addLayout(row1);
 
-        // Modulation dropdown
-        auto *mod_combo = new QComboBox(row_frame);
+        // -------------------------------------------------------------
+        // ROW 2: Modulációs Mátrix (Mod Source + Bipolar Depth)
+        // -------------------------------------------------------------
+        auto *row2 = new QHBoxLayout();
+        row2->setContentsMargins(0, 0, 0, 0);
+        row2->setSpacing(6);
+
+        // Mod Source Combo
+        auto *mod_combo = new QComboBox(card_frame);
         mod_combo->setFixedWidth(135);
-        mod_combo->setFixedHeight(22);
+        mod_combo->setFixedHeight(20);
         mod_combo->setStyleSheet(QStringLiteral(
-            "QComboBox { background: #1a222f; color: #e0e6f0; border: 1px solid #2d3e56; font-size: 9px; padding: 1px 4px; border-radius: 3px; } "
+            "QComboBox { background: #161e2a; color: #e0e6f0; border: 1px solid #263547; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 2px; } "
             "QComboBox::drop-down { border: none; } "
-            "QComboBox QAbstractItemView { background: #12171f; color: #fff; selection-background-color: #006699; }"));
-        mod_combo->addItem(QStringLiteral("✋ Kézi (Off)"), 0);
-        mod_combo->addItem(QStringLiteral("🥁 Kick Pulzus"), 1);
-        mod_combo->addItem(QStringLiteral("📈 Zenei Tónus"), 2);
-        mod_combo->addItem(QStringLiteral("⚡ Mindkettő"), 3);
-        mod_combo->setCurrentIndex(std::clamp(cur_mod, 0, 3));
+            "QComboBox QAbstractItemView { background: #10151f; color: #fff; selection-background-color: #006699; }"));
+        for (size_t s = 0; s < src_names.size(); ++s) {
+            mod_combo->addItem(QString::fromUtf8(src_names[s]), static_cast<int>(s));
+        }
+        mod_combo->setCurrentIndex(std::clamp(cur_mod, 0, static_cast<int>(src_names.size()) - 1));
+        row2->addWidget(mod_combo);
+
+        // Depth Stepper [-]
+        auto *btn_d_minus = new QPushButton(QStringLiteral("-"), card_frame);
+        btn_d_minus->setFixedSize(18, 18);
+        btn_d_minus->setStyleSheet(QStringLiteral(
+            "QPushButton { background: #1a222e; color: #a0b0c8; border: 1px solid #2d3b4e; border-radius: 2px; font-weight: bold; font-size: 10px; padding: 0; } "
+            "QPushButton:hover { background: #253346; color: #ffaa00; border-color: #ffaa00; }"));
+        row2->addWidget(btn_d_minus);
+
+        // Depth numeric edit box (e.g. "+50%", "±0%")
+        auto formatDepthText = [](float d) -> QString {
+            int pct = static_cast<int>(std::round(d * 100.0f));
+            if (pct > 0) return QStringLiteral("+%1%").arg(pct);
+            if (pct < 0) return QStringLiteral("%1%").arg(pct);
+            return QStringLiteral("±0%");
+        };
+
+        auto *depth_edit = new QLineEdit(formatDepthText(cur_depth), card_frame);
+        depth_edit->setFixedWidth(46);
+        depth_edit->setFixedHeight(18);
+        depth_edit->setAlignment(Qt::AlignCenter);
+        depth_edit->setStyleSheet(QStringLiteral(
+            "QLineEdit { background: #0c1017; color: #ffaa00; border: 1px solid #253549; border-radius: 2px; font-family: monospace; font-size: 9px; font-weight: bold; } "
+            "QLineEdit:focus { border: 1px solid #ffaa00; background: #121924; color: #fff; }"));
+        row2->addWidget(depth_edit);
+
+        // Depth Stepper [+]
+        auto *btn_d_plus = new QPushButton(QStringLiteral("+"), card_frame);
+        btn_d_plus->setFixedSize(18, 18);
+        btn_d_plus->setStyleSheet(QStringLiteral(
+            "QPushButton { background: #1a222e; color: #a0b0c8; border: 1px solid #2d3b4e; border-radius: 2px; font-weight: bold; font-size: 10px; padding: 0; } "
+            "QPushButton:hover { background: #253346; color: #ffaa00; border-color: #ffaa00; }"));
+        row2->addWidget(btn_d_plus);
+
+        // Bipolar Depth Slider (-1000 .. +1000, 0 at center)
+        auto *mod_slider = new QSlider(Qt::Horizontal, card_frame);
+        mod_slider->setRange(-1000, 1000);
+        mod_slider->setValue(static_cast<int>(std::clamp(cur_depth, -1.0f, 1.0f) * 1000.0f));
+        mod_slider->setToolTip(QStringLiteral("Bipoláris Moduláció Mélysége: Középen 0% (Nincs), Jobbra: +, Balra: Invertált fázis -"));
+        mod_slider->setStyleSheet(QStringLiteral(
+            "QSlider::groove:horizontal { height: 4px; background: #1c2534; border-radius: 2px; } "
+            "QSlider::handle:horizontal { background: #ffaa00; width: 10px; margin: -3px 0; border-radius: 5px; } "
+            "QSlider::handle:horizontal:hover { background: #ffcc00; }"));
+        row2->addWidget(mod_slider, 1);
+
+        card_layout->addLayout(row2);
+
+        // -------------------------------------------------------------
+        // SIGNALS & LOGIC
+        // -------------------------------------------------------------
+        auto applyValue = [this, fx_mode, p_idx, p_def, val_edit, base_slider](float v) {
+            float val = std::clamp(v, p_def.min_val, p_def.max_val);
+            val_edit->setText(QString::number(val, 'f', 2));
+            float norm = (p_def.max_val > p_def.min_val) ? ((val - p_def.min_val) / (p_def.max_val - p_def.min_val)) : 0.0f;
+            {
+                const QSignalBlocker b(base_slider);
+                base_slider->setValue(static_cast<int>(std::clamp(norm, 0.0f, 1.0f) * 1000.0f));
+            }
+            if (decks_) decks_->setCrossfadeFxParamValue(fx_mode, p_idx, val);
+        };
+
+        connect(base_slider, &QSlider::valueChanged, this, [p_def, applyValue](int sval) {
+            float val = p_def.min_val + (static_cast<float>(sval) / 1000.0f) * (p_def.max_val - p_def.min_val);
+            applyValue(val);
+        });
+
+        connect(btn_minus, &QPushButton::clicked, this, [this, fx_mode, p_idx, p_def, applyValue]() {
+            float cur = decks_ ? decks_->crossfadeFxParamValue(fx_mode, p_idx) : p_def.def_val;
+            applyValue(cur - p_def.step);
+        });
+
+        connect(btn_plus, &QPushButton::clicked, this, [this, fx_mode, p_idx, p_def, applyValue]() {
+            float cur = decks_ ? decks_->crossfadeFxParamValue(fx_mode, p_idx) : p_def.def_val;
+            applyValue(cur + p_def.step);
+        });
+
+        connect(val_edit, &QLineEdit::editingFinished, this, [val_edit, applyValue]() {
+            bool ok = false;
+            float v = val_edit->text().toFloat(&ok);
+            if (ok) applyValue(v);
+        });
+
+        auto applyDepth = [this, fx_mode, p_idx, depth_edit, mod_slider, formatDepthText](float d) {
+            float depth = std::clamp(d, -1.0f, 1.0f);
+            depth_edit->setText(formatDepthText(depth));
+            {
+                const QSignalBlocker b(mod_slider);
+                mod_slider->setValue(static_cast<int>(std::round(depth * 1000.0f)));
+            }
+            if (decks_) decks_->setCrossfadeFxParamModDepth(fx_mode, p_idx, depth);
+        };
+
+        connect(mod_slider, &QSlider::valueChanged, this, [applyDepth](int sval) {
+            applyDepth(static_cast<float>(sval) / 1000.0f);
+        });
+
+        connect(btn_d_minus, &QPushButton::clicked, this, [this, fx_mode, p_idx, applyDepth]() {
+            float cur = decks_ ? decks_->crossfadeFxParamModDepth(fx_mode, p_idx) : 0.0f;
+            applyDepth(cur - 0.05f);
+        });
+
+        connect(btn_d_plus, &QPushButton::clicked, this, [this, fx_mode, p_idx, applyDepth]() {
+            float cur = decks_ ? decks_->crossfadeFxParamModDepth(fx_mode, p_idx) : 0.0f;
+            applyDepth(cur + 0.05f);
+        });
+
+        connect(depth_edit, &QLineEdit::editingFinished, this, [depth_edit, applyDepth]() {
+            QString txt = depth_edit->text().remove('%').trimmed();
+            bool ok = false;
+            float pct = txt.toFloat(&ok);
+            if (ok) applyDepth(pct / 100.0f);
+        });
 
         connect(mod_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, fx_mode, p_idx](int midx) {
-            if (decks_) {
-                decks_->setCrossfadeFxParamMod(fx_mode, p_idx, midx);
-            }
+            if (decks_) decks_->setCrossfadeFxParamMod(fx_mode, p_idx, midx);
         });
-        row_layout->addWidget(mod_combo);
 
-        params_layout_->addWidget(row_frame);
+        params_layout_->addWidget(card_frame);
     }
 
     params_layout_->addStretch(1);

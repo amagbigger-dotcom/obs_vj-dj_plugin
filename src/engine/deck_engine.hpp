@@ -15,6 +15,7 @@
 #include "effects/vj_config.hpp"
 #include "effects/crossfade_fx_config.hpp"
 #include "engine/engine_dsp.hpp"
+#include "engine/lfo_engine.hpp"
 
 class DeckPlayer {
 public:
@@ -168,6 +169,7 @@ public:
     void setVjConfig(const VjDeckConfig &cfg) noexcept;
     void setVjParamValue(int param_idx, float val) noexcept;
     void setVjParamMod(int param_idx, int mod) noexcept;
+    void setVjParamModDepth(int param_idx, float depth) noexcept;
     void setVjShaderIdx(int idx) noexcept;
     void setVjCustomColor(float r, float g, float b, int mod_mode) noexcept;
     void saveVjConfigToCache();
@@ -348,7 +350,17 @@ public:
     void setCrossfadeFxParamValue(int fx_mode, int param_idx, float val) noexcept;
     int crossfadeFxParamMod(int fx_mode, int param_idx) const noexcept;
     void setCrossfadeFxParamMod(int fx_mode, int param_idx, int mod) noexcept;
+    float crossfadeFxParamModDepth(int fx_mode, int param_idx) const noexcept;
+    void setCrossfadeFxParamModDepth(int fx_mode, int param_idx, float depth) noexcept;
     void resetCrossfadeFxParams(int fx_mode) noexcept;
+
+    // Dual BPM-Synced LFO Engine
+    LfoConfig lfo1Config() const noexcept;
+    void setLfo1Config(const LfoConfig &cfg) noexcept;
+    LfoConfig lfo2Config() const noexcept;
+    void setLfo2Config(const LfoConfig &cfg) noexcept;
+    float currentLfo1Value() const noexcept;
+    float currentLfo2Value() const noexcept;
 
     void setObsOutputMode(int mode) noexcept;
     int obsOutputMode() const noexcept;
@@ -421,6 +433,10 @@ private:
     std::atomic<int> cf_fx_rate_mod_{0};
     std::atomic<float> cf_fx_params_val_[16][8];
     std::atomic<int> cf_fx_params_mod_[16][8];
+    std::atomic<float> cf_fx_params_depth_[16][8];
+    mutable std::mutex lfo_mutex_;
+    LfoConfig lfo1_config_{0, 6, 1.0f, 0.0f, 0.0f};
+    LfoConfig lfo2_config_{1, 4, 1.0f, 0.0f, 90.0f};
     std::atomic<int> obs_output_mode_{0};
     std::atomic<int> video_scale_mode_{1};
     std::atomic<int> visualizer_mode_{0};

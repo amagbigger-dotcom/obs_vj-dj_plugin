@@ -6,6 +6,7 @@
 #include "gui/mixer_window.hpp"
 #include "gui/tracklist_dock.hpp"
 #include "gui/vj_fx_dialog.hpp"
+#include "gui/lfo_dialog.hpp"
 #include "controllers/midi_handler.hpp"
 
 OBS_DECLARE_MODULE()
@@ -32,6 +33,12 @@ static void open_vj_fx_menu(void *data)
 {
     UNUSED_PARAMETER(data);
     vdj_open_vj_fx_dialog();
+}
+
+static void open_lfo_menu(void *data)
+{
+    UNUSED_PARAMETER(data);
+    vdj_open_lfo_dialog();
 }
 
 // =============================================================================
@@ -130,6 +137,7 @@ void init_deck_ui()
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Layout (Mindhárom megnyitása)").toUtf8().constData(), open_all_layout, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Tracklist").toUtf8().constData(), open_tracklist_menu, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Visualizer Shader").toUtf8().constData(), open_vj_fx_menu, nullptr);
+    obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ LFO Oszcillátor").toUtf8().constData(), open_lfo_menu, nullptr);
 }
 
 void free_deck_ui()
@@ -137,6 +145,7 @@ void free_deck_ui()
     vdj_free_mixer_window();
     vdj_free_tracklist_window();
     vdj_free_vj_fx_dialog();
+    vdj_free_lfo_dialog();
     if (g_deck_window_a) {
         g_deck_window_a->close();
         delete g_deck_window_a;

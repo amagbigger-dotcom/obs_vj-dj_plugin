@@ -830,6 +830,19 @@ void DeckPlayer::setVjParamMod(int param_idx, int mod) noexcept
     }
 }
 
+void DeckPlayer::setVjParamModDepth(int param_idx, float depth) noexcept
+{
+    if (param_idx >= 0 && param_idx < 8) {
+        {
+            std::lock_guard<std::mutex> lock(vj_config_mutex_);
+            vj_config_.params[param_idx].mod_depth = std::clamp(depth, -1.0f, 1.0f);
+            const int s = std::clamp(vj_config_.shader_idx, 0, 14);
+            vj_config_.all_shader_params[s][param_idx].mod_depth = std::clamp(depth, -1.0f, 1.0f);
+        }
+        saveVjConfigToCache();
+    }
+}
+
 void DeckPlayer::setVjShaderIdx(int idx) noexcept
 {
     const int new_s = std::clamp(idx, 0, 14);
@@ -1633,6 +1646,7 @@ DeckPair::DeckPair()
             }
             cf_fx_params_val_[m][i].store(def_val, std::memory_order_relaxed);
             cf_fx_params_mod_[m][i].store(0, std::memory_order_relaxed);
+            cf_fx_params_depth_[m][i].store(0.0f, std::memory_order_relaxed);
         }
     }
 
@@ -1667,7 +1681,21 @@ void DeckPair::setCrossfadeFxParamMod(int fx_mode, int param_idx, int mod) noexc
 {
     const int m = std::clamp(fx_mode, 0, 15);
     const int i = std::clamp(param_idx, 0, 7);
-    cf_fx_params_mod_[m][i].store(std::clamp(mod, 0, 3), std::memory_order_relaxed);
+    cf_fx_params_mod_[m][i].store(std::clamp(mod, 0, 7), std::memory_order_relaxed);
+}
+
+float DeckPair::crossfadeFxParamModDepth(int fx_mode, int param_idx) const noexcept
+{
+    const int m = std::clamp(fx_mode, 0, 15);
+    const int i = std::clamp(param_idx, 0, 7);
+    return cf_fx_params_depth_[m][i].load(std::memory_order_relaxed);
+}
+
+void DeckPair::setCrossfadeFxParamModDepth(int fx_mode, int param_idx, float depth) noexcept
+{
+    const int m = std::clamp(fx_mode, 0, 15);
+    const int i = std::clamp(param_idx, 0, 7);
+    cf_fx_params_depth_[m][i].store(std::clamp(depth, -1.0f, 1.0f), std::memory_order_relaxed);
 }
 
 void DeckPair::resetCrossfadeFxParams(int fx_mode) noexcept
@@ -1681,7 +1709,56 @@ void DeckPair::resetCrossfadeFxParams(int fx_mode) noexcept
         }
         cf_fx_params_val_[m][i].store(def_val, std::memory_order_relaxed);
         cf_fx_params_mod_[m][i].store(0, std::memory_order_relaxed);
+        cf_fx_params_depth_[m][i].store(0.0f, std::memory_order_relaxed);
     }
+}
+
+LfoConfig DeckPair::lfo1Config() const noexcept
+{
+    std::lock_guard<std::mutex> lock(lfo_mutex_);
+    return lfo1_config_;
+}
+
+void DeckPair::setLfo1Config(const LfoConfig &cfg) noexcept
+{
+    std::lock_guard<std::mutex> lock(lfo_mutex_);
+    lfo1_config_ = cfg;
+}
+
+LfoConfig DeckPair::lfo2Config() const noexcept
+{
+    std::lock_guard<std::mutex> lock(lfo_mutex_);
+    return lfo2_config_;
+}
+
+void DeckPair::setLfo2Config(const LfoConfig &cfg) noexcept
+{
+    std::lock_guard<std::mutex> lock(lfo_mutex_);
+    lfo2_config_ = cfg;
+}
+
+float DeckPair::currentLfo1Value() const noexcept
+{
+    LfoConfig cfg;
+    {
+        std::lock_guard<std::mutex> lock(lfo_mutex_);
+        cfg = lfo1_config_;
+    }
+    const double now_sec = static_cast<double>(os_gettime_ns() / 1000000ULL) * 0.001;
+    const double bpm = const_cast<DeckPair*>(this)->effectiveMasterBpm();
+    return evaluateLfo(cfg, now_sec, bpm);
+}
+
+float DeckPair::currentLfo2Value() const noexcept
+{
+    LfoConfig cfg;
+    {
+        std::lock_guard<std::mutex> lock(lfo_mutex_);
+        cfg = lfo2_config_;
+    }
+    const double now_sec = static_cast<double>(os_gettime_ns() / 1000000ULL) * 0.001;
+    const double bpm = const_cast<DeckPair*>(this)->effectiveMasterBpm();
+    return evaluateLfo(cfg, now_sec, bpm);
 }
 
 DeckPair::~DeckPair()

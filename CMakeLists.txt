@@ -34,6 +34,7 @@ set(SOURCES
     src/engine/engine_sync.hpp
     src/engine/engine_buffer.cpp
     src/engine/engine_buffer.hpp
+    src/engine/lfo_engine.hpp
 
     # Audio (WMF Analysis & WASAPI CUE)
     src/audio/audio_analyzer.cpp
@@ -106,6 +107,8 @@ set(SOURCES
     src/gui/vj_fx_dialog.hpp
     src/gui/crossfade_fx_dialog.cpp
     src/gui/crossfade_fx_dialog.hpp
+    src/gui/lfo_dialog.cpp
+    src/gui/lfo_dialog.hpp
 )
 
 add_library(obs_vj-dj_plugin MODULE ${SOURCES})

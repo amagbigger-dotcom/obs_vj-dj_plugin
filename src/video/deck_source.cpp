@@ -486,12 +486,18 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                     float p_vals[8] = {0.0f};
                     const float tone_balance = (high_val + mid_val * 0.5f) / (bass_val + mid_val + high_val + 0.001f);
 
+                    DeckPair *d_pair = vdj_decks();
+                    const float lfo1 = d_pair ? d_pair->currentLfo1Value() : 0.0f;
+                    const float lfo2 = d_pair ? d_pair->currentLfo2Value() : 0.0f;
+
                     if (v_cfg.shader_idx >= 0 && v_cfg.shader_idx < static_cast<int>(defs.size())) {
                         const auto &p_defs = defs[v_cfg.shader_idx].params;
                         for (size_t i = 0; i < p_defs.size() && i < 8; ++i) {
                             p_vals[i] = computeEffectiveParam(p_defs[i], v_cfg.params[i].value,
+                                                              v_cfg.params[i].mod_depth,
                                                               v_cfg.params[i].mod_mode,
-                                                              bass_val, tone_balance, macro_tonus);
+                                                              bass_val, mid_val, high_val,
+                                                              macro_tonus, lfo1, lfo2);
                         }
                     }
 

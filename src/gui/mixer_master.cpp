@@ -1,5 +1,6 @@
 #include "gui/mixer_master.hpp"
 #include "gui/crossfade_fx_dialog.hpp"
+#include "gui/lfo_dialog.hpp"
 #include "engine/deck_engine.hpp"
 #include "controllers/midi_handler.hpp"
 #include "widget/dj_slider.hpp"
@@ -283,6 +284,8 @@ void MixerMasterPanel::setupUi()
         "QComboBox { background: #12161f; color: #8da0b8; border: 1px solid #242d3d; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 3px; } "
         "QComboBox::drop-down { border: none; } "
         "QComboBox QAbstractItemView { background: #181d26; color: #fff; selection-background-color: #005588; }"));
+    cf_fx_combo_->view()->setMinimumWidth(280);
+    cf_fx_combo_->view()->setTextElideMode(Qt::ElideNone);
     cf_fx_combo_->addItem(QStringLiteral("XFADE FX: Ki (Normál)"), 0);
     cf_fx_combo_->addItem(QStringLiteral("XFADE FX: Spirális Örvény"), 1);
     cf_fx_combo_->addItem(QStringLiteral("XFADE FX: Halszem Optika"), 2);
@@ -323,6 +326,27 @@ void MixerMasterPanel::setupUi()
         }
     });
     fx_scale_row->addWidget(cf_fx_settings_btn_);
+
+    lfo_btn_ = new QPushButton(QStringLiteral("〰 LFO"), this);
+    lfo_btn_->setFixedHeight(20);
+    lfo_btn_->setToolTip(QStringLiteral("BPM-Szinkronizált LFO Oszcillátorok (1/16..64 ütem, 4 hullámforma)"));
+    lfo_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1a2230; border: 1px solid #2d3e56; color: #00d2ff; font-size: 8px; font-weight: bold; padding: 1px 5px; border-radius: 3px; } "
+        "QPushButton:hover { background: #253347; border-color: #00d2ff; }"));
+    connect(lfo_btn_, &QPushButton::clicked, this, [this]() {
+        if (!lfo_dialog_) {
+            lfo_dialog_ = new LfoDialog(decks_, this);
+        }
+        if (lfo_dialog_->isVisible()) {
+            lfo_dialog_->hide();
+        } else {
+            lfo_dialog_->refresh();
+            lfo_dialog_->show();
+            lfo_dialog_->raise();
+            lfo_dialog_->activateWindow();
+        }
+    });
+    fx_scale_row->addWidget(lfo_btn_);
 
     scale_btn_ = new QPushButton(decks_ && decks_->videoScaleMode() == 0 ? QStringLiteral("📺 FIT") : QStringLiteral("📺 FILL"), this);
     scale_btn_->setFixedHeight(20);
