@@ -82,9 +82,9 @@ void CrossfadeFxDialog::setupUi()
     title_lbl->setStyleSheet(QStringLiteral("font-size: 11px; font-weight: bold; color: #00d2ff;"));
     hdr_layout->addWidget(title_lbl, 1);
 
-    auto *hint_lbl = new QLabel(QStringLiteral("Duplaklikk potméteren = Alapérték"), this);
-    hint_lbl->setStyleSheet(QStringLiteral("font-size: 9px; color: #708098; font-style: italic;"));
-    hdr_layout->addWidget(hint_lbl);
+    auto *header_hint_lbl = new QLabel(QStringLiteral("Duplaklikk potméteren = Alapérték"), this);
+    header_hint_lbl->setStyleSheet(QStringLiteral("font-size: 9px; color: #708098; font-style: italic;"));
+    hdr_layout->addWidget(header_hint_lbl);
 
     main_layout->addLayout(hdr_layout);
 
@@ -148,6 +148,8 @@ void CrossfadeFxDialog::setupUi()
     auto *close_btn = new QPushButton(QStringLiteral("BEZÁRÁS"), this);
     close_btn->setFixedWidth(90);
     close_btn->setFixedHeight(24);
+    close_btn->setAutoDefault(false);
+    close_btn->setDefault(false);
     close_btn->setStyleSheet(QStringLiteral(
         "QPushButton { background: #004466; color: #00d2ff; border: 1px solid #0088cc; border-radius: 3px; font-weight: bold; font-size: 10px; } "
         "QPushButton:hover { background: #006699; border-color: #00d2ff; color: #fff; }"));

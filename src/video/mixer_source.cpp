@@ -48,7 +48,7 @@ struct MixerSource {
     std::atomic<bool> need_monitor_wake_{true};
 };
 
-static const char *MIXER_EFFECT = R"(
+static const char *MIXER_EFFECT_PART1 = R"(
 uniform float4x4 ViewProj;
 uniform texture2d image_a;
 uniform texture2d image_b;
@@ -230,7 +230,9 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
 
     return uv;
 }
+)";
 
+static const char *MIXER_EFFECT_PART2 = R"(
 float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx_val, float4 gains, float sat)
 {
     float4 col;
@@ -433,11 +435,21 @@ technique Draw {
 }
 )";
 
+static const char *getMixerEffectCode()
+{
+    static std::string s_code;
+    if (s_code.empty()) {
+        s_code = MIXER_EFFECT_PART1;
+        s_code += MIXER_EFFECT_PART2;
+    }
+    return s_code.c_str();
+}
+
 static void ensure_resources(MixerSource *context)
 {
     if (!context->effect) {
         char *errors = nullptr;
-        context->effect = gs_effect_create(MIXER_EFFECT, "mixer_effect", &errors);
+        context->effect = gs_effect_create(getMixerEffectCode(), "mixer_effect", &errors);
         if (!context->effect) {
             blog(LOG_ERROR, "[obs-vj-mixer] Failed to compile MIXER_EFFECT: %s", errors ? errors : "unknown error");
             bfree(errors);
