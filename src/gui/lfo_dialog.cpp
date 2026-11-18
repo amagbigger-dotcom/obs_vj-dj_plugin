@@ -1,6 +1,7 @@
 #include "gui/lfo_dialog.hpp"
 #include "engine/deck_engine.hpp"
 #include <obs-frontend-api.h>
+#include <util/platform.h>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>

@@ -12,6 +12,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QComboBox>
+#include <QAbstractItemView>
 #include <QSignalBlocker>
 #include <QKeyEvent>
 #include <algorithm>
