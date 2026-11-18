@@ -305,3 +305,29 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - Megnyitható a mixer mester panelének `[ 〰 LFO ]` gombjából és az OBS Eszközök menüből (`OBS VJ LFO Oszcillátor`).
   7. **Crossfade FX Legördülő Menü Automatikus Kiszélesítése:**
      - A Master Mixeren lévő kompakt dropdown kinyitásakor minimum 280 px szélességre nyílik (`QAbstractItemView` nézet), így a leghosszabb effektnevek is tisztán olvashatók.
+
+### Mérföldkő #18: Build #282 / GitHub Run #282 (Enter Fókuszjavítás, Duplaklikkes Potméter Reset, Forgásmentes Kaleidoszkóp, Feketeszint & Kontraszt Védelem)
+* **Verzió & Commit:** `9f6b67d`
+* **SHA256:** `74D85BE24020934BF622D48C7F0F5612986C856DEBD8285679BE228E6E5C4CAC`
+* **GitHub Run ID:** `44423572351`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (773 120 bájt)
+* **Jellemzők:**
+  1. **Enterre Defaultra Állás Megszüntetése & Default Gomb Törlése:**
+     - A `Reset FX` gomb törölve a dialógus fejlécéből (ez aktiválódott korábban a Qt autoDefault mechanizmusa miatt az Enter leütésekor).
+     - Minden gombon explicit módon tiltva az `autoDefault` és `default` viselkedés.
+     - A `QLineEdit` mezőkben az Enter leütése érvényesíti az értéket és elengedi a fókuszt (`clearFocus()`), a `keyPressEvent` pedig elnyeli az Enter/Return billentyűt, így a dialógus semmilyen akciót nem vált ki.
+  2. **Duplaklikkes Reset Minden Potméteren (`DJSlider`):**
+     - Mind a `CrossfadeFxDialog`, mind a `VjFxDialog` összes csúszkája `DJSlider`-re cserélve:
+       * **Alapérték csúszka:** Dupla kattintásra azonnal a specifikációban definiált gyári alapértékre (`def_val`) ugrik.
+       * **Bipoláris Modulációs Mélység csúszka:** Dupla kattintásra azonnal `0%`-ra (középállásba, inaktív állapotba) ugrik.
+  3. **Kaleidoszkóp Forgás Teljes Eltávolítása:**
+     - A `rot_speed` és `anim_time * rot_spd` forgási számítás törölve a HLSL kódból.
+     - 8 tiszta, szimmetrikus paraméter: `sides`, `zoom`, `pan_x`, `pan_y`, `fold_angle` (statikus dőlésszög, nincs forgás), `softness`, `contrast`, `blend`.
+  4. **Finom, Nem Ugrásszerű Paraméterek & Szimmetria:**
+     - A korábbi durva, ugrásszerű Glitch helyett **Harmonikus Pásztázás** (Scan Dispersion): szimmetrikus, simított szinuszos hullámzó pásztázás és színcsúszás a képernyő középpontja körül.
+     - Minden effekt rögzített `(0.5, 0.5)` középponttal üzemel.
+  5. **Hülyebiztos Feketeszint & Kontraszt Védelem (No-Fogging Rendering):**
+     - **VJ Shaderek:** Megszüntetve az összes képernyőszintű lapos téglalap-villantás (`col += theme * bass_energy * 0.4`), ami eddig szürkévé és tejszerűvé mosta a fekete hátteret. A zenei lüktetés kizárólag a meglévő geometriai vonalakat, ragyogásokat és csúcsfényeket modulálja vagy luminancia-maszkkal érvényesül. A háttér mélyfekete (`0.0`) marad!
+     - **Mixer Forrás:** A végső pixelfeldolgozóban mélyfekete levágási küszöb (`smoothstep(0.015, 1.0, res.rgb)`) és lágy S-görbe tónus, amely több réteg és összetett effektek egyidejű használata mellett is borotvaéles, telt és dinamikus képet garantál.
+  6. **MSVC C2026 Védelem a Mixer Shaderben:**
+     - A `MIXER_EFFECT` HLSL kód méretnövekedése miatt a shader két részre (`MIXER_EFFECT_PART1` és `PART2`) lett bontva, megkerülve az MSVC 16 KB-os string literál korlátját.
