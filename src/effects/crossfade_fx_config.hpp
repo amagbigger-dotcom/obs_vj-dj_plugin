@@ -123,21 +123,26 @@ inline const std::vector<CrossfadeFxDef>& getCrossfadeFxDefinitions() {
             8, "Kaleidoszkóp (Mirror Fold)", "Többtükrös Poláris Szimmetria",
             {
                 {"sides", "Tükrök Száma / Mirrors (Sides)", 2.0f, 16.0f, 6.0f, 1.0f},
-                {"rot_speed", "Forgási Sebesség / Speed", -3.0f, 3.0f, 0.5f, 0.05f},
                 {"zoom", "Nagyítás / Zoom", 0.2f, 3.0f, 1.0f, 0.05f},
                 {"pan_x", "Belső Képeltolás X / Pan X", -1.0f, 1.0f, 0.0f, 0.02f},
                 {"pan_y", "Belső Képeltolás Y / Pan Y", -1.0f, 1.0f, 0.0f, 0.02f},
+                {"fold_angle", "Statikus Dőlésszög / Angle", 0.0f, 3.1415f, 0.0f, 0.05f},
+                {"softness", "Él Lágyság / Softness", 0.0f, 1.0f, 0.1f, 0.02f},
+                {"contrast", "Belső Kontraszt / Contrast", 0.5f, 2.0f, 1.0f, 0.05f},
                 {"blend", "Keverés Erőssége / Blend", 0.0f, 1.0f, 1.0f, 0.05f}
             }
         },
         {
-            9, "Glitch Displacement (Zajelcsúszás)", "Digitális Adáshiba és Rángás",
+            9, "Harmonikus Pásztázás (Scan Dispersion)", "Digitális Hullámzás és Színcsúszás",
             {
-                {"bands", "Sávok Száma / Band Count", 8.0f, 120.0f, 36.0f, 2.0f},
-                {"speed", "Sebesség / Jitter Speed", 2.0f, 50.0f, 18.0f, 1.0f},
-                {"shift", "Elcsúszás Mértéke / Shift", 0.01f, 0.25f, 0.05f, 0.005f},
-                {"jitter_freq", "Gyakoriság / Frequency", 0.1f, 0.9f, 0.4f, 0.05f},
-                {"color_split", "Szín Szétcsúszás / RGB Drift", 0.0f, 0.05f, 0.01f, 0.002f}
+                {"bands", "Sávok Sűrűsége / Bands", 4.0f, 80.0f, 24.0f, 2.0f},
+                {"speed", "Hullámsebesség / Speed", 0.5f, 20.0f, 4.0f, 0.5f},
+                {"shift", "Hullámkitérés / Shift", 0.005f, 0.15f, 0.04f, 0.002f},
+                {"softness", "Sáv Lágyság / Softness", 0.1f, 1.0f, 0.6f, 0.05f},
+                {"color_split", "Szín Szétcsúszás / RGB Drift", 0.0f, 0.04f, 0.01f, 0.002f},
+                {"aspect", "Képarány / Aspect", 0.5f, 2.0f, 1.0f, 0.05f},
+                {"contrast", "Kontraszt Védelem / Contrast", 0.5f, 2.0f, 1.1f, 0.05f},
+                {"blend", "Keverés Erőssége / Blend", 0.0f, 1.0f, 1.0f, 0.05f}
             }
         },
         {

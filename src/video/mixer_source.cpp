@@ -176,22 +176,25 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
     else if (mode > 7.5 && mode < 8.5) {
         // Mode 8: Kaleidoszkóp (Mirror Fold) - N-tükrös tiszta poláris szimmetria belső képeltolással
         float sides = max(floor(cf_p0 + 0.5), 2.0);
-        float rot_spd = cf_p1;
-        float zoom = max(cf_p2, 0.1);
-        float pan_x = cf_p3;
-        float pan_y = cf_p4;
-        float blend_p = cf_p5;
+        float zoom = max(cf_p1, 0.1);
+        float pan_x = cf_p2;
+        float pan_y = cf_p3;
+        float fold_angle = cf_p4;
+        float softness = cf_p5;
+        float contrast = max(cf_p6, 0.1);
+        float blend_p = cf_p7;
 
         float2 kp = uv - float2(0.5, 0.5);
         kp.x *= 1.7777778; // 16:9 aránykorrekció a tökéletes körszimmetriához
         float kr = length(kp);
-        float ka = atan2(kp.y, kp.x) + anim_time * rot_spd * 0.5;
+        float ka = atan2(kp.y, kp.x) + fold_angle; // Statikus dőlésszög - NINCS automatikus forgás!
         float tau = 6.2831853;
         float seg = tau / sides;
         // Folytonos háromszöghullámú poláris hajtás (varratmentes tükrözés):
         float a_mod = frac(ka / seg);
         if (a_mod < 0.0) a_mod += 1.0;
         float fold = abs(a_mod * 2.0 - 1.0);
+        if (softness > 0.01) fold = smoothstep(0.0, 1.0, fold);
         float folded_a = fold * (seg * 0.5);
         float2 folded_dir = float2(cos(folded_a), sin(folded_a));
         float2 kal_uv = folded_dir * (kr / zoom);
@@ -200,15 +203,23 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
         return lerp(uv, kal_uv, saturate(mid * blend_p * intensity));
     }
     else if (mode > 8.5 && mode < 9.5) {
-        // Mode 9: Glitch Displacement (Vízszintes zajelcsúszás)
+        // Mode 9: Harmonikus Pásztázás (Scan Dispersion) - Finom szimmetrikus hullámzó eltolás
         float bands = max(cf_p0, 2.0);
         float spd = cf_p1;
         float shift_amt = cf_p2;
-        float j_freq = cf_p3;
-        float band = floor(uv.y * bands * rate);
-        float n1 = sin(band * 127.1 + anim_time * spd * rate);
-        float shift = (n1 > j_freq ? 1.0 : (n1 < -j_freq ? -1.0 : 0.0)) * mid * shift_amt * intensity;
-        return float2(uv.x + shift, uv.y);
+        float softness = max(cf_p3, 0.05);
+        float asp = max(cf_p5, 0.1);
+        float blend_p = cf_p7;
+
+        float y_phase = uv.y * bands * rate + anim_time * spd * rate;
+        float wave = sin(y_phase);
+        float shift = sin(wave * 3.14159265 * 0.5) * mid * shift_amt * intensity * softness;
+        float2 p_scan = uv - float2(0.5, 0.5);
+        p_scan.x *= asp;
+        p_scan.x *= (1.0 + shift);
+        p_scan.x /= asp;
+        float2 disp_uv = float2(0.5, 0.5) + p_scan;
+        return lerp(uv, disp_uv, saturate(mid * blend_p * intensity));
     }
     else if (mode > 9.5 && mode < 10.5) {
         // Mode 10: CRT / VHS Scanline (Curvature)
@@ -323,7 +334,7 @@ float4 PS(VertData v) : TARGET
         float blend = smoothstep(thresh - width, thresh + width, luma_a);
         float glow = saturate(1.0 - abs((luma_a - thresh) / width)) * cf_fx_mid * cf_p1 * cf_param_intensity;
         float3 glow_col = float3(cf_p2, cf_p3, cf_p4);
-        res = lerp(b, a, blend) + float4(glow_col, 0.0) * glow;
+        res = lerp(b, a, blend) + float4(glow_col, 0.0) * (glow * smoothstep(0.02, 0.98, blend));
     } else {
         // Standard Transition Modes
         if (transition_mode > 2.5) {
@@ -333,8 +344,11 @@ float4 PS(VertData v) : TARGET
             // Horizontal Wipe
             res = v.uv.x < (1.0 - crossfade) ? a : b;
         } else if (transition_mode > 1.5 && transition_mode < 2.5) {
-            // Additive Blend
-            res = saturate(a * (1.0 - crossfade) + b * crossfade);
+            // Additive / Screen Energy Blend (Kontraszt-megtartó ragyogó fúzió, nincs tejszerű köd)
+            float3 screen_col = 1.0 - (1.0 - a.rgb * (1.0 - crossfade)) * (1.0 - b.rgb * crossfade);
+            float3 add_col = a.rgb * (1.0 - crossfade) + b.rgb * crossfade;
+            res.rgb = lerp(add_col, screen_col, 0.65);
+            res.a = 1.0;
         } else {
             // Linear Fade / Crossfade
             float cf = crossfade;
@@ -400,8 +414,15 @@ float4 PS(VertData v) : TARGET
         res.rgb = lerp(res.rgb, base_comp + wireframe, saturate(cf_fx_mid * 0.95 * cf_param_intensity));
     }
 
+    // Foolproof Mélyfekete Védelem & Kontraszt Kiemelés (Beködösödés Megakadályozása)
+    res.rgb = max(res.rgb, 0.0);
+    // Vágjuk le a tejszerű szürke szivárgást (0.015 alatt tiszta fekete):
+    res.rgb = smoothstep(0.015, 1.0, res.rgb);
+    // Lágy S-görbe tónus a gazdag mélységhez:
+    res.rgb = pow(res.rgb, float3(1.08, 1.08, 1.08));
+
     res.a = 1.0;
-    return res;
+    return saturate(res);
 }
 
 technique Draw {

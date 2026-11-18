@@ -11,10 +11,11 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QColorDialog>
-#include <QSlider>
+#include "widget/dj_slider.hpp"
 #include <QScrollArea>
 #include <QFileInfo>
 #include <QSignalBlocker>
+#include <QKeyEvent>
 #include <algorithm>
 
 namespace {
@@ -66,12 +67,16 @@ VjFxDialog::VjFxDialog(DeckPair *decks, QWidget *parent)
 
     deck_a_btn_ = new QPushButton(QStringLiteral("◄ DECK A (KÉK)"), this);
     deck_a_btn_->setFixedHeight(26);
+    deck_a_btn_->setAutoDefault(false);
+    deck_a_btn_->setDefault(false);
     deck_a_btn_->setCursor(Qt::PointingHandCursor);
     connect(deck_a_btn_, &QPushButton::clicked, this, [this]() { selectDeck(0); });
     deck_bar->addWidget(deck_a_btn_, 1);
 
     deck_b_btn_ = new QPushButton(QStringLiteral("DECK B (NARANCS) ►"), this);
     deck_b_btn_->setFixedHeight(26);
+    deck_b_btn_->setAutoDefault(false);
+    deck_b_btn_->setDefault(false);
     deck_b_btn_->setCursor(Qt::PointingHandCursor);
     connect(deck_b_btn_, &QPushButton::clicked, this, [this]() { selectDeck(1); });
     deck_bar->addWidget(deck_b_btn_, 1);
@@ -128,6 +133,8 @@ VjFxDialog::VjFxDialog(DeckPair *decks, QWidget *parent)
     color_btn_ = new QPushButton(color_box);
     color_btn_->setFixedHeight(22);
     color_btn_->setFixedWidth(110);
+    color_btn_->setAutoDefault(false);
+    color_btn_->setDefault(false);
     color_btn_->setCursor(Qt::PointingHandCursor);
     connect(color_btn_, &QPushButton::clicked, this, [this]() {
         DeckPlayer *dp = currentDeck();
@@ -150,6 +157,8 @@ VjFxDialog::VjFxDialog(DeckPair *decks, QWidget *parent)
     auto *default_color_btn = new QPushButton(QStringLiteral("↺ Alap"), color_box);
     default_color_btn->setFixedHeight(22);
     default_color_btn->setFixedWidth(50);
+    default_color_btn->setAutoDefault(false);
+    default_color_btn->setDefault(false);
     default_color_btn->setToolTip(QStringLiteral("Visszaállítás az eredeti Deck színre"));
     default_color_btn->setStyleSheet(QStringLiteral("QPushButton { background: #202735; color: #9bb; font-size: 9px; padding: 1px 4px; }"));
     connect(default_color_btn, &QPushButton::clicked, this, [this]() {
@@ -374,6 +383,8 @@ void VjFxDialog::rebuildParamControls()
         // Stepper [-]
         auto *btn_minus = new QPushButton(QStringLiteral("-"), card_frame);
         btn_minus->setFixedSize(18, 18);
+        btn_minus->setAutoDefault(false);
+        btn_minus->setDefault(false);
         btn_minus->setStyleSheet(QStringLiteral(
             "QPushButton { background: #1a222e; color: #a0b0c8; border: 1px solid #2d3b4e; border-radius: 2px; font-weight: bold; font-size: 10px; padding: 0; } "
             "QPushButton:hover { background: #253346; color: #00d2ff; border-color: #00d2ff; }"));
@@ -392,17 +403,22 @@ void VjFxDialog::rebuildParamControls()
         // Stepper [+]
         auto *btn_plus = new QPushButton(QStringLiteral("+"), card_frame);
         btn_plus->setFixedSize(18, 18);
+        btn_plus->setAutoDefault(false);
+        btn_plus->setDefault(false);
         btn_plus->setStyleSheet(QStringLiteral(
             "QPushButton { background: #1a222e; color: #a0b0c8; border: 1px solid #2d3b4e; border-radius: 2px; font-weight: bold; font-size: 10px; padding: 0; } "
             "QPushButton:hover { background: #253346; color: #00d2ff; border-color: #00d2ff; }"));
         row1->addWidget(btn_plus);
 
-        // Base slider
-        auto *base_slider = new QSlider(Qt::Horizontal, card_frame);
+        // Base slider (Duplaklikk -> def_val)
+        float def_norm = (p_def.max_val > p_def.min_val) ? ((p_def.def_val - p_def.min_val) / (p_def.max_val - p_def.min_val)) : 0.0f;
+        def_norm = std::clamp(def_norm, 0.0f, 1.0f);
+        auto *base_slider = new DJSlider(Qt::Horizontal, static_cast<int>(def_norm * 1000.0f), card_frame);
         base_slider->setRange(0, 1000);
         float norm = (p_def.max_val > p_def.min_val) ? ((cur_val - p_def.min_val) / (p_def.max_val - p_def.min_val)) : 0.0f;
         norm = std::clamp(norm, 0.0f, 1.0f);
         base_slider->setValue(static_cast<int>(norm * 1000.0f));
+        base_slider->setToolTip(QStringLiteral("Alapérték (Dupla kattintás: Alaphelyzet: %1)").arg(p_def.def_val));
         base_slider->setStyleSheet(QStringLiteral(
             "QSlider::groove:horizontal { height: 4px; background: #202b3a; border-radius: 2px; } "
             "QSlider::sub-page:horizontal { background: #0088cc; border-radius: 2px; } "
@@ -435,6 +451,8 @@ void VjFxDialog::rebuildParamControls()
         // Depth Stepper [-]
         auto *btn_d_minus = new QPushButton(QStringLiteral("-"), card_frame);
         btn_d_minus->setFixedSize(18, 18);
+        btn_d_minus->setAutoDefault(false);
+        btn_d_minus->setDefault(false);
         btn_d_minus->setStyleSheet(QStringLiteral(
             "QPushButton { background: #1a222e; color: #a0b0c8; border: 1px solid #2d3b4e; border-radius: 2px; font-weight: bold; font-size: 10px; padding: 0; } "
             "QPushButton:hover { background: #253346; color: #ffaa00; border-color: #ffaa00; }"));
@@ -460,16 +478,18 @@ void VjFxDialog::rebuildParamControls()
         // Depth Stepper [+]
         auto *btn_d_plus = new QPushButton(QStringLiteral("+"), card_frame);
         btn_d_plus->setFixedSize(18, 18);
+        btn_d_plus->setAutoDefault(false);
+        btn_d_plus->setDefault(false);
         btn_d_plus->setStyleSheet(QStringLiteral(
             "QPushButton { background: #1a222e; color: #a0b0c8; border: 1px solid #2d3b4e; border-radius: 2px; font-weight: bold; font-size: 10px; padding: 0; } "
             "QPushButton:hover { background: #253346; color: #ffaa00; border-color: #ffaa00; }"));
         row2->addWidget(btn_d_plus);
 
-        // Bipolar Depth Slider (-1000 .. +1000, 0 at center)
-        auto *mod_slider = new QSlider(Qt::Horizontal, card_frame);
+        // Bipolar Depth Slider (Duplaklikk -> 0 / 0%)
+        auto *mod_slider = new DJSlider(Qt::Horizontal, 0, card_frame);
         mod_slider->setRange(-1000, 1000);
         mod_slider->setValue(static_cast<int>(std::clamp(cur_depth, -1.0f, 1.0f) * 1000.0f));
-        mod_slider->setToolTip(QStringLiteral("Bipoláris Moduláció Mélysége: Középen 0% (Nincs), Jobbra: +, Balra: Invertált fázis -"));
+        mod_slider->setToolTip(QStringLiteral("Bipoláris Moduláció Mélysége (Dupla kattintás: 0%): Középen 0% (Nincs), Jobbra: +, Balra: Invertált fázis -"));
         mod_slider->setStyleSheet(QStringLiteral(
             "QSlider::groove:horizontal { height: 4px; background: #1c2534; border-radius: 2px; } "
             "QSlider::handle:horizontal { background: #ffaa00; width: 10px; margin: -3px 0; border-radius: 5px; } "
@@ -515,6 +535,13 @@ void VjFxDialog::rebuildParamControls()
             if (ok) applyValue(v);
         });
 
+        connect(val_edit, &QLineEdit::returnPressed, this, [val_edit, applyValue]() {
+            bool ok = false;
+            float v = val_edit->text().toFloat(&ok);
+            if (ok) applyValue(v);
+            val_edit->clearFocus();
+        });
+
         auto applyDepth = [this, p_idx, depth_edit, mod_slider, formatDepthText](float d) {
             float depth = std::clamp(d, -1.0f, 1.0f);
             depth_edit->setText(formatDepthText(depth));
@@ -548,6 +575,14 @@ void VjFxDialog::rebuildParamControls()
             if (ok) applyDepth(pct / 100.0f);
         });
 
+        connect(depth_edit, &QLineEdit::returnPressed, this, [depth_edit, applyDepth]() {
+            QString txt = depth_edit->text().remove('%').trimmed();
+            bool ok = false;
+            float pct = txt.toFloat(&ok);
+            if (ok) applyDepth(pct / 100.0f);
+            depth_edit->clearFocus();
+        });
+
         connect(mod_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, p_idx](int idx) {
             if (DeckPlayer *d = currentDeck()) {
                 d->setVjParamMod(p_idx, idx);
@@ -557,6 +592,15 @@ void VjFxDialog::rebuildParamControls()
         params_layout_->addWidget(card_frame);
     }
     params_layout_->addStretch(1);
+}
+
+void VjFxDialog::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
+        event->accept();
+        return;
+    }
+    QDialog::keyPressEvent(event);
 }
 
 void vdj_open_vj_fx_dialog(int target_deck)

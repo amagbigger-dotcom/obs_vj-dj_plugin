@@ -1,17 +1,18 @@
 #include "gui/crossfade_fx_dialog.hpp"
 #include "engine/deck_engine.hpp"
 #include "effects/crossfade_fx_config.hpp"
+#include "widget/dj_slider.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFrame>
 #include <QLabel>
 #include <QLineEdit>
-#include <QSlider>
 #include <QComboBox>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSignalBlocker>
+#include <QKeyEvent>
 #include <algorithm>
 
 namespace {
@@ -81,16 +82,9 @@ void CrossfadeFxDialog::setupUi()
     title_lbl->setStyleSheet(QStringLiteral("font-size: 11px; font-weight: bold; color: #00d2ff;"));
     hdr_layout->addWidget(title_lbl, 1);
 
-    reset_btn_ = new QPushButton(QStringLiteral("↺ Reset FX"), this);
-    reset_btn_->setFixedHeight(22);
-    reset_btn_->setToolTip(QStringLiteral("Aktuális effekt paramétereinek visszaállítása alapértelmezettre"));
-    connect(reset_btn_, &QPushButton::clicked, this, [this]() {
-        if (!decks_) return;
-        const int cur_mode = decks_->crossfadeFxMode();
-        decks_->resetCrossfadeFxParams(cur_mode);
-        rebuildParamControls();
-    });
-    hdr_layout->addWidget(reset_btn_);
+    auto *hint_lbl = new QLabel(QStringLiteral("Duplaklikk potméteren = Alapérték"), this);
+    hint_lbl->setStyleSheet(QStringLiteral("font-size: 9px; color: #708098; font-style: italic;"));
+    hdr_layout->addWidget(hint_lbl);
 
     main_layout->addLayout(hdr_layout);
 
@@ -237,6 +231,8 @@ void CrossfadeFxDialog::rebuildParamControls()
         // Stepper [-]
         auto *btn_minus = new QPushButton(QStringLiteral("-"), card_frame);
         btn_minus->setFixedSize(18, 18);
+        btn_minus->setAutoDefault(false);
+        btn_minus->setDefault(false);
         btn_minus->setStyleSheet(QStringLiteral(
             "QPushButton { background: #1a222e; color: #a0b0c8; border: 1px solid #2d3b4e; border-radius: 2px; font-weight: bold; font-size: 10px; padding: 0; } "
             "QPushButton:hover { background: #253346; color: #00d2ff; border-color: #00d2ff; }"));
@@ -255,17 +251,22 @@ void CrossfadeFxDialog::rebuildParamControls()
         // Stepper [+]
         auto *btn_plus = new QPushButton(QStringLiteral("+"), card_frame);
         btn_plus->setFixedSize(18, 18);
+        btn_plus->setAutoDefault(false);
+        btn_plus->setDefault(false);
         btn_plus->setStyleSheet(QStringLiteral(
             "QPushButton { background: #1a222e; color: #a0b0c8; border: 1px solid #2d3b4e; border-radius: 2px; font-weight: bold; font-size: 10px; padding: 0; } "
             "QPushButton:hover { background: #253346; color: #00d2ff; border-color: #00d2ff; }"));
         row1->addWidget(btn_plus);
 
-        // Base slider
-        auto *base_slider = new QSlider(Qt::Horizontal, card_frame);
+        // Base slider (Duplaklikk -> def_val)
+        float def_norm = (p_def.max_val > p_def.min_val) ? ((p_def.def_val - p_def.min_val) / (p_def.max_val - p_def.min_val)) : 0.0f;
+        def_norm = std::clamp(def_norm, 0.0f, 1.0f);
+        auto *base_slider = new DJSlider(Qt::Horizontal, static_cast<int>(def_norm * 1000.0f), card_frame);
         base_slider->setRange(0, 1000);
         float norm = (p_def.max_val > p_def.min_val) ? ((cur_val - p_def.min_val) / (p_def.max_val - p_def.min_val)) : 0.0f;
         norm = std::clamp(norm, 0.0f, 1.0f);
         base_slider->setValue(static_cast<int>(norm * 1000.0f));
+        base_slider->setToolTip(QStringLiteral("Alapérték (Dupla kattintás: Alaphelyzet: %1)").arg(p_def.def_val));
         base_slider->setStyleSheet(QStringLiteral(
             "QSlider::groove:horizontal { height: 4px; background: #202b3a; border-radius: 2px; } "
             "QSlider::sub-page:horizontal { background: #0088cc; border-radius: 2px; } "
@@ -298,6 +299,8 @@ void CrossfadeFxDialog::rebuildParamControls()
         // Depth Stepper [-]
         auto *btn_d_minus = new QPushButton(QStringLiteral("-"), card_frame);
         btn_d_minus->setFixedSize(18, 18);
+        btn_d_minus->setAutoDefault(false);
+        btn_d_minus->setDefault(false);
         btn_d_minus->setStyleSheet(QStringLiteral(
             "QPushButton { background: #1a222e; color: #a0b0c8; border: 1px solid #2d3b4e; border-radius: 2px; font-weight: bold; font-size: 10px; padding: 0; } "
             "QPushButton:hover { background: #253346; color: #ffaa00; border-color: #ffaa00; }"));
@@ -323,16 +326,18 @@ void CrossfadeFxDialog::rebuildParamControls()
         // Depth Stepper [+]
         auto *btn_d_plus = new QPushButton(QStringLiteral("+"), card_frame);
         btn_d_plus->setFixedSize(18, 18);
+        btn_d_plus->setAutoDefault(false);
+        btn_d_plus->setDefault(false);
         btn_d_plus->setStyleSheet(QStringLiteral(
             "QPushButton { background: #1a222e; color: #a0b0c8; border: 1px solid #2d3b4e; border-radius: 2px; font-weight: bold; font-size: 10px; padding: 0; } "
             "QPushButton:hover { background: #253346; color: #ffaa00; border-color: #ffaa00; }"));
         row2->addWidget(btn_d_plus);
 
-        // Bipolar Depth Slider (-1000 .. +1000, 0 at center)
-        auto *mod_slider = new QSlider(Qt::Horizontal, card_frame);
+        // Bipolar Depth Slider (Duplaklikk -> 0 / 0%)
+        auto *mod_slider = new DJSlider(Qt::Horizontal, 0, card_frame);
         mod_slider->setRange(-1000, 1000);
         mod_slider->setValue(static_cast<int>(std::clamp(cur_depth, -1.0f, 1.0f) * 1000.0f));
-        mod_slider->setToolTip(QStringLiteral("Bipoláris Moduláció Mélysége: Középen 0% (Nincs), Jobbra: +, Balra: Invertált fázis -"));
+        mod_slider->setToolTip(QStringLiteral("Bipoláris Moduláció Mélysége (Dupla kattintás: 0%): Középen 0% (Nincs), Jobbra: +, Balra: Invertált fázis -"));
         mod_slider->setStyleSheet(QStringLiteral(
             "QSlider::groove:horizontal { height: 4px; background: #1c2534; border-radius: 2px; } "
             "QSlider::handle:horizontal { background: #ffaa00; width: 10px; margin: -3px 0; border-radius: 5px; } "
@@ -376,6 +381,13 @@ void CrossfadeFxDialog::rebuildParamControls()
             if (ok) applyValue(v);
         });
 
+        connect(val_edit, &QLineEdit::returnPressed, this, [val_edit, applyValue]() {
+            bool ok = false;
+            float v = val_edit->text().toFloat(&ok);
+            if (ok) applyValue(v);
+            val_edit->clearFocus();
+        });
+
         auto applyDepth = [this, fx_mode, p_idx, depth_edit, mod_slider, formatDepthText](float d) {
             float depth = std::clamp(d, -1.0f, 1.0f);
             depth_edit->setText(formatDepthText(depth));
@@ -407,6 +419,14 @@ void CrossfadeFxDialog::rebuildParamControls()
             if (ok) applyDepth(pct / 100.0f);
         });
 
+        connect(depth_edit, &QLineEdit::returnPressed, this, [depth_edit, applyDepth]() {
+            QString txt = depth_edit->text().remove('%').trimmed();
+            bool ok = false;
+            float pct = txt.toFloat(&ok);
+            if (ok) applyDepth(pct / 100.0f);
+            depth_edit->clearFocus();
+        });
+
         connect(mod_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, fx_mode, p_idx](int midx) {
             if (decks_) decks_->setCrossfadeFxParamMod(fx_mode, p_idx, midx);
         });
@@ -415,4 +435,13 @@ void CrossfadeFxDialog::rebuildParamControls()
     }
 
     params_layout_->addStretch(1);
+}
+
+void CrossfadeFxDialog::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
+        event->accept();
+        return;
+    }
+    QDialog::keyPressEvent(event);
 }

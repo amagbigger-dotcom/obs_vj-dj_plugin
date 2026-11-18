@@ -19,6 +19,9 @@ public:
 
     void refresh();
 
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+
 private:
     void setupUi();
     void rebuildParamControls();
@@ -26,7 +29,6 @@ private:
     DeckPair *decks_ = nullptr;
 
     QComboBox *fx_combo_ = nullptr;
-    QPushButton *reset_btn_ = nullptr;
 
     QScrollArea *scroll_area_ = nullptr;
     QWidget *params_container_ = nullptr;

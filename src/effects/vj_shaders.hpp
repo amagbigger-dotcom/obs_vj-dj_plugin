@@ -219,14 +219,15 @@ float4 render_fluid_flow(float2 uv)
     }
 
     float3 th_base = get_base_theme_color();
-    float3 c1 = th_base * 0.25;
-    float3 c2 = th_base * 1.15;
+    float3 c2 = th_base * 1.25;
 
     c2 = lerp(c2, float3(1.0, 1.0, 1.0), clamp(high_energy * 0.6, 0.0, 0.85));
-    c1 = lerp(c1, th_base * 0.7 + float3(0.08, 0.04, 0.08), clamp(mid_energy * 0.45, 0.0, 0.75));
+    float3 c_bg = float3(0.005, 0.005, 0.01);
+    float3 c_fluid = c2 * glow;
 
-    float3 col = lerp(c2, c1, 1.0 - dist) * glow;
-    col += c2 * (bass_energy * 0.25);
+    float3 col = lerp(c_bg, c_fluid, dist);
+    col *= (1.0 + bass_energy * 0.5);
+    col = smoothstep(0.012, 1.0, col);
     return float4(saturate(col), 1.0);
 }
 )";
@@ -301,8 +302,11 @@ float4 render_truchet(float2 uv)
 
     col = lerp(col, c_fill * sh, 1.0 - smoothstep(0.0, fo, d.x + 0.21));
     col = lerp(col, c_core * sh, 1.0 - smoothstep(0.0, fo, abs(d.x + 0.12) - 0.02));
-    col += c_core * (bass_energy * 0.35 * pulse);
+    float luma1 = dot(col, float3(0.299, 0.587, 0.114));
+    col *= (1.0 + bass_energy * 0.4 * pulse);
+    col += c_core * (bass_energy * 0.35 * pulse * luma1);
     col *= glow;
+    col = smoothstep(0.015, 1.0, col);
 
     return float4(saturate(sqrt(max(col, 0.0))), 1.0);
 }
@@ -353,8 +357,11 @@ float4 render_hypno_worm(float2 uv)
     float3 cc = col1.gbr * col2.rgb;
     float4 col = float4(pow(abs(col2.rgb), abs(fc.rgb)) - cc, 1.0);
     col = pow(abs(col), float4(1.0 / 0.9, 1.0 / 0.9, 1.0 / 0.9, 1.0));
-    col.rgb += col2 * (bass_energy * 0.3);
+    float luma2 = dot(col.rgb, float3(0.299, 0.587, 0.114));
+    col.rgb *= (1.0 + bass_energy * 0.35);
+    col.rgb += col2 * (bass_energy * 0.3 * luma2);
     col.rgb *= glow;
+    col.rgb = smoothstep(0.015, 1.0, col.rgb);
     return saturate(col);
 }
 )";
@@ -412,8 +419,8 @@ float4 render_triangle_twist(float2 uv)
     float3 theme_col = get_base_theme_color();
     theme_col += float3(mid_energy * 0.2, high_energy * 0.3, high_energy * 0.3);
 
-    float3 out_rgb = theme_col * grey * glow;
-    out_rgb += theme_col * (bass_energy * 0.3);
+    float3 out_rgb = theme_col * grey * glow * (1.0 + bass_energy * 0.5);
+    out_rgb = smoothstep(0.015, 1.0, out_rgb);
     return float4(saturate(out_rgb), 1.0);
 }
 )";
@@ -450,7 +457,8 @@ float4 render_string_art(float2 uv) {
     float3 theme = get_base_theme_color();
     float3 col = theme * c * 0.3;
     col += float3(high_energy * 0.3, mid_energy * 0.3, high_energy * 0.5) * c * 0.2;
-    col += theme * (bass_energy * 0.4);
+    col *= (1.0 + bass_energy * 0.6);
+    col = smoothstep(0.015, 1.0, col);
     return float4(saturate(col), 1.0);
 }
 )";
@@ -501,8 +509,10 @@ float4 render_dodecahedron(float2 uv) {
 
     float3 theme = get_base_theme_color();
     float3 col = theme * (glow * vijf * 0.08 * edge_glow);
-    col += float3(high_energy * 0.4, mid_energy * 0.2, high_energy * 0.4);
-    col += theme * (bass_energy * 0.5);
+    float luma5 = dot(col, float3(0.299, 0.587, 0.114));
+    col += float3(high_energy * 0.4, mid_energy * 0.2, high_energy * 0.4) * luma5;
+    col *= (1.0 + bass_energy * 0.6);
+    col = smoothstep(0.015, 1.0, col);
     return float4(saturate(col), 1.0);
 }
 )";
@@ -556,9 +566,11 @@ float4 render_kali_circuits(float2 uv) {
     color += col * (0.4 + glsl_mod(M / 9.0 - T * pulse + ot2 * 2.0, 1.0));
     color += theme * circ * (10.0 - M) * 2.5;
 
-    float3 out_rgb = lerp(float3(0.04, 0.05, 0.08), color, clamp(S * 0.15, 0.0, 1.0));
-    out_rgb += theme * (bass_energy * 0.45);
-    out_rgb += float3(high_energy * 0.2, mid_energy * 0.2, high_energy * 0.3);
+    float3 out_rgb = lerp(float3(0.005, 0.005, 0.01), color, clamp(S * 0.15, 0.0, 1.0));
+    float luma6 = dot(out_rgb, float3(0.299, 0.587, 0.114));
+    out_rgb *= (1.0 + bass_energy * 0.5);
+    out_rgb += float3(high_energy * 0.2, mid_energy * 0.2, high_energy * 0.3) * luma6;
+    out_rgb = smoothstep(0.015, 1.0, out_rgb);
     return float4(saturate(out_rgb), 1.0);
 }
 
@@ -624,8 +636,9 @@ float4 render_diamond_vision(float2 uv) {
 
     float3 theme = get_base_theme_color();
     col = lerp(col, col * theme, 0.6);
-    col += theme * (bass_energy * 0.45);
+    col *= (1.0 + bass_energy * 0.5);
     col *= glow;
+    col = smoothstep(0.015, 1.0, col);
     return float4(saturate(col), 1.0);
 }
 )";
@@ -741,7 +754,10 @@ float4 render_pupila(float2 uv)
     float reflection = smoothstep(0.0, 0.088, 0.05 - distance(p, float2(0.16, 0.22))) * 1.2;
 
     float3 final_col = eye + reflection;
-    final_col += custom_iris * (bass_energy * 0.3 * pupilPulse);
+    float luma8 = dot(final_col, float3(0.299, 0.587, 0.114));
+    final_col += custom_iris * (bass_energy * 0.35 * pupilPulse * luma8);
+    final_col *= (1.0 + bass_energy * 0.25 * pupilPulse);
+    final_col = smoothstep(0.015, 1.0, final_col);
     return float4(saturate(final_col), 1.0);
 }
 )";
@@ -793,8 +809,10 @@ float4 render_mandala_scope(float2 uv)
 
     float3 theme = get_base_theme_color();
     float3 out_rgb = lerp(p, p * theme, 0.65);
-    out_rgb += theme * (bass_energy * 0.45 * pulse);
-    out_rgb += float3(high_energy * 0.3, mid_energy * 0.2, high_energy * 0.4);
+    float luma9 = dot(out_rgb, float3(0.299, 0.587, 0.114));
+    out_rgb *= (1.0 + bass_energy * 0.5 * pulse);
+    out_rgb += float3(high_energy * 0.3, mid_energy * 0.2, high_energy * 0.4) * luma9;
+    out_rgb = smoothstep(0.015, 1.0, out_rgb);
 
     return float4(saturate(out_rgb), 1.0);
 }
@@ -831,8 +849,10 @@ float4 render_searching_light(float2 uv)
 
     float3 theme = get_base_theme_color();
     float3 out_rgb = (c.rgb / max(0.0001, l)) * finalMulti * theme;
-    out_rgb += theme * (bass_energy * 0.5 * pulse);
-    out_rgb += float3(high_energy * 0.3, mid_energy * 0.2, high_energy * 0.4);
+    float luma10 = dot(out_rgb, float3(0.299, 0.587, 0.114));
+    out_rgb *= (1.0 + bass_energy * 0.5 * pulse);
+    out_rgb += float3(high_energy * 0.3, mid_energy * 0.2, high_energy * 0.4) * luma10;
+    out_rgb = smoothstep(0.015, 1.0, out_rgb);
 
     return float4(saturate(out_rgb), 1.0);
 }
@@ -940,7 +960,10 @@ float4 render_cube_field(float2 uv)
 
     float3 theme = get_base_theme_color();
     color = lerp(color, color * theme, 0.5);
-    color += theme * (bass_energy * 0.4);
+    float luma11 = dot(color, float3(0.299, 0.587, 0.114));
+    color *= (1.0 + bass_energy * 0.45);
+    color += theme * (bass_energy * 0.35 * luma11);
+    color = smoothstep(0.015, 1.0, color);
     return float4(saturate(color), 1.0);
 }
 
@@ -986,8 +1009,9 @@ float4 render_electro_bands(float2 uv)
 
     float3 theme = get_base_theme_color();
     color = lerp(color, color * theme, 0.5);
-    color += theme * (bass_energy * 0.4);
+    color *= (1.0 + bass_energy * 0.6);
     color *= glow;
+    color = smoothstep(0.015, 1.0, color);
     return float4(saturate(color), 1.0);
 }
 
@@ -1043,7 +1067,11 @@ float4 render_globular_cluster(float2 uv)
 
     float3 base_color = float3(0.8 - tint, 0.15 * f / 5.0, 0.8 + tint) - col;
     float3 theme = get_base_theme_color();
-    float3 final_col = lerp(base_color, base_color * theme, 0.6) + theme * (bass_energy * 0.35);
+    float3 final_col = lerp(base_color, base_color * theme, 0.6);
+    float luma13 = dot(final_col, float3(0.299, 0.587, 0.114));
+    final_col *= (1.0 + bass_energy * 0.45);
+    final_col += theme * (bass_energy * 0.35 * luma13);
+    final_col = smoothstep(0.015, 1.0, final_col);
     return float4(saturate(final_col), 1.0);
 }
 
@@ -1152,7 +1180,10 @@ float4 render_hex_truch_warp(float2 uv)
     float2 rot_warp = Rot2D_hlsl(float2(0.5 / 1080.0, (warp * (m.y - m.y) + length(m)) / max(scale, 0.1)), length(uvn) * 3.14159265) * warp;
     float3 col = ShowScene_hlsl(tc + rot_warp, T, thickness, arrows, dashes, c1, c2, c3);
     col *= (col + float3(1.75, 1.75, 1.75)) * 0.75;
-    col += theme * (bass_energy * pulse * 0.4);
+    float luma14 = dot(col, float3(0.299, 0.587, 0.114));
+    col *= (1.0 + bass_energy * pulse * 0.45);
+    col += theme * (bass_energy * pulse * 0.35 * luma14);
+    col = smoothstep(0.015, 1.0, col);
     return float4(saturate(col), 1.0);
 }
 )";

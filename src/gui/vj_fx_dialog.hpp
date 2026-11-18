@@ -18,6 +18,9 @@ public:
 
     void selectDeck(int deck_idx);
 
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+
 private:
     void rebuildParamControls();
     void updateColorUi();
