@@ -277,3 +277,31 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - Bekapcsolt Key Lock esetén az ablakkeresés adaptívan igazodik a sebességeltéréshez (`K_max = clamp(|speed - 1| * 512 + 16, 16, 192)`).
   5. **0.001 BPM Tűpontos Sync Motor:**
      - A Sync holtsáv lecsökkentve 0.05-ről 0.001 BPM-re.
+
+### Mérföldkő #17: Build #279 / GitHub Run #279 (Bipoláris Moduláció, 3-Sávos Pulzus, 2x BPM LFO, Szimmetrikus Kaleidoszkóp & 8 Paraméteres VJ Shaderek)
+* **Verzió & Commit:** `8634ae2`
+* **SHA256:** `AA45B4E24690FCDAF4806C7BCBABB0176FEBE90A7206625361B3FAE9B28C7355`
+* **GitHub Run ID:** `44399542597`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (770 048 bájt)
+* **Jellemzők:**
+  1. **Kattintásra Beírható Számértékek & `[-]` / `[+]` Finomhangoló Gombok:**
+     - Mind a `VjFxDialog`, mind a `CrossfadeFxDialog` felületén a numerikus értékjelzők kattintható `QLineEdit` beviteli mezők lettek közvetlen billentyűzetes beírással, fókuszvesztésre / Enterre azonnali validációval.
+     - Minden csúszka mellett kompakt `[-]` és `[+]` gombok a lépésközönkénti (`step`) tűpontos állításhoz.
+  2. **Középpont Eltolások Eltávolítása & Szimmetrikus Kaleidoszkóp Belső Képeltolással:**
+     - Eltávolítva az aszimmetriát és torzítást okozó `center_x` és `center_y` eltolás minden crossfade effektből (rögzített képernyő-középpont: `(0.5, 0.5)`).
+     - A Kaleidoszkóp effekt 16:9 képarány-kompenzált poláris transzformációt kapott, folytonos háromszöghullámos tükrözéssel (`abs(a_mod*2-1)`), tökéletes szimmetriával és belső képeltolással (`pan_x`, `pan_y`).
+  3. **8 Kifordított Paraméter Mind a 15 VJ Shaderben:**
+     - Mind a 15 VJ shaderhez ki lett alakítva a 8 aktív paraméter (`p0`..`p7`), a HLSL kódokban közvetlen funkcióhoz kötve (részecskesűrűség, színezet, sebesség, deformáció, emisszió, mélység, stb.).
+  4. **Kétsoros Paraméterkártya & Bipoláris Modulációs Mélység (-100% .. 0% .. +100%):**
+     - 1. sor: Alapérték csúszka + beviteli mező + `[-]`/`[+]` gombok.
+     - 2. sor: Modulációs forrás választó + Bipoláris potméter (-1.0 .. +1.0, középállásban 0.0 = 0% hatás) + közvetlen százalékos beviteli mező + léptető gombok. Pozitív és invertált fázisú moduláció tetszőleges arányban keverhető.
+  5. **3-Sávos Zenei Pulzus Envelopes:**
+     - `Bass Pulse` (< 250 Hz - kick és szub), `Mid Pulse` (250 Hz – 5000 Hz - pergő, vokál, szintik), `High Pulse` (> 5000 Hz - cinek, lecsengések).
+  6. **Kettős BPM-Szinkronizált LFO Motor & Lebegő `LfoDialog` (520 × 400 px):**
+     - Ütemosztások és szorzatok: `1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16, 32, 64` ütem!
+     - 4 klasszikus hullámforma: Szinusz, Háromszög, Fűrészfog (fel/le), Kocka.
+     - Állítható paraméterek: hullámforma, ráta, depth (mélység), offset, phase (fázis 0°..360°).
+     - Élő, valós idejű mini oszcilloszkóp widget (`LfoScopeWidget`) a futó hullámforma és fázis vizualizálásához.
+     - Megnyitható a mixer mester panelének `[ 〰 LFO ]` gombjából és az OBS Eszközök menüből (`OBS VJ LFO Oszcillátor`).
+  7. **Crossfade FX Legördülő Menü Automatikus Kiszélesítése:**
+     - A Master Mixeren lévő kompakt dropdown kinyitásakor minimum 280 px szélességre nyílik (`QAbstractItemView` nézet), így a leghosszabb effektnevek is tisztán olvashatók.

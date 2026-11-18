@@ -107,21 +107,27 @@ Ha egy deckbe nem videófájlt, hanem tiszta audiófájlt (`.mp3`, `.wav`) tölt
 | **4** | **String Art** | Szálművészet | `rate`, `scale`, `freq1`, `freq2`, `radius1`, `radius2`, `thickness` |
 | **5** | **Dodecahedron 3D**| 3D Kristály Raymarch | `zoom`, `een`, `twee`, `drie`, `vijf` (fényerő), `acht` (aranyarány) |
 | **6** | **Kali Circuits**| Fraktál Áramkörök | `rate`, `zoom`, `intensity`, `focus`, `pulse`, `glow` |
-| **7** | **Diamond Vision**| 36-Lépéses Tórusz Raymarch | `speed`, `bat`, `ray`, `hue`, `rotation`, `ratio` |
+| **7** | **Diamond Vision**| 36-Lépéses Tórusz Raymarch | `speed`, `bat`, `ray`, `hue`, `rotation`, `ratio`, `glow`, `pulse` |
 | **8** | **Pupila** | Organikus Szem & Írisz | `zoom`, `irisR`, `irisG`, `irisB`, `borderR`, `borderG`, `borderB`, `pupilPulse` |
 | **9** | **MandalaScope** | 72-Lépéses Fraktál Mandala | `rate`, `sides`, `scale`, `multiply`, `loops`, `mX`, `mY`, `pulse` |
-| **10**| **Searching Light** | Kiber Fényalagút | `scale`, `modVal`, `zAdder`, `cosinAdder`, `sinAdder`, `finalMulti`, `pulse` |
+| **10**| **Searching Light** | Kiber Fényalagút | `scale`, `modVal`, `zAdder`, `cosinAdder`, `sinAdder`, `finalMulti`, `pulse`, `glow` |
 | **11**| **CubeField 3D** | Végtelen Kockamező Raymarch | `speed`, `rot_z`, `repeat`, `box_size`, `squiggle`, `dist1`, `dist3`, `termThres` |
-| **12**| **Electro Bands** | Pulzáló Neon Szalagok | `radius`, `amp`, `band`, `speed`, `thickness`, `size` |
+| **12**| **Electro Bands** | Pulzáló Neon Szalagok | `radius`, `amp`, `band`, `speed`, `thickness`, `size`, `glow`, `pulse` |
 | **13**| **GlobularCluster** | 3D Gömbhalmaz Torzulás | `rate`, `warpx`, `warpy`, `warpz`, `melt`, `density`, `depth`, `tint` |
 | **14**| **HexTruchWarpFlow2**| Hexagonális Truchet Áramlás | `scale`, `rate`, `motion`, `thickness`, `warp`, `arrows`, `dashes`, `pulse` |
 
-### 4.1. Paraméter Modulációs Módok (C++ oldalon számítva):
-Minden paraméterhez 4-féle mód választható a felületen:
-* `0: ✋ Kézi (Manual / Off)`: A csúszkával rögzített fix érték.
-* `1: 🥁 Zene Üteme (Beat Pulse)`: Lábdob és mélyhang tranziensekre lüktet (`bass_energy`).
-* `2: 🌈 Tónusos (Spectral Tone)`: A spektrum magas/mély arányára modulál (`tone_balance`).
-* `3: ⚡ Mindkettő (Both)`: Szimultán lüktetés és tónuskövetés.
+### 4.1. Paraméter Modulációs Források (8 Válasszható Forrás):
+Minden paraméterhez (mind a 15 VJ shaderben és mind a 13 Crossfade effektben) 8 modulációs forrás választható, dedikált bipoláris mélység csúszkával (`-100%` .. `0%` .. `+100%`):
+* `0: ✋ Kézi (Manual / Off)`: Fix érték.
+* `1: 🥁 Bass Pulzus`: Lábdob és mély tranziensek (< 250 Hz).
+* `2: 🎵 Mid Pulzus`: Pergő, taps, szintik és vokál tranziensek (250 Hz – 5000 Hz).
+* `3: ✨ High Pulzus`: Cinekk, lecsengések és magas zajok (> 5000 Hz).
+* `4: 📈 Zenei Tónus`: A zene strukturális felépülését követő makro tónus.
+* `5: 〰 LFO 1`: Első BPM-szinkronizált alacsony frekvenciás oszcillátor (1/16 .. 64 ütem).
+* `6: 〰 LFO 2`: Második BPM-szinkronizált oszcillátor (1/16 .. 64 ütem).
+* `7: ⚡ Bass + Mid`: Kombinált mély és közép dinamika.
+
+A bipoláris mélység (`mod_depth`) 0.0-nál teljesen kikapcsolt hatást jelent, pozitív tartományban hozzáadódik, negatív tartományban ellenfázisban (invertálva) modulálja a paramétert.
 
 ### 4.2. MSVC C2026 Védelem:
 Az óriási HLSL kód a fordító korlátjának (16 380 karakteres string literál) kikerülésére 4 önálló darabban van definiálva, amit a `getVjVisualizerEffect()` függvény fűz össze `std::string` formájában az első híváskor.
