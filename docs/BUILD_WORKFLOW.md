@@ -362,3 +362,42 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - **Élő GPU Direct3D 11 Tesztfordítás (`testCompileShader`):** A `[ ⚡ Tesztelés & Hibaellenőrzés ]` gomb valós időben megkísérli lefordítani a kódot a Direct3D 11 GPU pipeline-on, azonnal visszajelezve a sikert vagy a pontos hibaüzenetet/sorszámot.
      - **Azonnali Beágyazás & Mentés Hot-Reloadinggal:** A `[ 💾 Beágyazás & Mentés ]` gomb elmenti a shadert, frissíti mindkét deck VJ Shader legördülő menüjét, azonnal kiválasztja az új shadert, és a `CustomShaderManager::version()` mechanizmusnak köszönhetően OBS újraindítás nélkül azonnal felépíti a GPU pipeline-t!
      - Kiterjesztett shader paraméter tömb (64 slot) mind a memóriában, mind a `.vdj.json` gyorsítótárban.
+
+
+### Mérföldkő #20: Build #287 / GitHub Run #287 (Szimmetriapontok és Vignetta Törlése, Világos Teljes Képernyős VJ Shader Motor)
+* **Verzió & Commit:** `b159f14`
+* **SHA256:** `360F9105EDFF724466D21AE0EE6EC5960F0E0E1E37EECB5AEDBB3021F6F42C92`
+* **GitHub Run ID:** `44484838750`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (968 192 bájt)
+* **Jellemzők:**
+  1. **ISF Eredeti Geometria 1:1 Megőrzése (Kaleidoszkóp Szeletelés Törlése):**
+     - Az AI sablonból és a shader pipeline-ból teljesen eltávolítva a kötelező szimmetriapontok és poláris tükrözések (`atan2`, `sector`, `sym_a`) előírása.
+     - Az AI-nak szigorúan tilos mesterséges tükrözést vagy pizzaszelet-torzítást belevinnie a shaderekbe; az eredeti ISF kód geometriáját 1:1-ben kell megőrizni.
+  2. **Képernyősötétedés & Vignettálás Felszámolása:**
+     - Tilos a képet elsötétítő körmaszk (`smoothstep(1.05, 0.15, r)`), a sötétítő hatványozás (`pow(col, >1.0)`) és a szűk vágás.
+     - A shaderek a teljes 16:9 vásznon élénken, fényesen, telt neon színekkel és tiszta kontraszttal jelennek meg alapbeállításon is.
+  3. **Valós Eredeti Paraméter Leképzés:**
+     - A `p0`..`p7` paraméterek közvetlenül az eredeti shader saját, létező változóit vezérlik (rate, zoom, density, detail, glow, shift, pulse).
+  4. **TIME, iTime, RENDERSIZE, iResolution & rotate2D Beépített Aliasok:**
+     - Teljes kompatibilitás mind az ISF, mind a ShaderToy formátumokkal fordítási hiba nélkül.
+  5. **Felhasználói `custom_shaders.json` Azonnali Kijavítása:**
+     - A korábbi "Symmetric Smooth XOR" átírva a tiszta, világos és szimmetriatorzulástól mentes "Smooth Matrix XOR" verzióra.
+
+### Mérföldkő #21: Build #289 / GitHub Run #289 (Natív C++ ISF & GLSL Transzpiláló Motor, Külső AI Igény Nélkül)
+* **Verzió & Commit:** (aktuális HEAD)
+* **Jellemzők:**
+  1. **100% Natív C++ ISF Transzpiláló Motor (`CustomShaderManager::transpileIsfToHlsl`):**
+     - Nincs szükség külső AI asszisztensre, chat-ablakra vagy külső eszközökre.
+     - Közvetlenül és azonnal fogadja az `editor.isf.video`, `.fs` fájlokat és ShaderToy kódokat.
+  2. **Automatikus JSON Fejléc és Paraméter Elemzés:**
+     - `/*{ ... }*/` JSON blokkból kinyeri a nevet (`DESCRIPTION`/`CREDIT`), kategóriát (`CATEGORIES`) és az `INPUTS` listát.
+     - Akár 8 bemenetet automatikusan leképez `p0`..`p7` paraméterekre (név, min, max, default), és a kód tetején `#define <input_name> p0..p7` direktívákkal globálisan elérhetővé teszi minden segédfüggvény számára.
+  3. **Intelligens GLSL $\rightarrow$ Direct3D 11 HLSL Transzpilálás:**
+     - Zárójel-mélység elemzővel kezeli a 2-argumentumos `atan(y, x)` $\rightarrow$ `atan2(y, x)` és 1-argumentumos `atan(x)` függvényeket.
+     - Automatikusan átalakítja az 1-argumentumos skalár vektor-konstruktorokat `floatN(val)` $\rightarrow$ `(floatN)(val)`.
+     - Túlterhelt `glsl_mod` vektorokra és skalárokra, `Rot2D` / `rot2D` aliasok.
+     - Belépési pont átalakítása: `void main()` $\rightarrow$ `float4 render_custom(float2 uv)` helyi `gl_FragColor` inicializálással és `saturate` lezárással.
+  4. **Kezelőfelületi Bővítések (`IsfConverterDialog`):**
+     - `[ 📂 .fs Fájl Tallózása ]`: Helyi lemezről azonnal betölt és átalakít `.fs` vagy `.txt` fájlokat.
+     - `[ ⚡ ISF Átalakítás ]`: A beillesztett kódot egyetlen kattintással HLSL-re fordítja.
+     - `[ 📋 Vágólap Beillesztése ]`: Automatikus ISF felismerés és azonnali GPU tesztfordítás.

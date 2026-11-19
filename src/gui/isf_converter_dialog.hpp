@@ -25,6 +25,8 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
 
 private slots:
+    void onBrowseFsFileClicked();
+    void onConvertIsfClicked();
     void onCopyPromptClicked();
     void onPasteClipboardClicked();
     void onTestCompileClicked();
@@ -44,6 +46,8 @@ private:
     QPlainTextEdit *code_edit_ = nullptr;
     QLabel *status_lbl_ = nullptr;
 
+    QPushButton *browse_fs_btn_ = nullptr;
+    QPushButton *convert_isf_btn_ = nullptr;
     QPushButton *copy_prompt_btn_ = nullptr;
     QPushButton *paste_btn_ = nullptr;
     QPushButton *test_btn_ = nullptr;

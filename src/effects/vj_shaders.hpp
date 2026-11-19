@@ -90,19 +90,49 @@ float glsl_mod(float x, float y)
     return x - y * floor(x / y);
 }
 
-float2 glsl_mod2(float2 x, float y)
+float2 glsl_mod(float2 x, float2 y)
 {
     return x - y * floor(x / y);
+}
+
+float2 glsl_mod(float2 x, float y)
+{
+    return x - y * floor(x / y);
+}
+
+float3 glsl_mod(float3 x, float3 y)
+{
+    return x - y * floor(x / y);
+}
+
+float3 glsl_mod(float3 x, float y)
+{
+    return x - y * floor(x / y);
+}
+
+float4 glsl_mod(float4 x, float4 y)
+{
+    return x - y * floor(x / y);
+}
+
+float4 glsl_mod(float4 x, float y)
+{
+    return x - y * floor(x / y);
+}
+
+float2 glsl_mod2(float2 x, float y)
+{
+    return glsl_mod(x, y);
 }
 
 float3 glsl_mod3(float3 x, float y)
 {
-    return x - y * floor(x / y);
+    return glsl_mod(x, y);
 }
 
 float4 glsl_mod4(float4 x, float y)
 {
-    return x - y * floor(x / y);
+    return glsl_mod(x, y);
 }
 
 float2 rotate2D(float2 p, float angle)
@@ -110,6 +140,16 @@ float2 rotate2D(float2 p, float angle)
     float s = sin(angle);
     float c = cos(angle);
     return float2(p.x * c - p.y * s, p.x * s + p.y * c);
+}
+
+float2 Rot2D(float2 p, float angle)
+{
+    return rotate2D(p, angle);
+}
+
+float2 rot2D(float2 p, float angle)
+{
+    return rotate2D(p, angle);
 }
 
 float3 rotate_vec(float3 v, float2 r)

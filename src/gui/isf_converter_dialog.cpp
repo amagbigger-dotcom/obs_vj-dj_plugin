@@ -18,6 +18,8 @@
 #include <QScreen>
 #include <QKeyEvent>
 #include <QFontDatabase>
+#include <QFileDialog>
+#include <QFile>
 
 namespace {
 
@@ -140,10 +142,8 @@ void IsfConverterDialog::setupUi()
     header_layout->addLayout(top_row);
 
     auto *desc_lbl = new QLabel(
-        QStringLiteral("1. Másold ki a fenti gombbal a promptot, és add át bármely mesterséges intelligenciának (ChatGPT, Claude, Gemini, DeepSeek)\n"
-                       "   az ISF/GLSL shader forráskódjával vagy webes linkjével (editor.isf.video / shadertoy.com) együtt.\n"
-                       "2. Illeszd be az AI által generált szöveget az alábbi kódmezőbe a \"Vágólap Beillesztése\" gombbal.\n"
-                       "3. A gép automatikusan felismeri a nevet, 8 paramétert és HLSL kódot, majd a \"Beágyazás & Mentés\" gombbal azonnal használhatóvá teszi!"),
+        QStringLiteral("⚡ Közvetlen ISF & GLSL Konverter: Másold ki a kódot az editor.isf.video vagy shadertoy.com oldalról, vagy tallózz be egy .fs fájlt!\n"
+                       "A beépített C++ motor azonnal Direct3D 11 HLSL kódra fordítja a forrást, felparaméterezi a 8 VJ csúszkát és lefordítja a GPU-n."),
         header_card
     );
     desc_lbl->setStyleSheet(QStringLiteral("font-size: 10px; color: #8da4be; line-height: 1.3;"));
@@ -153,9 +153,9 @@ void IsfConverterDialog::setupUi()
 
     // 2. Select Existing or Create New
     auto *select_row = new QHBoxLayout();
-    select_row->setSpacing(8);
+    select_row->setSpacing(6);
 
-    auto *select_lbl = new QLabel(QStringLiteral("Szerkesztendő Shader:"), this);
+    auto *select_lbl = new QLabel(QStringLiteral("Szerkesztés:"), this);
     select_lbl->setStyleSheet(QStringLiteral("font-size: 11px; font-weight: bold; color: #8da4be;"));
     select_row->addWidget(select_lbl);
 
@@ -165,8 +165,37 @@ void IsfConverterDialog::setupUi()
             this, &IsfConverterDialog::onExistingSelectionChanged);
     select_row->addWidget(existing_combo_, 1);
 
+    browse_fs_btn_ = new QPushButton(QStringLiteral("📂 .fs Fájl Tallózása"), this);
+    browse_fs_btn_->setFixedHeight(26);
+    browse_fs_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c2e42; color: #64dfdf; border: 1px solid #2d4f6e; font-weight: bold; font-size: 11px; padding: 3px 10px; border-radius: 4px; } "
+        "QPushButton:hover { background: #263e59; border-color: #48cae4; color: #ffffff; }"
+    ));
+    browse_fs_btn_->setAutoDefault(false);
+    browse_fs_btn_->setDefault(false);
+    browse_fs_btn_->setCursor(Qt::PointingHandCursor);
+    connect(browse_fs_btn_, &QPushButton::clicked, this, &IsfConverterDialog::onBrowseFsFileClicked);
+    select_row->addWidget(browse_fs_btn_);
+
+    convert_isf_btn_ = new QPushButton(QStringLiteral("⚡ ISF Átalakítás"), this);
+    convert_isf_btn_->setFixedHeight(26);
+    convert_isf_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #104868, stop:1 #0088cc); "
+        "border: 1px solid #00b4d8; color: #ffffff; font-weight: bold; font-size: 11px; padding: 3px 10px; border-radius: 4px; } "
+        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #14608c, stop:1 #00aaff); border-color: #00d2ff; }"
+    ));
+    convert_isf_btn_->setAutoDefault(false);
+    convert_isf_btn_->setDefault(false);
+    convert_isf_btn_->setCursor(Qt::PointingHandCursor);
+    connect(convert_isf_btn_, &QPushButton::clicked, this, &IsfConverterDialog::onConvertIsfClicked);
+    select_row->addWidget(convert_isf_btn_);
+
     paste_btn_ = new QPushButton(QStringLiteral("📋 Vágólap Beillesztése"), this);
     paste_btn_->setFixedHeight(26);
+    paste_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1e2838; color: #ffffff; border: 1px solid #2d3c52; font-weight: bold; font-size: 11px; padding: 3px 10px; border-radius: 4px; } "
+        "QPushButton:hover { background: #27354a; border-color: #00b4d8; }"
+    ));
     paste_btn_->setAutoDefault(false);
     paste_btn_->setDefault(false);
     paste_btn_->setCursor(Qt::PointingHandCursor);
@@ -360,6 +389,89 @@ void IsfConverterDialog::loadShaderToEditor(const QString &shader_id)
     }
 }
 
+void IsfConverterDialog::onBrowseFsFileClicked()
+{
+    const QString file_path = QFileDialog::getOpenFileName(
+        this,
+        QStringLiteral("ISF Shader Fájl Betöltése"),
+        QString(),
+        QStringLiteral("ISF Shader fájlok (*.fs *.txt *.glsl);;Minden fájl (*.*)")
+    );
+
+    if (file_path.isEmpty()) return;
+
+    QFile file(file_path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        status_lbl_->setText(QStringLiteral("❌ Nem sikerült megnyitni a fájlt: %1").arg(file_path));
+        status_lbl_->setStyleSheet(QStringLiteral("color: #ff4d4d; font-weight: bold;"));
+        return;
+    }
+
+    const QString content = QString::fromUtf8(file.readAll());
+    file.close();
+
+    std::string name, cat, code, err;
+    std::vector<VjParamDef> params;
+    std::vector<std::string> p_names, p_ids;
+
+    if (CustomShaderManager::instance().transpileIsfToHlsl(content.toStdString(), name, cat, params, p_names, p_ids, code, err)) {
+        name_edit_->setText(QString::fromStdString(name));
+        category_edit_->setText(QString::fromStdString(cat));
+        code_edit_->setPlainText(QString::fromStdString(code));
+
+        std::string compile_err;
+        if (CustomShaderManager::instance().testCompileShader(code, compile_err)) {
+            status_lbl_->setText(QStringLiteral("✓ SIKERES ISF BETÖLTÉS & TESZT! \"%1\" (%2) lefordult a GPU-n. Kattints a \"Beágyazás & Mentés\" gombra!")
+                                     .arg(QString::fromStdString(name))
+                                     .arg(QString::fromStdString(cat)));
+            status_lbl_->setStyleSheet(QStringLiteral("color: #00ffaa; font-weight: bold;"));
+        } else {
+            status_lbl_->setText(QStringLiteral("⚠️ ISF átalakítva, de a GPU teszt fordításkor hiba lépett fel:\n%1")
+                                     .arg(QString::fromStdString(compile_err)));
+            status_lbl_->setStyleSheet(QStringLiteral("color: #ffb703; font-weight: bold;"));
+        }
+    } else {
+        code_edit_->setPlainText(content);
+        status_lbl_->setText(QStringLiteral("❌ ISF Átalakítási Hiba: %1").arg(QString::fromStdString(err)));
+        status_lbl_->setStyleSheet(QStringLiteral("color: #ff4d4d; font-weight: bold;"));
+    }
+}
+
+void IsfConverterDialog::onConvertIsfClicked()
+{
+    const QString text = code_edit_->toPlainText().trimmed();
+    if (text.isEmpty()) {
+        status_lbl_->setText(QStringLiteral("⚠️ A kódmező üres! Illessz be egy ISF vagy GLSL kódot."));
+        status_lbl_->setStyleSheet(QStringLiteral("color: #ffb703; font-weight: bold;"));
+        return;
+    }
+
+    std::string name, cat, code, err;
+    std::vector<VjParamDef> params;
+    std::vector<std::string> p_names, p_ids;
+
+    if (CustomShaderManager::instance().transpileIsfToHlsl(text.toStdString(), name, cat, params, p_names, p_ids, code, err)) {
+        name_edit_->setText(QString::fromStdString(name));
+        category_edit_->setText(QString::fromStdString(cat));
+        code_edit_->setPlainText(QString::fromStdString(code));
+
+        std::string compile_err;
+        if (CustomShaderManager::instance().testCompileShader(code, compile_err)) {
+            status_lbl_->setText(QStringLiteral("✓ SIKERES ISF ÁTALAKÍTÁS & TESZT! \"%1\" (%2) lefordult a GPU-n. Kattints a \"Beágyazás & Mentés\" gombra!")
+                                     .arg(QString::fromStdString(name))
+                                     .arg(QString::fromStdString(cat)));
+            status_lbl_->setStyleSheet(QStringLiteral("color: #00ffaa; font-weight: bold;"));
+        } else {
+            status_lbl_->setText(QStringLiteral("⚠️ ISF átalakítva, de a GPU teszt fordításkor hiba lépett fel:\n%1")
+                                     .arg(QString::fromStdString(compile_err)));
+            status_lbl_->setStyleSheet(QStringLiteral("color: #ffb703; font-weight: bold;"));
+        }
+    } else {
+        status_lbl_->setText(QStringLiteral("❌ ISF Átalakítási Hiba: %1").arg(QString::fromStdString(err)));
+        status_lbl_->setStyleSheet(QStringLiteral("color: #ff4d4d; font-weight: bold;"));
+    }
+}
+
 void IsfConverterDialog::onCopyPromptClicked()
 {
     QClipboard *cb = QGuiApplication::clipboard();
@@ -377,12 +489,10 @@ void IsfConverterDialog::onPasteClipboardClicked()
 
     const QString text = cb->text();
     if (text.isEmpty()) {
-        status_lbl_->setText(QStringLiteral("⚠️ A vágólap üres! Másold ki először az AI által generált választ."));
+        status_lbl_->setText(QStringLiteral("⚠️ A vágólap üres! Másold ki először az ISF vagy GLSL kódot."));
         status_lbl_->setStyleSheet(QStringLiteral("color: #ffb703; font-weight: bold;"));
         return;
     }
-
-    code_edit_->setPlainText(text);
 
     // Auto-parse parameters and name
     std::string name, cat, code, err;
@@ -392,11 +502,21 @@ void IsfConverterDialog::onPasteClipboardClicked()
     if (CustomShaderManager::instance().parseAiShaderText(text.toStdString(), name, cat, params, p_names, p_ids, code, err)) {
         name_edit_->setText(QString::fromStdString(name));
         category_edit_->setText(QString::fromStdString(cat));
-        status_lbl_->setText(QStringLiteral("✓ Az AI szöveg sikeresen feldolgozva! Név: \"%1\", Kategória: \"%2\". Kattints a \"Tesztelés\" gombra!")
-                                 .arg(QString::fromStdString(name))
-                                 .arg(QString::fromStdString(cat)));
-        status_lbl_->setStyleSheet(QStringLiteral("color: #00ffaa; font-weight: bold;"));
+        code_edit_->setPlainText(QString::fromStdString(code));
+
+        std::string compile_err;
+        if (CustomShaderManager::instance().testCompileShader(code, compile_err)) {
+            status_lbl_->setText(QStringLiteral("✓ SIKERES ÁTALAKÍTÁS & TESZT! \"%1\" (%2) lefordult a GPU-n. Kattints a \"Beágyazás & Mentés\" gombra!")
+                                     .arg(QString::fromStdString(name))
+                                     .arg(QString::fromStdString(cat)));
+            status_lbl_->setStyleSheet(QStringLiteral("color: #00ffaa; font-weight: bold;"));
+        } else {
+            status_lbl_->setText(QStringLiteral("⚠️ Átalakítva, de a GPU teszt fordításkor hiba lépett fel:\n%1")
+                                     .arg(QString::fromStdString(compile_err)));
+            status_lbl_->setStyleSheet(QStringLiteral("color: #ffb703; font-weight: bold;"));
+        }
     } else {
+        code_edit_->setPlainText(text);
         status_lbl_->setText(QStringLiteral("⚠️ Kód beillesztve, de a címkék elemzésekor figyelmeztetés lépett fel: %1").arg(QString::fromStdString(err)));
         status_lbl_->setStyleSheet(QStringLiteral("color: #ffb703; font-weight: bold;"));
     }

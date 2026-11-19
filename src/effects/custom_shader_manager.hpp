@@ -30,6 +30,16 @@ public:
     // Live Direct3D 11 test compilation on GPU
     bool testCompileShader(const std::string &hlsl_function_code, std::string &out_error);
 
+    // Native ISF & GLSL -> Direct3D 11 HLSL transpiler
+    bool transpileIsfToHlsl(const std::string &raw_isf_code,
+                            std::string &out_name,
+                            std::string &out_category,
+                            std::vector<VjParamDef> &out_params,
+                            std::vector<std::string> &out_param_names,
+                            std::vector<std::string> &out_param_ids,
+                            std::string &out_hlsl_code,
+                            std::string &out_error);
+
     // Parse AI clipboard/editor text (supports [NAME], [CATEGORY], [PARAMS], [CODE] or JSON or raw code)
     bool parseAiShaderText(const std::string &text,
                            std::string &out_name,

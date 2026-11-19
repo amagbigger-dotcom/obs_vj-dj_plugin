@@ -451,20 +451,25 @@ VertData VSDefault(VertData v)
 }
 
 float glsl_mod(float x, float y) { return x - y * floor(x / y); }
-float2 glsl_mod2(float2 x, float y) { return x - y * floor(x / y); }
-float3 glsl_mod3(float3 x, float y) { return x - y * floor(x / y); }
-float4 glsl_mod4(float4 x, float y) { return x - y * floor(x / y); }
+float2 glsl_mod(float2 x, float2 y) { return x - y * floor(x / y); }
+float2 glsl_mod(float2 x, float y) { return x - y * floor(x / y); }
+float3 glsl_mod(float3 x, float3 y) { return x - y * floor(x / y); }
+float3 glsl_mod(float3 x, float y) { return x - y * floor(x / y); }
+float4 glsl_mod(float4 x, float4 y) { return x - y * floor(x / y); }
+float4 glsl_mod(float4 x, float y) { return x - y * floor(x / y); }
 
-float2 Rot2D_hlsl(float2 p, float a)
+float2 glsl_mod2(float2 x, float y) { return glsl_mod(x, y); }
+float3 glsl_mod3(float3 x, float y) { return glsl_mod(x, y); }
+float4 glsl_mod4(float4 x, float y) { return glsl_mod(x, y); }
+
+float2 rotate2D(float2 p, float a)
 {
     float c = cos(a), s = sin(a);
     return float2(p.x * c - p.y * s, p.x * s + p.y * c);
 }
 
-float2 rotate2D(float2 p, float a)
-{
-    return Rot2D_hlsl(p, a);
-}
+float2 Rot2D(float2 p, float a) { return rotate2D(p, a); }
+float2 rot2D(float2 p, float a) { return rotate2D(p, a); }
 )";
 
     test_source += "\n// --- USER SHADER TEST CODE ---\n";
@@ -518,16 +523,397 @@ technique Draw
     return false;
 }
 
+static QString transpileParenCalls(const QString &code)
+{
+    QString result;
+    result.reserve(code.size() + 256);
+    int i = 0;
+    const int len = code.length();
+
+    while (i < len) {
+        // Check for atan(
+        if (i + 5 <= len && code.mid(i, 5) == QStringLiteral("atan(")) {
+            if (i == 0 || (!code.at(i - 1).isLetterOrNumber() && code.at(i - 1) != QLatin1Char('_'))) {
+                int start_args = i + 5;
+                int depth = 0;
+                int commas = 0;
+                int j = start_args;
+                while (j < len) {
+                    QChar c = code.at(j);
+                    if (c == QLatin1Char('(')) {
+                        depth++;
+                    } else if (c == QLatin1Char(')')) {
+                        if (depth == 0) break;
+                        depth--;
+                    } else if (c == QLatin1Char(',') && depth == 0) {
+                        commas++;
+                    }
+                    j++;
+                }
+                if (j < len && commas == 1) {
+                    QString inside = code.mid(start_args, j - start_args);
+                    result.append(QStringLiteral("atan2("));
+                    result.append(transpileParenCalls(inside));
+                    result.append(QLatin1Char(')'));
+                    i = j + 1;
+                    continue;
+                }
+            }
+        }
+
+        // Check for float2(, float3(, float4(
+        if (i + 7 <= len && (code.mid(i, 7) == QStringLiteral("float2(") ||
+                             code.mid(i, 7) == QStringLiteral("float3(") ||
+                             code.mid(i, 7) == QStringLiteral("float4("))) {
+            if (i == 0 || (!code.at(i - 1).isLetterOrNumber() && code.at(i - 1) != QLatin1Char('_'))) {
+                QString ftype = code.mid(i, 6); // "float2", "float3", "float4"
+                int start_args = i + 7;
+                int depth = 0;
+                int commas = 0;
+                int j = start_args;
+                while (j < len) {
+                    QChar c = code.at(j);
+                    if (c == QLatin1Char('(')) {
+                        depth++;
+                    } else if (c == QLatin1Char(')')) {
+                        if (depth == 0) break;
+                        depth--;
+                    } else if (c == QLatin1Char(',') && depth == 0) {
+                        commas++;
+                    }
+                    j++;
+                }
+                if (j < len && commas == 0) {
+                    QString inside = code.mid(start_args, j - start_args).trimmed();
+                    if (!inside.isEmpty()) {
+                        result.append(QStringLiteral("(%1)(").arg(ftype));
+                        result.append(transpileParenCalls(inside));
+                        result.append(QLatin1Char(')'));
+                        i = j + 1;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        result.append(code.at(i));
+        i++;
+    }
+    return result;
+}
+
+bool CustomShaderManager::transpileIsfToHlsl(const std::string &raw_isf_code,
+                                             std::string &out_name,
+                                             std::string &out_category,
+                                             std::vector<VjParamDef> &out_params,
+                                             std::vector<std::string> &out_param_names,
+                                             std::vector<std::string> &out_param_ids,
+                                             std::string &out_hlsl_code,
+                                             std::string &out_error)
+{
+    QString qcode = QString::fromStdString(raw_isf_code);
+    if (qcode.trimmed().isEmpty()) {
+        out_error = "A megadott shader forráskód üres!";
+        return false;
+    }
+
+    out_params.clear();
+    out_param_names.clear();
+    out_param_ids.clear();
+    out_params.resize(8);
+    out_param_names.resize(8);
+    out_param_ids.resize(8);
+
+    QStringList bindings;
+    QString body;
+    int p_idx = 0;
+
+    static const struct {
+        const char *id;
+        const char *name;
+        float min_v;
+        float max_v;
+        float def_v;
+        float step_v;
+    } kDefaultsPool[] = {
+        { "pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.5f, 0.02f },
+        { "glow", "Ragyogás / Glow", 0.1f, 3.0f, 1.0f, 0.05f },
+        { "contrast", "Kontraszt / Contrast", 0.5f, 2.5f, 1.2f, 0.05f },
+        { "speed_z", "Z-Áramlás / Speed Z", -2.0f, 2.0f, 0.5f, 0.05f },
+        { "phase", "Belső Fázis / Phase", -3.14f, 3.14f, 0.0f, 0.05f },
+        { "density", "Sűrűség / Density", 0.2f, 3.0f, 1.0f, 0.05f },
+        { "theme_blend", "Téma Szín Keverés", 0.0f, 1.0f, 0.0f, 0.02f },
+        { "detail", "Részletesség / Detail", 1.0f, 8.0f, 4.0f, 0.5f }
+    };
+
+    // 1. Try to extract ISF JSON header: /* { ... } */
+    QRegularExpression isf_header_re(QStringLiteral("/\\*\\s*(\\{[\\s\\S]*?\\})\\s*\\*/"));
+    auto header_match = isf_header_re.match(qcode);
+
+    if (header_match.hasMatch()) {
+        QString json_str = header_match.captured(1);
+        body = qcode.mid(header_match.capturedEnd(0));
+
+        QJsonParseError j_err;
+        QJsonDocument doc = QJsonDocument::fromJson(json_str.toUtf8(), &j_err);
+        if (j_err.error == QJsonParseError::NoError && doc.isObject()) {
+            QJsonObject meta = doc.object();
+
+            // Extract Name
+            QString name = meta.value(QStringLiteral("DESCRIPTION")).toString().trimmed();
+            if (name.isEmpty()) {
+                name = meta.value(QStringLiteral("CREDIT")).toString().trimmed();
+                if (name.startsWith(QStringLiteral("by "), Qt::CaseInsensitive)) {
+                    name = name.mid(3).trimmed() + QStringLiteral(" Shader");
+                }
+            }
+            if (name.isEmpty() || name == QStringLiteral("Shader")) {
+                QRegularExpression title_re(QStringLiteral("//\\s*([A-Za-z0-9_-]+)\\s+by\\s+"));
+                auto t_match = title_re.match(body.left(1200));
+                if (t_match.hasMatch()) {
+                    name = t_match.captured(1).trimmed();
+                }
+            }
+            if (name.isEmpty()) {
+                name = QStringLiteral("ISF Custom Shader");
+            }
+            out_name = name.toStdString();
+
+            // Extract Category
+            QJsonValue cat_val = meta.value(QStringLiteral("CATEGORIES"));
+            QString cat_str;
+            if (cat_val.isArray()) {
+                QStringList cat_list;
+                for (const auto &c : cat_val.toArray()) {
+                    QString s = c.toString().trimmed();
+                    if (!s.isEmpty()) cat_list.append(s);
+                }
+                cat_str = cat_list.join(QStringLiteral(" / "));
+            } else if (cat_val.isString()) {
+                cat_str = cat_val.toString().trimmed();
+            }
+            if (cat_str.isEmpty()) {
+                cat_str = QStringLiteral("ISF / Procedural");
+            }
+            out_category = cat_str.toStdString();
+
+            // Extract INPUTS
+            QJsonArray inputs = meta.value(QStringLiteral("INPUTS")).toArray();
+            for (int i = 0; i < inputs.size() && p_idx < 8; ++i) {
+                if (!inputs[i].isObject()) continue;
+                QJsonObject inp = inputs[i].toObject();
+                QString pname = inp.value(QStringLiteral("NAME")).toString().trimmed();
+                if (pname.isEmpty()) continue;
+                QString label = inp.value(QStringLiteral("LABEL")).toString().trimmed();
+                if (label.isEmpty()) label = pname;
+                QString itype = inp.value(QStringLiteral("TYPE")).toString().toLower();
+
+                if (itype == QStringLiteral("float")) {
+                    float min_v = static_cast<float>(inp.value(QStringLiteral("MIN")).toDouble(0.0));
+                    float max_v = static_cast<float>(inp.value(QStringLiteral("MAX")).toDouble(2.0));
+                    float def_v = static_cast<float>(inp.value(QStringLiteral("DEFAULT")).toDouble(1.0));
+                    float step_v = (max_v > min_v) ? (max_v - min_v) / 40.0f : 0.05f;
+
+                    out_param_ids[p_idx] = pname.toStdString();
+                    out_param_names[p_idx] = label.toStdString();
+                    out_params[p_idx] = { nullptr, nullptr, min_v, max_v, def_v, step_v };
+                    bindings.append(QStringLiteral("#define %1 p%2").arg(pname).arg(p_idx));
+                    p_idx++;
+                } else if (itype == QStringLiteral("bool")) {
+                    float def_v = inp.value(QStringLiteral("DEFAULT")).toBool(false) ? 1.0f : 0.0f;
+                    out_param_ids[p_idx] = pname.toStdString();
+                    out_param_names[p_idx] = QStringLiteral("%1 (Ki/Be)").arg(label).toStdString();
+                    out_params[p_idx] = { nullptr, nullptr, 0.0f, 1.0f, def_v, 1.0f };
+                    bindings.append(QStringLiteral("#define %1 (p%2 > 0.5)").arg(pname).arg(p_idx));
+                    p_idx++;
+                } else if (itype == QStringLiteral("color")) {
+                    out_param_ids[p_idx] = pname.toStdString();
+                    out_param_names[p_idx] = QStringLiteral("%1 (Fényerő)").arg(label).toStdString();
+                    out_params[p_idx] = { nullptr, nullptr, 0.0f, 2.0f, 1.0f, 0.05f };
+                    bindings.append(QStringLiteral("#define %1 (get_base_theme_color() * p%2)").arg(pname).arg(p_idx));
+                    p_idx++;
+                } else if (itype == QStringLiteral("point2d")) {
+                    if (p_idx <= 6) {
+                        out_param_ids[p_idx] = QStringLiteral("%1_x").arg(pname).toStdString();
+                        out_param_names[p_idx] = QStringLiteral("%1 X").arg(label).toStdString();
+                        out_params[p_idx] = { nullptr, nullptr, -2.0f, 2.0f, 0.0f, 0.05f };
+
+                        out_param_ids[p_idx + 1] = QStringLiteral("%1_y").arg(pname).toStdString();
+                        out_param_names[p_idx + 1] = QStringLiteral("%1 Y").arg(label).toStdString();
+                        out_params[p_idx + 1] = { nullptr, nullptr, -2.0f, 2.0f, 0.0f, 0.05f };
+
+                        bindings.append(QStringLiteral("#define %1 float2(p%2, p%3)").arg(pname).arg(p_idx).arg(p_idx + 1));
+                        p_idx += 2;
+                    }
+                } else {
+                    float def_v = static_cast<float>(inp.value(QStringLiteral("DEFAULT")).toDouble(1.0));
+                    out_param_ids[p_idx] = pname.toStdString();
+                    out_param_names[p_idx] = label.toStdString();
+                    out_params[p_idx] = { nullptr, nullptr, 0.0f, 2.0f, def_v, 0.05f };
+                    bindings.append(QStringLiteral("#define %1 p%2").arg(pname).arg(p_idx));
+                    p_idx++;
+                }
+            }
+        } else {
+            out_name = "ISF Shader";
+            out_category = "ISF / Custom";
+        }
+    } else {
+        body = qcode;
+        out_name = "GLSL Custom Shader";
+        out_category = "GLSL / ShaderToy";
+    }
+
+    // Fill remaining parameters up to 8
+    int pool_idx = 0;
+    while (p_idx < 8) {
+        if (pool_idx < 8) {
+            out_param_ids[p_idx] = kDefaultsPool[pool_idx].id;
+            out_param_names[p_idx] = kDefaultsPool[pool_idx].name;
+            out_params[p_idx] = { nullptr, nullptr, kDefaultsPool[pool_idx].min_v, kDefaultsPool[pool_idx].max_v, kDefaultsPool[pool_idx].def_v, kDefaultsPool[pool_idx].step_v };
+            pool_idx++;
+        } else {
+            out_param_ids[p_idx] = "param_" + std::to_string(p_idx);
+            out_param_names[p_idx] = "Paraméter " + std::to_string(p_idx + 1);
+            out_params[p_idx] = { nullptr, nullptr, 0.0f, 2.0f, 1.0f, 0.05f };
+        }
+        p_idx++;
+    }
+
+    // 2. Clean GLSL headers, directives & built-in redefinitions
+    body.replace(QRegularExpression(QStringLiteral("#version[^\\r\\n]*")), QStringLiteral(""));
+    body.replace(QRegularExpression(QStringLiteral("#ifdef\\s+GL_ES[\\s\\S]*?#endif")), QStringLiteral(""));
+    body.replace(QRegularExpression(QStringLiteral("precision\\s+[^;]+;")), QStringLiteral(""));
+    body.replace(QRegularExpression(QStringLiteral("^[\\t ]*uniform\\s+[A-Za-z0-9_]+\\s+[A-Za-z0-9_]+\\s*;[\\t ]*\\r?\\n"), QRegularExpression::MultilineOption), QStringLiteral(""));
+    body.replace(QRegularExpression(QStringLiteral("(?:vec[234]|float)\\s+iResolution[^;]*;")), QStringLiteral(""));
+    body.replace(QRegularExpression(QStringLiteral("(?:vec[234]|float)\\s+iGlobalTime[^;]*;")), QStringLiteral(""));
+    body.replace(QRegularExpression(QStringLiteral("(?:vec[234]|float)\\s+TIME[^;]*;")), QStringLiteral(""));
+    body.replace(QRegularExpression(QStringLiteral("(?:vec[234]|float)\\s+RENDERSIZE[^;]*;")), QStringLiteral(""));
+
+    // 3. Convert global non-const assignments outside functions: float var = ...; -> #define var (...)
+    body.replace(QRegularExpression(QStringLiteral("^[\\t ]*float\\s+([A-Za-z0-9_]+)\\s*=\\s*([^;\\r\\n]+);"), QRegularExpression::MultilineOption),
+                 QStringLiteral("#define \\1 (\\2)"));
+
+    // 4. Vector and matrix types
+    body.replace(QRegularExpression(QStringLiteral("\\bvec4\\b")), QStringLiteral("float4"));
+    body.replace(QRegularExpression(QStringLiteral("\\bvec3\\b")), QStringLiteral("float3"));
+    body.replace(QRegularExpression(QStringLiteral("\\bvec2\\b")), QStringLiteral("float2"));
+    body.replace(QRegularExpression(QStringLiteral("\\bmat4\\b")), QStringLiteral("float4x4"));
+    body.replace(QRegularExpression(QStringLiteral("\\bmat3\\b")), QStringLiteral("float3x3"));
+    body.replace(QRegularExpression(QStringLiteral("\\bmat2\\b")), QStringLiteral("float2x2"));
+    body.replace(QRegularExpression(QStringLiteral("\\bivec2\\b")), QStringLiteral("int2"));
+    body.replace(QRegularExpression(QStringLiteral("\\bivec3\\b")), QStringLiteral("int3"));
+    body.replace(QRegularExpression(QStringLiteral("\\bivec4\\b")), QStringLiteral("int4"));
+    body.replace(QRegularExpression(QStringLiteral("\\bbvec2\\b")), QStringLiteral("bool2"));
+    body.replace(QRegularExpression(QStringLiteral("\\bbvec3\\b")), QStringLiteral("bool3"));
+    body.replace(QRegularExpression(QStringLiteral("\\bbvec4\\b")), QStringLiteral("bool4"));
+
+    // 5. Functions
+    body.replace(QRegularExpression(QStringLiteral("\\bmix\\s*\\(")), QStringLiteral("lerp("));
+    body.replace(QRegularExpression(QStringLiteral("\\bfract\\s*\\(")), QStringLiteral("frac("));
+    body.replace(QRegularExpression(QStringLiteral("\\bmod\\s*\\(")), QStringLiteral("glsl_mod("));
+    body.replace(QRegularExpression(QStringLiteral("\\binversesqrt\\s*\\(")), QStringLiteral("rsqrt("));
+    body.replace(QRegularExpression(QStringLiteral("\\bdFdx\\s*\\(")), QStringLiteral("ddx("));
+    body.replace(QRegularExpression(QStringLiteral("\\bdFdy\\s*\\(")), QStringLiteral("ddy("));
+
+    // 6. Coordinates & time
+    body.replace(QRegularExpression(QStringLiteral("\\bisf_FragNormCoord\\b")), QStringLiteral("uv"));
+    body.replace(QRegularExpression(QStringLiteral("\\bgl_FragCoord\\.xy\\b")), QStringLiteral("(uv * float2(1920.0, 1080.0))"));
+    body.replace(QRegularExpression(QStringLiteral("\\bgl_FragCoord\\b")), QStringLiteral("float4(uv * float2(1920.0, 1080.0), 0.0, 1.0)"));
+    body.replace(QRegularExpression(QStringLiteral("\\biGlobalTime\\b")), QStringLiteral("anim_time"));
+    body.replace(QRegularExpression(QStringLiteral("\\bTIME\\b")), QStringLiteral("anim_time"));
+
+    // 7. Parenthesis-depth parsing for atan(y, x) -> atan2(y, x) and single-arg floatN(scalar) -> (floatN)(scalar)
+    body = transpileParenCalls(body);
+
+    // 8. Convert main() or mainImage()
+    QRegularExpression main_re(QStringLiteral("void\\s+main\\s*\\(\\s*(?:void)?\\s*\\)"));
+    auto main_match = main_re.match(body);
+    if (main_match.hasMatch()) {
+        int main_start = main_match.capturedStart(0);
+        QString before_main = body.left(main_start);
+        QString after_match = body.mid(main_match.capturedEnd(0));
+        int brace_idx = after_match.indexOf(QLatin1Char('{'));
+        if (brace_idx >= 0) {
+            QString inner = after_match.mid(brace_idx + 1);
+            int depth = 1;
+            int k = 0;
+            const int in_len = inner.length();
+            while (k < in_len && depth > 0) {
+                if (inner.at(k) == QLatin1Char('{')) depth++;
+                else if (inner.at(k) == QLatin1Char('}')) {
+                    depth--;
+                    if (depth == 0) break;
+                }
+                k++;
+            }
+            QString func_code = inner.left(k);
+            QString after_main = (k < in_len) ? inner.mid(k + 1) : QString();
+
+            // Replace return; with return float4(saturate(gl_FragColor.rgb), 1.0);
+            func_code.replace(QRegularExpression(QStringLiteral("\\breturn\\s*;")),
+                              QStringLiteral("return float4(saturate(gl_FragColor.rgb), 1.0);"));
+
+            body = before_main + QStringLiteral("\nfloat4 render_custom(float2 uv)\n{\n"
+                                               "    float4 gl_FragColor = float4(0.0, 0.0, 0.0, 1.0);\n") +
+                   func_code +
+                   QStringLiteral("\n    return float4(saturate(gl_FragColor.rgb), 1.0);\n}\n") +
+                   after_main;
+        }
+    } else {
+        // Check for Shadertoy mainImage
+        QRegularExpression main_img_re(QStringLiteral("void\\s+mainImage\\s*\\([^\\)]*\\)"));
+        if (main_img_re.match(body).hasMatch()) {
+            body.replace(main_img_re, QStringLiteral("void mainImage_internal(out float4 fragColor, in float2 fragCoord)"));
+            body += QStringLiteral(
+                "\n\nfloat4 render_custom(float2 uv)\n"
+                "{\n"
+                "    float2 fragCoord = uv * float2(1920.0, 1080.0);\n"
+                "    float4 fragColor = float4(0.0, 0.0, 0.0, 1.0);\n"
+                "    mainImage_internal(fragColor, fragCoord);\n"
+                "    return float4(saturate(fragColor.rgb), 1.0);\n"
+                "}\n"
+            );
+        }
+    }
+
+    // Assemble final HLSL code
+    QString full_hlsl;
+    if (!bindings.isEmpty()) {
+        full_hlsl += bindings.join(QStringLiteral("\n")) + QStringLiteral("\n\n");
+    }
+    full_hlsl += body.trimmed();
+    out_hlsl_code = full_hlsl.toStdString();
+    out_error.clear();
+    return true;
+}
+
 bool CustomShaderManager::parseAiShaderText(const std::string &text,
-                                            std::string &out_name,
-                                            std::string &out_category,
-                                            std::vector<VjParamDef> &out_params,
-                                            std::vector<std::string> &out_param_names,
-                                            std::vector<std::string> &out_param_ids,
-                                            std::string &out_hlsl_code,
-                                            std::string &out_error)
+                                             std::string &out_name,
+                                             std::string &out_category,
+                                             std::vector<VjParamDef> &out_params,
+                                             std::vector<std::string> &out_param_names,
+                                             std::vector<std::string> &out_param_ids,
+                                             std::string &out_hlsl_code,
+                                             std::string &out_error)
 {
     const QString qtext = QString::fromStdString(text);
+
+    // 0. Auto-detect native ISF or raw GLSL shaders
+    if (qtext.contains(QStringLiteral("/*")) &&
+        (qtext.contains(QStringLiteral("INPUTS"), Qt::CaseInsensitive) ||
+         qtext.contains(QStringLiteral("ISFVSN"), Qt::CaseInsensitive) ||
+         qtext.contains(QStringLiteral("DESCRIPTION"), Qt::CaseInsensitive))) {
+        return transpileIsfToHlsl(text, out_name, out_category, out_params, out_param_names, out_param_ids, out_hlsl_code, out_error);
+    }
+
+    if (!qtext.contains(QStringLiteral("[NAME]"), Qt::CaseInsensitive) &&
+        !qtext.contains(QStringLiteral("[CODE]"), Qt::CaseInsensitive) &&
+        (qtext.contains(QStringLiteral("void main"), Qt::CaseInsensitive) ||
+         qtext.contains(QStringLiteral("mainImage"), Qt::CaseInsensitive) ||
+         qtext.contains(QStringLiteral("isf_FragNormCoord"), Qt::CaseInsensitive))) {
+        return transpileIsfToHlsl(text, out_name, out_category, out_params, out_param_names, out_param_ids, out_hlsl_code, out_error);
+    }
 
     // 1. Try Tag-based parsing: [NAME], [CATEGORY], [PARAMS], [CODE]
     if (qtext.contains(QStringLiteral("[NAME]"), Qt::CaseInsensitive) ||
