@@ -70,6 +70,8 @@ uniform float cf_fx_mid;
 uniform float cf_param_intensity;
 uniform float cf_param_rate;
 uniform float anim_time;
+uniform float cf_curve;
+uniform float cf_smooth;
 uniform float cf_p0;
 uniform float cf_p1;
 uniform float cf_p2;
@@ -355,8 +357,8 @@ float4 PS(VertData v) : TARGET
         } else {
             // Linear Fade / Crossfade
             float cf = crossfade;
-            if (abs(cf_p0 - 1.0) > 0.02) cf = pow(saturate(cf), cf_p0);
-            if (cf_p1 > 0.01) cf = lerp(cf, smoothstep(0.0, 1.0, cf), cf_p1);
+            if (abs(cf_curve - 1.0) > 0.02) cf = pow(saturate(cf), max(cf_curve, 0.05));
+            if (cf_smooth > 0.01) cf = lerp(cf, smoothstep(0.0, 1.0, cf), cf_smooth);
             res = lerp(a, b, cf);
         }
     }
@@ -713,6 +715,15 @@ static void set_color_params(MixerSource *context,
 
     if ((param = gs_effect_get_param_by_name(context->effect, "cf_param_rate")))
         gs_effect_set_float(param, eff_rate);
+
+    const float cf_curve = decks ? decks->crossfadeFxParamValue(0, 0) : 1.0f;
+    const float cf_smooth = decks ? decks->crossfadeFxParamValue(0, 1) : 0.0f;
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "cf_curve")))
+        gs_effect_set_float(param, cf_curve);
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "cf_smooth")))
+        gs_effect_set_float(param, cf_smooth);
 
     const int active_fx = std::clamp(cf_fx_mode, 0, 15);
     const auto &cf_defs = getCrossfadeFxDefinitions();
