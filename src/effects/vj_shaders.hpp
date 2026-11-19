@@ -30,6 +30,15 @@ uniform texture2d dummy_texture;
 
 uniform float visualizer_mode;      // 0..11
 uniform float anim_time;            // Másodperc alapú futásidő
+
+#define TIME anim_time
+#define time anim_time
+#define iTime anim_time
+#define shader_time anim_time
+#define u_time anim_time
+#define RENDERSIZE float2(1920.0, 1080.0)
+#define iResolution float3(1920.0, 1080.0, 1.0)
+
 uniform float bpm;                  // Deck BPM sebesség
 uniform float audio_amp;            // RMS pillanatnyi hangerő [0.0 .. 1.0]
 uniform float bass_energy;          // Lábdob / Mélyhang transient lüktetés [0.0 .. 1.0]

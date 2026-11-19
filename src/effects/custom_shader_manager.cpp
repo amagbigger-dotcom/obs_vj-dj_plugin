@@ -399,6 +399,15 @@ uniform float4x4 ViewProj;
 uniform texture2d dummy_texture;
 uniform float visualizer_mode;
 uniform float anim_time;
+
+#define TIME anim_time
+#define time anim_time
+#define iTime anim_time
+#define shader_time anim_time
+#define u_time anim_time
+#define RENDERSIZE float2(1920.0, 1080.0)
+#define iResolution float3(1920.0, 1080.0, 1.0)
+
 uniform float bpm;
 uniform float audio_amp;
 uniform float bass_energy;
@@ -450,6 +459,11 @@ float2 Rot2D_hlsl(float2 p, float a)
 {
     float c = cos(a), s = sin(a);
     return float2(p.x * c - p.y * s, p.x * s + p.y * c);
+}
+
+float2 rotate2D(float2 p, float a)
+{
+    return Rot2D_hlsl(p, a);
 }
 )";
 
@@ -856,13 +870,15 @@ KÖTELEZŐ SZABÁLYOK ÉS IRÁNYELVEK:
 
 3. ZENEI LÜKTETÉS ÉS TRANZIENS REAKCIÓ (LÁBDOB / BASS):
    - Használd a beépített 'bass_energy' változót (0.0..1.0 lábdob lüktetés) a formák méretének, ragyogásának vagy reakciójának vezérlésére, de CSAK ott, ahol van képi tartalom (pl. col *= (1.0 + bass_energy * p4 * 0.5);). Így a fekete háttér a lábdobra sem világosodik ki, csak az elemek pulzálnak!
-   - Rendelkezésre álló zenei változók:
-     * float anim_time: másodperc alapú folyamatos futásidő
+   - Rendelkezésre álló beépített változók és aliasok:
+     * float anim_time: másodperc alapú folyamatos futásidő (a TIME, time, iTime, u_time aliasok is automatikusan működnek!)
+     * float2 RENDERSIZE vagy float3 iResolution: (1920.0, 1080.0) vászonfelbontás
      * float bpm: a deck zenei tempója
      * float bass_energy: lábdob / mélyhang lüktetés (0.0 .. 1.0)
      * float mid_energy: középtartomány energia (0.0 .. 1.0)
      * float high_energy: magas hangok / cintányér energia (0.0 .. 1.0)
      * float audio_amp: összegzett pillanatnyi hangerő (0.0 .. 1.0)
+     * float3 theme = get_base_theme_color(): a deck kék/narancs témaszíne
 
 4. DECK SZÍNTÉMA INTEGRÁCIÓ:
    - float3 theme = get_base_theme_color();
