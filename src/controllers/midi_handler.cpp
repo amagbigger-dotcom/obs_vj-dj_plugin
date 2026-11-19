@@ -350,6 +350,61 @@ bool vdj_midi_is_clock_send()
     return g_clock_send_enabled.load(std::memory_order_relaxed);
 }
 
+std::vector<std::string> vdj_midi_get_input_devices()
+{
+    std::vector<std::string> devices;
+    const UINT count = midiInGetNumDevs();
+    for (UINT i = 0; i < count; ++i) {
+        MIDIINCAPSA caps = {};
+        if (midiInGetDevCapsA(i, &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+            devices.push_back(caps.szPname);
+        }
+    }
+    return devices;
+}
+
+bool vdj_midi_open_input_device(int device_id)
+{
+    if (g_midi_in) {
+        midiInStop(g_midi_in);
+        midiInClose(g_midi_in);
+        g_midi_in = nullptr;
+    }
+
+    g_connected.store(false, std::memory_order_relaxed);
+    g_device_name[0] = '\0';
+
+    if (device_id < 0 || device_id >= static_cast<int>(midiInGetNumDevs()))
+        return false;
+
+    MIDIINCAPSA caps = {};
+    if (midiInGetDevCapsA(static_cast<UINT>(device_id), &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+        std::strncpy(g_device_name, caps.szPname, sizeof(g_device_name) - 1);
+        g_device_name[sizeof(g_device_name) - 1] = '\0';
+    }
+
+    MMRESULT result = midiInOpen(
+        &g_midi_in,
+        static_cast<UINT>(device_id),
+        reinterpret_cast<DWORD_PTR>(midi_in_proc),
+        0,
+        CALLBACK_FUNCTION);
+
+    if (result == MMSYSERR_NOERROR) {
+        result = midiInStart(g_midi_in);
+        if (result == MMSYSERR_NOERROR) {
+            g_connected.store(true, std::memory_order_relaxed);
+            blog(LOG_INFO, "[obs-vj-deck] MIDI switched to input device: %s", g_device_name);
+            return true;
+        } else {
+            midiInClose(g_midi_in);
+            g_midi_in = nullptr;
+            g_device_name[0] = '\0';
+        }
+    }
+    return false;
+}
+
 std::vector<std::string> vdj_midi_get_output_devices()
 {
     std::vector<std::string> devices;

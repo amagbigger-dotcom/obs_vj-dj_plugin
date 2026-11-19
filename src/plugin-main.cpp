@@ -7,6 +7,7 @@
 #include "gui/tracklist_dock.hpp"
 #include "gui/vj_fx_dialog.hpp"
 #include "gui/lfo_dialog.hpp"
+#include "gui/settings_dialog.hpp"
 #include "controllers/midi_handler.hpp"
 
 OBS_DECLARE_MODULE()
@@ -39,6 +40,12 @@ static void open_lfo_menu(void *data)
 {
     UNUSED_PARAMETER(data);
     vdj_open_lfo_dialog();
+}
+
+static void open_settings_menu(void *data)
+{
+    UNUSED_PARAMETER(data);
+    vdj_open_settings_dialog();
 }
 
 // =============================================================================
@@ -99,6 +106,8 @@ static void open_all_layout(void *data)
 
 void init_deck_engine()
 {
+    SettingsDialog::loadSettings();
+
     g_deck_a = new DeckPlayer("vj_deck_source_a", "OBS VJ Deck A");
     g_deck_a->setSide(DeckPlayer::DeckSide::A);
     g_deck_b = new DeckPlayer("vj_deck_source_b", "OBS VJ Deck B");
@@ -108,6 +117,7 @@ void init_deck_engine()
     vdj_set_active_deck(g_deck_a);
 
     g_deck_pair = new DeckPair();
+    g_deck_pair->setVideoScaleMode(SettingsDialog::config().default_scale_mode);
     vdj_set_decks(g_deck_pair);
 
     vdj_midi_init();
@@ -115,6 +125,10 @@ void init_deck_engine()
 
 void free_deck_engine()
 {
+    if (SettingsDialog::config().auto_save_on_exit) {
+        SettingsDialog::saveSettings();
+    }
+
     vdj_midi_shutdown();
     vdj_set_decks(nullptr);
     delete g_deck_pair;
@@ -138,10 +152,12 @@ void init_deck_ui()
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Tracklist").toUtf8().constData(), open_tracklist_menu, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Visualizer Shader").toUtf8().constData(), open_vj_fx_menu, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ LFO Oszcillátor").toUtf8().constData(), open_lfo_menu, nullptr);
+    obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Beállítások (Settings)").toUtf8().constData(), open_settings_menu, nullptr);
 }
 
 void free_deck_ui()
 {
+    vdj_free_settings_dialog();
     vdj_free_mixer_window();
     vdj_free_tracklist_window();
     vdj_free_vj_fx_dialog();

@@ -2,6 +2,7 @@
 #include "gui/mixer_channel.hpp"
 #include "gui/mixer_master.hpp"
 #include "gui/vj_fx_dialog.hpp"
+#include "gui/settings_dialog.hpp"
 #include "engine/deck_engine.hpp"
 #include "controllers/midi_handler.hpp"
 
@@ -217,6 +218,17 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
         vdj_open_vj_fx_dialog();
     });
     bottom_row->addWidget(vj_fx_btn);
+
+    auto *settings_btn = new QPushButton(QStringLiteral("⚙ BEÁLLÍTÁSOK"), this);
+    settings_btn->setFixedHeight(20);
+    settings_btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #182230; border: 1px solid #2d3e56; color: #38bdf8; font-weight: bold; font-size: 9px; padding: 1px 8px; border-radius: 3px; } "
+        "QPushButton:hover { background: #0284c7; color: #ffffff; border-color: #38bdf8; }"));
+    settings_btn->setToolTip(QStringLiteral("Rendszerbeállítások: Hangkártya, ASIO, Külső keverő, MIDI Learn & Nyelvkezelés"));
+    connect(settings_btn, &QPushButton::clicked, this, []() {
+        vdj_open_settings_dialog();
+    });
+    bottom_row->addWidget(settings_btn);
     bottom_row->addStretch(1);
 
     bottom_bpm_lbl_ = new QLabel(QStringLiteral("MASTER 128.00 BPM"), this);

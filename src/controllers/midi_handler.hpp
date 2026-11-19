@@ -12,5 +12,8 @@ const char *vdj_midi_get_device_name();
 void vdj_midi_set_clock_send(bool enable);
 bool vdj_midi_is_clock_send();
 
+std::vector<std::string> vdj_midi_get_input_devices();
+bool vdj_midi_open_input_device(int device_id);
+
 std::vector<std::string> vdj_midi_get_output_devices();
 bool vdj_midi_open_output_device(int device_id);

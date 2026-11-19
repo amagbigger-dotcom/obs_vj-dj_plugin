@@ -113,6 +113,8 @@ set(SOURCES
     src/gui/lfo_dialog.hpp
     src/gui/isf_converter_dialog.cpp
     src/gui/isf_converter_dialog.hpp
+    src/gui/settings_dialog.cpp
+    src/gui/settings_dialog.hpp
 )
 
 add_library(obs_vj-dj_plugin MODULE ${SOURCES})
