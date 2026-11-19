@@ -1,4 +1,5 @@
 #include "controllers/midi_handler.hpp"
+#include "controllers/midi_dispatcher.hpp"
 #include "engine/deck_engine.hpp"
 
 #include <obs-module.h>
@@ -45,85 +46,6 @@ bool is_target_device(const char *device_name)
            name.find("s3") != std::string::npos ||
            name.find("dj") != std::string::npos ||
            name.find("midi") != std::string::npos;
-}
-
-void handle_control_change(unsigned char channel,
-                           unsigned char controller,
-                           unsigned char value)
-{
-    if (controller == 8) { // Master Crossfader (Global / Ch 1 CC 8)
-        if (vdj_decks()) {
-            vdj_decks()->setCrossfader(static_cast<double>(value) / 127.0);
-        }
-        return;
-    }
-
-    DeckPlayer *deck = (channel == 1) ? vj_deck_b() : vj_deck_a();
-    if (!deck)
-        deck = vj_active_deck();
-    if (!deck)
-        return;
-
-    switch (controller) {
-    case 16: { // HI (Red or Blue / High EQ): 0..127 -> 0.0..2.0
-        const float v = static_cast<float>(value) / 63.5f;
-        deck->setEqHi(v);
-        break;
-    }
-    case 17: { // MID (Green / Mid EQ): 0..127 -> 0.0..2.0
-        const float v = static_cast<float>(value) / 63.5f;
-        deck->setEqMid(v);
-        break;
-    }
-    case 18: { // LOW (Blue or Red / Low EQ): 0..127 -> 0.0..2.0
-        const float v = static_cast<float>(value) / 63.5f;
-        deck->setEqLow(v);
-        break;
-    }
-    case 19: { // FILTER (Saturation / DJ Filter): 0..127 -> -1.0..+1.0 audio & 0.0..2.0 saturation
-        const float v = static_cast<float>(value) / 63.5f;
-        deck->setFilterVal(v - 1.0f);
-        break;
-    }
-    case 20: // Volume Fader
-        deck->setVolume(static_cast<float>(value) / 127.0f);
-        break;
-    case 21: { // Tempo / Pitch
-        const int speed =
-            50 + static_cast<int>((static_cast<unsigned int>(value) * 100U) / 127U);
-        deck->applySpeedSettings(speed);
-        break;
-    }
-    default:
-        break;
-    }
-}
-
-void handle_note(unsigned char channel,
-                 unsigned char note)
-{
-    DeckPlayer *deck = (channel == 1) ? vj_deck_b() : vj_deck_a();
-    if (!deck)
-        deck = vj_active_deck();
-    if (!deck)
-        return;
-
-    switch (note) {
-    case 35: // Play / Pause toggle
-        deck->togglePlayback();
-        break;
-    case 36: // Cue
-        deck->cue();
-        break;
-    case 37: // Sync
-        deck->setSync(!deck->isSync());
-        break;
-    case 38: // Headphone Cue toggle
-        deck->setHeadphoneCue(!deck->isHeadphoneCue());
-        break;
-    default:
-        break;
-    }
 }
 
 void CALLBACK midi_in_proc(HMIDIIN,
@@ -181,17 +103,8 @@ void CALLBACK midi_in_proc(HMIDIIN,
         return;
     }
 
-    const unsigned char message_type = status & 0xF0U;
-    const unsigned char channel = status & 0x0FU;
-
-    if (message_type == 0xB0U) {
-        handle_control_change(channel, data1, data2);
-        return;
-    }
-
-    // Note On with vel > 0
-    if (message_type == 0x90U && data2 > 0)
-        handle_note(channel, data1);
+    // Data-driven Controller Dispatcher
+    MidiDispatcher::instance().dispatch(status, data1, data2);
 }
 
 void clock_sender_loop()
@@ -432,3 +345,29 @@ bool vdj_midi_open_output_device(int device_id)
     MMRESULT res = midiOutOpen(&g_midi_out, static_cast<UINT>(device_id), 0, 0, CALLBACK_NULL);
     return res == MMSYSERR_NOERROR;
 }
+
+void vdj_midi_set_profile(const MidiControllerProfile &p)
+{
+    MidiDispatcher::instance().setProfile(p);
+}
+
+MidiControllerProfile vdj_midi_get_profile()
+{
+    return MidiDispatcher::instance().activeProfile();
+}
+
+void vdj_midi_start_learn(MidiAction action, int deck)
+{
+    MidiDispatcher::instance().startLearn(action, deck);
+}
+
+void vdj_midi_cancel_learn()
+{
+    MidiDispatcher::instance().cancelLearn();
+}
+
+bool vdj_midi_is_learning()
+{
+    return MidiDispatcher::instance().isLearning();
+}
+

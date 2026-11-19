@@ -2,17 +2,13 @@
 
 #include <QDialog>
 #include <QString>
-#include <vector>
-#include <string>
 
 class QTabWidget;
-class QComboBox;
-class QRadioButton;
-class QCheckBox;
-class QTableWidget;
 class QPushButton;
-class QLabel;
-class QScrollArea;
+class SettingsAudioTab;
+class SettingsVideoTab;
+class SettingsMidiTab;
+class SettingsGeneralTab;
 
 struct PluginSettingsConfig {
     // Audio Driver & Hardware
@@ -86,85 +82,16 @@ public:
 private slots:
     void onSaveClicked();
     void onCancelClicked();
-    void onAudioDriverChanged(int index);
-    void onAudioModeChanged();
-    void onMidiPresetChanged(int index);
-    void onMidiExportClicked();
-    void onMidiImportClicked();
-    void onMidiLearnClicked(int row);
 
 private:
     void setupUi();
-    void setupAudioTab(QTabWidget *tabs);
-    void setupVideoTab(QTabWidget *tabs);
-    void setupMidiTab(QTabWidget *tabs);
-    void setupGeneralTab(QTabWidget *tabs);
-
-    void populateDevices();
     void applyConfigToUi();
     void readUiToConfig();
 
-    static void populateChannelCombo(QComboBox *combo, int selected_ch, int max_ch = 16);
-
-    // Audio Hardware Controls
-    QComboBox *audio_driver_combo_ = nullptr;
-    QComboBox *asio_device_combo_ = nullptr;
-    QComboBox *wasapi_device_combo_ = nullptr;
-    QComboBox *sample_rate_combo_ = nullptr;
-    QComboBox *buffer_size_combo_ = nullptr;
-    QRadioButton *mode_internal_radio_ = nullptr;
-    QRadioButton *mode_external_radio_ = nullptr;
-    QLabel *asio_device_label_ = nullptr;
-    QLabel *wasapi_device_label_ = nullptr;
-
-    // Output Routing Controls
-    QComboBox *master_dev_combo_ = nullptr;
-    QComboBox *master_ch_l_combo_ = nullptr;
-    QComboBox *master_ch_r_combo_ = nullptr;
-
-    QComboBox *cue_dev_combo_ = nullptr;
-    QComboBox *cue_ch_l_combo_ = nullptr;
-    QComboBox *cue_ch_r_combo_ = nullptr;
-
-    QComboBox *booth_dev_combo_ = nullptr;
-    QComboBox *booth_ch_l_combo_ = nullptr;
-    QComboBox *booth_ch_r_combo_ = nullptr;
-
-    QComboBox *deck_a_out_dev_combo_ = nullptr;
-    QComboBox *deck_a_out_ch_l_combo_ = nullptr;
-    QComboBox *deck_a_out_ch_r_combo_ = nullptr;
-
-    QComboBox *deck_b_out_dev_combo_ = nullptr;
-    QComboBox *deck_b_out_ch_l_combo_ = nullptr;
-    QComboBox *deck_b_out_ch_r_combo_ = nullptr;
-
-    // Input Routing Controls
-    QComboBox *deck_a_in_dev_combo_ = nullptr;
-    QComboBox *deck_a_in_ch_l_combo_ = nullptr;
-    QComboBox *deck_a_in_ch_r_combo_ = nullptr;
-
-    QComboBox *deck_b_in_dev_combo_ = nullptr;
-    QComboBox *deck_b_in_ch_l_combo_ = nullptr;
-    QComboBox *deck_b_in_ch_r_combo_ = nullptr;
-
-    QComboBox *aux_in_dev_combo_ = nullptr;
-    QComboBox *aux_in_ch_l_combo_ = nullptr;
-    QComboBox *aux_in_ch_r_combo_ = nullptr;
-
-    // Video Controls
-    QComboBox *video_res_combo_ = nullptr;
-    QComboBox *video_scale_combo_ = nullptr;
-    QComboBox *shader_quality_combo_ = nullptr;
-
-    // MIDI Controls
-    QComboBox *midi_in_combo_ = nullptr;
-    QComboBox *midi_out_combo_ = nullptr;
-    QComboBox *midi_preset_combo_ = nullptr;
-    QTableWidget *midi_learn_table_ = nullptr;
-
-    // General Controls
-    QComboBox *lang_combo_ = nullptr;
-    QCheckBox *auto_save_check_ = nullptr;
+    SettingsAudioTab *audio_tab_ = nullptr;
+    SettingsVideoTab *video_tab_ = nullptr;
+    SettingsMidiTab *midi_tab_ = nullptr;
+    SettingsGeneralTab *general_tab_ = nullptr;
 };
 
 void vdj_open_settings_dialog();

@@ -76,7 +76,15 @@ set(SOURCES
     src/effects/custom_shader_manager.cpp
     src/effects/custom_shader_manager.hpp
 
-    # Controllers (Hardware MIDI)
+    # Controllers (Hardware MIDI & Data-Driven Mapper)
+    src/controllers/midi_types.cpp
+    src/controllers/midi_types.hpp
+    src/controllers/midi_jog.cpp
+    src/controllers/midi_jog.hpp
+    src/controllers/midi_mapping.cpp
+    src/controllers/midi_mapping.hpp
+    src/controllers/midi_dispatcher.cpp
+    src/controllers/midi_dispatcher.hpp
     src/controllers/midi_handler.cpp
     src/controllers/midi_handler.hpp
 
@@ -113,6 +121,14 @@ set(SOURCES
     src/gui/lfo_dialog.hpp
     src/gui/isf_converter_dialog.cpp
     src/gui/isf_converter_dialog.hpp
+    src/gui/settings_audio_tab.cpp
+    src/gui/settings_audio_tab.hpp
+    src/gui/settings_video_tab.cpp
+    src/gui/settings_video_tab.hpp
+    src/gui/settings_midi_tab.cpp
+    src/gui/settings_midi_tab.hpp
+    src/gui/settings_general_tab.cpp
+    src/gui/settings_general_tab.hpp
     src/gui/settings_dialog.cpp
     src/gui/settings_dialog.hpp
 )
