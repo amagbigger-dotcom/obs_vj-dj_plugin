@@ -30,8 +30,8 @@ struct VjParamConfig {
 
 struct VjDeckConfig {
     int shader_idx = 0;
-    // Mind a 15 shader egyedi potméter-beállításai külön-külön eltárolva
-    std::array<std::array<VjParamConfig, 8>, 16> all_shader_params;
+    // Mind a 15 beépített + egyedi ISF shader potméter-beállításai külön-külön eltárolva
+    std::array<std::array<VjParamConfig, 8>, 64> all_shader_params;
     // Az éppen aktív shader paraméterei
     std::array<VjParamConfig, 8> params;
 
@@ -45,7 +45,11 @@ struct VjDeckConfig {
     bool rgb_inverted = false;
 };
 
-inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
+// VJ Shader definíciók lekérdezése (15 beépített + dinamikus felhasználói ISF shaderek)
+const std::vector<VjShaderDef>& getVjShaderDefinitions();
+
+/*
+inline const std::vector<VjShaderDef>& getVjShaderDefinitions_legacy() {
     static const std::vector<VjShaderDef> defs = {
         {
             0, "Fluid Flow 3D", "Organikus 3D Folyadék",
@@ -245,12 +249,13 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions() {
     };
     return defs;
 }
+*/
 
 inline VjDeckConfig getDefaultVjConfig(int shader_idx) {
     VjDeckConfig cfg;
-    cfg.shader_idx = std::clamp(shader_idx, 0, 14);
+    cfg.shader_idx = std::clamp(shader_idx, 0, 63);
     const auto &defs = getVjShaderDefinitions();
-    for (size_t s = 0; s < 16 && s < defs.size(); ++s) {
+    for (size_t s = 0; s < 64 && s < defs.size(); ++s) {
         const auto &p_defs = defs[s].params;
         for (size_t i = 0; i < 8; ++i) {
             if (i < p_defs.size()) {

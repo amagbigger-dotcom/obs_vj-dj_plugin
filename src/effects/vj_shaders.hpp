@@ -1,26 +1,24 @@
 #pragma once
 #include <string>
+#include "effects/custom_shader_manager.hpp"
 
 // =============================================================================
 // VJ Visualizer Shader Suite (Direct3D 11 / OpenGL HLSL)
-// 12 Választható Mód (Kompromisszummentes, hű az eredeti ISF forrásokhoz):
-//   0: FluidFlow 3D (mojovideotech 3D térfogati simplex folyadék-áramlás)
-//   1: TruchetSpin 3D (mojovideotech 48-lépéses 3D raymarching labirintus & árnyékok)
-//   2: HypnoWorm (mojovideotech 24-lépéses OpArt féregalagút)
-//   3: ShapeTwist (Joseph Fiola / xLights 18-lépéses elektro hullámcsavarás)
-//   4: StringArt (mojovideotech geometrikus szálművészet)
-//   5: Dodecahedron 3D (OLAV / gltracy 3D raymarching kristály)
-//   6: KaliCircuits (mojovideotech fraktál áramkörök)
-//   7: DiamondVision (Axiom-Crux / mojovideotech 36-lépéses tórusz sugárkövetés)
-//   8: Pupila (Uará Lab / Shadertoy wtX3Dl fotorealisztikus szem & írisz)
-//   9: MandalaScope (mojovideotech 72-lépéses rekurzív fraktál kaleidoszkóp)
-//  10: SearchingLight (ISF 5e7a80527c113618206def3a kiber fényalagút & sugarak)
-//  11: CubeField 3D (sheltron3030 3D végtelen kockamező raymarching & normál-árnyékolás)
+// 15 Beépített Mód + Dinamikus Egyedi ISF Shaderek
 // =============================================================================
+
+inline void invalidateVjVisualizerEffect() {
+    CustomShaderManager::instance().incrementVersion();
+}
 
 inline const char *getVjVisualizerEffect() {
     static std::string effect_str;
-    if (effect_str.empty()) {
+    static uint32_t cached_version = 0;
+    const uint32_t current_version = CustomShaderManager::instance().version();
+
+    if (effect_str.empty() || cached_version != current_version) {
+        cached_version = current_version;
+        effect_str.clear();
         effect_str.reserve(65536);
 
         // ---------------------------------------------------------------------
@@ -1189,6 +1187,11 @@ float4 render_hex_truch_warp(float2 uv)
 )";
 
         // ---------------------------------------------------------------------
+        // Dinamikus Felhasználói Egyedi ISF Shaderek Függvényei
+        // ---------------------------------------------------------------------
+        effect_str += CustomShaderManager::instance().getCustomShadersHlslDeclarations();
+
+        // ---------------------------------------------------------------------
         // Pixel Shader Dispatcher & Technique
         // ---------------------------------------------------------------------
         effect_str += R"(
@@ -1222,8 +1225,13 @@ float4 PSVisualizer(VertData v) : TARGET
         return render_electro_bands(v.uv);
     } else if (visualizer_mode < 13.5) {
         return render_globular_cluster(v.uv);
-    } else {
+    } else if (visualizer_mode < 14.5) {
         return render_hex_truch_warp(v.uv);
+)";
+        effect_str += CustomShaderManager::instance().getCustomShadersDispatchHlsl();
+        effect_str += R"(
+    } else {
+        return float4(0.0, 0.0, 0.0, 1.0);
     }
 }
 

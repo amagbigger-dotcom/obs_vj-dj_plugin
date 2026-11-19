@@ -672,7 +672,7 @@ void DeckWindow::showEvent(QShowEvent *event)
         const int target_h = 340;
         setFixedSize(target_w, target_h);
 
-        const int y_pos = std::max(0, geom.bottom() - target_h - 4);
+        const int y_pos = std::max(0, geom.bottom() - target_h - 40);
         const bool is_b = (deck_ && deck_->side() == DeckPlayer::DeckSide::B);
         const int x_pos = is_b ? (geom.left() + 1268) : (geom.left() + 12);
         move(x_pos, y_pos);

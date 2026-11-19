@@ -1,4 +1,5 @@
 #include "gui/vj_fx_dialog.hpp"
+#include "gui/isf_converter_dialog.hpp"
 #include "engine/deck_engine.hpp"
 #include "effects/vj_config.hpp"
 
@@ -16,6 +17,8 @@
 #include <QFileInfo>
 #include <QSignalBlocker>
 #include <QKeyEvent>
+#include <QGuiApplication>
+#include <QScreen>
 #include <algorithm>
 
 namespace {
@@ -117,6 +120,22 @@ VjFxDialog::VjFxDialog(DeckPair *decks, QWidget *parent)
         }
     });
     shader_box_layout->addWidget(shader_combo_, 1);
+
+    auto *isf_btn = new QPushButton(QStringLiteral("🪄 ISF Konverter"), shader_box);
+    isf_btn->setFixedHeight(24);
+    isf_btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #104868, stop:1 #0088cc); "
+        "border: 1px solid #00b4d8; color: #ffffff; font-weight: bold; font-size: 10px; border-radius: 3px; padding: 2px 10px; } "
+        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #14608c, stop:1 #00aaff); border-color: #00d2ff; }"
+    ));
+    isf_btn->setAutoDefault(false);
+    isf_btn->setDefault(false);
+    isf_btn->setCursor(Qt::PointingHandCursor);
+    connect(isf_btn, &QPushButton::clicked, this, [this]() {
+        vdj_open_isf_converter_dialog(this);
+    });
+    shader_box_layout->addWidget(isf_btn);
+
     main_layout->addWidget(shader_box);
 
     // Color & Modulation Frame
@@ -295,6 +314,25 @@ void VjFxDialog::selectDeck(int deck_idx)
     }
 
     updateColorUi();
+    rebuildParamControls();
+}
+
+void VjFxDialog::reloadShaderList()
+{
+    if (!shader_combo_) return;
+    const QSignalBlocker blocker(shader_combo_);
+    shader_combo_->clear();
+
+    const auto &defs = getVjShaderDefinitions();
+    for (const auto &d : defs) {
+        shader_combo_->addItem(QStringLiteral("%1. %2 (%3)").arg(d.id + 1).arg(d.name).arg(d.category), d.id);
+    }
+
+    if (DeckPlayer *dp = currentDeck()) {
+        const VjDeckConfig cfg = dp->vjConfig();
+        const int max_idx = defs.empty() ? 0 : static_cast<int>(defs.size()) - 1;
+        shader_combo_->setCurrentIndex(std::clamp(cfg.shader_idx, 0, max_idx));
+    }
     rebuildParamControls();
 }
 
@@ -594,6 +632,18 @@ void VjFxDialog::rebuildParamControls()
     params_layout_->addStretch(1);
 }
 
+void VjFxDialog::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    if (QScreen *screen = QGuiApplication::primaryScreen()) {
+        const QRect geom = screen->availableGeometry();
+        const int target_w = width() > 0 ? width() : 560;
+        const int x_pos = geom.right() - target_w - 12;
+        const int y_pos = geom.top() + 38;
+        move(x_pos, y_pos);
+    }
+}
+
 void VjFxDialog::keyPressEvent(QKeyEvent *event)
 {
     if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
@@ -621,6 +671,7 @@ void vdj_open_vj_fx_dialog(int target_deck)
 
 void vdj_free_vj_fx_dialog()
 {
+    vdj_free_isf_converter_dialog();
     if (g_vj_fx_dialog) {
         g_vj_fx_dialog->close();
         delete g_vj_fx_dialog;

@@ -16,6 +16,8 @@
 #include <QPainterPath>
 #include <QTimer>
 #include <QSignalBlocker>
+#include <QGuiApplication>
+#include <QScreen>
 #include <cmath>
 #include <algorithm>
 
@@ -443,6 +445,17 @@ QWidget *LfoDialog::createLfoSection(int lfo_idx, const QString &title, const QS
     });
 
     return box;
+}
+
+void LfoDialog::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    if (QScreen *screen = QGuiApplication::primaryScreen()) {
+        const QRect geom = screen->availableGeometry();
+        const int x_pos = geom.left() + 315;
+        const int y_pos = geom.top() + 390;
+        move(x_pos, y_pos);
+    }
 }
 
 void LfoDialog::refresh()

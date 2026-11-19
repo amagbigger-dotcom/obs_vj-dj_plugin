@@ -38,6 +38,7 @@ struct MixerSource {
 
     gs_effect_t *effect = nullptr;
     gs_effect_t *fluid_effect = nullptr;
+    uint32_t loaded_vj_effect_version = 0;
     gs_texture_t *dummy_tex = nullptr;
     gs_texrender_t *deck_a = nullptr;
     gs_texrender_t *deck_b = nullptr;
@@ -456,12 +457,19 @@ static void ensure_resources(MixerSource *context)
         }
     }
 
+    const uint32_t cur_vj_ver = CustomShaderManager::instance().version();
+    if (context->fluid_effect && context->loaded_vj_effect_version != cur_vj_ver) {
+        gs_effect_destroy(context->fluid_effect);
+        context->fluid_effect = nullptr;
+    }
     if (!context->fluid_effect) {
         char *err = nullptr;
         context->fluid_effect = gs_effect_create(FLUID_FLOW_EFFECT, "fluid_flow_effect", &err);
         if (!context->fluid_effect) {
             blog(LOG_ERROR, "[obs-vj-mixer] Failed to compile FLUID_FLOW_EFFECT: %s", err ? err : "unknown error");
             bfree(err);
+        } else {
+            context->loaded_vj_effect_version = cur_vj_ver;
         }
     }
 

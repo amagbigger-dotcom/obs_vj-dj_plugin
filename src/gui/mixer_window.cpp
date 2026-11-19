@@ -280,7 +280,7 @@ void MixerWindow::showEvent(QShowEvent *event)
         const int target_h = 340;
         setFixedSize(target_w, target_h);
 
-        const int y_pos = std::max(0, geom.bottom() - target_h - 4);
+        const int y_pos = std::max(0, geom.bottom() - target_h - 40);
         const int x_pos = geom.left() + 665;
         move(x_pos, y_pos);
     }

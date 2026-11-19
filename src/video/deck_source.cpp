@@ -91,6 +91,7 @@ struct DeckSourceContext {
     int deck_channel = 0;
     gs_effect_t *color_effect = nullptr;
     gs_effect_t *fluid_effect = nullptr;
+    uint32_t loaded_vj_effect_version = 0;
     gs_texture_t *dummy_tex = nullptr;
 
     uint64_t next_audio_ts = 0;
@@ -456,12 +457,19 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                 gs_matrix_pop();
             } else if (context->deck && context->deck->hasAudioOnlyTrack()) {
                 // Procedurális Audio-Reaktív VJ Shader Suite szigorúan csak tiszta audio fájlokhoz!
+                const uint32_t cur_vj_ver = CustomShaderManager::instance().version();
+                if (context->fluid_effect && context->loaded_vj_effect_version != cur_vj_ver) {
+                    gs_effect_destroy(context->fluid_effect);
+                    context->fluid_effect = nullptr;
+                }
                 if (!context->fluid_effect) {
                     char *err = nullptr;
                     context->fluid_effect = gs_effect_create(FLUID_FLOW_EFFECT, "fluid_flow_effect", &err);
                     if (!context->fluid_effect) {
                         blog(LOG_ERROR, "[vj_deck] Failed to compile FLUID_FLOW_EFFECT: %s", err ? err : "unknown");
                         bfree(err);
+                    } else {
+                        context->loaded_vj_effect_version = cur_vj_ver;
                     }
                 }
                 if (!context->dummy_tex) {

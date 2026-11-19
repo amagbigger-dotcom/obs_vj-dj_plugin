@@ -24,6 +24,8 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QUrl>
+#include <QGuiApplication>
+#include <QScreen>
 
 static TracklistDock *g_tracklist_instance = nullptr;
 
@@ -570,6 +572,17 @@ void TracklistDock::cancelActiveConversion()
     if (status_lbl_) status_lbl_->setText(QStringLiteral("Konvertálás megszakítva."));
     saveLibraryJson();
     processNextConversion();
+}
+
+void TracklistDock::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    if (QScreen *screen = QGuiApplication::primaryScreen()) {
+        const QRect geom = screen->availableGeometry();
+        const int x_pos = geom.left() + 845;
+        const int y_pos = geom.top() + 390;
+        move(x_pos, y_pos);
+    }
 }
 
 void TracklistDock::dragEnterEvent(QDragEnterEvent *event)

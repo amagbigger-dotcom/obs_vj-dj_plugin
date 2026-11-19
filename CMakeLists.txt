@@ -73,6 +73,8 @@ set(SOURCES
     src/effects/vj_shaders.hpp
     src/effects/fluid_flow.hpp
     src/effects/crossfade_fx_config.hpp
+    src/effects/custom_shader_manager.cpp
+    src/effects/custom_shader_manager.hpp
 
     # Controllers (Hardware MIDI)
     src/controllers/midi_handler.cpp
@@ -109,6 +111,8 @@ set(SOURCES
     src/gui/crossfade_fx_dialog.hpp
     src/gui/lfo_dialog.cpp
     src/gui/lfo_dialog.hpp
+    src/gui/isf_converter_dialog.cpp
+    src/gui/isf_converter_dialog.hpp
 )
 
 add_library(obs_vj-dj_plugin MODULE ${SOURCES})

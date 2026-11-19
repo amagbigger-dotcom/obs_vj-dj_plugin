@@ -13,6 +13,8 @@
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QKeyEvent>
+#include <QGuiApplication>
+#include <QScreen>
 #include <algorithm>
 
 namespace {
@@ -437,6 +439,17 @@ void CrossfadeFxDialog::rebuildParamControls()
     }
 
     params_layout_->addStretch(1);
+}
+
+void CrossfadeFxDialog::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    if (QScreen *screen = QGuiApplication::primaryScreen()) {
+        const QRect geom = screen->availableGeometry();
+        const int x_pos = geom.left() + 12;
+        const int y_pos = geom.top() + 38;
+        move(x_pos, y_pos);
+    }
 }
 
 void CrossfadeFxDialog::keyPressEvent(QKeyEvent *event)

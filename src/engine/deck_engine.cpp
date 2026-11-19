@@ -225,7 +225,7 @@ void DeckPlayer::loadFile(const QString &path)
             if (res.has_vj_config) {
                 std::lock_guard<std::mutex> lock(vj_config_mutex_);
                 vj_config_ = res.vj_config;
-                const int s = std::clamp(vj_config_.shader_idx, 0, 14);
+                const int s = std::clamp(vj_config_.shader_idx, 0, 63);
                 vj_config_.all_shader_params[s] = vj_config_.params;
                 rgb_inverted_.store(vj_config_.rgb_inverted, std::memory_order_relaxed);
                 updateVisualEqMapping();
@@ -810,7 +810,7 @@ void DeckPlayer::setVjParamValue(int param_idx, float val) noexcept
         {
             std::lock_guard<std::mutex> lock(vj_config_mutex_);
             vj_config_.params[param_idx].value = val;
-            const int s = std::clamp(vj_config_.shader_idx, 0, 14);
+            const int s = std::clamp(vj_config_.shader_idx, 0, 63);
             vj_config_.all_shader_params[s][param_idx].value = val;
         }
         saveVjConfigToCache();
@@ -823,7 +823,7 @@ void DeckPlayer::setVjParamMod(int param_idx, int mod) noexcept
         {
             std::lock_guard<std::mutex> lock(vj_config_mutex_);
             vj_config_.params[param_idx].mod_mode = mod;
-            const int s = std::clamp(vj_config_.shader_idx, 0, 14);
+            const int s = std::clamp(vj_config_.shader_idx, 0, 63);
             vj_config_.all_shader_params[s][param_idx].mod_mode = mod;
         }
         saveVjConfigToCache();
@@ -836,7 +836,7 @@ void DeckPlayer::setVjParamModDepth(int param_idx, float depth) noexcept
         {
             std::lock_guard<std::mutex> lock(vj_config_mutex_);
             vj_config_.params[param_idx].mod_depth = std::clamp(depth, -1.0f, 1.0f);
-            const int s = std::clamp(vj_config_.shader_idx, 0, 14);
+            const int s = std::clamp(vj_config_.shader_idx, 0, 63);
             vj_config_.all_shader_params[s][param_idx].mod_depth = std::clamp(depth, -1.0f, 1.0f);
         }
         saveVjConfigToCache();
@@ -845,11 +845,11 @@ void DeckPlayer::setVjParamModDepth(int param_idx, float depth) noexcept
 
 void DeckPlayer::setVjShaderIdx(int idx) noexcept
 {
-    const int new_s = std::clamp(idx, 0, 14);
+    const int new_s = std::clamp(idx, 0, 63);
     {
         std::lock_guard<std::mutex> lock(vj_config_mutex_);
         if (vj_config_.shader_idx != new_s) {
-            const int old_s = std::clamp(vj_config_.shader_idx, 0, 14);
+            const int old_s = std::clamp(vj_config_.shader_idx, 0, 63);
             // 1. Save current active params into old shader slot
             vj_config_.all_shader_params[old_s] = vj_config_.params;
             // 2. Switch shader index
@@ -889,7 +889,7 @@ void DeckPlayer::loadVjConfigFromCache()
     if (AudioAnalyzer::loadCache(fp, res) && res.has_vj_config) {
         std::lock_guard<std::mutex> lock(vj_config_mutex_);
         vj_config_ = res.vj_config;
-        const int s = std::clamp(vj_config_.shader_idx, 0, 14);
+        const int s = std::clamp(vj_config_.shader_idx, 0, 63);
         vj_config_.all_shader_params[s] = vj_config_.params;
         rgb_inverted_.store(vj_config_.rgb_inverted, std::memory_order_relaxed);
         updateVisualEqMapping();

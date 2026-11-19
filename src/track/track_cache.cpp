@@ -100,7 +100,7 @@ bool TrackCache::load(const QString &media_file_path, TrackAnalysisResult &out_r
 
     if (root.contains(QStringLiteral("vj_shader"))) {
         QJsonObject vj_obj = root.value(QStringLiteral("vj_shader")).toObject();
-        const int s_idx = std::clamp(vj_obj.value(QStringLiteral("shader_idx")).toInt(0), 0, 14);
+        const int s_idx = std::clamp(vj_obj.value(QStringLiteral("shader_idx")).toInt(0), 0, 63);
         out_res.vj_config = getDefaultVjConfig(s_idx);
         out_res.vj_config.shader_idx = s_idx;
         out_res.vj_config.custom_color_r = static_cast<float>(vj_obj.value(QStringLiteral("color_r")).toDouble(-1.0));
@@ -111,7 +111,7 @@ bool TrackCache::load(const QString &media_file_path, TrackAnalysisResult &out_r
 
         if (vj_obj.contains(QStringLiteral("all_shaders"))) {
             QJsonObject all_s = vj_obj.value(QStringLiteral("all_shaders")).toObject();
-            for (int s = 0; s < 16; ++s) {
+            for (int s = 0; s < 64; ++s) {
                 const QString key = QString::number(s);
                 if (all_s.contains(key)) {
                     QJsonArray s_arr = all_s.value(key).toArray();
@@ -197,7 +197,7 @@ bool TrackCache::save(const QString &media_file_path, const TrackAnalysisResult 
         vj_obj.insert(QStringLiteral("rgb_inverted"), res.vj_config.rgb_inverted);
 
         QJsonObject all_s;
-        for (int s = 0; s < 16; ++s) {
+        for (int s = 0; s < 64; ++s) {
             QJsonArray s_arr;
             for (int i = 0; i < 8; ++i) {
                 QJsonObject p_obj;
@@ -250,7 +250,7 @@ bool TrackCache::updateVjConfig(const QString &media_file_path, const VjDeckConf
     vj_obj.insert(QStringLiteral("rgb_inverted"), config.rgb_inverted);
 
     QJsonObject all_s;
-    for (int s = 0; s < 16; ++s) {
+    for (int s = 0; s < 64; ++s) {
         QJsonArray s_arr;
         for (int i = 0; i < 8; ++i) {
             QJsonObject p_obj;

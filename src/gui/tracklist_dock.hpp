@@ -44,6 +44,7 @@ public:
     const std::vector<TrackItem>& tracks() const { return tracks_; }
 
 protected:
+    void showEvent(QShowEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;

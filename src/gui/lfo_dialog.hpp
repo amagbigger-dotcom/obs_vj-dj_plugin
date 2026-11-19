@@ -19,6 +19,9 @@ public:
 
     void refresh();
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 private:
     void setupUi();
     QWidget *createLfoSection(int lfo_idx, const QString &title, const QString &color_hex);
