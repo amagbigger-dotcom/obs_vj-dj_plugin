@@ -662,9 +662,42 @@ static QString transpileParenCalls(const QString &code)
                 if (j < len && commas == 0) {
                     QString inside = code.mid(start_args, j - start_args).trimmed();
                     if (!inside.isEmpty()) {
-                        result.append(QStringLiteral("to_%1(").arg(ftype));
-                        result.append(transpileParenCalls(inside));
-                        result.append(QLatin1Char(')'));
+                        bool is_already = false;
+                        if (ftype == QStringLiteral("float2")) {
+                            is_already = inside.contains(QStringLiteral("float2")) ||
+                                         inside.contains(QStringLiteral("vec2")) ||
+                                         inside.contains(QStringLiteral(".xy")) ||
+                                         inside.contains(QStringLiteral(".rg")) ||
+                                         inside == QStringLiteral("pos") ||
+                                         inside == QStringLiteral("st") ||
+                                         inside == QStringLiteral("uv") ||
+                                         inside == QStringLiteral("ipos") ||
+                                         inside == QStringLiteral("fpos");
+                        } else if (ftype == QStringLiteral("float3")) {
+                            is_already = inside.contains(QStringLiteral("float3")) ||
+                                         inside.contains(QStringLiteral("vec3")) ||
+                                         inside.contains(QStringLiteral(".xyz")) ||
+                                         inside.contains(QStringLiteral(".rgb")) ||
+                                         inside.contains(QStringLiteral("color")) ||
+                                         inside.contains(QStringLiteral("get_base_theme_color"));
+                        } else if (ftype == QStringLiteral("float4")) {
+                            is_already = inside.contains(QStringLiteral("float4")) ||
+                                         inside.contains(QStringLiteral("vec4")) ||
+                                         inside.contains(QStringLiteral(".xyzw")) ||
+                                         inside.contains(QStringLiteral(".rgba")) ||
+                                         inside.contains(QStringLiteral("gl_FragColor")) ||
+                                         inside.contains(QStringLiteral("fragColor"));
+                        }
+
+                        if (is_already) {
+                            result.append(QLatin1Char('('));
+                            result.append(transpileParenCalls(inside));
+                            result.append(QLatin1Char(')'));
+                        } else {
+                            result.append(QStringLiteral("to_%1(").arg(ftype));
+                            result.append(transpileParenCalls(inside));
+                            result.append(QLatin1Char(')'));
+                        }
                         i = j + 1;
                         continue;
                     }
@@ -741,6 +774,8 @@ bool CustomShaderManager::transpileIsfToHlsl(const std::string &raw_isf_code,
                 name = meta.value(QStringLiteral("CREDIT")).toString().trimmed();
                 if (name.startsWith(QStringLiteral("by "), Qt::CaseInsensitive)) {
                     name = name.mid(3).trimmed() + QStringLiteral(" Shader");
+                } else if (!name.isEmpty() && !name.endsWith(QStringLiteral("Shader"), Qt::CaseInsensitive)) {
+                    name = name + QStringLiteral(" Shader");
                 }
             }
             if (name.isEmpty() || name == QStringLiteral("Shader")) {
@@ -773,9 +808,9 @@ bool CustomShaderManager::transpileIsfToHlsl(const std::string &raw_isf_code,
             }
             out_category = cat_str.toStdString();
 
-            // Extract INPUTS
+            // Extract INPUTS (map first 8 to p0..p7, define fallback constants for any overflow inputs)
             QJsonArray inputs = meta.value(QStringLiteral("INPUTS")).toArray();
-            for (int i = 0; i < inputs.size() && p_idx < 8; ++i) {
+            for (int i = 0; i < inputs.size(); ++i) {
                 if (!inputs[i].isObject()) continue;
                 QJsonObject inp = inputs[i].toObject();
                 QString pname = inp.value(QStringLiteral("NAME")).toString().trimmed();
@@ -784,50 +819,91 @@ bool CustomShaderManager::transpileIsfToHlsl(const std::string &raw_isf_code,
                 if (label.isEmpty()) label = pname;
                 QString itype = inp.value(QStringLiteral("TYPE")).toString().toLower();
 
-                if (itype == QStringLiteral("float")) {
-                    float min_v = static_cast<float>(inp.value(QStringLiteral("MIN")).toDouble(0.0));
-                    float max_v = static_cast<float>(inp.value(QStringLiteral("MAX")).toDouble(2.0));
-                    float def_v = static_cast<float>(inp.value(QStringLiteral("DEFAULT")).toDouble(1.0));
-                    float step_v = (max_v > min_v) ? (max_v - min_v) / 40.0f : 0.05f;
+                if (p_idx < 8) {
+                    if (itype == QStringLiteral("float")) {
+                        float min_v = static_cast<float>(inp.value(QStringLiteral("MIN")).toDouble(0.0));
+                        float max_v = static_cast<float>(inp.value(QStringLiteral("MAX")).toDouble(2.0));
+                        float def_v = static_cast<float>(inp.value(QStringLiteral("DEFAULT")).toDouble(1.0));
+                        float step_v = (max_v > min_v) ? (max_v - min_v) / 40.0f : 0.05f;
 
-                    out_param_ids[p_idx] = pname.toStdString();
-                    out_param_names[p_idx] = label.toStdString();
-                    out_params[p_idx] = { nullptr, nullptr, min_v, max_v, def_v, step_v };
-                    bindings.append(QStringLiteral("#define %1 p%2").arg(pname).arg(p_idx));
-                    p_idx++;
-                } else if (itype == QStringLiteral("bool")) {
-                    float def_v = inp.value(QStringLiteral("DEFAULT")).toBool(false) ? 1.0f : 0.0f;
-                    out_param_ids[p_idx] = pname.toStdString();
-                    out_param_names[p_idx] = QStringLiteral("%1 (Ki/Be)").arg(label).toStdString();
-                    out_params[p_idx] = { nullptr, nullptr, 0.0f, 1.0f, def_v, 1.0f };
-                    bindings.append(QStringLiteral("#define %1 (p%2 > 0.5)").arg(pname).arg(p_idx));
-                    p_idx++;
-                } else if (itype == QStringLiteral("color")) {
-                    out_param_ids[p_idx] = pname.toStdString();
-                    out_param_names[p_idx] = QStringLiteral("%1 (Fényerő)").arg(label).toStdString();
-                    out_params[p_idx] = { nullptr, nullptr, 0.0f, 2.0f, 1.0f, 0.05f };
-                    bindings.append(QStringLiteral("#define %1 (get_base_theme_color() * p%2)").arg(pname).arg(p_idx));
-                    p_idx++;
-                } else if (itype == QStringLiteral("point2d")) {
-                    if (p_idx <= 6) {
-                        out_param_ids[p_idx] = QStringLiteral("%1_x").arg(pname).toStdString();
-                        out_param_names[p_idx] = QStringLiteral("%1 X").arg(label).toStdString();
-                        out_params[p_idx] = { nullptr, nullptr, -2.0f, 2.0f, 0.0f, 0.05f };
+                        out_param_ids[p_idx] = pname.toStdString();
+                        out_param_names[p_idx] = label.toStdString();
+                        out_params[p_idx] = { nullptr, nullptr, min_v, max_v, def_v, step_v };
+                        bindings.append(QStringLiteral("#define %1 p%2").arg(pname).arg(p_idx));
+                        p_idx++;
+                    } else if (itype == QStringLiteral("bool")) {
+                        float def_v = inp.value(QStringLiteral("DEFAULT")).toBool(false) ? 1.0f : 0.0f;
+                        out_param_ids[p_idx] = pname.toStdString();
+                        out_param_names[p_idx] = QStringLiteral("%1 (Ki/Be)").arg(label).toStdString();
+                        out_params[p_idx] = { nullptr, nullptr, 0.0f, 1.0f, def_v, 1.0f };
+                        bindings.append(QStringLiteral("#define %1 (p%2 > 0.5)").arg(pname).arg(p_idx));
+                        p_idx++;
+                    } else if (itype == QStringLiteral("color")) {
+                        out_param_ids[p_idx] = pname.toStdString();
+                        out_param_names[p_idx] = QStringLiteral("%1 (Fényerő)").arg(label).toStdString();
+                        out_params[p_idx] = { nullptr, nullptr, 0.0f, 2.0f, 1.0f, 0.05f };
+                        bindings.append(QStringLiteral("#define %1 (get_base_theme_color() * p%2)").arg(pname).arg(p_idx));
+                        p_idx++;
+                    } else if (itype == QStringLiteral("point2d")) {
+                        if (p_idx <= 6) {
+                            out_param_ids[p_idx] = QStringLiteral("%1_x").arg(pname).toStdString();
+                            out_param_names[p_idx] = QStringLiteral("%1 X").arg(label).toStdString();
+                            out_params[p_idx] = { nullptr, nullptr, -2.0f, 2.0f, 0.0f, 0.05f };
 
-                        out_param_ids[p_idx + 1] = QStringLiteral("%1_y").arg(pname).toStdString();
-                        out_param_names[p_idx + 1] = QStringLiteral("%1 Y").arg(label).toStdString();
-                        out_params[p_idx + 1] = { nullptr, nullptr, -2.0f, 2.0f, 0.0f, 0.05f };
+                            out_param_ids[p_idx + 1] = QStringLiteral("%1_y").arg(pname).toStdString();
+                            out_param_names[p_idx + 1] = QStringLiteral("%1 Y").arg(label).toStdString();
+                            out_params[p_idx + 1] = { nullptr, nullptr, -2.0f, 2.0f, 0.0f, 0.05f };
 
-                        bindings.append(QStringLiteral("#define %1 float2(p%2, p%3)").arg(pname).arg(p_idx).arg(p_idx + 1));
-                        p_idx += 2;
+                            bindings.append(QStringLiteral("#define %1 float2(p%2, p%3)").arg(pname).arg(p_idx).arg(p_idx + 1));
+                            p_idx += 2;
+                        } else {
+                            QJsonArray defs = inp.value(QStringLiteral("DEFAULT")).toArray();
+                            float dx = defs.size() > 0 ? static_cast<float>(defs[0].toDouble(0.0)) : 0.0f;
+                            float dy = defs.size() > 1 ? static_cast<float>(defs[1].toDouble(0.0)) : 0.0f;
+                            bindings.append(QStringLiteral("#define %1 float2(%2, %3)").arg(pname).arg(dx).arg(dy));
+                        }
+                    } else if (itype == QStringLiteral("long")) {
+                        QJsonArray vals = inp.value(QStringLiteral("VALUES")).toArray();
+                        float min_v = 0.0f, max_v = 10.0f;
+                        if (!vals.isEmpty()) {
+                            min_v = static_cast<float>(vals.first().toDouble(0.0));
+                            max_v = static_cast<float>(vals.last().toDouble(10.0));
+                        }
+                        float def_v = static_cast<float>(inp.value(QStringLiteral("DEFAULT")).toDouble(0.0));
+                        out_param_ids[p_idx] = pname.toStdString();
+                        out_param_names[p_idx] = label.toStdString();
+                        out_params[p_idx] = { nullptr, nullptr, min_v, max_v, def_v, 1.0f };
+                        bindings.append(QStringLiteral("#define %1 p%2").arg(pname).arg(p_idx));
+                        p_idx++;
+                    } else {
+                        float def_v = static_cast<float>(inp.value(QStringLiteral("DEFAULT")).toDouble(1.0));
+                        out_param_ids[p_idx] = pname.toStdString();
+                        out_param_names[p_idx] = label.toStdString();
+                        out_params[p_idx] = { nullptr, nullptr, 0.0f, 2.0f, def_v, 0.05f };
+                        bindings.append(QStringLiteral("#define %1 p%2").arg(pname).arg(p_idx));
+                        p_idx++;
                     }
                 } else {
-                    float def_v = static_cast<float>(inp.value(QStringLiteral("DEFAULT")).toDouble(1.0));
-                    out_param_ids[p_idx] = pname.toStdString();
-                    out_param_names[p_idx] = label.toStdString();
-                    out_params[p_idx] = { nullptr, nullptr, 0.0f, 2.0f, def_v, 0.05f };
-                    bindings.append(QStringLiteral("#define %1 p%2").arg(pname).arg(p_idx));
-                    p_idx++;
+                    // Overflow inputs beyond 8: fallback constant definition so shader compiles without undeclared identifier
+                    if (itype == QStringLiteral("float")) {
+                        float def_v = static_cast<float>(inp.value(QStringLiteral("DEFAULT")).toDouble(1.0));
+                        bindings.append(QStringLiteral("#define %1 (%2)").arg(pname).arg(def_v));
+                    } else if (itype == QStringLiteral("bool")) {
+                        bool def_b = inp.value(QStringLiteral("DEFAULT")).toBool(false);
+                        bindings.append(QStringLiteral("#define %1 (%2)").arg(pname).arg(def_b ? QStringLiteral("true") : QStringLiteral("false")));
+                    } else if (itype == QStringLiteral("point2d")) {
+                        QJsonArray defs = inp.value(QStringLiteral("DEFAULT")).toArray();
+                        float dx = defs.size() > 0 ? static_cast<float>(defs[0].toDouble(0.0)) : 0.0f;
+                        float dy = defs.size() > 1 ? static_cast<float>(defs[1].toDouble(0.0)) : 0.0f;
+                        bindings.append(QStringLiteral("#define %1 float2(%2, %3)").arg(pname).arg(dx).arg(dy));
+                    } else if (itype == QStringLiteral("color")) {
+                        bindings.append(QStringLiteral("#define %1 float4(1.0, 1.0, 1.0, 1.0)").arg(pname));
+                    } else if (itype == QStringLiteral("long")) {
+                        int def_v = inp.value(QStringLiteral("DEFAULT")).toInt(0);
+                        bindings.append(QStringLiteral("#define %1 (%2)").arg(pname).arg(def_v));
+                    } else {
+                        bindings.append(QStringLiteral("#define %1 (1.0)").arg(pname));
+                    }
                 }
             }
         } else {
@@ -967,6 +1043,33 @@ bool CustomShaderManager::transpileIsfToHlsl(const std::string &raw_isf_code,
             // Replace return; with return float4(saturate(gl_FragColor.rgb), 1.0);
             func_code.replace(QRegularExpression(QStringLiteral("\\breturn\\s*;")),
                               QStringLiteral("return float4(saturate(gl_FragColor.rgb), 1.0);"));
+
+            // Ensure helper functions in before_main have a fallback return statement
+            QRegularExpression func_ret_re(QStringLiteral("((?:float[234]?|int[234]?|bool[234]?|float)\\s+[A-Za-z0-9_]+\\s*\\([^)]*\\)\\s*\\{)([\\s\\S]*?)(\\n\\})"));
+            auto f_iter = func_ret_re.globalMatch(before_main);
+            QString fixed_before = before_main;
+            int offset = 0;
+            while (f_iter.hasNext()) {
+                auto m = f_iter.next();
+                QString fhdr = m.captured(1);
+                QString fbody = m.captured(2);
+                QString ftype = fhdr.section(QRegularExpression(QStringLiteral("\\s+")), 0, 0);
+                QStringList flines = fbody.trimmed().split(QLatin1Char('\n'));
+                QString last_l = flines.isEmpty() ? QString() : flines.last().trimmed();
+                if (!last_l.startsWith(QStringLiteral("return "))) {
+                    QString fallback_val = QStringLiteral("0.0");
+                    if (ftype == QStringLiteral("float2")) fallback_val = QStringLiteral("float2(0.0, 0.0)");
+                    else if (ftype == QStringLiteral("float3")) fallback_val = QStringLiteral("float3(0.0, 0.0, 0.0)");
+                    else if (ftype == QStringLiteral("float4")) fallback_val = QStringLiteral("float4(0.0, 0.0, 0.0, 1.0)");
+                    else if (ftype == QStringLiteral("bool")) fallback_val = QStringLiteral("false");
+                    else if (ftype == QStringLiteral("int")) fallback_val = QStringLiteral("0");
+
+                    QString replacement = fhdr + fbody + QStringLiteral("\n    return %1;\n}").arg(fallback_val);
+                    fixed_before.replace(m.capturedStart(0) + offset, m.capturedLength(0), replacement);
+                    offset += replacement.length() - m.capturedLength(0);
+                }
+            }
+            before_main = fixed_before;
 
             body = before_main + QStringLiteral("\nfloat4 render_custom(float2 uv)\n{\n"
                                                "    float4 gl_FragColor = float4(0.0, 0.0, 0.0, 1.0);\n") +

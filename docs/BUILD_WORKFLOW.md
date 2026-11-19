@@ -412,20 +412,23 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
 * **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (970 752 bájt)
 * **Jellemzők:**
   1. **libobs OBS-SL Parser `Expected ',' or ')'` Hiba Megszüntetése:**
-     - **GLSL `in` paraméter-minősítő lecsupaszítása:** A GLSL függvényfejlécekben lévő `in` kulcsszót (`float random(in vec2 st)`, `vec3 invertColor(in vec3 color)`) az OBS-SL parser nem minősítőként, hanem típusként értelmezte, ami elakadt a paraméterneveknél. A transzpiler most automatikusan eltávolítja az `in` minősítőt a paraméterdeklarációkból.
+     - **GLSL `in` paraméter-minősítő lecsupaszítása:** A GLSL függvényfejlécekben lévő `in` kulcsszót (`float random(in vec2 st)`, `vec3 invertColor(in vec3 color)`) az OBS-SL parser nem minősítőként, hanem típusként értelmezte. A transzpiler most automatikusan eltávolítja az `in` minősítőt a paraméterdeklarációkból.
      - **Függvény-túlterhelés (Function Overloading) Megszüntetése:** Az OBS Studio effekt-értelmezője (`shader-parser.c`) nem támogatja a függvények túlterhelését. A `glsl_mod` helyett szigorúan egyedi függvénynevek kerültek bevezetésre (`glsl_mod`, `glsl_mod2`, `glsl_mod2s`, `glsl_mod3`, `glsl_mod3s`, `glsl_mod4`, `glsl_mod4s`).
-     - **Biztonságos Vektor Konstruktorok (`to_float2`, `to_float3`, `to_float4`):** A hibás C-stílusú `(float2)(x)` típuskonverzió helyett dedikált HLSL segédfüggvények hozzák létre a skalárból sugárzott vektorokat, megszüntetve a Direct3D 11 szintaktikai hibákat.
-  2. **Fejléc Nélküli GLSL Kódok és Uniformok Automatikus Felismerése:**
-     - Ha a forrásban nincs `/*{ ... }*/` JSON fejléc, a transzpiler a `// Cím` sorokból kinyeri a nevet, és az `uniform float/int/bool` deklarációkat automatikusan összerendeli a `p0`..`p7` csúszkákkal.
-  3. **Kétoldali UI Mező Szinkronizáció (`IsfConverterDialog`):**
-     - A `[ ⚡ Tesztelés & Hibaellenőrzés ]` és `[ ⚡ ISF Átalakítás ]` gombok megnyomásakor a felület azonnal kitölti a `Shader Neve:` és `Kategória / Stílus:` mezőket, és a kódszerkesztőben megjeleníti a megtisztított, lefordított Direct3D 11 HLSL forráskódot.
-     - A `[ 💾 Beágyazás & Mentés ]` gomb a transzpilált, ellenőrzött HLSL kódot menti el a rendszerbe.
-  3. **Intelligens GLSL $\rightarrow$ Direct3D 11 HLSL Transzpilálás:**
-     - Zárójel-mélység elemzővel kezeli a 2-argumentumos `atan(y, x)` $\rightarrow$ `atan2(y, x)` és 1-argumentumos `atan(x)` függvényeket.
-     - Automatikusan átalakítja az 1-argumentumos skalár vektor-konstruktorokat `floatN(val)` $\rightarrow$ `(floatN)(val)`.
-     - Túlterhelt `glsl_mod` vektorokra és skalárokra, `Rot2D` / `rot2D` aliasok.
-     - Belépési pont átalakítása: `void main()` $\rightarrow$ `float4 render_custom(float2 uv)` helyi `gl_FragColor` inicializálással és `saturate` lezárással.
-  4. **Kezelőfelületi Bővítések (`IsfConverterDialog`):**
-     - `[ 📂 .fs Fájl Tallózása ]`: Helyi lemezről azonnal betölt és átalakít `.fs` vagy `.txt` fájlokat.
-     - `[ ⚡ ISF Átalakítás ]`: A beillesztett kódot egyetlen kattintással HLSL-re fordítja.
-     - `[ 📋 Vágólap Beillesztése ]`: Automatikus ISF felismerés és azonnali GPU tesztfordítás.
+     - **Biztonságos Vektor Konstruktorok (`to_float2`, `to_float3`, `to_float4`):** Dedikált segédfüggvények hozzák létre a skalárból sugárzott vektorokat.
+  2. **Kétoldali UI Mező Szinkronizáció (`IsfConverterDialog`):**
+     - A tesztelés és átalakítás során automatikusan megjelenik a kinyert név, kategória és a tiszta HLSL kód a szerkesztőben.
+
+### Mérföldkő #23: Build #291 / GitHub Run #291 (Többmint-8 Bemenetes ISF Shaderek és Vektor Cast Hibajavítás)
+* **Verzió & Commit:** Folyamatban
+* **Célkitűzés & Jellemzők:**
+  1. **8-nál több bemenettel rendelkező ISF shaderek teljes támogatása (Overflow Inputs):**
+     - Korábban, ha egy ISF shaderben 8-nál több `INPUT` szerepelt (pl. a Joseph Fiola shaderben 10 bemenet: `pos`, `invert`, `function`, `speed`, `multiplier`, `grid`, `detail`, `contrast`, `contrastShift`, `mode`), a ciklus 8 után megszakadt, és a kimaradó változók (`contrast`, `contrastShift`, `mode`) deklarálatlanok maradtak (`undeclared identifier`), meghiúsítva a fordítást.
+     - **Megoldás:** Az első 8 paraméterkapcsolat megkapja a valós idejű `p0`..`p7` MIDI/LFO csúszkákat, a 8 feletti bemenetek pedig automatikusan beégetésre kerülnek a shader kód elejére a JSON fejlécben megadott `DEFAULT` értékeikkel (`#define contrast (0.0)`, `#define mode (0)`). Így a shader hibátlanul fordul és fut le!
+  2. **Intelligens Vektor Cast (`to_floatN` védelem):**
+     - Ha a forrásban a változó eleve vektor volt (pl. `st -= vec2(pos);` ahol a `pos` már `float2`, vagy `return vec3(color * -1.0 + 1.0);`), a korábbi logika skalárnak hitte és meghívta a `to_float2(pos)` függvényt, ami típuseltérési hibát okozott (`cannot convert from 'float2' to 'float'`).
+     - **Megoldás:** A transzpiler most felismeri, ha a zárójelen belüli kifejezés már az adott vektortípust képviseli, és nem hív felesleges `to_floatN` konverziót.
+  3. **Vezérlési Folyam Lezárási Védelem (HLSL X4014):**
+     - Ha egy segédfüggvény (pl. `float random(float2 st)`) csupán `if (...) return ...; else if (...) return ...;` ágakkal zárult feltétel nélküli záró `return` nélkül, a Direct3D 11 HLSL fordító elutasította a kódot.
+     - **Megoldás:** A segédfüggvények törzsének végére automatikusan bekerül egy biztonsági `return 0.0;` lezárás.
+  4. **Automatikus Névgenerálás Üres `DESCRIPTION` esetén:**
+     - Ha a JSON-ban a `DESCRIPTION` üres sztring, a transzpiler a `CREDIT` mezőből hoz létre érvényes nevet (pl. "Joseph Fiola Shader").
