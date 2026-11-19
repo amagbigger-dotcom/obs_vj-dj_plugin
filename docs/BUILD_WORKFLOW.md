@@ -449,3 +449,29 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - **Megoldás:** Dedikált `cf_curve` és `cf_smooth` uniform változók kerültek bevezetésre. A `cf_p0`..`cf_p7` tömb kizárólag a kiválasztott effekt belső képi torzítását végzi, míg az alatta lévő két deck/shader keverése folytonos, lágy és arányos marad.
   2. **Valós Idejű Videó-Bizonyítás:**
      - Az asztali videófelvétel (`Rögzítés 2026-11-19 224148.mp4`) alapján pontosan igazolt hiba elhárítva, letesztelve és telepítve.
+
+
+### Mérföldkő #25: Build #293 / GitHub Run #297 (Új Beállítások Ablak: ASIO, Külső Keverő, MIDI Profilok & Nyelv)
+* **Verzió & Commit:** `6526e87`
+* **SHA256:** `17A22616D82F8DF97D629BFFAA0E0E3B42C96FCBFEE93F47959C3A2535D2F45B`
+* **GitHub Run ID:** `44629047953`
+* **Kész bináris mentés:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (1 123 328 bájt)
+* **Jellemzők:**
+  1. **Önálló `SettingsDialog` Lebegő Ablak (680×540 px):**
+     - Elérhető az OBS **Eszközök $\rightarrow$ OBS VJ Beállítások (Settings)** menüjéből és a Mixer ablak alsó sávjában lévő `[ ⚙ BEÁLLÍTÁSOK ]` gombbal.
+  2. **1. Fül: Audió & Hangkártya (ASIO + WASAPI + Külső Keverő):**
+     - Automatikusan felderíti a Windows Registry-ből az összes telepített ASIO drivert (pl. DJM-450 ASIO Driver, Akai MPC, FlexASIO, Voicemeeter, Korg Kaoss DJ).
+     - Támogatja a **Belső Keverő (Internal Mixer)** (Master 1-2 + CUE füles 3-4) és a **Külső Keverő / Split Deck (External Mixer)** (Deck A $\rightarrow$ Ch 1-2, Deck B $\rightarrow$ Ch 3-4 pl. Pioneer DJM-350-hez) működést.
+     - Állítható mintavételezési ráta (44.1k, 48k, 96k) és pufferméret (64–1024 minta).
+  3. **2. Fül: Videó & Shaders:**
+     - Kimeneti felbontás (1080p FHD, 720p HD, Vászonhoz igazodó).
+     - Alapértelmezett méretezési mód (FIT aránytartó, FILL kitöltés, STRETCH nyújtás).
+     - VJ Shader renderelési minőség választó (1080p teljes vagy 540p feles felbontás).
+  4. **3. Fül: MIDI & Kontrollerek (Presets & MIDI Learn):**
+     - WinMM bemeneti és kimeneti eszközök listája.
+     - Gyári profilok: Traktor Kontrol S2 MK3, Korg Kaoss DJ (Touchpad VJ p0/p1 bekötéssel), Pioneer CDJ-350 / DDJ.
+     - `[ 📥 Export JSON ]` és `[ 📤 Import JSON ]` funkciók a `.midimap.json` fájlok kezelésére.
+     - Interaktív MIDI Learn lista táblázat `[ 🔴 LEARN ]` gombokkal.
+  5. **4. Fül: Nyelv & Rendszer (Multilingual / i18n):**
+     - Nyelvválasztó: Magyar (HU), Angol (EN), Német (DE), Francia (FR).
+     - Automatikus mentés és betöltés (`settings.json`).
