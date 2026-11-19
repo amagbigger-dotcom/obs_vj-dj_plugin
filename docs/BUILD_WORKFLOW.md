@@ -435,3 +435,17 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - **Megoldás:** A segédfüggvények törzsének végére automatikusan bekerül egy biztonsági `return 0.0;` lezárás.
   4. **Automatikus Névgenerálás Üres `DESCRIPTION` esetén:**
      - Ha a JSON-ban a `DESCRIPTION` üres sztring, a transzpiler a `CREDIT` mezőből hoz létre érvényes nevet (pl. "Joseph Fiola Shader").
+
+
+### Mérföldkő #24: Build #292 / GitHub Run #295 (Crossfade FX Keverési Görbe és Effekt-Paraméter Szétválasztás)
+* **Verzió & Commit:** `2ed2c58`
+* **SHA256:** `B9C3AD54466E7D84A82C026D5853D48BD1D6A884007E2E9A77316EBACEA71281`
+* **GitHub Run ID:** `44623244789`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (1 061 376 bájt)
+* **Jellemzők:**
+  1. **Globális Crossfade Keverési Görbe Függetlenítése (`cf_curve`, `cf_smooth`):**
+     - Korábban a `src/video/mixer_source.cpp` `PS` belépési pontjában a lineáris átúsztatás görbéjét a `cf_p0` és `cf_p1` paraméterekből számolta (`cf = pow(saturate(cf), cf_p0)`).
+     - Ha bármely Crossfade effekt (pl. Swirl twist=5.0, Pixelate tiles=30.0, CRT lines=300.0) aktív volt, a crossfader arányát ez a hatalmas hatvány kitevő 80%-ig szinte nullán tartotta, ami miatt a fader 2/3-ánál (`34% A | 66% B`) sem látszott még semmi a Deck B-ből, majd a legvégén hirtelen átugrott.
+     - **Megoldás:** Dedikált `cf_curve` és `cf_smooth` uniform változók kerültek bevezetésre. A `cf_p0`..`cf_p7` tömb kizárólag a kiválasztott effekt belső képi torzítását végzi, míg az alatta lévő két deck/shader keverése folytonos, lágy és arányos marad.
+  2. **Valós Idejű Videó-Bizonyítás:**
+     - Az asztali videófelvétel (`Rögzítés 2026-11-19 224148.mp4`) alapján pontosan igazolt hiba elhárítva, letesztelve és telepítve.
