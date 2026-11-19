@@ -497,3 +497,32 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - Az audió fül görgethetővé vált, így alacsonyabb képernyőfelbontásokon is tökéletesen átlátható és kezelhető az összes beállítás.
   4. **Telepítés és Hitelesítés:**
      - Sikeresen felülírva és ellenőrizve az OBS telepítési könyvtárában (`C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`) és az Asztalon.
+
+
+### Mérföldkő #27: Build #295 / GitHub Run #302 (Adatvezérelt Kontroller Architektúra, Relatív Jog Dekóder, 200-soros Moduláris Refaktoring)
+* **Verzió & Commit:** `f020530`
+* **SHA256:** `516ABDAB0A5BBDDE915809717C4567B7B666133EF06BB0D1E0904E04DBCF8B64`
+* **GitHub Run ID:** `44640937517`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (1 220 608 bájt)
+* **Jellemzők:**
+  1. **Referencia Adatvezérelt (Data-Driven) MIDI Architektúra:**
+     - A korábbi hardcoded CC/Note logikát felváltotta egy tiszta, skálázható motor:
+       * `src/controllers/midi_types.hpp` & `.cpp`: Egységes zenei és vizuális akciók (`MidiAction`).
+       * `src/controllers/midi_jog.hpp` & `.cpp`: Relatív Jog Wheel algoritmusok (Two's Complement / Spread 64, Sign-Magnitude, Binary Offset).
+       * `src/controllers/midi_mapping.hpp` & `.cpp`: JSON-alapú profilok, hash-alapú $O(1)$ leképezés, export/import.
+       * `src/controllers/midi_dispatcher.hpp` & `.cpp`: Nem-blokkoló aszinkron eseménykezelés, Touchpad VJ moduláció (P0/P1), interaktív MIDI Learn.
+  2. **Bővített Gyári Kontroller Profilok:**
+     - **Native Instruments:** Traktor Kontrol S2 MK3
+     - **Korg:** Kaoss DJ (Transport + EQ + Kaoss Touchpad X/Y VJ Crossfade moduláció)
+     - **Pioneer DJ:** DDJ-400, DDJ-FLX4
+     - **Numark:** Mixtrack Pro / FX
+     - **Hercules:** DJControl Inpulse 300
+  3. **Szigorú 200–300 Soros Moduláris Kódstruktúra:**
+     - Az 1000 sorosra hízott beállítások dialógus szétbontva független, tiszta modulokra:
+       * `src/gui/settings_dialog.cpp` (215 sor)
+       * `src/gui/settings_audio_tab.cpp` (245 sor)
+       * `src/gui/settings_video_tab.cpp` (60 sor)
+       * `src/gui/settings_midi_tab.cpp` (217 sor)
+       * `src/gui/settings_general_tab.cpp` (55 sor)
+  4. **Telepítés és Hitelesítés:**
+     - Sikeres fordítás a GitHub Actions runneren, felülírva a célgépen és az Asztalon.
