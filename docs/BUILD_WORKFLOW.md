@@ -331,3 +331,34 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - **Mixer Forrás:** A végső pixelfeldolgozóban mélyfekete levágási küszöb (`smoothstep(0.015, 1.0, res.rgb)`) és lágy S-görbe tónus, amely több réteg és összetett effektek egyidejű használata mellett is borotvaéles, telt és dinamikus képet garantál.
   6. **MSVC C2026 Védelem a Mixer Shaderben:**
      - A `MIXER_EFFECT` HLSL kód méretnövekedése miatt a shader két részre (`MIXER_EFFECT_PART1` és `PART2`) lett bontva, megkerülve az MSVC 16 KB-os string literál korlátját.
+
+
+### Mérföldkő #19: Build #284 / GitHub Run #284 (Pontos Ablakelrendezés & ISF Shader Beágyazó Motor / IsfConverterDialog)
+* **Verzió & Commit:** `b1d2def`
+* **SHA256:** `0FC17DF09535175D44CB2F36D888EF4E8BBF638C2564FEE6A78D467B32E448BC`
+* **GitHub Run ID:** `44478061391`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (967 680 bájt)
+* **Jellemzők:**
+  1. **Pontos Ablakelrendezés & Tálca Védelem:**
+     - Az alap 3 ablak (Deck A, Mixer, Deck B) alulról megemelve (`y = geom.bottom() - 340 - 40`), így a 340 px-es kliensfelület a Windows ablakfejléccel és árnyékokkal együtt sem lóg bele a Windows tálcába.
+     - A további lebegő eszközök a felhasználó által beküldött elrendezés szerint pontos koordinátákra nyílnak:
+       * **Bal felül:** `CrossfadeFxDialog` (`x = geom.left() + 12, y = geom.top() + 38`)
+       * **Jobb felül:** `VjFxDialog` (`x = geom.right() - target_w - 12, y = geom.top() + 38`)
+       * **Közép-bal:** `LfoDialog` (`x = geom.left() + 315, y = geom.top() + 390`)
+       * **Közép-jobb:** `TracklistDock` (`x = geom.left() + 845, y = geom.top() + 390`)
+       * **Bal alul:** `Deck A` (`x = geom.left() + 12, y = geom.bottom() - 340 - 40`)
+       * **Közép alul:** `Mixer` (`x = geom.left() + 665, y = geom.bottom() - 340 - 40`)
+       * **Jobb alul:** `Deck B` (`x = geom.left() + 1268, y = geom.bottom() - 340 - 40`)
+  2. **ISF Shader Beágyazó Motor & Konverter (`CustomShaderManager` & `IsfConverterDialog`):**
+     - `%APPDATA%/obs-studio/plugin_config/obs_vj_dj_plugin/custom_shaders.json` fájlba perzisztálja az egyedi felhasználói shadereket.
+     - A VJ Shader ablakból elérhető `[ 🪄 ISF Konverter ]` gomb egy önálló stúdió dialógust (780 × 680 px) nyit meg.
+     - **Egy kattintásos AI Prompt sablon:** `[ 📋 AI Prompt Másolása Vágólapra ]` gomb kimásolja a szigorú szabványos direktívát az AI-k (ChatGPT, Claude, Gemini, DeepSeek) számára:
+       * 16:9 középpontos szimmetria (`uvn = (uv - 0.5) * float2(16.0 / 9.0, 1.0)`).
+       * Zéró aszimmetrikus középpont-eltolás vagy dőlés.
+       * Mély fekete háttér és kontrasztvédelem (köd- és fehéredésvédelem).
+       * Zenei lábdob tranziens lüktetés (`bass_energy`) integráció.
+       * Pontosan 8 kifordított paraméter (`p0`..`p7`).
+     - **Automatikus Tag- és Kód Parser:** Értelmezi a `[NAME]`, `[CATEGORY]`, `[PARAMS]`, `[CODE]` blokkokat, valamint a JSON és a nyers HLSL kódokat is.
+     - **Élő GPU Direct3D 11 Tesztfordítás (`testCompileShader`):** A `[ ⚡ Tesztelés & Hibaellenőrzés ]` gomb valós időben megkísérli lefordítani a kódot a Direct3D 11 GPU pipeline-on, azonnal visszajelezve a sikert vagy a pontos hibaüzenetet/sorszámot.
+     - **Azonnali Beágyazás & Mentés Hot-Reloadinggal:** A `[ 💾 Beágyazás & Mentés ]` gomb elmenti a shadert, frissíti mindkét deck VJ Shader legördülő menüjét, azonnal kiválasztja az új shadert, és a `CustomShaderManager::version()` mechanizmusnak köszönhetően OBS újraindítás nélkül azonnal felépíti a GPU pipeline-t!
+     - Kiterjesztett shader paraméter tömb (64 slot) mind a memóriában, mind a `.vdj.json` gyorsítótárban.
