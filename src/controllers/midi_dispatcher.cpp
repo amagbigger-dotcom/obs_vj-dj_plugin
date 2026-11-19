@@ -197,13 +197,13 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
 
     case MidiAction::VJ_PARAM_X: // E.g. Korg Kaoss Touchpad X -> Shader P0
         if (auto *decks = vdj_decks()) {
-            decks->setCrossfadeParam(0, normalized_val);
+            decks->setCrossfadeFxParamValue(decks->crossfadeFxMode(), 0, normalized_val);
         }
         break;
 
     case MidiAction::VJ_PARAM_Y: // E.g. Korg Kaoss Touchpad Y -> Shader P1
         if (auto *decks = vdj_decks()) {
-            decks->setCrossfadeParam(1, normalized_val);
+            decks->setCrossfadeFxParamValue(decks->crossfadeFxMode(), 1, normalized_val);
         }
         break;
 
