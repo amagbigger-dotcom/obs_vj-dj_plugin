@@ -419,8 +419,11 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - A tesztelés és átalakítás során automatikusan megjelenik a kinyert név, kategória és a tiszta HLSL kód a szerkesztőben.
 
 ### Mérföldkő #23: Build #291 / GitHub Run #291 (Többmint-8 Bemenetes ISF Shaderek és Vektor Cast Hibajavítás)
-* **Verzió & Commit:** Folyamatban
-* **Célkitűzés & Jellemzők:**
+* **Verzió & Commit:** `2b82f07`
+* **SHA256:** `20A5BA4E38FD91ACBBB98713C1057FE4A0C11DD4F8C6E2E131B58A769A91E9A2`
+* **GitHub Run ID:** `44612830884`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (971 776 bájt)
+* **Jellemzők:**
   1. **8-nál több bemenettel rendelkező ISF shaderek teljes támogatása (Overflow Inputs):**
      - Korábban, ha egy ISF shaderben 8-nál több `INPUT` szerepelt (pl. a Joseph Fiola shaderben 10 bemenet: `pos`, `invert`, `function`, `speed`, `multiplier`, `grid`, `detail`, `contrast`, `contrastShift`, `mode`), a ciklus 8 után megszakadt, és a kimaradó változók (`contrast`, `contrastShift`, `mode`) deklarálatlanok maradtak (`undeclared identifier`), meghiúsítva a fordítást.
      - **Megoldás:** Az első 8 paraméterkapcsolat megkapja a valós idejű `p0`..`p7` MIDI/LFO csúszkákat, a 8 feletti bemenetek pedig automatikusan beégetésre kerülnek a shader kód elejére a JSON fejlécben megadott `DEFAULT` értékeikkel (`#define contrast (0.0)`, `#define mode (0)`). Így a shader hibátlanul fordul és fut le!
