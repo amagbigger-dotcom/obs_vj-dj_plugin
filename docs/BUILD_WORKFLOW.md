@@ -384,7 +384,10 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - A korábbi "Symmetric Smooth XOR" átírva a tiszta, világos és szimmetriatorzulástól mentes "Smooth Matrix XOR" verzióra.
 
 ### Mérföldkő #21: Build #289 / GitHub Run #289 (Natív C++ ISF & GLSL Transzpiláló Motor, Külső AI Igény Nélkül)
-* **Verzió & Commit:** (aktuális HEAD)
+* **Verzió & Commit:** `925ced1`
+* **SHA256:** `5137D9133F1B6F774E13ABD5B805F85C76D437999B856B510184E19F406D3FBF`
+* **GitHub Run ID:** `44601675463`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (970 240 bájt)
 * **Jellemzők:**
   1. **100% Natív C++ ISF Transzpiláló Motor (`CustomShaderManager::transpileIsfToHlsl`):**
      - Nincs szükség külső AI asszisztensre, chat-ablakra vagy külső eszközökre.
