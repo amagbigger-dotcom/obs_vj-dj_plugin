@@ -404,3 +404,36 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - `[ 📂 .fs Fájl Tallózása ]`: Helyi lemezről azonnal betölt és átalakít `.fs` vagy `.txt` fájlokat.
      - `[ ⚡ ISF Átalakítás ]`: A beillesztett kódot egyetlen kattintással HLSL-re fordítja.
      - `[ 📋 Vágólap Beillesztése ]`: Automatikus ISF felismerés és azonnali GPU tesztfordítás.
+
+### Mérföldkő #22: Build #290 / GitHub Run #290 (ISF Transzpiler GPU Hibajavítás, Zéró Overload és UI Szinkronizáció)
+* **Verzió & Commit:** Folyamatban
+* **Célkitűzés & Jellemzők:**
+  1. **libobs OBS-SL Parser `Expected ',' or ')'` Hiba Megszüntetése:**
+     - **GLSL `in` paraméter-minősítő lecsupaszítása:** A GLSL függvényfejlécekben lévő `in` kulcsszót (`float random(in vec2 st)`, `vec3 invertColor(in vec3 color)`) az OBS-SL parser nem minősítőként, hanem típusként értelmezte, ami elakadt a paraméterneveknél. A transzpiler most automatikusan eltávolítja az `in` minősítőt a paraméterdeklarációkból.
+     - **Függvény-túlterhelés (Function Overloading) Megszüntetése:** Az OBS Studio effekt-értelmezője (`shader-parser.c`) nem támogatja a függvények túlterhelését. A `glsl_mod` helyett szigorúan egyedi függvénynevek kerültek bevezetésre (`glsl_mod`, `glsl_mod2`, `glsl_mod2s`, `glsl_mod3`, `glsl_mod3s`, `glsl_mod4`, `glsl_mod4s`).
+     - **Biztonságos Vektor Konstruktorok (`to_float2`, `to_float3`, `to_float4`):** A hibás C-stílusú `(float2)(x)` típuskonverzió helyett dedikált HLSL segédfüggvények hozzák létre a skalárból sugárzott vektorokat, megszüntetve a Direct3D 11 szintaktikai hibákat.
+  2. **Fejléc Nélküli GLSL Kódok és Uniformok Automatikus Felismerése:**
+     - Ha a forrásban nincs `/*{ ... }*/` JSON fejléc, a transzpiler a `// Cím` sorokból kinyeri a nevet, és az `uniform float/int/bool` deklarációkat automatikusan összerendeli a `p0`..`p7` csúszkákkal.
+  3. **Kétoldali UI Mező Szinkronizáció (`IsfConverterDialog`):**
+     - A `[ ⚡ Tesztelés & Hibaellenőrzés ]` és `[ ⚡ ISF Átalakítás ]` gombok megnyomásakor a felület azonnal kitölti a `Shader Neve:` és `Kategória / Stílus:` mezőket, és a kódszerkesztőben megjeleníti a megtisztított, lefordított Direct3D 11 HLSL forráskódot.
+     - A `[ 💾 Beágyazás & Mentés ]` gomb a transzpilált, ellenőrzött HLSL kódot menti el a rendszerbe.
+* **Verzió & Commit:** `925ced1`
+* **SHA256:** `5137D9133F1B6F774E13ABD5B805F85C76D437999B856B510184E19F406D3FBF`
+* **GitHub Run ID:** `44601675463`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (970 240 bájt)
+* **Jellemzők:**
+  1. **100% Natív C++ ISF Transzpiláló Motor (`CustomShaderManager::transpileIsfToHlsl`):**
+     - Nincs szükség külső AI asszisztensre, chat-ablakra vagy külső eszközökre.
+     - Közvetlenül és azonnal fogadja az `editor.isf.video`, `.fs` fájlokat és ShaderToy kódokat.
+  2. **Automatikus JSON Fejléc és Paraméter Elemzés:**
+     - `/*{ ... }*/` JSON blokkból kinyeri a nevet (`DESCRIPTION`/`CREDIT`), kategóriát (`CATEGORIES`) és az `INPUTS` listát.
+     - Akár 8 bemenetet automatikusan leképez `p0`..`p7` paraméterekre (név, min, max, default), és a kód tetején `#define <input_name> p0..p7` direktívákkal globálisan elérhetővé teszi minden segédfüggvény számára.
+  3. **Intelligens GLSL $\rightarrow$ Direct3D 11 HLSL Transzpilálás:**
+     - Zárójel-mélység elemzővel kezeli a 2-argumentumos `atan(y, x)` $\rightarrow$ `atan2(y, x)` és 1-argumentumos `atan(x)` függvényeket.
+     - Automatikusan átalakítja az 1-argumentumos skalár vektor-konstruktorokat `floatN(val)` $\rightarrow$ `(floatN)(val)`.
+     - Túlterhelt `glsl_mod` vektorokra és skalárokra, `Rot2D` / `rot2D` aliasok.
+     - Belépési pont átalakítása: `void main()` $\rightarrow$ `float4 render_custom(float2 uv)` helyi `gl_FragColor` inicializálással és `saturate` lezárással.
+  4. **Kezelőfelületi Bővítések (`IsfConverterDialog`):**
+     - `[ 📂 .fs Fájl Tallózása ]`: Helyi lemezről azonnal betölt és átalakít `.fs` vagy `.txt` fájlokat.
+     - `[ ⚡ ISF Átalakítás ]`: A beillesztett kódot egyetlen kattintással HLSL-re fordítja.
+     - `[ 📋 Vágólap Beillesztése ]`: Automatikus ISF felismerés és azonnali GPU tesztfordítás.

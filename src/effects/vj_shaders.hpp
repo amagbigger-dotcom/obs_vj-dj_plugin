@@ -83,56 +83,45 @@ VertData VSDefault(VertData v)
 }
 
 // -----------------------------------------------------------------------------
-// Matematikai segédfüggvények (Common Math Helpers)
+// Matematikai segédfüggvények (Common Math Helpers - No Function Overloading)
 // -----------------------------------------------------------------------------
+float2 to_float2(float v) { return float2(v, v); }
+float3 to_float3(float v) { return float3(v, v, v); }
+float4 to_float4(float v) { return float4(v, v, v, v); }
+
 float glsl_mod(float x, float y)
 {
     return x - y * floor(x / y);
 }
 
-float2 glsl_mod(float2 x, float2 y)
+float2 glsl_mod2(float2 x, float2 y)
 {
     return x - y * floor(x / y);
 }
 
-float2 glsl_mod(float2 x, float y)
+float2 glsl_mod2s(float2 x, float y)
 {
     return x - y * floor(x / y);
 }
 
-float3 glsl_mod(float3 x, float3 y)
+float3 glsl_mod3(float3 x, float3 y)
 {
     return x - y * floor(x / y);
 }
 
-float3 glsl_mod(float3 x, float y)
+float3 glsl_mod3s(float3 x, float y)
 {
     return x - y * floor(x / y);
 }
 
-float4 glsl_mod(float4 x, float4 y)
+float4 glsl_mod4(float4 x, float4 y)
 {
     return x - y * floor(x / y);
 }
 
-float4 glsl_mod(float4 x, float y)
+float4 glsl_mod4s(float4 x, float y)
 {
     return x - y * floor(x / y);
-}
-
-float2 glsl_mod2(float2 x, float y)
-{
-    return glsl_mod(x, y);
-}
-
-float3 glsl_mod3(float3 x, float y)
-{
-    return glsl_mod(x, y);
-}
-
-float4 glsl_mod4(float4 x, float y)
-{
-    return glsl_mod(x, y);
 }
 
 float2 rotate2D(float2 p, float angle)

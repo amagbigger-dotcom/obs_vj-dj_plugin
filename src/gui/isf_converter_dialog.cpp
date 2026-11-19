@@ -541,12 +541,22 @@ void IsfConverterDialog::onTestCompileClicked()
         return;
     }
 
+    // Update UI fields with parsed name, category, and transpiled HLSL code
+    if (name_edit_->text().trimmed().isEmpty() || name_edit_->text().trimmed() == QStringLiteral("Új ISF Shader")) {
+        name_edit_->setText(QString::fromStdString(name));
+    }
+    if (category_edit_->text().trimmed().isEmpty() || category_edit_->text().trimmed() == QStringLiteral("ISF / Procedural")) {
+        category_edit_->setText(QString::fromStdString(cat));
+    }
+    code_edit_->setPlainText(QString::fromStdString(code));
+
     status_lbl_->setText(QStringLiteral("⚡ Fordítás tesztelése a GPU Direct3D 11 motorján..."));
     status_lbl_->setStyleSheet(QStringLiteral("color: #00d2ff; font-weight: bold;"));
 
     std::string compile_err;
     if (CustomShaderManager::instance().testCompileShader(code, compile_err)) {
-        status_lbl_->setText(QStringLiteral("✓ SIKERES TESZT! A shader hibátlanul lefordult a Direct3D 11 GPU-n. Kattints a \"Beágyazás & Mentés\" gombra!"));
+        status_lbl_->setText(QStringLiteral("✓ SIKERES TESZT! A(z) \"%1\" hibátlanul lefordult a Direct3D 11 GPU-n. Kattints a \"Beágyazás & Mentés\" gombra!")
+                                 .arg(name_edit_->text().trimmed()));
         status_lbl_->setStyleSheet(QStringLiteral("color: #00ffaa; font-weight: bold;"));
     } else {
         status_lbl_->setText(QStringLiteral("❌ FORDÍTÁSI HIBA:\n%1").arg(QString::fromStdString(compile_err)));
@@ -575,10 +585,20 @@ void IsfConverterDialog::onSaveShaderClicked()
 
     // Allow user override from QLineEdit fields
     const QString custom_name = name_edit_->text().trimmed();
-    if (!custom_name.isEmpty()) name = custom_name.toStdString();
+    if (!custom_name.isEmpty()) {
+        name = custom_name.toStdString();
+    } else {
+        name_edit_->setText(QString::fromStdString(name));
+    }
 
     const QString custom_cat = category_edit_->text().trimmed();
-    if (!custom_cat.isEmpty()) cat = custom_cat.toStdString();
+    if (!custom_cat.isEmpty()) {
+        cat = custom_cat.toStdString();
+    } else {
+        category_edit_->setText(QString::fromStdString(cat));
+    }
+
+    code_edit_->setPlainText(QString::fromStdString(code));
 
     std::string out_id, out_err;
     const bool ok = CustomShaderManager::instance().addOrUpdateCustomShader(

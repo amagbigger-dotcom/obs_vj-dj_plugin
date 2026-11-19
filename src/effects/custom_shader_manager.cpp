@@ -450,17 +450,17 @@ VertData VSDefault(VertData v)
     return v_out;
 }
 
-float glsl_mod(float x, float y) { return x - y * floor(x / y); }
-float2 glsl_mod(float2 x, float2 y) { return x - y * floor(x / y); }
-float2 glsl_mod(float2 x, float y) { return x - y * floor(x / y); }
-float3 glsl_mod(float3 x, float3 y) { return x - y * floor(x / y); }
-float3 glsl_mod(float3 x, float y) { return x - y * floor(x / y); }
-float4 glsl_mod(float4 x, float4 y) { return x - y * floor(x / y); }
-float4 glsl_mod(float4 x, float y) { return x - y * floor(x / y); }
+float2 to_float2(float v) { return float2(v, v); }
+float3 to_float3(float v) { return float3(v, v, v); }
+float4 to_float4(float v) { return float4(v, v, v, v); }
 
-float2 glsl_mod2(float2 x, float y) { return glsl_mod(x, y); }
-float3 glsl_mod3(float3 x, float y) { return glsl_mod(x, y); }
-float4 glsl_mod4(float4 x, float y) { return glsl_mod(x, y); }
+float glsl_mod(float x, float y) { return x - y * floor(x / y); }
+float2 glsl_mod2(float2 x, float2 y) { return x - y * floor(x / y); }
+float2 glsl_mod2s(float2 x, float y) { return x - y * floor(x / y); }
+float3 glsl_mod3(float3 x, float3 y) { return x - y * floor(x / y); }
+float3 glsl_mod3s(float3 x, float y) { return x - y * floor(x / y); }
+float4 glsl_mod4(float4 x, float4 y) { return x - y * floor(x / y); }
+float4 glsl_mod4s(float4 x, float y) { return x - y * floor(x / y); }
 
 float2 rotate2D(float2 p, float a)
 {
@@ -531,6 +531,82 @@ static QString transpileParenCalls(const QString &code)
     const int len = code.length();
 
     while (i < len) {
+        // Check for mod( or glsl_mod(
+        bool is_mod = false;
+        int mod_len = 0;
+        if (i + 4 <= len && code.mid(i, 4) == QStringLiteral("mod(")) {
+            if (i == 0 || (!code.at(i - 1).isLetterOrNumber() && code.at(i - 1) != QLatin1Char('_'))) {
+                is_mod = true;
+                mod_len = 4;
+            }
+        } else if (i + 9 <= len && code.mid(i, 9) == QStringLiteral("glsl_mod(")) {
+            if (i == 0 || (!code.at(i - 1).isLetterOrNumber() && code.at(i - 1) != QLatin1Char('_'))) {
+                is_mod = true;
+                mod_len = 9;
+            }
+        }
+
+        if (is_mod) {
+            int start_args = i + mod_len;
+            int depth = 0;
+            int commas = 0;
+            int first_comma_pos = -1;
+            int j = start_args;
+            while (j < len) {
+                QChar c = code.at(j);
+                if (c == QLatin1Char('(')) {
+                    depth++;
+                } else if (c == QLatin1Char(')')) {
+                    if (depth == 0) break;
+                    depth--;
+                } else if (c == QLatin1Char(',') && depth == 0) {
+                    commas++;
+                    if (commas == 1) first_comma_pos = j;
+                }
+                j++;
+            }
+            if (j < len && commas == 1) {
+                QString arg1 = code.mid(start_args, first_comma_pos - start_args).trimmed();
+                QString arg2 = code.mid(first_comma_pos + 1, j - first_comma_pos - 1).trimmed();
+
+                bool is_v4 = arg1.contains(QStringLiteral(".xyzw")) || arg1.contains(QStringLiteral(".rgba")) ||
+                             arg1.contains(QStringLiteral("float4")) || arg1.contains(QStringLiteral("vec4"));
+                bool is_v3 = arg1.contains(QStringLiteral(".xyz")) || arg1.contains(QStringLiteral(".rgb")) ||
+                             arg1.contains(QStringLiteral("float3")) || arg1.contains(QStringLiteral("vec3"));
+                bool is_v2 = arg1.contains(QStringLiteral("st")) || arg1.contains(QStringLiteral("pos")) ||
+                             arg1.contains(QStringLiteral("uv")) || arg1.contains(QStringLiteral(".xy")) ||
+                             arg1.contains(QStringLiteral(".rg")) || arg1.contains(QStringLiteral("float2")) ||
+                             arg1.contains(QStringLiteral("vec2"));
+
+                bool is_v4_arg2 = arg2.contains(QStringLiteral(".xyzw")) || arg2.contains(QStringLiteral(".rgba")) ||
+                                  arg2.contains(QStringLiteral("float4")) || arg2.contains(QStringLiteral("vec4"));
+                bool is_v3_arg2 = arg2.contains(QStringLiteral(".xyz")) || arg2.contains(QStringLiteral(".rgb")) ||
+                                  arg2.contains(QStringLiteral("float3")) || arg2.contains(QStringLiteral("vec3"));
+                bool is_v2_arg2 = arg2.contains(QStringLiteral("st")) || arg2.contains(QStringLiteral("pos")) ||
+                                  arg2.contains(QStringLiteral("uv")) || arg2.contains(QStringLiteral(".xy")) ||
+                                  arg2.contains(QStringLiteral(".rg")) || arg2.contains(QStringLiteral("float2")) ||
+                                  arg2.contains(QStringLiteral("vec2"));
+
+                QString func_name = QStringLiteral("glsl_mod");
+                if (is_v4) {
+                    func_name = is_v4_arg2 ? QStringLiteral("glsl_mod4") : QStringLiteral("glsl_mod4s");
+                } else if (is_v3) {
+                    func_name = is_v3_arg2 ? QStringLiteral("glsl_mod3") : QStringLiteral("glsl_mod3s");
+                } else if (is_v2) {
+                    func_name = is_v2_arg2 ? QStringLiteral("glsl_mod2") : QStringLiteral("glsl_mod2s");
+                }
+
+                result.append(func_name);
+                result.append(QLatin1Char('('));
+                result.append(transpileParenCalls(arg1));
+                result.append(QStringLiteral(", "));
+                result.append(transpileParenCalls(arg2));
+                result.append(QLatin1Char(')'));
+                i = j + 1;
+                continue;
+            }
+        }
+
         // Check for atan(
         if (i + 5 <= len && code.mid(i, 5) == QStringLiteral("atan(")) {
             if (i == 0 || (!code.at(i - 1).isLetterOrNumber() && code.at(i - 1) != QLatin1Char('_'))) {
@@ -586,7 +662,7 @@ static QString transpileParenCalls(const QString &code)
                 if (j < len && commas == 0) {
                     QString inside = code.mid(start_args, j - start_args).trimmed();
                     if (!inside.isEmpty()) {
-                        result.append(QStringLiteral("(%1)(").arg(ftype));
+                        result.append(QStringLiteral("to_%1(").arg(ftype));
                         result.append(transpileParenCalls(inside));
                         result.append(QLatin1Char(')'));
                         i = j + 1;
@@ -760,8 +836,43 @@ bool CustomShaderManager::transpileIsfToHlsl(const std::string &raw_isf_code,
         }
     } else {
         body = qcode;
-        out_name = "GLSL Custom Shader";
+        // Try to find title from "// Title by Author" or "// Title"
+        QRegularExpression title_re(QStringLiteral("^//\\s*([A-Za-z0-9_ -]+)"), QRegularExpression::MultilineOption);
+        auto t_match = title_re.match(body.left(1000));
+        if (t_match.hasMatch()) {
+            QString cand = t_match.captured(1).trimmed();
+            if (!cand.isEmpty() && cand.length() < 50) {
+                out_name = cand.toStdString();
+            }
+        }
+        if (out_name.empty()) {
+            out_name = "GLSL Custom Shader";
+        }
         out_category = "GLSL / ShaderToy";
+
+        // Try to extract uniforms: uniform <type> <name>;
+        QRegularExpression uni_re(QStringLiteral("^[\\t ]*uniform\\s+(float|int|bool)\\s+([A-Za-z0-9_]+)\\s*;"), QRegularExpression::MultilineOption);
+        auto uni_iter = uni_re.globalMatch(body);
+        while (uni_iter.hasNext() && p_idx < 8) {
+            auto m = uni_iter.next();
+            QString utype = m.captured(1);
+            QString uname = m.captured(2);
+            if (uname == QStringLiteral("TIME") || uname == QStringLiteral("time") ||
+                uname == QStringLiteral("RENDERSIZE") || uname == QStringLiteral("iResolution") ||
+                uname == QStringLiteral("iGlobalTime")) {
+                continue;
+            }
+            out_param_ids[p_idx] = uname.toStdString();
+            out_param_names[p_idx] = uname.toStdString();
+            if (utype == QStringLiteral("bool")) {
+                out_params[p_idx] = { nullptr, nullptr, 0.0f, 1.0f, 0.0f, 1.0f };
+                bindings.append(QStringLiteral("#define %1 (p%2 > 0.5)").arg(uname).arg(p_idx));
+            } else {
+                out_params[p_idx] = { nullptr, nullptr, 0.0f, 2.0f, 1.0f, 0.05f };
+                bindings.append(QStringLiteral("#define %1 p%2").arg(uname).arg(p_idx));
+            }
+            p_idx++;
+        }
     }
 
     // Fill remaining parameters up to 8
@@ -790,11 +901,15 @@ bool CustomShaderManager::transpileIsfToHlsl(const std::string &raw_isf_code,
     body.replace(QRegularExpression(QStringLiteral("(?:vec[234]|float)\\s+TIME[^;]*;")), QStringLiteral(""));
     body.replace(QRegularExpression(QStringLiteral("(?:vec[234]|float)\\s+RENDERSIZE[^;]*;")), QStringLiteral(""));
 
-    // 3. Convert global non-const assignments outside functions: float var = ...; -> #define var (...)
+    // 3. Strip GLSL 'in' parameter qualifiers from function signatures (e.g. float random(in vec2 st))
+    body.replace(QRegularExpression(QStringLiteral("\\b(?:const\\s+)?in\\s+([A-Za-z_][A-Za-z0-9_]*\\s+[A-Za-z_][A-Za-z0-9_]*)")),
+                 QStringLiteral("\\1"));
+
+    // 4. Convert global non-const assignments outside functions: float var = ...; -> #define var (...)
     body.replace(QRegularExpression(QStringLiteral("^[\\t ]*float\\s+([A-Za-z0-9_]+)\\s*=\\s*([^;\\r\\n]+);"), QRegularExpression::MultilineOption),
                  QStringLiteral("#define \\1 (\\2)"));
 
-    // 4. Vector and matrix types
+    // 5. Vector and matrix types
     body.replace(QRegularExpression(QStringLiteral("\\bvec4\\b")), QStringLiteral("float4"));
     body.replace(QRegularExpression(QStringLiteral("\\bvec3\\b")), QStringLiteral("float3"));
     body.replace(QRegularExpression(QStringLiteral("\\bvec2\\b")), QStringLiteral("float2"));
@@ -808,10 +923,9 @@ bool CustomShaderManager::transpileIsfToHlsl(const std::string &raw_isf_code,
     body.replace(QRegularExpression(QStringLiteral("\\bbvec3\\b")), QStringLiteral("bool3"));
     body.replace(QRegularExpression(QStringLiteral("\\bbvec4\\b")), QStringLiteral("bool4"));
 
-    // 5. Functions
+    // 6. Functions (mod is handled with vector types in transpileParenCalls)
     body.replace(QRegularExpression(QStringLiteral("\\bmix\\s*\\(")), QStringLiteral("lerp("));
     body.replace(QRegularExpression(QStringLiteral("\\bfract\\s*\\(")), QStringLiteral("frac("));
-    body.replace(QRegularExpression(QStringLiteral("\\bmod\\s*\\(")), QStringLiteral("glsl_mod("));
     body.replace(QRegularExpression(QStringLiteral("\\binversesqrt\\s*\\(")), QStringLiteral("rsqrt("));
     body.replace(QRegularExpression(QStringLiteral("\\bdFdx\\s*\\(")), QStringLiteral("ddx("));
     body.replace(QRegularExpression(QStringLiteral("\\bdFdy\\s*\\(")), QStringLiteral("ddy("));

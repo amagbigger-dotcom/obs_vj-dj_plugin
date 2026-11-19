@@ -164,3 +164,18 @@ Minden médiafájl mellé közvetlenül elmentésre kerül egy kompakt JSON leí
 }
 ```
 * **Automatikus betöltés:** A dal betöltésekor a `DeckPlayer::loadVjConfigFromCache()` azonnal visszaállítja a kiválasztott VJ shadert és paraméterkiosztást.
+
+---
+
+## 6. ISF SHADER BEÁGYAZÓ MOTOR ÉS NATÍV C++ TRANSZPILER
+
+A plugin beépített motorral (`CustomShaderManager`) rendelkezik, amely képes külső webszájtokról (`editor.isf.video`, ShaderToy) származó ISF/GLSL forráskódokat közvetlenül és azonnal Direct3D 11 kompatibilis HLSL kódra fordítani és a GPU-n beágyazni:
+
+1. **Szabályos OBS-SL Szintaxis és Zéró Függvény-túlterhelés:**
+   - Az OBS Studio effekt parser nem támogatja a C++ stílusú függvény-túlterhelést.
+   - Ennek megfelelően a matematikai segédfüggvények egyedi névvel rendelkeznek: `glsl_mod`, `glsl_mod2`, `glsl_mod2s`, `glsl_mod3`, `glsl_mod3s`, `glsl_mod4`, `glsl_mod4s`.
+   - Vektor-konstrukció skalárokból: `to_float2(v)`, `to_float3(v)`, `to_float4(v)` segédfüggvényeken keresztül fut a hibás `(floatN)(val)` C-stílusú castolás helyett.
+   - GLSL `in` minősítő: automatikusan lecsupaszításra kerül a függvényfejlécekből (`float random(in vec2 st)` $\rightarrow$ `float random(float2 st)`).
+2. **Kétoldali UI Szinkronizáció (`IsfConverterDialog`):**
+   - Teszteléskor (`[ ⚡ Tesztelés & Hibaellenőrzés ]`) és átalakításkor (`[ ⚡ ISF Átalakítás ]`) a felület automatikusan kitölti a `name_edit_`, `category_edit_` és `code_edit_` mezőket a felismert metaadatokkal és transzpilált HLSL kóddal.
+   - A `[ 💾 Beágyazás & Mentés ]` gomb közvetlenül perzisztálja a lefordított és működőképes kódot a `%APPDATA%/obs-studio/plugin_config/obs_vj_dj_plugin/custom_shaders.json` fájlba.
