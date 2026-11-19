@@ -475,3 +475,25 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
   5. **4. Fül: Nyelv & Rendszer (Multilingual / i18n):**
      - Nyelvválasztó: Magyar (HU), Angol (EN), Német (DE), Francia (FR).
      - Automatikus mentés és betöltés (`settings.json`).
+
+
+### Mérföldkő #26: Build #294 / GitHub Run #299 (Teljes Bemeneti & Kimeneti Audió Mátrix: Deckenkénti In/Out, Master, CUE, Booth & Ch 1-16)
+* **Verzió & Commit:** `4861847`
+* **SHA256:** `36A9504FA514ECA908831250C209D854E3047FD65A3D8E60919AE7D8A1532694`
+* **GitHub Run ID:** `44633166869`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (1 165 312 bájt)
+* **Jellemzők:**
+  1. **Teljes Kimeneti Audió Mátrix (Output Routing Matrix):**
+     - **Főkimenet (Master Out):** Független Hangkártya Eszköz választó (WASAPI / ASIO) és L/R csatorna választók (Ch 1 - Ch 16).
+     - **Fejhallgató CUE (PFL Out):** Független kártya és L/R csatornák (alap: Ch 3-4).
+     - **Monitor / Booth Out:** Dedikált monitorozó kimenet klub/stúdió hangfalakhoz L/R csatornaválasztással.
+     - **Deck A Közvetlen Kimenet:** Külső analóg/digitális keverőhöz (pl. Pioneer DJM-350 Ch 1/2 bemenetre).
+     - **Deck B Közvetlen Kimenet:** Külső keverőhöz (pl. Pioneer DJM-350 Ch 3/4 bemenetre).
+  2. **Teljes Bemeneti Audió Mátrix (Input Routing Matrix):**
+     - **Deck A Vonal/Phono In:** Külső lemezjátszó/CDJ vagy vonalbemenet fogadása külön bal/jobb csatornával.
+     - **Deck B Vonal/Phono In:** Külső bemenet fogadása Deck B-hez.
+     - **Aux / Mikrofon Bemenet:** Külön mikrofon / élő beszéd bemenet csatornaválasztókkal.
+  3. **Gördíthető Kényelmes Felület (`QScrollArea`):**
+     - Az audió fül görgethetővé vált, így alacsonyabb képernyőfelbontásokon is tökéletesen átlátható és kezelhető az összes beállítás.
+  4. **Telepítés és Hitelesítés:**
+     - Sikeresen felülírva és ellenőrizve az OBS telepítési könyvtárában (`C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`) és az Asztalon.
