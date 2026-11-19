@@ -8,24 +8,54 @@
 class QTabWidget;
 class QComboBox;
 class QRadioButton;
-class QSpinBox;
 class QCheckBox;
 class QTableWidget;
 class QPushButton;
 class QLabel;
+class QScrollArea;
 
 struct PluginSettingsConfig {
-    // Audio
+    // Audio Driver & Hardware
     QString audio_driver = "WASAPI"; // "WASAPI", "ASIO"
     QString asio_device_name = "";
     QString wasapi_device_id = "default";
     int sample_rate = 48000;
     int buffer_size = 256;
-    int audio_mode = 0; // 0 = Internal Mixer (Master + CUE), 1 = External Mixer / Split Deck (Deck A -> Ch 1-2, Deck B -> Ch 3-4, pl. Pioneer DJM-350)
-    int master_ch_l = 1;
-    int master_ch_r = 2;
-    int cue_ch_l = 3;
-    int cue_ch_r = 4;
+    int audio_mode = 0; // 0 = Internal Mixer (Master + CUE), 1 = External Mixer / Split Deck (Deck A -> Ch 1-2, Deck B -> Ch 3-4)
+
+    // Output Routing
+    QString master_out_dev = "default";
+    int master_out_ch_l = 1;
+    int master_out_ch_r = 2;
+
+    QString cue_out_dev = "default";
+    int cue_out_ch_l = 3;
+    int cue_out_ch_r = 4;
+
+    QString booth_out_dev = "";
+    int booth_out_ch_l = 5;
+    int booth_out_ch_r = 6;
+
+    QString deck_a_out_dev = "";
+    int deck_a_out_ch_l = 1;
+    int deck_a_out_ch_r = 2;
+
+    QString deck_b_out_dev = "";
+    int deck_b_out_ch_l = 3;
+    int deck_b_out_ch_r = 4;
+
+    // Input Routing
+    QString deck_a_in_dev = "";
+    int deck_a_in_ch_l = 1;
+    int deck_a_in_ch_r = 2;
+
+    QString deck_b_in_dev = "";
+    int deck_b_in_ch_l = 3;
+    int deck_b_in_ch_r = 4;
+
+    QString aux_in_dev = "";
+    int aux_in_ch_l = 1;
+    int aux_in_ch_r = 2;
 
     // Video
     int video_resolution = 0; // 0 = 1080p FHD, 1 = 720p HD, 2 = Canvas Match
@@ -74,7 +104,9 @@ private:
     void applyConfigToUi();
     void readUiToConfig();
 
-    // Audio Controls
+    static void populateChannelCombo(QComboBox *combo, int selected_ch, int max_ch = 16);
+
+    // Audio Hardware Controls
     QComboBox *audio_driver_combo_ = nullptr;
     QComboBox *asio_device_combo_ = nullptr;
     QComboBox *wasapi_device_combo_ = nullptr;
@@ -84,6 +116,40 @@ private:
     QRadioButton *mode_external_radio_ = nullptr;
     QLabel *asio_device_label_ = nullptr;
     QLabel *wasapi_device_label_ = nullptr;
+
+    // Output Routing Controls
+    QComboBox *master_dev_combo_ = nullptr;
+    QComboBox *master_ch_l_combo_ = nullptr;
+    QComboBox *master_ch_r_combo_ = nullptr;
+
+    QComboBox *cue_dev_combo_ = nullptr;
+    QComboBox *cue_ch_l_combo_ = nullptr;
+    QComboBox *cue_ch_r_combo_ = nullptr;
+
+    QComboBox *booth_dev_combo_ = nullptr;
+    QComboBox *booth_ch_l_combo_ = nullptr;
+    QComboBox *booth_ch_r_combo_ = nullptr;
+
+    QComboBox *deck_a_out_dev_combo_ = nullptr;
+    QComboBox *deck_a_out_ch_l_combo_ = nullptr;
+    QComboBox *deck_a_out_ch_r_combo_ = nullptr;
+
+    QComboBox *deck_b_out_dev_combo_ = nullptr;
+    QComboBox *deck_b_out_ch_l_combo_ = nullptr;
+    QComboBox *deck_b_out_ch_r_combo_ = nullptr;
+
+    // Input Routing Controls
+    QComboBox *deck_a_in_dev_combo_ = nullptr;
+    QComboBox *deck_a_in_ch_l_combo_ = nullptr;
+    QComboBox *deck_a_in_ch_r_combo_ = nullptr;
+
+    QComboBox *deck_b_in_dev_combo_ = nullptr;
+    QComboBox *deck_b_in_ch_l_combo_ = nullptr;
+    QComboBox *deck_b_in_ch_r_combo_ = nullptr;
+
+    QComboBox *aux_in_dev_combo_ = nullptr;
+    QComboBox *aux_in_ch_l_combo_ = nullptr;
+    QComboBox *aux_in_ch_r_combo_ = nullptr;
 
     // Video Controls
     QComboBox *video_res_combo_ = nullptr;

@@ -9,6 +9,7 @@
 #include <QHBoxLayout>
 #include <QGridLayout>
 #include <QTabWidget>
+#include <QScrollArea>
 #include <QGroupBox>
 #include <QLabel>
 #include <QComboBox>
@@ -28,6 +29,7 @@
 #include <QJsonArray>
 
 #include <windows.h>
+#include <mmsystem.h>
 
 namespace {
 
@@ -74,6 +76,32 @@ std::vector<MonitoringDeviceItem> get_wasapi_devices()
     return devices;
 }
 
+std::vector<std::string> get_winmm_input_devices()
+{
+    std::vector<std::string> devices;
+    const UINT count = waveInGetNumDevs();
+    for (UINT i = 0; i < count; ++i) {
+        WAVEINCAPSA caps = {};
+        if (waveInGetDevCapsA(i, &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+            devices.push_back(caps.szPname);
+        }
+    }
+    return devices;
+}
+
+std::vector<std::string> get_winmm_output_devices()
+{
+    std::vector<std::string> devices;
+    const UINT count = waveOutGetNumDevs();
+    for (UINT i = 0; i < count; ++i) {
+        WAVEOUTCAPSA caps = {};
+        if (waveOutGetDevCapsA(i, &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+            devices.push_back(caps.szPname);
+        }
+    }
+    return devices;
+}
+
 QString get_settings_file_path()
 {
     const QString base_dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
@@ -91,6 +119,22 @@ PluginSettingsConfig &SettingsDialog::config()
     return g_config;
 }
 
+void SettingsDialog::populateChannelCombo(QComboBox *combo, int selected_ch, int max_ch)
+{
+    if (!combo) return;
+    combo->clear();
+    combo->addItem(QStringLiteral("-- Nincs (Disabled) --"), 0);
+    for (int i = 1; i <= max_ch; ++i) {
+        QString label = QString::asprintf("Ch %d", i);
+        if (i == 1) label += QStringLiteral(" (Bal / Left)");
+        else if (i == 2) label += QStringLiteral(" (Jobb / Right)");
+        combo->addItem(label, i);
+    }
+    int idx = combo->findData(selected_ch);
+    if (idx >= 0) combo->setCurrentIndex(idx);
+    else combo->setCurrentIndex(0);
+}
+
 void SettingsDialog::loadSettings()
 {
     const QString path = get_settings_file_path();
@@ -106,6 +150,7 @@ void SettingsDialog::loadSettings()
         return;
 
     const QJsonObject obj = doc.object();
+    // Hardware
     g_config.audio_driver = obj.value(QStringLiteral("audio_driver")).toString(QStringLiteral("WASAPI"));
     g_config.asio_device_name = obj.value(QStringLiteral("asio_device_name")).toString();
     g_config.wasapi_device_id = obj.value(QStringLiteral("wasapi_device_id")).toString(QStringLiteral("default"));
@@ -113,14 +158,51 @@ void SettingsDialog::loadSettings()
     g_config.buffer_size = obj.value(QStringLiteral("buffer_size")).toInt(256);
     g_config.audio_mode = obj.value(QStringLiteral("audio_mode")).toInt(0);
 
+    // Outputs
+    g_config.master_out_dev = obj.value(QStringLiteral("master_out_dev")).toString(QStringLiteral("default"));
+    g_config.master_out_ch_l = obj.value(QStringLiteral("master_out_ch_l")).toInt(1);
+    g_config.master_out_ch_r = obj.value(QStringLiteral("master_out_ch_r")).toInt(2);
+
+    g_config.cue_out_dev = obj.value(QStringLiteral("cue_out_dev")).toString(QStringLiteral("default"));
+    g_config.cue_out_ch_l = obj.value(QStringLiteral("cue_out_ch_l")).toInt(3);
+    g_config.cue_out_ch_r = obj.value(QStringLiteral("cue_out_ch_r")).toInt(4);
+
+    g_config.booth_out_dev = obj.value(QStringLiteral("booth_out_dev")).toString();
+    g_config.booth_out_ch_l = obj.value(QStringLiteral("booth_out_ch_l")).toInt(5);
+    g_config.booth_out_ch_r = obj.value(QStringLiteral("booth_out_ch_r")).toInt(6);
+
+    g_config.deck_a_out_dev = obj.value(QStringLiteral("deck_a_out_dev")).toString();
+    g_config.deck_a_out_ch_l = obj.value(QStringLiteral("deck_a_out_ch_l")).toInt(1);
+    g_config.deck_a_out_ch_r = obj.value(QStringLiteral("deck_a_out_ch_r")).toInt(2);
+
+    g_config.deck_b_out_dev = obj.value(QStringLiteral("deck_b_out_dev")).toString();
+    g_config.deck_b_out_ch_l = obj.value(QStringLiteral("deck_b_out_ch_l")).toInt(3);
+    g_config.deck_b_out_ch_r = obj.value(QStringLiteral("deck_b_out_ch_r")).toInt(4);
+
+    // Inputs
+    g_config.deck_a_in_dev = obj.value(QStringLiteral("deck_a_in_dev")).toString();
+    g_config.deck_a_in_ch_l = obj.value(QStringLiteral("deck_a_in_ch_l")).toInt(1);
+    g_config.deck_a_in_ch_r = obj.value(QStringLiteral("deck_a_in_ch_r")).toInt(2);
+
+    g_config.deck_b_in_dev = obj.value(QStringLiteral("deck_b_in_dev")).toString();
+    g_config.deck_b_in_ch_l = obj.value(QStringLiteral("deck_b_in_ch_l")).toInt(3);
+    g_config.deck_b_in_ch_r = obj.value(QStringLiteral("deck_b_in_ch_r")).toInt(4);
+
+    g_config.aux_in_dev = obj.value(QStringLiteral("aux_in_dev")).toString();
+    g_config.aux_in_ch_l = obj.value(QStringLiteral("aux_in_ch_l")).toInt(1);
+    g_config.aux_in_ch_r = obj.value(QStringLiteral("aux_in_ch_r")).toInt(2);
+
+    // Video
     g_config.video_resolution = obj.value(QStringLiteral("video_resolution")).toInt(0);
     g_config.default_scale_mode = obj.value(QStringLiteral("default_scale_mode")).toInt(1);
     g_config.shader_quality = obj.value(QStringLiteral("shader_quality")).toInt(0);
 
+    // MIDI
     g_config.midi_input_device = obj.value(QStringLiteral("midi_input_device")).toString();
     g_config.midi_output_device = obj.value(QStringLiteral("midi_output_device")).toString();
     g_config.active_preset = obj.value(QStringLiteral("active_preset")).toString(QStringLiteral("Traktor Kontrol S2 MK3"));
 
+    // General
     g_config.language = obj.value(QStringLiteral("language")).toString(QStringLiteral("hu"));
     g_config.auto_save_on_exit = obj.value(QStringLiteral("auto_save_on_exit")).toBool(true);
 }
@@ -133,6 +215,7 @@ void SettingsDialog::saveSettings()
         return;
 
     QJsonObject obj;
+    // Hardware
     obj[QStringLiteral("audio_driver")] = g_config.audio_driver;
     obj[QStringLiteral("asio_device_name")] = g_config.asio_device_name;
     obj[QStringLiteral("wasapi_device_id")] = g_config.wasapi_device_id;
@@ -140,14 +223,51 @@ void SettingsDialog::saveSettings()
     obj[QStringLiteral("buffer_size")] = g_config.buffer_size;
     obj[QStringLiteral("audio_mode")] = g_config.audio_mode;
 
+    // Outputs
+    obj[QStringLiteral("master_out_dev")] = g_config.master_out_dev;
+    obj[QStringLiteral("master_out_ch_l")] = g_config.master_out_ch_l;
+    obj[QStringLiteral("master_out_ch_r")] = g_config.master_out_ch_r;
+
+    obj[QStringLiteral("cue_out_dev")] = g_config.cue_out_dev;
+    obj[QStringLiteral("cue_out_ch_l")] = g_config.cue_out_ch_l;
+    obj[QStringLiteral("cue_out_ch_r")] = g_config.cue_out_ch_r;
+
+    obj[QStringLiteral("booth_out_dev")] = g_config.booth_out_dev;
+    obj[QStringLiteral("booth_out_ch_l")] = g_config.booth_out_ch_l;
+    obj[QStringLiteral("booth_out_ch_r")] = g_config.booth_out_ch_r;
+
+    obj[QStringLiteral("deck_a_out_dev")] = g_config.deck_a_out_dev;
+    obj[QStringLiteral("deck_a_out_ch_l")] = g_config.deck_a_out_ch_l;
+    obj[QStringLiteral("deck_a_out_ch_r")] = g_config.deck_a_out_ch_r;
+
+    obj[QStringLiteral("deck_b_out_dev")] = g_config.deck_b_out_dev;
+    obj[QStringLiteral("deck_b_out_ch_l")] = g_config.deck_b_out_ch_l;
+    obj[QStringLiteral("deck_b_out_ch_r")] = g_config.deck_b_out_ch_r;
+
+    // Inputs
+    obj[QStringLiteral("deck_a_in_dev")] = g_config.deck_a_in_dev;
+    obj[QStringLiteral("deck_a_in_ch_l")] = g_config.deck_a_in_ch_l;
+    obj[QStringLiteral("deck_a_in_ch_r")] = g_config.deck_a_in_ch_r;
+
+    obj[QStringLiteral("deck_b_in_dev")] = g_config.deck_b_in_dev;
+    obj[QStringLiteral("deck_b_in_ch_l")] = g_config.deck_b_in_ch_l;
+    obj[QStringLiteral("deck_b_in_ch_r")] = g_config.deck_b_in_ch_r;
+
+    obj[QStringLiteral("aux_in_dev")] = g_config.aux_in_dev;
+    obj[QStringLiteral("aux_in_ch_l")] = g_config.aux_in_ch_l;
+    obj[QStringLiteral("aux_in_ch_r")] = g_config.aux_in_ch_r;
+
+    // Video
     obj[QStringLiteral("video_resolution")] = g_config.video_resolution;
     obj[QStringLiteral("default_scale_mode")] = g_config.default_scale_mode;
     obj[QStringLiteral("shader_quality")] = g_config.shader_quality;
 
+    // MIDI
     obj[QStringLiteral("midi_input_device")] = g_config.midi_input_device;
     obj[QStringLiteral("midi_output_device")] = g_config.midi_output_device;
     obj[QStringLiteral("active_preset")] = g_config.active_preset;
 
+    // General
     obj[QStringLiteral("language")] = g_config.language;
     obj[QStringLiteral("auto_save_on_exit")] = g_config.auto_save_on_exit;
 
@@ -159,8 +279,8 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle(QStringLiteral("OBS VJ/DJ Plugin - Rendszerbeállítások (Settings)"));
-    setMinimumSize(680, 540);
-    resize(700, 560);
+    setMinimumSize(740, 600);
+    resize(760, 640);
     setupUi();
     populateDevices();
     applyConfigToUi();
@@ -177,7 +297,7 @@ void SettingsDialog::setupUi()
         "QGroupBox { background: #151a24; border: 1px solid #283344; border-radius: 5px; margin-top: 14px; padding: 10px; font-weight: bold; font-size: 11px; color: #38bdf8; } "
         "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 6px; } "
         "QLabel { color: #cbd5e1; font-size: 11px; } "
-        "QComboBox { background: #1e2636; border: 1px solid #334155; border-radius: 3px; color: #f8fafc; padding: 4px 8px; font-size: 11px; } "
+        "QComboBox { background: #1e2636; border: 1px solid #334155; border-radius: 3px; color: #f8fafc; padding: 4px 8px; font-size: 11px; min-height: 20px; } "
         "QComboBox:hover { border-color: #38bdf8; } "
         "QComboBox QAbstractItemView { background: #1e2636; color: #f8fafc; selection-background-color: #0284c7; } "
         "QRadioButton { color: #cbd5e1; font-size: 11px; spacing: 6px; } "
@@ -187,7 +307,8 @@ void SettingsDialog::setupUi()
         "QPushButton { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; border-radius: 4px; padding: 6px 14px; font-weight: bold; font-size: 11px; } "
         "QPushButton:hover { background: #334155; border-color: #38bdf8; color: #ffffff; } "
         "QTableWidget { background: #12161f; border: 1px solid #283344; color: #e2e8f0; gridline-color: #1e293b; selection-background-color: #0284c7; font-size: 11px; } "
-        "QHeaderView::section { background: #1e293b; color: #94a5bd; padding: 4px; border: 1px solid #283344; font-weight: bold; font-size: 10px; }"));
+        "QHeaderView::section { background: #1e293b; color: #94a5bd; padding: 4px; border: 1px solid #283344; font-weight: bold; font-size: 10px; } "
+        "QScrollArea { border: none; background: transparent; }"));
 
     auto *main_vbox = new QVBoxLayout(this);
     main_vbox->setContentsMargins(12, 12, 12, 12);
@@ -197,7 +318,7 @@ void SettingsDialog::setupUi()
     auto *header_layout = new QHBoxLayout();
     auto *title_lbl = new QLabel(QStringLiteral("⚙ RENDSZERBEÁLLÍTÁSOK"), this);
     title_lbl->setStyleSheet(QStringLiteral("color: #38bdf8; font-weight: bold; font-size: 14px;"));
-    auto *sub_lbl = new QLabel(QStringLiteral("ASIO, Hangkártya, Külső Keverő, MIDI Mapping & Nyelv"), this);
+    auto *sub_lbl = new QLabel(QStringLiteral("ASIO / WASAPI, Csatornakiosztás (Routing), Deckenkénti In/Out, MIDI & Nyelv"), this);
     sub_lbl->setStyleSheet(QStringLiteral("color: #64748b; font-size: 11px;"));
     header_layout->addWidget(title_lbl);
     header_layout->addSpacing(8);
@@ -222,7 +343,7 @@ void SettingsDialog::setupUi()
 
     auto *save_btn = new QPushButton(QStringLiteral("💾 Beállítások Mentése"), this);
     save_btn->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #0284c7; border: 1px solid #38bdf8; color: #ffffff; padding: 7px 20px; font-weight: bold; font-size: 11px; border-radius: 4px; } "
+        "QPushButton { background: #0284c7; border: 1px solid #38bdf8; color: #ffffff; padding: 7px 22px; font-weight: bold; font-size: 11px; border-radius: 4px; } "
         "QPushButton:hover { background: #0369a1; }"));
     connect(save_btn, &QPushButton::clicked, this, &SettingsDialog::onSaveClicked);
     btn_layout->addWidget(save_btn);
@@ -232,10 +353,13 @@ void SettingsDialog::setupUi()
 
 void SettingsDialog::setupAudioTab(QTabWidget *tabs)
 {
+    auto *scroll_area = new QScrollArea();
+    scroll_area->setWidgetResizable(true);
+
     auto *page = new QWidget();
     auto *layout = new QVBoxLayout(page);
-    layout->setContentsMargins(10, 10, 10, 10);
-    layout->setSpacing(10);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(12);
 
     // 1. Driver & Hardware Section
     auto *drv_group = new QGroupBox(QStringLiteral("🔊 HANGKÁRTYA ÉS ILLESZTŐPROGRAM (AUDIO DRIVER)"), page);
@@ -247,24 +371,24 @@ void SettingsDialog::setupAudioTab(QTabWidget *tabs)
     audio_driver_combo_->addItem(QStringLiteral("WASAPI (Standard Windows Audio)"), QStringLiteral("WASAPI"));
     audio_driver_combo_->addItem(QStringLiteral("ASIO (Professzionális Alacsony Késleltetés)"), QStringLiteral("ASIO"));
     connect(audio_driver_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &SettingsDialog::onAudioDriverChanged);
-    drv_grid->addWidget(audio_driver_combo_, 0, 1);
+    drv_grid->addWidget(audio_driver_combo_, 0, 1, 1, 2);
 
     asio_device_label_ = new QLabel(QStringLiteral("ASIO Eszköz:"), drv_group);
     asio_device_combo_ = new QComboBox(drv_group);
     drv_grid->addWidget(asio_device_label_, 1, 0);
-    drv_grid->addWidget(asio_device_combo_, 1, 1);
+    drv_grid->addWidget(asio_device_combo_, 1, 1, 1, 2);
 
     wasapi_device_label_ = new QLabel(QStringLiteral("WASAPI Monitor Eszköz:"), drv_group);
     wasapi_device_combo_ = new QComboBox(drv_group);
     drv_grid->addWidget(wasapi_device_label_, 2, 0);
-    drv_grid->addWidget(wasapi_device_combo_, 2, 1);
+    drv_grid->addWidget(wasapi_device_combo_, 2, 1, 1, 2);
 
     drv_grid->addWidget(new QLabel(QStringLiteral("Mintavételezési Ráta:"), drv_group), 3, 0);
     sample_rate_combo_ = new QComboBox(drv_group);
-    sample_rate_combo_->addItem(QStringLiteral("44100 Hz (CD Audio)"), 44100);
+    sample_rate_combo_->addItem(QStringLiteral("44100 Hz (CD Audio Standard)"), 44100);
     sample_rate_combo_->addItem(QStringLiteral("48000 Hz (OBS Stúdió Standard)"), 48000);
-    sample_rate_combo_->addItem(QStringLiteral("96000 Hz (Hi-Res Stúdió)"), 96000);
-    drv_grid->addWidget(sample_rate_combo_, 3, 1);
+    sample_rate_combo_->addItem(QStringLiteral("96000 Hz (Hi-Res Stúdió Minőség)"), 96000);
+    drv_grid->addWidget(sample_rate_combo_, 3, 1, 1, 2);
 
     drv_grid->addWidget(new QLabel(QStringLiteral("Pufferméret / Késleltetés:"), drv_group), 4, 0);
     buffer_size_combo_ = new QComboBox(drv_group);
@@ -273,31 +397,121 @@ void SettingsDialog::setupAudioTab(QTabWidget *tabs)
     buffer_size_combo_->addItem(QStringLiteral("256 minta (~5.3 ms - Optimális DJ)"), 256);
     buffer_size_combo_->addItem(QStringLiteral("512 minta (~10.6 ms - Biztonságos)"), 512);
     buffer_size_combo_->addItem(QStringLiteral("1024 minta (~21.3 ms - Magas)"), 1024);
-    drv_grid->addWidget(buffer_size_combo_, 4, 1);
+    drv_grid->addWidget(buffer_size_combo_, 4, 1, 1, 2);
 
-    layout->addWidget(drv_group);
-
-    // 2. Routing Mode Section
-    auto *mode_group = new QGroupBox(QStringLiteral("🎛 KEVERÉSI MÓD ÉS CSATORNAMÁTRIX (ROUTING)"), page);
-    auto *mode_vbox = new QVBoxLayout(mode_group);
-    mode_vbox->setSpacing(6);
-
+    drv_grid->addWidget(new QLabel(QStringLiteral("Keverési Architektúra:"), drv_group), 5, 0);
     auto *mode_btn_group = new QButtonGroup(page);
-    mode_internal_radio_ = new QRadioButton(
-        QStringLiteral("Belső Szoftveres Keverő (Internal Mixer)\n  ↳ Főkimenet (Master Out): Ch 1-2 | Fejhallgató CUE (PFL): Ch 3-4"), mode_group);
-    mode_external_radio_ = new QRadioButton(
-        QStringLiteral("Külső Keverő Mód / Split Deck (External Mixer - pl. Pioneer DJM-350 / Kaoss DJ)\n  ↳ Deck A közvetlen: Ch 1-2 | Deck B közvetlen: Ch 3-4 (Hardveres keveréshez)"), mode_group);
-
+    mode_internal_radio_ = new QRadioButton(QStringLiteral("Belső Keverő (Internal Mixer: Master Out + CUE Füles Out)"), drv_group);
+    mode_external_radio_ = new QRadioButton(QStringLiteral("Külső Keverő Mód / Split Deck (External Mixer: Deck A -> Ch 1-2, Deck B -> Ch 3-4 pl. Pioneer DJM-350)"), drv_group);
     mode_btn_group->addButton(mode_internal_radio_, 0);
     mode_btn_group->addButton(mode_external_radio_, 1);
     connect(mode_internal_radio_, &QRadioButton::toggled, this, &SettingsDialog::onAudioModeChanged);
 
+    auto *mode_vbox = new QVBoxLayout();
     mode_vbox->addWidget(mode_internal_radio_);
     mode_vbox->addWidget(mode_external_radio_);
-    layout->addWidget(mode_group);
+    drv_grid->addLayout(mode_vbox, 5, 1, 1, 2);
 
-    layout->addStretch();
-    tabs->addTab(page, QStringLiteral("🔊 Audió & Hangkártya"));
+    layout->addWidget(drv_group);
+
+    // 2. Output Routing Matrix
+    auto *out_group = new QGroupBox(QStringLiteral("🎛 KIMENETI CSATORNÁK KIOSZTÁSA (OUTPUT ROUTING MATRIX)"), page);
+    auto *out_grid = new QGridLayout(out_group);
+    out_grid->setSpacing(6);
+
+    out_grid->addWidget(new QLabel(QStringLiteral("<b>Kimeneti Funkció</b>"), out_group), 0, 0);
+    out_grid->addWidget(new QLabel(QStringLiteral("<b>Hangkártya Eszköz</b>"), out_group), 0, 1);
+    out_grid->addWidget(new QLabel(QStringLiteral("<b>Bal Csatorna (L)</b>"), out_group), 0, 2);
+    out_grid->addWidget(new QLabel(QStringLiteral("<b>Jobb Csatorna (R)</b>"), out_group), 0, 3);
+
+    // Row 1: Master
+    out_grid->addWidget(new QLabel(QStringLiteral("🔊 Főkimenet (Master Out):"), out_group), 1, 0);
+    master_dev_combo_ = new QComboBox(out_group);
+    master_ch_l_combo_ = new QComboBox(out_group);
+    master_ch_r_combo_ = new QComboBox(out_group);
+    out_grid->addWidget(master_dev_combo_, 1, 1);
+    out_grid->addWidget(master_ch_l_combo_, 1, 2);
+    out_grid->addWidget(master_ch_r_combo_, 1, 3);
+
+    // Row 2: Headphones CUE
+    out_grid->addWidget(new QLabel(QStringLiteral("🎧 Fejhallgató CUE (PFL Out):"), out_group), 2, 0);
+    cue_dev_combo_ = new QComboBox(out_group);
+    cue_ch_l_combo_ = new QComboBox(out_group);
+    cue_ch_r_combo_ = new QComboBox(out_group);
+    out_grid->addWidget(cue_dev_combo_, 2, 1);
+    out_grid->addWidget(cue_ch_l_combo_, 2, 2);
+    out_grid->addWidget(cue_ch_r_combo_, 2, 3);
+
+    // Row 3: Booth / Monitor
+    out_grid->addWidget(new QLabel(QStringLiteral("🔈 Monitor / Booth Out:"), out_group), 3, 0);
+    booth_dev_combo_ = new QComboBox(out_group);
+    booth_ch_l_combo_ = new QComboBox(out_group);
+    booth_ch_r_combo_ = new QComboBox(out_group);
+    out_grid->addWidget(booth_dev_combo_, 3, 1);
+    out_grid->addWidget(booth_ch_l_combo_, 3, 2);
+    out_grid->addWidget(booth_ch_r_combo_, 3, 3);
+
+    // Row 4: Deck A Out
+    out_grid->addWidget(new QLabel(QStringLiteral("◀ Deck A Közvetlen Kimenet:"), out_group), 4, 0);
+    deck_a_out_dev_combo_ = new QComboBox(out_group);
+    deck_a_out_ch_l_combo_ = new QComboBox(out_group);
+    deck_a_out_ch_r_combo_ = new QComboBox(out_group);
+    out_grid->addWidget(deck_a_out_dev_combo_, 4, 1);
+    out_grid->addWidget(deck_a_out_ch_l_combo_, 4, 2);
+    out_grid->addWidget(deck_a_out_ch_r_combo_, 4, 3);
+
+    // Row 5: Deck B Out
+    out_grid->addWidget(new QLabel(QStringLiteral("▶ Deck B Közvetlen Kimenet:"), out_group), 5, 0);
+    deck_b_out_dev_combo_ = new QComboBox(out_group);
+    deck_b_out_ch_l_combo_ = new QComboBox(out_group);
+    deck_b_out_ch_r_combo_ = new QComboBox(out_group);
+    out_grid->addWidget(deck_b_out_dev_combo_, 5, 1);
+    out_grid->addWidget(deck_b_out_ch_l_combo_, 5, 2);
+    out_grid->addWidget(deck_b_out_ch_r_combo_, 5, 3);
+
+    layout->addWidget(out_group);
+
+    // 3. Input Routing Matrix
+    auto *in_group = new QGroupBox(QStringLiteral("🎤 BEMENETI CSATORNÁK KIOSZTÁSA (INPUT ROUTING MATRIX)"), page);
+    auto *in_grid = new QGridLayout(in_group);
+    in_grid->setSpacing(6);
+
+    in_grid->addWidget(new QLabel(QStringLiteral("<b>Bemeneti Funkció</b>"), in_group), 0, 0);
+    in_grid->addWidget(new QLabel(QStringLiteral("<b>Bemeneti Eszköz</b>"), in_group), 0, 1);
+    in_grid->addWidget(new QLabel(QStringLiteral("<b>Bal Bemenet (L)</b>"), in_group), 0, 2);
+    in_grid->addWidget(new QLabel(QStringLiteral("<b>Jobb Bemenet (R)</b>"), in_group), 0, 3);
+
+    // Row 1: Deck A In
+    in_grid->addWidget(new QLabel(QStringLiteral("◀ Deck A Vonal/Phono In:"), in_group), 1, 0);
+    deck_a_in_dev_combo_ = new QComboBox(in_group);
+    deck_a_in_ch_l_combo_ = new QComboBox(in_group);
+    deck_a_in_ch_r_combo_ = new QComboBox(in_group);
+    in_grid->addWidget(deck_a_in_dev_combo_, 1, 1);
+    in_grid->addWidget(deck_a_in_ch_l_combo_, 1, 2);
+    in_grid->addWidget(deck_a_in_ch_r_combo_, 1, 3);
+
+    // Row 2: Deck B In
+    in_grid->addWidget(new QLabel(QStringLiteral("▶ Deck B Vonal/Phono In:"), in_group), 2, 0);
+    deck_b_in_dev_combo_ = new QComboBox(in_group);
+    deck_b_in_ch_l_combo_ = new QComboBox(in_group);
+    deck_b_in_ch_r_combo_ = new QComboBox(in_group);
+    in_grid->addWidget(deck_b_in_dev_combo_, 2, 1);
+    in_grid->addWidget(deck_b_in_ch_l_combo_, 2, 2);
+    in_grid->addWidget(deck_b_in_ch_r_combo_, 2, 3);
+
+    // Row 3: Aux / Mic
+    in_grid->addWidget(new QLabel(QStringLiteral("🎙 Aux / Mikrofon Bemenet:"), in_group), 3, 0);
+    aux_in_dev_combo_ = new QComboBox(in_group);
+    aux_in_ch_l_combo_ = new QComboBox(in_group);
+    aux_in_ch_r_combo_ = new QComboBox(in_group);
+    in_grid->addWidget(aux_in_dev_combo_, 3, 1);
+    in_grid->addWidget(aux_in_ch_l_combo_, 3, 2);
+    in_grid->addWidget(aux_in_ch_r_combo_, 3, 3);
+
+    layout->addWidget(in_group);
+
+    scroll_area->setWidget(page);
+    tabs->addTab(scroll_area, QStringLiteral("🔊 Audió & Hangkártya"));
 }
 
 void SettingsDialog::setupVideoTab(QTabWidget *tabs)
@@ -482,12 +696,70 @@ void SettingsDialog::populateDevices()
         asio_device_combo_->setEnabled(true);
     }
 
-    // WASAPI Devices
+    // WASAPI Output Devices
     wasapi_device_combo_->clear();
     const auto wasapi_devs = get_wasapi_devices();
     for (const auto &d : wasapi_devs) {
         wasapi_device_combo_->addItem(d.name, d.id);
     }
+
+    // Populate all Output Routing device dropdowns
+    auto populate_out_devs = [&](QComboBox *combo) {
+        if (!combo) return;
+        combo->clear();
+        combo->addItem(QStringLiteral("Alapértelmezett (Default Master)"), QStringLiteral("default"));
+        for (const auto &d : wasapi_devs) {
+            if (d.id != QStringLiteral("default")) {
+                combo->addItem(d.name, d.id);
+            }
+        }
+        for (const auto &drv : asio_drivers) {
+            combo->addItem(QStringLiteral("ASIO: ") + QString::fromStdString(drv), QString::fromStdString(drv));
+        }
+    };
+
+    populate_out_devs(master_dev_combo_);
+    populate_out_devs(cue_dev_combo_);
+    populate_out_devs(booth_dev_combo_);
+    populate_out_devs(deck_a_out_dev_combo_);
+    populate_out_devs(deck_b_out_dev_combo_);
+
+    // Populate Input Routing devices
+    const auto in_devs = get_winmm_input_devices();
+    auto populate_in_devs = [&](QComboBox *combo) {
+        if (!combo) return;
+        combo->clear();
+        combo->addItem(QStringLiteral("-- Nincs Bemenet (Disabled) --"), QString());
+        for (const auto &indev : in_devs) {
+            combo->addItem(QString::fromStdString(indev), QString::fromStdString(indev));
+        }
+        for (const auto &drv : asio_drivers) {
+            combo->addItem(QStringLiteral("ASIO In: ") + QString::fromStdString(drv), QString::fromStdString(drv));
+        }
+    };
+
+    populate_in_devs(deck_a_in_dev_combo_);
+    populate_in_devs(deck_b_in_dev_combo_);
+    populate_in_devs(aux_in_dev_combo_);
+
+    // Populate Channels (Ch 1 - Ch 16)
+    populateChannelCombo(master_ch_l_combo_, g_config.master_out_ch_l);
+    populateChannelCombo(master_ch_r_combo_, g_config.master_out_ch_r);
+    populateChannelCombo(cue_ch_l_combo_, g_config.cue_out_ch_l);
+    populateChannelCombo(cue_ch_r_combo_, g_config.cue_out_ch_r);
+    populateChannelCombo(booth_ch_l_combo_, g_config.booth_out_ch_l);
+    populateChannelCombo(booth_ch_r_combo_, g_config.booth_out_ch_r);
+    populateChannelCombo(deck_a_out_ch_l_combo_, g_config.deck_a_out_ch_l);
+    populateChannelCombo(deck_a_out_ch_r_combo_, g_config.deck_a_out_ch_r);
+    populateChannelCombo(deck_b_out_ch_l_combo_, g_config.deck_b_out_ch_l);
+    populateChannelCombo(deck_b_out_ch_r_combo_, g_config.deck_b_out_ch_r);
+
+    populateChannelCombo(deck_a_in_ch_l_combo_, g_config.deck_a_in_ch_l);
+    populateChannelCombo(deck_a_in_ch_r_combo_, g_config.deck_a_in_ch_r);
+    populateChannelCombo(deck_b_in_ch_l_combo_, g_config.deck_b_in_ch_l);
+    populateChannelCombo(deck_b_in_ch_r_combo_, g_config.deck_b_in_ch_r);
+    populateChannelCombo(aux_in_ch_l_combo_, g_config.aux_in_ch_l);
+    populateChannelCombo(aux_in_ch_r_combo_, g_config.aux_in_ch_r);
 
     // MIDI In
     midi_in_combo_->clear();
@@ -514,7 +786,7 @@ void SettingsDialog::populateDevices()
 
 void SettingsDialog::applyConfigToUi()
 {
-    // Audio
+    // Audio Hardware
     int drv_idx = audio_driver_combo_->findData(g_config.audio_driver);
     if (drv_idx >= 0) audio_driver_combo_->setCurrentIndex(drv_idx);
 
@@ -537,6 +809,25 @@ void SettingsDialog::applyConfigToUi()
     }
 
     onAudioDriverChanged(audio_driver_combo_->currentIndex());
+
+    // Outputs
+    auto set_combo_val = [](QComboBox *c, const QString &val) {
+        if (!c) return;
+        int idx = c->findData(val);
+        if (idx < 0) idx = c->findText(val);
+        if (idx >= 0) c->setCurrentIndex(idx);
+    };
+
+    set_combo_val(master_dev_combo_, g_config.master_out_dev);
+    set_combo_val(cue_dev_combo_, g_config.cue_out_dev);
+    set_combo_val(booth_dev_combo_, g_config.booth_out_dev);
+    set_combo_val(deck_a_out_dev_combo_, g_config.deck_a_out_dev);
+    set_combo_val(deck_b_out_dev_combo_, g_config.deck_b_out_dev);
+
+    // Inputs
+    set_combo_val(deck_a_in_dev_combo_, g_config.deck_a_in_dev);
+    set_combo_val(deck_b_in_dev_combo_, g_config.deck_b_in_dev);
+    set_combo_val(aux_in_dev_combo_, g_config.aux_in_dev);
 
     // Video
     video_res_combo_->setCurrentIndex(std::clamp(g_config.video_resolution, 0, 2));
@@ -569,14 +860,51 @@ void SettingsDialog::readUiToConfig()
     g_config.buffer_size = buffer_size_combo_->currentData().toInt();
     g_config.audio_mode = mode_external_radio_->isChecked() ? 1 : 0;
 
+    // Outputs
+    g_config.master_out_dev = master_dev_combo_->currentData().toString();
+    g_config.master_out_ch_l = master_ch_l_combo_->currentData().toInt();
+    g_config.master_out_ch_r = master_ch_r_combo_->currentData().toInt();
+
+    g_config.cue_out_dev = cue_dev_combo_->currentData().toString();
+    g_config.cue_out_ch_l = cue_ch_l_combo_->currentData().toInt();
+    g_config.cue_out_ch_r = cue_ch_r_combo_->currentData().toInt();
+
+    g_config.booth_out_dev = booth_dev_combo_->currentData().toString();
+    g_config.booth_out_ch_l = booth_ch_l_combo_->currentData().toInt();
+    g_config.booth_out_ch_r = booth_ch_r_combo_->currentData().toInt();
+
+    g_config.deck_a_out_dev = deck_a_out_dev_combo_->currentData().toString();
+    g_config.deck_a_out_ch_l = deck_a_out_ch_l_combo_->currentData().toInt();
+    g_config.deck_a_out_ch_r = deck_a_out_ch_r_combo_->currentData().toInt();
+
+    g_config.deck_b_out_dev = deck_b_out_dev_combo_->currentData().toString();
+    g_config.deck_b_out_ch_l = deck_b_out_ch_l_combo_->currentData().toInt();
+    g_config.deck_b_out_ch_r = deck_b_out_ch_r_combo_->currentData().toInt();
+
+    // Inputs
+    g_config.deck_a_in_dev = deck_a_in_dev_combo_->currentData().toString();
+    g_config.deck_a_in_ch_l = deck_a_in_ch_l_combo_->currentData().toInt();
+    g_config.deck_a_in_ch_r = deck_a_in_ch_r_combo_->currentData().toInt();
+
+    g_config.deck_b_in_dev = deck_b_in_dev_combo_->currentData().toString();
+    g_config.deck_b_in_ch_l = deck_b_in_ch_l_combo_->currentData().toInt();
+    g_config.deck_b_in_ch_r = deck_b_in_ch_r_combo_->currentData().toInt();
+
+    g_config.aux_in_dev = aux_in_dev_combo_->currentData().toString();
+    g_config.aux_in_ch_l = aux_in_ch_l_combo_->currentData().toInt();
+    g_config.aux_in_ch_r = aux_in_ch_r_combo_->currentData().toInt();
+
+    // Video
     g_config.video_resolution = video_res_combo_->currentIndex();
     g_config.default_scale_mode = video_scale_combo_->currentIndex();
     g_config.shader_quality = shader_quality_combo_->currentIndex();
 
+    // MIDI
     g_config.midi_input_device = midi_in_combo_->currentText();
     g_config.midi_output_device = midi_out_combo_->currentText();
     g_config.active_preset = midi_preset_combo_->currentText();
 
+    // General
     g_config.language = lang_combo_->currentData().toString();
     g_config.auto_save_on_exit = auto_save_check_->isChecked();
 }
