@@ -855,53 +855,47 @@ float4 render_custom(float2 uv)
 }
 
 KÖTELEZŐ SZABÁLYOK ÉS IRÁNYELVEK:
-1. TÖKÉLETES SZIMMETRIA ÉS 16:9 KÉPARÁNY:
-   - A vászon UV koordinátáit mindig így alakítsd át középpontos 16:9 koordinátákra:
+1. AZ EREDETI SHADER HŰSÉGE ÉS GEOMETRIÁJA (TILOS KALEIDOSZKÓP TORZÍTÁST CSINÁLNI!):
+   - Az eredeti shader vizuális világát, rajzolatát és geometriáját 1:1-BEN MEG KELL ŐRIZNI!
+   - SZIGORÚAN TILOS mesterséges kaleidoszkóp-tükrözést, poláris pizzaszeleteket (atan2, sector, sym_a) vagy körcikk-tükrözést beleerőszakolni a shaderbe!
+   - Csak akkor legyen szimmetrikus vagy forgó, ha az eredeti shader maga is eleve olyan volt. Ne találj ki felesleges szimmetria-pontokat!
+   - 16:9-es vászonhoz a koordináták:
      float2 uvn = (uv - 0.5) * float2(16.0 / 9.0, 1.0);
-   - A koordinátarendszer origója (0.0, 0.0) MINDIG a képernyő mértani közepe.
-   - TILOS aszimmetrikus középpont-eltolást, koordináta-pásztázást vagy elcsúszó dőlésszögeket használni! Kizárólag szimmetrikus, középpontos vizuális formákat és sugarakat hozz létre.
-   - Forgás helyett belső fázis- és alaktolást használj, vagy ha van szögelfordulás, az legyen finom lüktetés vagy oda-vissza szimmetrikus.
+     vagy ha az eredeti shader 0..1 koordinátákkal dolgozik, tartsd meg azt 16:9 képarány-korrekcióval.
 
-2. MÉLY FEKETE HÁTTÉR ÉS MAGAS KONTRASZT (KÖD- ÉS TELÍTŐDÉSVÉDELEM):
-   - TILOS a teljes képet ködös, tejszerű, szürke vagy egyszínű fehér fátyollal elárasztani! A háttérnek mély, tiszta feketének kell maradnia (0.0, 0.0, 0.0).
-   - Alkalmazz finom zajszűrést és vágást a háttérzajra:
-     col = smoothstep(0.015, 1.0, col);
-   - A színek legyenek élénkek, neonosak és kontrasztosak, ne mosódjanak össze pasztell köddé.
+2. VILÁGOS, ÉLÉNK, NEONOS ÉS DINAMIKUS MEGJELENÉS (TILOS ELSÖTÉTÍTENI!):
+   - A kép legyen tisztán látható, élénk, fényes és kontrasztos a teljes képernyőn!
+   - SZIGORÚAN TILOS agresszív vignettát (vignette) ráerőltetni, ami a kép 80%-át fekete sötétségbe fojtja!
+   - SZIGORÚAN TILOS durva sötétítő hatványozást (pow(col, >1.0)) vagy túl szűk smoothstep maszkot használni, ami miatt a kép szinte feketévé válik.
+   - A színek ragyogjanak neonosan és élettel telien.
 
-3. ZENEI LÜKTETÉS ÉS TRANZIENS REAKCIÓ (LÁBDOB / BASS):
-   - Használd a beépített 'bass_energy' változót (0.0..1.0 lábdob lüktetés) a formák méretének, ragyogásának vagy reakciójának vezérlésére, de CSAK ott, ahol van képi tartalom (pl. col *= (1.0 + bass_energy * p4 * 0.5);). Így a fekete háttér a lábdobra sem világosodik ki, csak az elemek pulzálnak!
-   - Rendelkezésre álló beépített változók és aliasok:
-     * float anim_time: másodperc alapú folyamatos futásidő (a TIME, time, iTime, u_time aliasok is automatikusan működnek!)
-     * float2 RENDERSIZE vagy float3 iResolution: (1920.0, 1080.0) vászonfelbontás
-     * float bpm: a deck zenei tempója
-     * float bass_energy: lábdob / mélyhang lüktetés (0.0 .. 1.0)
-     * float mid_energy: középtartomány energia (0.0 .. 1.0)
-     * float high_energy: magas hangok / cintányér energia (0.0 .. 1.0)
-     * float audio_amp: összegzett pillanatnyi hangerő (0.0 .. 1.0)
-     * float3 theme = get_base_theme_color(): a deck kék/narancs témaszíne
+3. AZ EREDETI PARAMÉTEREK KIFORDÍTÁSA (p0 .. p7):
+   - A p0 .. p7 paramétereket az EREDETI ISF / GLSL shader létező, valós változóira kösd rá (pl. rate/speed, zoom/scale, density, detail, color, glow, frequency)!
+   - Ne találj ki kamu "szimmetria fokok" paramétert, ha az eredeti shaderben nincs ilyen!
+   - Ha a shadernek kevesebb mint 8 paramétere van, a fennmaradó helyekre köss rá:
+     * Fő Sebesség (Rate)
+     * Nagyítás / Skála (Zoom / Scale)
+     * Részletesség / Sűrűség (Detail / Density)
+     * Fényerő / Ragyogás (Brightness / Glow)
+     * Zenei Lüktetés (Audio Pulse / Kick)
+     * Színtéma Keverés (Color / Theme Blend)
 
-4. DECK SZÍNTÉMA INTEGRÁCIÓ:
-   - float3 theme = get_base_theme_color();
-   - Ez automatikusan biztosítja a Deck A ciánkék vagy Deck B narancs (vagy a felhasználó által választott egyedi) színvilágát. Szorozd fel vagy színezd ezzel a geometrikus elemeket.
+4. BEÉPÍTETT VÁLTOZÓK ÉS ZENEI LÜKTETÉS:
+   - float anim_time: másodperc futásidő (a TIME, time, iTime, u_time aliasok is automatikusan működnek!)
+   - float2 RENDERSIZE vagy float3 iResolution: (1920.0, 1080.0) vászonfelbontás
+   - float bass_energy: lábdob / kick dinamika (0.0 .. 1.0), ezzel finoman pulzáltatható a fényerő vagy méret (pl. col *= (1.0 + bass_energy * p4 * 0.4);)
+   - float bpm: a deck tempója
+   - float mid_energy, high_energy, audio_amp elérhetők
+   - float3 theme = get_base_theme_color(): a deck kék/narancs színe, amit finoman hozzá lehet keverni a színekhez (pl. lerp(col, col * theme, 0.4)).
 
-5. PONTOSAN 8 DARAB KIFORDÍTOTT PARAMÉTER (p0 .. p7):
-   - p0: Fő Sebesség / Rate (pl. 0.1 .. 4.0, def: 1.0, step: 0.05)
-   - p1: Nagyítás / Zoom vagy Skála (pl. 0.2 .. 5.0, def: 1.0, step: 0.05)
-   - p2: Részletesség / Alak / Sugár sűrűség (pl. 1.0 .. 10.0, def: 3.0, step: 0.5)
-   - p3: Szimmetria / Tükrözés / Fokok (pl. 2.0 .. 16.0, def: 6.0, step: 1.0)
-   - p4: Zenei Pulzus Érzékenység (pl. 0.0 .. 2.0, def: 0.5, step: 0.05)
-   - p5: Fényerő / Neon Ragyogás (pl. 0.1 .. 3.0, def: 1.0, step: 0.05)
-   - p6: Színharmónia / Színeltolás (pl. 0.0 .. 1.0, def: 0.0, step: 0.02)
-   - p7: Másodlagos Alakváltozás / Kontraszt (pl. 0.5 .. 3.0, def: 1.2, step: 0.05)
-
-6. HLSL SZINTAKTIKA (Direct3D 11):
+5. HLSL SZINTAKTIKA (Direct3D 11):
    - float2, float3, float4 (NEM vec2, vec3, vec4)
    - lerp(a, b, t) (NEM mix)
    - frac(x) (NEM fract)
-   - atan2(y, x) (NEM atan(y, x))
-   - glsl_mod(x, y), glsl_mod2, glsl_mod3, glsl_mod4, Rot2D_hlsl elérhető
+   - atan2(y, x) (NEM atan)
+   - glsl_mod(x, y), glsl_mod2, glsl_mod3, glsl_mod4, rotate2D, Rot2D_hlsl elérhető
    - saturate(x) használata
-   - A fő függvény neve MINDIG: float4 render_custom(float2 uv)
+   - A fő függvény neve: float4 render_custom(float2 uv)
    - Visszatérési érték: float4(saturate(col), 1.0)
 )");
     return s_prompt;
