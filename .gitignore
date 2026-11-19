@@ -12,3 +12,10 @@ out/
 
 # Milestone binary files (stored locally, not pushed to git)
 milestones/*.dll
+
+# Temporary scratch and downloaded CI artifacts
+scratch/
+build*/
+build*.zip
+*.zip
+.vscode/
