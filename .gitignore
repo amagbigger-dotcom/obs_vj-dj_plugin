@@ -12,6 +12,7 @@ out/
 
 # Milestone binary files (stored locally, not pushed to git)
 milestones/*.dll
+*.dll
 
 # Temporary scratch and downloaded CI artifacts
 scratch/

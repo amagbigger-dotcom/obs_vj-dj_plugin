@@ -628,3 +628,34 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
        * `src/gui/settings_midi_tab.cpp` (273 sor)
   6. **Telepítés és Hitelesítés:**
      - A bináris sikeresen lefordult a felhős CI-n, és bemásolásra került a `Program Files` és `Desktop` mappákba azonos SHA256 lenyomattal.
+
+
+### Mérföldkő #30: Build #309 / GitHub Run #44779958565 (Korg KAOSS DJ Teljes Gomb- és LED-Leképezés, Tracklist Navigáció & Loop Érintőcsík)
+* **Verzió & Commit:** `697adcd`
+* **SHA256:** `B284A4B4E68A66B69CB41EFACE60D9734CC37FA12B5225FE3AD22979787A92C5`
+* **GitHub Run ID:** `44779958565` (Run #309)
+* **Kész bináris mentés:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` és `c:\gitrepo\obs_vj-dj_plugin\obs_dj-vj_plugin.dll` (1 261 056 bájt)
+* **Jellemzők és Hibajavítások:**
+  1. **Valós Idejű Kétirányú MIDI LED Visszajelzés (Hardware Feedback):**
+     - Megvalósítva a WinMM `midiOutShortMsg` kimeneti motor (`vdj_midi_send_short_msg`).
+     - Dedikált 25 Hz-es (40 ms) háttérszál (`feedback_sender_loop`) küldi a Play/Pause, CUE, Sync, Headphone CUE és Loop állapotokat a KAOSS DJ Note gombjaira (Ch 8 Deck A-hoz, Ch 9 Deck B-hez, Ch 7 Globalhoz).
+     - Automatikus intelligens MIDI OUT párosítás: a kiválasztott MIDI IN eszköz alapján (pl. "KAOSS DJ") megnyitja a megfelelő kimeneti portot, kizárva a Windows GS szintetizátort.
+  2. **Zenei Könyvtár (Tracklist) Böngészés & Betöltés Javítása:**
+     - A Browse forgatógomb (CC 30, Ch 7 & Ch 1) mindkét relatív enkóder módot (`BIN_OFFSET` és `SPREAD_64` / 65/63) automatikusan detektálja és kezeli.
+     - A Qt `QTableWidget` hibája javítva: a `selectRow()` mellett explicit `setCurrentCell(row, 1)` és `scrollToItem()` hívás történt, így a táblázat kurzora folyamatosan és láthatóan lépked le/fel az enkóder tekerésekor.
+     - A Deck A és Deck B betöltő gombok (`LOAD_SELECTED_A` Note 14 Ch 8 / Note 35, `LOAD_SELECTED_B` Note 14 Ch 9 / Note 35) azonnal betöltik a kijelölt számot. Ha még nem volt kijelölés, automatikusan a legelső (0.) sort választja ki és tölti be.
+     - Az enkóder megnyomása (`LOAD_SELECTED` Note 14 / Note 32) intelligens deckre tölt.
+  3. **Loop Érintőcsík Vezérlés (Loop Catch & Léptetés):**
+     - A Korg KAOSS DJ Loop érintőcsík fizikai gombjai pontosítva:
+       * **Bal oldal (Note 15):** `LOOP_HALVE` (Loop hossz azonnali felezése 1/2X).
+       * **Közép (Note 16):** `LOOP_TOGGLE` (Loop azonnali bekapcsolása / megfogása az aktuális pozíciótól, vagy kikapcsolása).
+       * **Jobb oldal (Note 17):** `LOOP_DOUBLE` (Loop hossz azonnali duplázása 2X).
+     - A `MidiDispatcher` a loop felezést/duplázást közvetlenül szinkronizálja a `DeckPair::setLoopBeatIndex`-szel, élőben frissítve a GUI Loop sávját és az ütemhosszt.
+  4. **Minden Fizikai Gomb és Kezelőszerv Teljes Leképezése:**
+     - Jog Wheel érintés: Note 31 (`JOG_TOUCH`).
+     - Touch Strip normál módban: Note 21 (`<<`), Note 22 (`Search`), Note 23 (`>>`), CC 33 (`JOG_SCRATCH`).
+     - Hot Cue mód gombok: Note 18, 19, 20 (`HOTCUE_1`, `HOTCUE_2`, `HOTCUE_3`).
+     - FX gomb: Note 24 (`CROSSFADE_EFFECT_NEXT`).
+     - Teljes keverő (Volume, Tempo, Gain, 3-sávos EQ, Filter, Crossfader).
+  5. **Telepítő Szkript (`install_plugin.bat`):**
+     - Egykattintásos adminisztrátori telepítő létrehozva az Asztalon és a repóban, amely bezárja a futó OBS-t és átmásolja a DLL-t a `C:\Program Files\obs-studio\obs-plugins\64bit\` könyvtárba.
