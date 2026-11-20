@@ -271,6 +271,29 @@ void SettingsDialog::onSaveClicked()
     if (auto *decks = vdj_decks()) {
         decks->setVideoScaleMode(g_config.default_scale_mode);
     }
+
+    // Apply MIDI Input Device immediately
+    if (!g_config.midi_input_device.isEmpty()) {
+        const auto in_devs = vdj_midi_get_input_devices();
+        for (size_t i = 0; i < in_devs.size(); ++i) {
+            if (QString::fromStdString(in_devs[i]) == g_config.midi_input_device) {
+                vdj_midi_open_input_device(static_cast<int>(i));
+                break;
+            }
+        }
+    }
+
+    // Apply MIDI Output Device immediately
+    if (!g_config.midi_output_device.isEmpty()) {
+        const auto out_devs = vdj_midi_get_output_devices();
+        for (size_t i = 0; i < out_devs.size(); ++i) {
+            if (QString::fromStdString(out_devs[i]) == g_config.midi_output_device) {
+                vdj_midi_open_output_device(static_cast<int>(i));
+                break;
+            }
+        }
+    }
+
     accept();
 }
 

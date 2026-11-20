@@ -34,6 +34,7 @@ private:
     QComboBox *midi_in_combo_ = nullptr;
     QComboBox *midi_out_combo_ = nullptr;
     QComboBox *preset_combo_ = nullptr;
+    QLabel *midi_activity_lbl_ = nullptr;
     QTableWidget *learn_table_ = nullptr;
 
     std::vector<MidiControllerProfile> builtin_profiles_;

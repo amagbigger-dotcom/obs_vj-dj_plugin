@@ -61,6 +61,10 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
 
     std::unique_lock<std::mutex> lock(mutex_);
 
+    if (monitor_cb_) {
+        monitor_cb_(status, data1, data2);
+    }
+
     // 1. MIDI Learn Mode
     if (is_learning_) {
         if (msg_type == MidiMsgType::CC || msg_type == MidiMsgType::NOTE_ON) {

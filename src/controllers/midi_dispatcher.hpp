@@ -19,6 +19,9 @@ public:
     using LearnCallback = std::function<void(MidiMsgType type, uint8_t ch, uint8_t control, MidiAction action, int deck)>;
     void setLearnCallback(LearnCallback cb) { learn_cb_ = cb; }
 
+    using MonitorCallback = std::function<void(uint8_t status, uint8_t data1, uint8_t data2)>;
+    void setMonitorCallback(MonitorCallback cb) { monitor_cb_ = cb; }
+
     void dispatch(uint8_t status, uint8_t data1, uint8_t data2);
 
 private:
@@ -33,4 +36,5 @@ private:
     MidiAction learn_action_ = MidiAction::NONE;
     int learn_deck_ = 0;
     LearnCallback learn_cb_;
+    MonitorCallback monitor_cb_;
 };

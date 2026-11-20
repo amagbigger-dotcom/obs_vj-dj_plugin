@@ -1,5 +1,6 @@
 #include "controllers/midi_handler.hpp"
 #include "controllers/midi_dispatcher.hpp"
+#include "gui/settings_dialog.hpp"
 #include "engine/deck_engine.hpp"
 
 #include <obs-module.h>
@@ -42,10 +43,18 @@ bool is_target_device(const char *device_name)
         return false;
 
     const std::string name = lowercase(device_name);
-    return (name.find("traktor") != std::string::npos && name.find("s2") != std::string::npos) ||
-           name.find("s3") != std::string::npos ||
-           name.find("dj") != std::string::npos ||
-           name.find("midi") != std::string::npos;
+    if (name.find("network") != std::string::npos || name.find("rtpmidi") != std::string::npos)
+        return false;
+
+    return name.find("kaoss") != std::string::npos ||
+           name.find("traktor") != std::string::npos ||
+           name.find("korg") != std::string::npos ||
+           name.find("pioneer") != std::string::npos ||
+           name.find("numark") != std::string::npos ||
+           name.find("hercules") != std::string::npos ||
+           name.find("reloop") != std::string::npos ||
+           name.find("denon") != std::string::npos ||
+           name.find("dj") != std::string::npos;
 }
 
 void CALLBACK midi_in_proc(HMIDIIN,
@@ -149,23 +158,45 @@ void vdj_midi_init()
     UINT target_device_id = MIDI_MAPPER;
     bool found_target = false;
 
-    for (UINT device_id = 0; device_id < device_count; ++device_id) {
-        MIDIINCAPSA capabilities = {};
+    const auto &cfg = SettingsDialog::config();
+    const QString saved_in_dev = cfg.midi_input_device;
 
-        if (midiInGetDevCapsA(
-                device_id, &capabilities, sizeof(capabilities)) != MMSYSERR_NOERROR) {
-            continue;
+    // 1. Try to open the explicitly configured MIDI input device first
+    if (!saved_in_dev.isEmpty()) {
+        for (UINT device_id = 0; device_id < device_count; ++device_id) {
+            MIDIINCAPSA capabilities = {};
+            if (midiInGetDevCapsA(device_id, &capabilities, sizeof(capabilities)) == MMSYSERR_NOERROR) {
+                if (saved_in_dev == QString::fromLocal8Bit(capabilities.szPname)) {
+                    target_device_id = device_id;
+                    found_target = true;
+                    std::strncpy(g_device_name, capabilities.szPname, sizeof(g_device_name) - 1);
+                    g_device_name[sizeof(g_device_name) - 1] = '\0';
+                    break;
+                }
+            }
         }
+    }
 
-        if (is_target_device(capabilities.szPname)) {
-            target_device_id = device_id;
-            found_target = true;
-            std::strncpy(
-                g_device_name,
-                capabilities.szPname,
-                sizeof(g_device_name) - 1);
-            g_device_name[sizeof(g_device_name) - 1] = '\0';
-            break;
+    // 2. If not found or empty, search for known DJ controllers (Kaoss, Traktor, Pioneer, etc.)
+    if (!found_target) {
+        for (UINT device_id = 0; device_id < device_count; ++device_id) {
+            MIDIINCAPSA capabilities = {};
+
+            if (midiInGetDevCapsA(
+                    device_id, &capabilities, sizeof(capabilities)) != MMSYSERR_NOERROR) {
+                continue;
+            }
+
+            if (is_target_device(capabilities.szPname)) {
+                target_device_id = device_id;
+                found_target = true;
+                std::strncpy(
+                    g_device_name,
+                    capabilities.szPname,
+                    sizeof(g_device_name) - 1);
+                g_device_name[sizeof(g_device_name) - 1] = '\0';
+                break;
+            }
         }
     }
 
@@ -194,13 +225,36 @@ void vdj_midi_init()
             result = midiInStart(g_midi_in);
             if (result == MMSYSERR_NOERROR) {
                 g_connected.store(true, std::memory_order_relaxed);
-                blog(LOG_INFO, "[obs-vj-deck] MIDI connected: %s", g_device_name);
+                blog(LOG_INFO, "[obs-vj-deck] MIDI connected: %s (id: %u)", g_device_name, target_device_id);
             } else {
                 midiInClose(g_midi_in);
                 g_midi_in = nullptr;
                 g_device_name[0] = '\0';
             }
         }
+    }
+
+    // Initialize active profile based on saved preset or detected hardware
+    const QString preset = cfg.active_preset.toLower();
+    std::string dev_lower = lowercase(g_device_name);
+    if (preset.contains("kaoss") || dev_lower.find("kaoss") != std::string::npos) {
+        MidiDispatcher::instance().setProfile(MidiControllerProfile::createKorgKaossDJ());
+        blog(LOG_INFO, "[obs-vj-deck] Loaded Korg Kaoss DJ mapping profile");
+    } else if (preset.contains("400")) {
+        MidiDispatcher::instance().setProfile(MidiControllerProfile::createPioneerDDJ400());
+        blog(LOG_INFO, "[obs-vj-deck] Loaded Pioneer DDJ-400 mapping profile");
+    } else if (preset.contains("flx4")) {
+        MidiDispatcher::instance().setProfile(MidiControllerProfile::createPioneerDDJFLX4());
+        blog(LOG_INFO, "[obs-vj-deck] Loaded Pioneer DDJ-FLX4 mapping profile");
+    } else if (preset.contains("mixtrack")) {
+        MidiDispatcher::instance().setProfile(MidiControllerProfile::createNumarkMixtrackPro());
+        blog(LOG_INFO, "[obs-vj-deck] Loaded Numark Mixtrack mapping profile");
+    } else if (preset.contains("inpulse")) {
+        MidiDispatcher::instance().setProfile(MidiControllerProfile::createHerculesInpulse300());
+        blog(LOG_INFO, "[obs-vj-deck] Loaded Hercules Inpulse 300 mapping profile");
+    } else {
+        MidiDispatcher::instance().setProfile(MidiControllerProfile::createTraktorS2MK3());
+        blog(LOG_INFO, "[obs-vj-deck] Loaded Traktor S2 MK3 mapping profile");
     }
 
     // Auto-connect to first available MIDI OUT device

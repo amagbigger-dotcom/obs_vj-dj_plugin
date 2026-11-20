@@ -38,6 +38,20 @@ SettingsMidiTab::SettingsMidiTab(QWidget *parent)
             }
         }, Qt::QueuedConnection);
     });
+
+    // Setup live activity monitor callback
+    MidiDispatcher::instance().setMonitorCallback([this](uint8_t status, uint8_t d1, uint8_t d2) {
+        const uint8_t ch = (status & 0x0F) + 1;
+        const uint8_t type_nib = status & 0xF0;
+        QString type_str = (type_nib == 0xB0) ? "CC" : (type_nib == 0x90 ? "Note" : "Other");
+        QMetaObject::invokeMethod(this, [this, ch, type_str, d1, d2]() {
+            if (midi_activity_lbl_) {
+                midi_activity_lbl_->setText(QStringLiteral("🟢 ÉLŐ JEL ÉRKEZETT: Ch %1 | %2 %3 | Érték: %4")
+                    .arg(ch).arg(type_str).arg(d1).arg(d2));
+                midi_activity_lbl_->setStyleSheet(QStringLiteral("color: #22c55e; font-weight: bold; font-size: 11px;"));
+            }
+        }, Qt::QueuedConnection);
+    });
 }
 
 void SettingsMidiTab::setupUi()
@@ -53,10 +67,20 @@ void SettingsMidiTab::setupUi()
 
     hw_grid->addWidget(new QLabel(QStringLiteral("MIDI Bemeneti Eszköz:"), hw_group), 0, 0);
     midi_in_combo_ = new QComboBox(hw_group);
+    connect(midi_in_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [](int idx) {
+        if (idx >= 0) {
+            vdj_midi_open_input_device(idx);
+        }
+    });
     hw_grid->addWidget(midi_in_combo_, 0, 1, 1, 2);
 
     hw_grid->addWidget(new QLabel(QStringLiteral("MIDI Kimeneti Eszköz (Clock/LED):"), hw_group), 1, 0);
     midi_out_combo_ = new QComboBox(hw_group);
+    connect(midi_out_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [](int idx) {
+        if (idx >= 0) {
+            vdj_midi_open_output_device(idx);
+        }
+    });
     hw_grid->addWidget(midi_out_combo_, 1, 1, 1, 2);
 
     hw_grid->addWidget(new QLabel(QStringLiteral("Gyári Kontroller Térkép (Mapping):"), hw_group), 2, 0);
@@ -73,6 +97,11 @@ void SettingsMidiTab::setupUi()
     connect(import_btn, &QPushButton::clicked, this, &SettingsMidiTab::onImportClicked);
     preset_btn_layout->addWidget(import_btn);
     hw_grid->addLayout(preset_btn_layout, 2, 2);
+
+    hw_grid->addWidget(new QLabel(QStringLiteral("Élő MIDI Visszajelzés:"), hw_group), 3, 0);
+    midi_activity_lbl_ = new QLabel(QStringLiteral("⚪ Várakozás bemeneti MIDI jelre..."), hw_group);
+    midi_activity_lbl_->setStyleSheet(QStringLiteral("color: #64748b; font-size: 11px;"));
+    hw_grid->addWidget(midi_activity_lbl_, 3, 1, 1, 2);
 
     layout->addWidget(hw_group);
 
@@ -242,6 +271,7 @@ void SettingsMidiTab::applyConfig(const PluginSettingsConfig &cfg)
     int p_idx = preset_combo_->findData(cfg.active_preset);
     if (p_idx >= 0) {
         preset_combo_->setCurrentIndex(p_idx);
+        onMidiPresetChanged(p_idx);
     } else {
         // Fallback default
         current_profile_ = MidiControllerProfile::createTraktorS2MK3();

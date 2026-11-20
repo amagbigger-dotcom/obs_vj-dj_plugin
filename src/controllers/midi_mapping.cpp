@@ -143,30 +143,57 @@ MidiControllerProfile MidiControllerProfile::createTraktorS2MK3()
 MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
 {
     MidiControllerProfile p("Kaoss DJ", "Korg");
-    p.addBinding({MidiMsgType::CC, 1, 8, MidiAction::CROSSFADER, 0, MidiJogMode::SPREAD_64, "Crossfader"});
-    // Kaoss Touchpad mapped to VJ Shader
-    p.addBinding({MidiMsgType::CC, 1, 12, MidiAction::VJ_PARAM_X, 0, MidiJogMode::ABSOLUTE, "Kaoss Touchpad X -> VJ P0"});
-    p.addBinding({MidiMsgType::CC, 1, 13, MidiAction::VJ_PARAM_Y, 0, MidiJogMode::ABSOLUTE, "Kaoss Touchpad Y -> VJ P1"});
 
-    // Deck A (Ch 1)
-    p.addBinding({MidiMsgType::CC, 1, 19, MidiAction::VOLUME, 1, MidiJogMode::SPREAD_64, "Volume Fader"});
-    p.addBinding({MidiMsgType::CC, 1, 20, MidiAction::EQ_HI, 1, MidiJogMode::SPREAD_64, "High EQ"});
-    p.addBinding({MidiMsgType::CC, 1, 21, MidiAction::EQ_MID, 1, MidiJogMode::SPREAD_64, "Mid EQ"});
-    p.addBinding({MidiMsgType::CC, 1, 22, MidiAction::EQ_LOW, 1, MidiJogMode::SPREAD_64, "Low EQ"});
-    p.addBinding({MidiMsgType::CC, 1, 23, MidiAction::FILTER, 1, MidiJogMode::SPREAD_64, "Filter"});
-    p.addBinding({MidiMsgType::NOTE_ON, 1, 42, MidiAction::PLAY_PAUSE, 1, MidiJogMode::SPREAD_64, "Play/Pause"});
-    p.addBinding({MidiMsgType::NOTE_ON, 1, 43, MidiAction::CUE, 1, MidiJogMode::SPREAD_64, "CUE"});
-    p.addBinding({MidiMsgType::NOTE_ON, 1, 44, MidiAction::SYNC, 1, MidiJogMode::SPREAD_64, "Sync"});
+    // --- Official Korg KAOSS DJ Factory Mapping (Ch 7 = Global, Ch 8 = Deck A, Ch 9 = Deck B) ---
+    // Global (Ch 7)
+    p.addBinding({MidiMsgType::CC, 7, 23, MidiAction::CROSSFADER, 0, MidiJogMode::SPREAD_64, "Crossfader"});
+    p.addBinding({MidiMsgType::CC, 7, 12, MidiAction::VJ_PARAM_X, 0, MidiJogMode::ABSOLUTE, "Kaoss Touchpad X -> VJ P0"});
+    p.addBinding({MidiMsgType::CC, 7, 13, MidiAction::VJ_PARAM_Y, 0, MidiJogMode::ABSOLUTE, "Kaoss Touchpad Y -> VJ P1"});
 
-    // Deck B (Ch 2)
-    p.addBinding({MidiMsgType::CC, 2, 19, MidiAction::VOLUME, 2, MidiJogMode::SPREAD_64, "Volume Fader"});
-    p.addBinding({MidiMsgType::CC, 2, 20, MidiAction::EQ_HI, 2, MidiJogMode::SPREAD_64, "High EQ"});
-    p.addBinding({MidiMsgType::CC, 2, 21, MidiAction::EQ_MID, 2, MidiJogMode::SPREAD_64, "Mid EQ"});
-    p.addBinding({MidiMsgType::CC, 2, 22, MidiAction::EQ_LOW, 2, MidiJogMode::SPREAD_64, "Low EQ"});
-    p.addBinding({MidiMsgType::CC, 2, 23, MidiAction::FILTER, 2, MidiJogMode::SPREAD_64, "Filter"});
-    p.addBinding({MidiMsgType::NOTE_ON, 2, 42, MidiAction::PLAY_PAUSE, 2, MidiJogMode::SPREAD_64, "Play/Pause"});
-    p.addBinding({MidiMsgType::NOTE_ON, 2, 43, MidiAction::CUE, 2, MidiJogMode::SPREAD_64, "CUE"});
-    p.addBinding({MidiMsgType::NOTE_ON, 2, 44, MidiAction::SYNC, 2, MidiJogMode::SPREAD_64, "Sync"});
+    // Deck A (Ch 8)
+    p.addBinding({MidiMsgType::NOTE_ON, 8, 27, MidiAction::PLAY_PAUSE, 1, MidiJogMode::SPREAD_64, "Play/Pause"});
+    p.addBinding({MidiMsgType::NOTE_ON, 8, 30, MidiAction::CUE, 1, MidiJogMode::SPREAD_64, "CUE"});
+    p.addBinding({MidiMsgType::NOTE_ON, 8, 29, MidiAction::SYNC, 1, MidiJogMode::SPREAD_64, "Sync"});
+    p.addBinding({MidiMsgType::NOTE_ON, 8, 25, MidiAction::HEADPHONE_CUE, 1, MidiJogMode::SPREAD_64, "Headphone CUE"});
+    p.addBinding({MidiMsgType::CC, 8, 24, MidiAction::VOLUME, 1, MidiJogMode::SPREAD_64, "Volume Fader"});
+    p.addBinding({MidiMsgType::CC, 8, 25, MidiAction::TEMPO_SPEED, 1, MidiJogMode::SPREAD_64, "Pitch / Tempo Fader"});
+    p.addBinding({MidiMsgType::CC, 8, 19, MidiAction::EQ_HI, 1, MidiJogMode::SPREAD_64, "High EQ"});
+    p.addBinding({MidiMsgType::CC, 8, 20, MidiAction::EQ_MID, 1, MidiJogMode::SPREAD_64, "Mid EQ"});
+    p.addBinding({MidiMsgType::CC, 8, 21, MidiAction::EQ_LOW, 1, MidiJogMode::SPREAD_64, "Low EQ"});
+    p.addBinding({MidiMsgType::CC, 8, 22, MidiAction::FILTER, 1, MidiJogMode::SPREAD_64, "Filter"});
+    p.addBinding({MidiMsgType::CC, 8, 16, MidiAction::JOG_PITCHBEND, 1, MidiJogMode::SPREAD_64, "Touch Wheel / Strip"});
+    p.addBinding({MidiMsgType::NOTE_ON, 8, 16, MidiAction::JOG_TOUCH, 1, MidiJogMode::SPREAD_64, "Touch Wheel Touch"});
+
+    // Deck B (Ch 9)
+    p.addBinding({MidiMsgType::NOTE_ON, 9, 27, MidiAction::PLAY_PAUSE, 2, MidiJogMode::SPREAD_64, "Play/Pause"});
+    p.addBinding({MidiMsgType::NOTE_ON, 9, 30, MidiAction::CUE, 2, MidiJogMode::SPREAD_64, "CUE"});
+    p.addBinding({MidiMsgType::NOTE_ON, 9, 29, MidiAction::SYNC, 2, MidiJogMode::SPREAD_64, "Sync"});
+    p.addBinding({MidiMsgType::NOTE_ON, 9, 25, MidiAction::HEADPHONE_CUE, 2, MidiJogMode::SPREAD_64, "Headphone CUE"});
+    p.addBinding({MidiMsgType::CC, 9, 24, MidiAction::VOLUME, 2, MidiJogMode::SPREAD_64, "Volume Fader"});
+    p.addBinding({MidiMsgType::CC, 9, 25, MidiAction::TEMPO_SPEED, 2, MidiJogMode::SPREAD_64, "Pitch / Tempo Fader"});
+    p.addBinding({MidiMsgType::CC, 9, 19, MidiAction::EQ_HI, 2, MidiJogMode::SPREAD_64, "High EQ"});
+    p.addBinding({MidiMsgType::CC, 9, 20, MidiAction::EQ_MID, 2, MidiJogMode::SPREAD_64, "Mid EQ"});
+    p.addBinding({MidiMsgType::CC, 9, 21, MidiAction::EQ_LOW, 2, MidiJogMode::SPREAD_64, "Low EQ"});
+    p.addBinding({MidiMsgType::CC, 9, 22, MidiAction::FILTER, 2, MidiJogMode::SPREAD_64, "Filter"});
+    p.addBinding({MidiMsgType::CC, 9, 16, MidiAction::JOG_PITCHBEND, 2, MidiJogMode::SPREAD_64, "Touch Wheel / Strip"});
+    p.addBinding({MidiMsgType::NOTE_ON, 9, 16, MidiAction::JOG_TOUCH, 2, MidiJogMode::SPREAD_64, "Touch Wheel Touch"});
+
+    // --- Fallbacks for Channel 1 (Deck A) & Channel 2 (Deck B) ---
+    p.addBinding({MidiMsgType::CC, 1, 8, MidiAction::CROSSFADER, 0, MidiJogMode::SPREAD_64, "Crossfader (Ch 1)"});
+    p.addBinding({MidiMsgType::CC, 1, 23, MidiAction::CROSSFADER, 0, MidiJogMode::SPREAD_64, "Crossfader (Ch 1 CC 23)"});
+    p.addBinding({MidiMsgType::CC, 1, 12, MidiAction::VJ_PARAM_X, 0, MidiJogMode::ABSOLUTE, "Touchpad X (Ch 1)"});
+    p.addBinding({MidiMsgType::CC, 1, 13, MidiAction::VJ_PARAM_Y, 0, MidiJogMode::ABSOLUTE, "Touchpad Y (Ch 1)"});
+
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 27, MidiAction::PLAY_PAUSE, 1, MidiJogMode::SPREAD_64, "Play/Pause (Ch 1)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 30, MidiAction::CUE, 1, MidiJogMode::SPREAD_64, "CUE (Ch 1)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 29, MidiAction::SYNC, 1, MidiJogMode::SPREAD_64, "Sync (Ch 1)"});
+    p.addBinding({MidiMsgType::CC, 1, 24, MidiAction::VOLUME, 1, MidiJogMode::SPREAD_64, "Volume (Ch 1)"});
+
+    p.addBinding({MidiMsgType::NOTE_ON, 2, 27, MidiAction::PLAY_PAUSE, 2, MidiJogMode::SPREAD_64, "Play/Pause (Ch 2)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 2, 30, MidiAction::CUE, 2, MidiJogMode::SPREAD_64, "CUE (Ch 2)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 2, 29, MidiAction::SYNC, 2, MidiJogMode::SPREAD_64, "Sync (Ch 2)"});
+    p.addBinding({MidiMsgType::CC, 2, 24, MidiAction::VOLUME, 2, MidiJogMode::SPREAD_64, "Volume (Ch 2)"});
+
     return p;
 }
 
