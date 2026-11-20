@@ -66,10 +66,15 @@ cmake --build build --config Release --parallel
 * **Visszaállítás parancsa:**
   `Copy-Item "c:\gitrepo\obs_vj-dj_plugin\milestones\obs_dj-vj_plugin_run231_build222.dll" "C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll" -Force`
 
-### Aktuális Legfrissebb Állapot: Build #312 / GitHub Run #44805359543
-* **Commit:** `44bca9a` / `d937838`
-* **SHA256:** `0D6A26A27923F5AA93DF0F16F0F37C3DCFB45C43886D1950AE231C0907F8FDBE`
-* **Főbb funkciók:** Korg KAOSS DJ SHIFT módosító, finom Jog pozicionálás (15 ms touch / 5 ms nudge), Jog feletti érintőcsík Beatgrid és SET 1 rögzítés, kétirányú LED visszajelzés.
+### Aktuális Legfrissebb Állapot: Build #315 / GitHub Run #44823480365 (Milestone #32)
+* **Commit:** `21be464`
+* **SHA256:** `4EF448253656D34312D0FCB7532ECA8046348E6CB92E47B3058D3756F6CDA556`
+* **Méret:** 1 265 664 bájt
+* **Főbb funkciók:**
+  - Korg KAOSS DJ Jog kerék irányjavítás (natív `BIN_OFFSET` relatív dekódolás, fordított irány és túlfutások megszűntek).
+  - Sima jog sebesség felezve (50 ms/tick).
+  - SHIFT + Jog mikroszkopikus precíziós pozicionálás (2 ms/tick) lábdob tranziensekhez.
+  - Érintőcsík (Touch Strip CC 33) folytonos Beatgrid húzás SHIFT-tel és smooth scrub normál módban.
 
 > [!NOTE]
 > A korábbi 31 mérföldkő (Build #222-től Build #312-ig) és a korábbi fejlesztési backlog teljes részletes leírása megtalálható a **[milestones/BUILD_HISTORY.md](file:///c:/gitrepo/obs_vj-dj_plugin/milestones/BUILD_HISTORY.md)** archívumban.
