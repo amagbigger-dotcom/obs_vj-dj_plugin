@@ -173,6 +173,7 @@ void SettingsMidiTab::refreshLearnTable()
         {QStringLiteral("◀ Deck A Nudge / Grid Left (<<)"), MidiAction::PITCH_BEND_DOWN, 1},
         {QStringLiteral("◀ Deck A Nudge / Grid Right (>>)"), MidiAction::PITCH_BEND_UP, 1},
         {QStringLiteral("◀ Deck A Set Grid Anchor (Kick 1)"), MidiAction::GRID_SET_ANCHOR, 1},
+        {QStringLiteral("◀ Deck A Touch Strip / Grid Drag"), MidiAction::TOUCH_STRIP, 1},
         {QStringLiteral("◀ Deck A Shift"), MidiAction::SHIFT, 1},
         {QStringLiteral("◀ Deck A Load Track"), MidiAction::LOAD_SELECTED_A, 1},
 
@@ -191,6 +192,7 @@ void SettingsMidiTab::refreshLearnTable()
         {QStringLiteral("▶ Deck B Nudge / Grid Left (<<)"), MidiAction::PITCH_BEND_DOWN, 2},
         {QStringLiteral("▶ Deck B Nudge / Grid Right (>>)"), MidiAction::PITCH_BEND_UP, 2},
         {QStringLiteral("▶ Deck B Set Grid Anchor (Kick 1)"), MidiAction::GRID_SET_ANCHOR, 2},
+        {QStringLiteral("▶ Deck B Touch Strip / Grid Drag"), MidiAction::TOUCH_STRIP, 2},
         {QStringLiteral("▶ Deck B Shift"), MidiAction::SHIFT, 2},
         {QStringLiteral("▶ Deck B Load Track"), MidiAction::LOAD_SELECTED_B, 2},
 

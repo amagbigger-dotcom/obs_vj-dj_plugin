@@ -53,6 +53,7 @@ enum class MidiAction : uint16_t {
 
     // Modifiers & Beatgrid
     SHIFT,
+    TOUCH_STRIP,
     GRID_NUDGE_LEFT,
     GRID_NUDGE_RIGHT,
     GRID_SET_ANCHOR,

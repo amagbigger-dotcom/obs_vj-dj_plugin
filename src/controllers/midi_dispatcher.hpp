@@ -3,6 +3,7 @@
 #include "controllers/midi_mapping.hpp"
 #include "controllers/midi_jog.hpp"
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <mutex>
 
@@ -40,6 +41,11 @@ private:
     std::atomic<bool> shift_a_{false};
     std::atomic<bool> shift_b_{false};
     std::atomic<bool> shift_global_{false};
+
+    int last_strip_a_ = -1;
+    int last_strip_b_ = -1;
+    std::chrono::steady_clock::time_point last_strip_time_a_{};
+    std::chrono::steady_clock::time_point last_strip_time_b_{};
 
     bool is_learning_ = false;
     MidiAction learn_action_ = MidiAction::NONE;

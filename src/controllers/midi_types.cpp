@@ -39,6 +39,7 @@ static const std::unordered_map<MidiAction, const char*> g_action_names = {
     {MidiAction::LOAD_SELECTED_B, "LOAD_SELECTED_B"},
     {MidiAction::LOAD_SELECTED, "LOAD_SELECTED"},
     {MidiAction::SHIFT, "SHIFT"},
+    {MidiAction::TOUCH_STRIP, "TOUCH_STRIP"},
     {MidiAction::GRID_NUDGE_LEFT, "GRID_NUDGE_LEFT"},
     {MidiAction::GRID_NUDGE_RIGHT, "GRID_NUDGE_RIGHT"},
     {MidiAction::GRID_SET_ANCHOR, "GRID_SET_ANCHOR"},

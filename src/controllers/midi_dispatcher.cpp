@@ -159,11 +159,11 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
     case MidiAction::PITCH_BEND_UP:
         if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
             if (isShiftPressed(b->deck)) {
-                // Shift + >> : moves beatgrid forward (+10 ms) to align grid to kick drum
-                target_deck->nudgeGrid(10);
+                // Shift + >> : moves beatgrid forward (+5 ms) to align grid to kick drum
+                target_deck->nudgeGrid(5);
             } else {
-                // Normal >> : gentle phase nudge (+20 ms)
-                target_deck->nudgePlayback(20);
+                // Normal >> : gentle phase nudge (+15 ms)
+                target_deck->nudgePlayback(15);
             }
         }
         break;
@@ -171,24 +171,24 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
     case MidiAction::PITCH_BEND_DOWN:
         if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
             if (isShiftPressed(b->deck)) {
-                // Shift + << : moves beatgrid backward (-10 ms) to align grid to kick drum
-                target_deck->nudgeGrid(-10);
+                // Shift + << : moves beatgrid backward (-5 ms) to align grid to kick drum
+                target_deck->nudgeGrid(-5);
             } else {
-                // Normal << : gentle phase nudge (-20 ms)
-                target_deck->nudgePlayback(-20);
+                // Normal << : gentle phase nudge (-15 ms)
+                target_deck->nudgePlayback(-15);
             }
         }
         break;
 
     case MidiAction::GRID_NUDGE_RIGHT:
         if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
-            target_deck->nudgeGrid(10);
+            target_deck->nudgeGrid(5);
         }
         break;
 
     case MidiAction::GRID_NUDGE_LEFT:
         if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
-            target_deck->nudgeGrid(-10);
+            target_deck->nudgeGrid(-5);
         }
         break;
 
@@ -197,6 +197,36 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
             target_deck->setGridAnchorAtCurrent(true);
         }
         break;
+
+    case MidiAction::TOUCH_STRIP: {
+        if (!target_deck) break;
+        int &last_val = (b->deck == 2) ? last_strip_b_ : last_strip_a_;
+        auto &last_time = (b->deck == 2) ? last_strip_time_b_ : last_strip_time_a_;
+        auto now = std::chrono::steady_clock::now();
+        const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count();
+        last_time = now;
+
+        if (last_val < 0 || elapsed_ms > 300) {
+            // New touch session / touch down: anchor position without jump
+            last_val = static_cast<int>(data2);
+            break;
+        }
+
+        const int diff = static_cast<int>(data2) - last_val;
+        last_val = static_cast<int>(data2);
+
+        // If finger lifted and tapped far away (> 35), avoid large sudden jumps
+        if (std::abs(diff) > 35) break;
+
+        if (isShiftPressed(b->deck)) {
+            // SHIFT held: smoothly drag/slide the beatgrid across the waveform (2 ms per unit)
+            target_deck->nudgeGrid(static_cast<int64_t>(diff * 2));
+        } else {
+            // SHIFT not held: smooth audio scrub / position nudge (15 ms per unit)
+            target_deck->nudgePlayback(static_cast<int64_t>(diff * 15));
+        }
+        break;
+    }
 
     case MidiAction::SHIFT: {
         const bool active = (msg_type == MidiMsgType::NOTE_ON && data2 > 0) ||
@@ -379,13 +409,19 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         if (target_deck && std::abs(delta) > 0.001) {
             const bool shifted = isShiftPressed(b->deck) || (b->control == 15);
             if (shifted) {
-                // Slower tempo / fine positioning when SHIFT is held (or CC 15 wheelTurnShift)
-                const double speed = jog.isTouched() ? 15.0 : 5.0;
-                target_deck->nudgePlayback(static_cast<int64_t>(delta * speed));
+                if (jog.isTouched()) {
+                    // Platter touch + Shift: Ultra-fine audio positioning (2.0 ms/tick, sample accurate)
+                    target_deck->nudgePlayback(static_cast<int64_t>(delta * 2.0));
+                } else {
+                    // Outer rim turn + Shift (or CC 15 wheelTurnShift): Slide beatgrid by 2 ms/tick!
+                    target_deck->nudgeGrid(static_cast<int64_t>(delta * 2.0));
+                }
             } else if (jog.isTouched()) {
-                target_deck->nudgePlayback(static_cast<int64_t>(delta * 120.0));
+                // Normal platter touch: half speed (50 ms/tick instead of 120 ms)
+                target_deck->nudgePlayback(static_cast<int64_t>(delta * 50.0));
             } else {
-                target_deck->nudgePlayback(static_cast<int64_t>(delta * 25.0));
+                // Normal outer rim: gentle phase nudge (12 ms/tick)
+                target_deck->nudgePlayback(static_cast<int64_t>(delta * 12.0));
             }
         }
         break;

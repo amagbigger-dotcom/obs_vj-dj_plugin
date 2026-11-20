@@ -41,10 +41,10 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
     p.addBinding({MidiMsgType::CC, 8, 30, MidiAction::FILTER, 1, MidiJogMode::SPREAD_64, "Filter (Alt CC 30)"});
 
     // Deck A Touch Platter (Jog Wheel)
-    p.addBinding({MidiMsgType::NOTE_ON, 8, 31, MidiAction::JOG_TOUCH, 1, MidiJogMode::SPREAD_64, "Touch Wheel Touch"});
-    p.addBinding({MidiMsgType::CC, 8, 14, MidiAction::JOG_SCRATCH, 1, MidiJogMode::SPREAD_64, "Touch Wheel Movement"});
-    p.addBinding({MidiMsgType::CC, 8, 15, MidiAction::JOG_SCRATCH, 1, MidiJogMode::SPREAD_64, "Touch Wheel Movement (Shift)"});
-    p.addBinding({MidiMsgType::CC, 8, 16, MidiAction::JOG_SCRATCH, 1, MidiJogMode::SPREAD_64, "Touch Wheel / Strip Scratch"});
+    p.addBinding({MidiMsgType::NOTE_ON, 8, 31, MidiAction::JOG_TOUCH, 1, MidiJogMode::BIN_OFFSET, "Touch Wheel Touch"});
+    p.addBinding({MidiMsgType::CC, 8, 14, MidiAction::JOG_SCRATCH, 1, MidiJogMode::BIN_OFFSET, "Touch Wheel Movement"});
+    p.addBinding({MidiMsgType::CC, 8, 15, MidiAction::JOG_SCRATCH, 1, MidiJogMode::BIN_OFFSET, "Touch Wheel Movement (Shift)"});
+    p.addBinding({MidiMsgType::CC, 8, 16, MidiAction::JOG_SCRATCH, 1, MidiJogMode::BIN_OFFSET, "Touch Wheel / Strip Scratch"});
 
     // Deck A Shift
     p.addBinding({MidiMsgType::NOTE_ON, 8, 26, MidiAction::SHIFT, 1, MidiJogMode::SPREAD_64, "Shift Deck A"});
@@ -53,7 +53,7 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
     p.addBinding({MidiMsgType::NOTE_ON, 8, 21, MidiAction::PITCH_BEND_DOWN, 1, MidiJogMode::SPREAD_64, "Nudge Down / Shift: Grid Left (<<)"});
     p.addBinding({MidiMsgType::NOTE_ON, 8, 22, MidiAction::GRID_SET_ANCHOR, 1, MidiJogMode::SPREAD_64, "Set Grid Anchor (Kick 1)"});
     p.addBinding({MidiMsgType::NOTE_ON, 8, 23, MidiAction::PITCH_BEND_UP, 1, MidiJogMode::SPREAD_64, "Nudge Up / Shift: Grid Right (>>)"});
-    p.addBinding({MidiMsgType::CC, 8, 33, MidiAction::JOG_SCRATCH, 1, MidiJogMode::SPREAD_64, "Touch Strip Position"});
+    p.addBinding({MidiMsgType::CC, 8, 33, MidiAction::TOUCH_STRIP, 1, MidiJogMode::ABSOLUTE, "Touch Strip Position"});
 
     // Deck A Touch Strip - Loop Mode
     p.addBinding({MidiMsgType::NOTE_ON, 8, 15, MidiAction::LOOP_HALVE, 1, MidiJogMode::SPREAD_64, "Loop 1/2X (Left)"});
@@ -88,10 +88,10 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
     p.addBinding({MidiMsgType::CC, 9, 30, MidiAction::FILTER, 2, MidiJogMode::SPREAD_64, "Filter (Alt CC 30)"});
 
     // Deck B Touch Platter (Jog Wheel)
-    p.addBinding({MidiMsgType::NOTE_ON, 9, 31, MidiAction::JOG_TOUCH, 2, MidiJogMode::SPREAD_64, "Touch Wheel Touch"});
-    p.addBinding({MidiMsgType::CC, 9, 14, MidiAction::JOG_SCRATCH, 2, MidiJogMode::SPREAD_64, "Touch Wheel Movement"});
-    p.addBinding({MidiMsgType::CC, 9, 15, MidiAction::JOG_SCRATCH, 2, MidiJogMode::SPREAD_64, "Touch Wheel Movement (Shift)"});
-    p.addBinding({MidiMsgType::CC, 9, 16, MidiAction::JOG_SCRATCH, 2, MidiJogMode::SPREAD_64, "Touch Wheel / Strip Scratch"});
+    p.addBinding({MidiMsgType::NOTE_ON, 9, 31, MidiAction::JOG_TOUCH, 2, MidiJogMode::BIN_OFFSET, "Touch Wheel Touch"});
+    p.addBinding({MidiMsgType::CC, 9, 14, MidiAction::JOG_SCRATCH, 2, MidiJogMode::BIN_OFFSET, "Touch Wheel Movement"});
+    p.addBinding({MidiMsgType::CC, 9, 15, MidiAction::JOG_SCRATCH, 2, MidiJogMode::BIN_OFFSET, "Touch Wheel Movement (Shift)"});
+    p.addBinding({MidiMsgType::CC, 9, 16, MidiAction::JOG_SCRATCH, 2, MidiJogMode::BIN_OFFSET, "Touch Wheel / Strip Scratch"});
 
     // Deck B Shift
     p.addBinding({MidiMsgType::NOTE_ON, 9, 26, MidiAction::SHIFT, 2, MidiJogMode::SPREAD_64, "Shift Deck B"});
@@ -100,7 +100,7 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
     p.addBinding({MidiMsgType::NOTE_ON, 9, 21, MidiAction::PITCH_BEND_DOWN, 2, MidiJogMode::SPREAD_64, "Nudge Down / Shift: Grid Left (<<)"});
     p.addBinding({MidiMsgType::NOTE_ON, 9, 22, MidiAction::GRID_SET_ANCHOR, 2, MidiJogMode::SPREAD_64, "Set Grid Anchor (Kick 1)"});
     p.addBinding({MidiMsgType::NOTE_ON, 9, 23, MidiAction::PITCH_BEND_UP, 2, MidiJogMode::SPREAD_64, "Nudge Up / Shift: Grid Right (>>)"});
-    p.addBinding({MidiMsgType::CC, 9, 33, MidiAction::JOG_SCRATCH, 2, MidiJogMode::SPREAD_64, "Touch Strip Position"});
+    p.addBinding({MidiMsgType::CC, 9, 33, MidiAction::TOUCH_STRIP, 2, MidiJogMode::ABSOLUTE, "Touch Strip Position"});
 
     // Deck B Touch Strip - Loop Mode
     p.addBinding({MidiMsgType::NOTE_ON, 9, 15, MidiAction::LOOP_HALVE, 2, MidiJogMode::SPREAD_64, "Loop 1/2X (Left)"});
@@ -144,14 +144,15 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
     p.addBinding({MidiMsgType::CC, 1, 28, MidiAction::EQ_MID, 1, MidiJogMode::SPREAD_64, "Mid EQ (Ch 1)"});
     p.addBinding({MidiMsgType::CC, 1, 29, MidiAction::EQ_LOW, 1, MidiJogMode::SPREAD_64, "Low EQ (Ch 1)"});
     p.addBinding({MidiMsgType::CC, 1, 22, MidiAction::FILTER, 1, MidiJogMode::SPREAD_64, "Filter (Ch 1)"});
-    p.addBinding({MidiMsgType::CC, 1, 14, MidiAction::JOG_SCRATCH, 1, MidiJogMode::SPREAD_64, "Touch Wheel (Ch 1 CC 14)"});
-    p.addBinding({MidiMsgType::CC, 1, 15, MidiAction::JOG_SCRATCH, 1, MidiJogMode::SPREAD_64, "Touch Wheel (Shift Ch 1 CC 15)"});
-    p.addBinding({MidiMsgType::CC, 1, 16, MidiAction::JOG_SCRATCH, 1, MidiJogMode::SPREAD_64, "Touch Wheel (Ch 1 CC 16)"});
+    p.addBinding({MidiMsgType::CC, 1, 14, MidiAction::JOG_SCRATCH, 1, MidiJogMode::BIN_OFFSET, "Touch Wheel (Ch 1 CC 14)"});
+    p.addBinding({MidiMsgType::CC, 1, 15, MidiAction::JOG_SCRATCH, 1, MidiJogMode::BIN_OFFSET, "Touch Wheel (Shift Ch 1 CC 15)"});
+    p.addBinding({MidiMsgType::CC, 1, 16, MidiAction::JOG_SCRATCH, 1, MidiJogMode::BIN_OFFSET, "Touch Wheel (Ch 1 CC 16)"});
     p.addBinding({MidiMsgType::NOTE_ON, 1, 26, MidiAction::SHIFT, 1, MidiJogMode::SPREAD_64, "Shift Deck A (Ch 1)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 1, 31, MidiAction::JOG_TOUCH, 1, MidiJogMode::SPREAD_64, "Touch Wheel Touch (Ch 1 Note 31)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 31, MidiAction::JOG_TOUCH, 1, MidiJogMode::BIN_OFFSET, "Touch Wheel Touch (Ch 1 Note 31)"});
     p.addBinding({MidiMsgType::NOTE_ON, 1, 21, MidiAction::PITCH_BEND_DOWN, 1, MidiJogMode::SPREAD_64, "Nudge Down / Shift: Grid Left (Ch 1)"});
     p.addBinding({MidiMsgType::NOTE_ON, 1, 22, MidiAction::GRID_SET_ANCHOR, 1, MidiJogMode::SPREAD_64, "Set Grid Anchor (Kick 1 Ch 1)"});
     p.addBinding({MidiMsgType::NOTE_ON, 1, 23, MidiAction::PITCH_BEND_UP, 1, MidiJogMode::SPREAD_64, "Nudge Up / Shift: Grid Right (Ch 1)"});
+    p.addBinding({MidiMsgType::CC, 1, 33, MidiAction::TOUCH_STRIP, 1, MidiJogMode::ABSOLUTE, "Touch Strip Position (Ch 1)"});
     p.addBinding({MidiMsgType::NOTE_ON, 1, 15, MidiAction::LOOP_HALVE, 1, MidiJogMode::SPREAD_64, "Loop 1/2X (Ch 1 Note 15)"});
     p.addBinding({MidiMsgType::NOTE_ON, 1, 16, MidiAction::LOOP_TOGGLE, 1, MidiJogMode::SPREAD_64, "Loop Toggle (Ch 1 Note 16)"});
     p.addBinding({MidiMsgType::NOTE_ON, 1, 17, MidiAction::LOOP_DOUBLE, 1, MidiJogMode::SPREAD_64, "Loop 2X (Ch 1 Note 17)"});
@@ -176,14 +177,15 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
     p.addBinding({MidiMsgType::CC, 2, 28, MidiAction::EQ_MID, 2, MidiJogMode::SPREAD_64, "Mid EQ (Ch 2)"});
     p.addBinding({MidiMsgType::CC, 2, 29, MidiAction::EQ_LOW, 2, MidiJogMode::SPREAD_64, "Low EQ (Ch 2)"});
     p.addBinding({MidiMsgType::CC, 2, 22, MidiAction::FILTER, 2, MidiJogMode::SPREAD_64, "Filter (Ch 2)"});
-    p.addBinding({MidiMsgType::CC, 2, 14, MidiAction::JOG_SCRATCH, 2, MidiJogMode::SPREAD_64, "Touch Wheel (Ch 2 CC 14)"});
-    p.addBinding({MidiMsgType::CC, 2, 15, MidiAction::JOG_SCRATCH, 2, MidiJogMode::SPREAD_64, "Touch Wheel (Shift Ch 2 CC 15)"});
-    p.addBinding({MidiMsgType::CC, 2, 16, MidiAction::JOG_SCRATCH, 2, MidiJogMode::SPREAD_64, "Touch Wheel (Ch 2 CC 16)"});
+    p.addBinding({MidiMsgType::CC, 2, 14, MidiAction::JOG_SCRATCH, 2, MidiJogMode::BIN_OFFSET, "Touch Wheel (Ch 2 CC 14)"});
+    p.addBinding({MidiMsgType::CC, 2, 15, MidiAction::JOG_SCRATCH, 2, MidiJogMode::BIN_OFFSET, "Touch Wheel (Shift Ch 2 CC 15)"});
+    p.addBinding({MidiMsgType::CC, 2, 16, MidiAction::JOG_SCRATCH, 2, MidiJogMode::BIN_OFFSET, "Touch Wheel (Ch 2 CC 16)"});
     p.addBinding({MidiMsgType::NOTE_ON, 2, 26, MidiAction::SHIFT, 2, MidiJogMode::SPREAD_64, "Shift Deck B (Ch 2)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 2, 31, MidiAction::JOG_TOUCH, 2, MidiJogMode::SPREAD_64, "Touch Wheel Touch (Ch 2 Note 31)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 2, 31, MidiAction::JOG_TOUCH, 2, MidiJogMode::BIN_OFFSET, "Touch Wheel Touch (Ch 2 Note 31)"});
     p.addBinding({MidiMsgType::NOTE_ON, 2, 21, MidiAction::PITCH_BEND_DOWN, 2, MidiJogMode::SPREAD_64, "Nudge Down / Shift: Grid Left (Ch 2)"});
     p.addBinding({MidiMsgType::NOTE_ON, 2, 22, MidiAction::GRID_SET_ANCHOR, 2, MidiJogMode::SPREAD_64, "Set Grid Anchor (Kick 1 Ch 2)"});
     p.addBinding({MidiMsgType::NOTE_ON, 2, 23, MidiAction::PITCH_BEND_UP, 2, MidiJogMode::SPREAD_64, "Nudge Up / Shift: Grid Right (Ch 2)"});
+    p.addBinding({MidiMsgType::CC, 2, 33, MidiAction::TOUCH_STRIP, 2, MidiJogMode::ABSOLUTE, "Touch Strip Position (Ch 2)"});
     p.addBinding({MidiMsgType::NOTE_ON, 2, 15, MidiAction::LOOP_HALVE, 2, MidiJogMode::SPREAD_64, "Loop 1/2X (Ch 2 Note 15)"});
     p.addBinding({MidiMsgType::NOTE_ON, 2, 16, MidiAction::LOOP_TOGGLE, 2, MidiJogMode::SPREAD_64, "Loop Toggle (Ch 2 Note 16)"});
     p.addBinding({MidiMsgType::NOTE_ON, 2, 17, MidiAction::LOOP_DOUBLE, 2, MidiJogMode::SPREAD_64, "Loop 2X (Ch 2 Note 17)"});
