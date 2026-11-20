@@ -23,6 +23,7 @@ public:
     void setMonitorCallback(MonitorCallback cb) { monitor_cb_ = cb; }
 
     void dispatch(uint8_t status, uint8_t data1, uint8_t data2);
+    void sendFeedback(bool force_refresh = false);
 
 private:
     MidiDispatcher();

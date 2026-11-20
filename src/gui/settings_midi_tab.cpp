@@ -223,6 +223,7 @@ void SettingsMidiTab::onMidiPresetChanged(int index)
     if (index >= 0 && index < static_cast<int>(builtin_profiles_.size())) {
         current_profile_ = builtin_profiles_[index];
         MidiDispatcher::instance().setProfile(current_profile_);
+        MidiDispatcher::instance().sendFeedback(true);
         refreshLearnTable();
     }
 }

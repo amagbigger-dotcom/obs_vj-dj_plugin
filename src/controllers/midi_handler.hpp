@@ -26,4 +26,5 @@ bool vdj_midi_open_input_device(int device_id);
 
 std::vector<std::string> vdj_midi_get_output_devices();
 bool vdj_midi_open_output_device(int device_id);
+void vdj_midi_send_short_msg(uint8_t status, uint8_t data1, uint8_t data2);
 

@@ -66,6 +66,10 @@ void vdj_tracklist_move_selection(int delta)
     }
     QMetaObject::invokeMethod(g_tracklist_instance, [delta]() {
         if (g_tracklist_instance) {
+            if (!g_tracklist_instance->isVisible()) {
+                g_tracklist_instance->show();
+                g_tracklist_instance->raise();
+            }
             g_tracklist_instance->moveSelection(delta);
         }
     }, Qt::QueuedConnection);
@@ -653,7 +657,7 @@ void TracklistDock::moveSelection(int delta)
         return;
     int cur_row = table_->currentRow();
     if (cur_row < 0) {
-        cur_row = 0;
+        cur_row = (delta > 0) ? 0 : static_cast<int>(tracks_.size()) - 1;
     } else {
         cur_row += delta;
         if (cur_row < 0) cur_row = 0;
@@ -661,9 +665,10 @@ void TracklistDock::moveSelection(int delta)
             cur_row = static_cast<int>(tracks_.size()) - 1;
         }
     }
+    table_->setCurrentCell(cur_row, 1);
     table_->selectRow(cur_row);
-    if (auto *item = table_->item(cur_row, 0)) {
-        table_->scrollToItem(item);
+    if (auto *item = table_->item(cur_row, 1)) {
+        table_->scrollToItem(item, QAbstractItemView::EnsureVisible);
     }
 }
 
@@ -674,6 +679,7 @@ void TracklistDock::loadCurrentSelection(int deck_channel)
     int cur_row = table_->currentRow();
     if (cur_row < 0) {
         cur_row = 0;
+        table_->setCurrentCell(0, 1);
         table_->selectRow(0);
     }
     loadTrackToDeck(cur_row, deck_channel);
@@ -963,6 +969,10 @@ void TracklistDock::updateTable()
     for (int i = 0; i < static_cast<int>(tracks_.size()); i++) {
         updateRow(i);
     }
+    if (!tracks_.empty() && table_->currentRow() < 0) {
+        table_->setCurrentCell(0, 1);
+        table_->selectRow(0);
+    }
 }
 
 void TracklistDock::updateRow(int row)
@@ -1107,10 +1117,9 @@ void TracklistDock::loadTrackToDeck(int track_index, int deck_channel)
         if (target_deck->isPlaying()) {
             blog(LOG_WARNING, "[obs_vj_tracklist] Target deck %s is playing; cannot load new track",
                  target_deck->deckName().toUtf8().constData());
-            if (isVisible()) {
-                QMessageBox::warning(this, QStringLiteral("Deck lejátszás alatt"),
-                    QStringLiteral("A(z) %1 éppen lejátszás alatt áll!\n\nÚj szám betöltéséhez előbb állítsd meg a lejátszást (PAUSE / STOP).")
-                        .arg(target_deck->deckName()));
+            if (status_lbl_) {
+                status_lbl_->setText(QStringLiteral("⚠️ A(z) %1 éppen lejátszás alatt áll! Állítsd meg a betöltéshez.").arg(target_deck->deckName()));
+                status_lbl_->setStyleSheet(QStringLiteral("color: #f59e0b; font-size: 11px; font-weight: bold;"));
             }
             return;
         }

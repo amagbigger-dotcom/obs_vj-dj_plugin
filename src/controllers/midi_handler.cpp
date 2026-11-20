@@ -26,6 +26,8 @@ std::atomic<bool> g_connected{false};
 std::atomic<bool> g_clock_send_enabled{false};
 std::atomic<bool> g_clock_thread_running{false};
 std::thread g_clock_thread;
+std::atomic<bool> g_feedback_thread_running{false};
+std::thread g_feedback_thread;
 char g_device_name[MAXPNAMELEN] = {};
 
 std::string lowercase(std::string value)
@@ -144,6 +146,21 @@ void clock_sender_loop()
     }
 }
 
+void feedback_sender_loop()
+{
+    int refresh_counter = 0;
+    while (g_feedback_thread_running.load(std::memory_order_relaxed)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(40));
+        if (!g_connected.load(std::memory_order_relaxed) || !g_midi_out) {
+            continue;
+        }
+        refresh_counter++;
+        const bool force_refresh = (refresh_counter >= 25);
+        if (force_refresh) refresh_counter = 0;
+        MidiDispatcher::instance().sendFeedback(force_refresh);
+    }
+}
+
 } // namespace
 
 void vdj_midi_init()
@@ -257,19 +274,58 @@ void vdj_midi_init()
         blog(LOG_INFO, "[obs-vj-deck] Loaded Traktor S2 MK3 mapping profile");
     }
 
-    // Auto-connect to first available MIDI OUT device
+    // Auto-connect to appropriate MIDI OUT device (saved preference -> match input device -> known DJ target)
+    const QString saved_out_dev = cfg.midi_output_device;
     const UINT out_count = midiOutGetNumDevs();
-    for (UINT i = 0; i < out_count; ++i) {
-        MIDIOUTCAPSA caps = {};
-        if (midiOutGetDevCapsA(i, &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
-            if (is_target_device(caps.szPname) || (i == 0 && !g_midi_out)) {
-                vdj_midi_open_output_device(static_cast<int>(i));
+    bool found_out = false;
+
+    if (!saved_out_dev.isEmpty()) {
+        for (UINT i = 0; i < out_count; ++i) {
+            MIDIOUTCAPSA caps = {};
+            if (midiOutGetDevCapsA(i, &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+                if (saved_out_dev == QString::fromLocal8Bit(caps.szPname)) {
+                    vdj_midi_open_output_device(static_cast<int>(i));
+                    found_out = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!found_out && g_device_name[0] != '\0') {
+        const std::string in_lower = lowercase(g_device_name);
+        for (UINT i = 0; i < out_count; ++i) {
+            MIDIOUTCAPSA caps = {};
+            if (midiOutGetDevCapsA(i, &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+                const std::string out_lower = lowercase(caps.szPname);
+                if ((out_lower.find("kaoss") != std::string::npos && in_lower.find("kaoss") != std::string::npos) ||
+                    out_lower == in_lower) {
+                    vdj_midi_open_output_device(static_cast<int>(i));
+                    found_out = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!found_out) {
+        for (UINT i = 0; i < out_count; ++i) {
+            MIDIOUTCAPSA caps = {};
+            if (midiOutGetDevCapsA(i, &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+                if (is_target_device(caps.szPname)) {
+                    vdj_midi_open_output_device(static_cast<int>(i));
+                    found_out = true;
+                    break;
+                }
             }
         }
     }
 
     g_clock_thread_running.store(true, std::memory_order_relaxed);
     g_clock_thread = std::thread(clock_sender_loop);
+
+    g_feedback_thread_running.store(true, std::memory_order_relaxed);
+    g_feedback_thread = std::thread(feedback_sender_loop);
 }
 
 void vdj_midi_shutdown()
@@ -277,9 +333,13 @@ void vdj_midi_shutdown()
     g_connected.store(false, std::memory_order_relaxed);
     g_clock_send_enabled.store(false, std::memory_order_relaxed);
     g_clock_thread_running.store(false, std::memory_order_relaxed);
+    g_feedback_thread_running.store(false, std::memory_order_relaxed);
 
     if (g_clock_thread.joinable())
         g_clock_thread.join();
+
+    if (g_feedback_thread.joinable())
+        g_feedback_thread.join();
 
     if (g_midi_in) {
         midiInStop(g_midi_in);
@@ -423,5 +483,15 @@ void vdj_midi_cancel_learn()
 bool vdj_midi_is_learning()
 {
     return MidiDispatcher::instance().isLearning();
+}
+
+void vdj_midi_send_short_msg(uint8_t status, uint8_t data1, uint8_t data2)
+{
+    if (!g_midi_out)
+        return;
+    const DWORD packed = static_cast<DWORD>(status) |
+                         (static_cast<DWORD>(data1) << 8U) |
+                         (static_cast<DWORD>(data2) << 16U);
+    midiOutShortMsg(g_midi_out, packed);
 }
 

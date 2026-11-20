@@ -1,7 +1,9 @@
 #include "controllers/midi_dispatcher.hpp"
+#include "controllers/midi_handler.hpp"
 #include "engine/deck_engine.hpp"
 #include "gui/tracklist_dock.hpp"
 #include <algorithm>
+#include <unordered_map>
 
 MidiDispatcher &MidiDispatcher::instance()
 {
@@ -194,7 +196,9 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
             const int cur = target_deck->loopBeatIndex();
             if (cur > 0) {
-                target_deck->setLoopBeatIndex(cur - 1);
+                const int new_idx = cur - 1;
+                target_deck->setLoopBeatIndex(new_idx);
+                if (auto *dp = vdj_decks()) dp->setLoopBeatIndex(b->deck == 2 ? 1 : 0, new_idx);
                 if (target_deck->isLooping()) target_deck->setLooping(true);
             }
         }
@@ -204,7 +208,9 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
             const int cur = target_deck->loopBeatIndex();
             if (cur < 11) {
-                target_deck->setLoopBeatIndex(cur + 1);
+                const int new_idx = cur + 1;
+                target_deck->setLoopBeatIndex(new_idx);
+                if (auto *dp = vdj_decks()) dp->setLoopBeatIndex(b->deck == 2 ? 1 : 0, new_idx);
                 if (target_deck->isLooping()) target_deck->setLooping(true);
             }
         }
@@ -219,6 +225,7 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
             const int new_idx = std::clamp(cur + (delta > 0 ? 1 : -1), 0, 11);
             if (new_idx != cur) {
                 target_deck->setLoopBeatIndex(new_idx);
+                if (auto *dp = vdj_decks()) dp->setLoopBeatIndex(b->deck == 2 ? 1 : 0, new_idx);
                 if (target_deck->isLooping()) target_deck->setLooping(true);
             }
         }
@@ -254,7 +261,13 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
 
     case MidiAction::BROWSE_SCROLL: {
         jog_browse_.setMode(b->jog_mode);
-        const double delta = jog_browse_.processDelta(data2);
+        double delta = jog_browse_.processDelta(data2);
+        // Robust auto-detection for relative encoders (BIN_OFFSET 1/127 and SPREAD_64 65/63)
+        if (data2 == 127 || data2 == 126) delta = -1.0;
+        else if (data2 == 1 || data2 == 2) delta = 1.0;
+        else if (data2 == 65 || data2 == 66) delta = 1.0;
+        else if (data2 == 63 || data2 == 62) delta = -1.0;
+
         if (std::abs(delta) > 0.001) {
             vdj_tracklist_move_selection(delta > 0 ? 1 : -1);
         }
@@ -337,5 +350,126 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
 
     default:
         break;
+    }
+}
+
+void MidiDispatcher::sendFeedback(bool force_refresh)
+{
+    DeckPlayer *da = vj_deck_a();
+    DeckPlayer *db = vj_deck_b();
+    if (!da && !db) return;
+
+    static std::unordered_map<uint32_t, uint8_t> s_last_sent;
+    static uint32_t s_blink_counter = 0;
+    s_blink_counter++;
+    const bool blink_state = (s_blink_counter % 20) < 10; // ~400ms on, 400ms off
+
+    auto sendIfChanged = [force_refresh](uint8_t status, uint8_t note, uint8_t val) {
+        const uint32_t key = (static_cast<uint32_t>(status) << 8) | note;
+        auto it = s_last_sent.find(key);
+        if (force_refresh || it == s_last_sent.end() || it->second != val) {
+            s_last_sent[key] = val;
+            vdj_midi_send_short_msg(status, note, val);
+        }
+    };
+
+    const bool play_a = da && da->isPlaying();
+    const bool cue_a = da && (da->cuePointMs() >= 0);
+    const bool sync_a = da && da->isSync();
+    const bool pfl_a = da && da->isHeadphoneCue();
+    const bool loop_a = da && da->isLooping();
+    const bool load_a = da && (!da->filePath().isEmpty() || da->durationMs() > 0);
+
+    const bool play_b = db && db->isPlaying();
+    const bool cue_b = db && (db->cuePointMs() >= 0);
+    const bool sync_b = db && db->isSync();
+    const bool pfl_b = db && db->isHeadphoneCue();
+    const bool loop_b = db && db->isLooping();
+    const bool load_b = db && (!db->filePath().isEmpty() || db->durationMs() > 0);
+
+    std::unique_lock<std::mutex> lock(mutex_);
+    const auto &bindings = profile_.bindings();
+
+    for (const auto &b : bindings) {
+        if (b.msg_type != MidiMsgType::NOTE_ON) continue;
+        const uint8_t status = 0x90U | ((b.channel - 1) & 0x0FU);
+        const uint8_t note = b.control;
+        uint8_t val = 0;
+
+        switch (b.action) {
+        case MidiAction::PLAY_PAUSE:
+            if (b.deck == 2) {
+                val = play_b ? 127 : (cue_b && blink_state ? 127 : 0);
+            } else {
+                val = play_a ? 127 : (cue_a && blink_state ? 127 : 0);
+            }
+            break;
+        case MidiAction::CUE:
+            if (b.deck == 2) {
+                val = play_b ? (blink_state ? 127 : 0) : (cue_b ? 127 : 0);
+            } else {
+                val = play_a ? (blink_state ? 127 : 0) : (cue_a ? 127 : 0);
+            }
+            break;
+        case MidiAction::SYNC:
+            val = (b.deck == 2 ? sync_b : sync_a) ? 127 : 0;
+            break;
+        case MidiAction::HEADPHONE_CUE:
+            val = (b.deck == 2 ? pfl_b : pfl_a) ? 127 : 0;
+            break;
+        case MidiAction::LOOP_TOGGLE:
+        case MidiAction::LOOP_HALVE:
+        case MidiAction::LOOP_DOUBLE:
+            val = (b.deck == 2 ? loop_b : loop_a) ? 127 : 0;
+            break;
+        case MidiAction::LOAD_SELECTED_A:
+            val = load_a ? 127 : 0;
+            break;
+        case MidiAction::LOAD_SELECTED_B:
+            val = load_b ? 127 : 0;
+            break;
+        case MidiAction::HOTCUE_1:
+            val = ((b.deck == 2 ? db : da) && (b.deck == 2 ? db : da)->hotCueMs(0) >= 0) ? 127 : 0;
+            break;
+        case MidiAction::HOTCUE_2:
+            val = ((b.deck == 2 ? db : da) && (b.deck == 2 ? db : da)->hotCueMs(1) >= 0) ? 127 : 0;
+            break;
+        case MidiAction::HOTCUE_3:
+            val = ((b.deck == 2 ? db : da) && (b.deck == 2 ? db : da)->hotCueMs(2) >= 0) ? 127 : 0;
+            break;
+        case MidiAction::HOTCUE_4:
+            val = ((b.deck == 2 ? db : da) && (b.deck == 2 ? db : da)->hotCueMs(3) >= 0) ? 127 : 0;
+            break;
+        default:
+            continue;
+        }
+
+        sendIfChanged(status, note, val);
+    }
+    lock.unlock();
+
+    // Specific Korg Kaoss DJ direct fallback sends to guarantee feedback on all hardware modes:
+    // Deck A: Ch 8 (0x97) & Ch 1 (0x90)
+    for (uint8_t ch_st : {static_cast<uint8_t>(0x97), static_cast<uint8_t>(0x90)}) {
+        sendIfChanged(ch_st, 27, play_a ? 127 : (cue_a && blink_state ? 127 : 0)); // Play
+        sendIfChanged(ch_st, 30, play_a ? (blink_state ? 127 : 0) : (cue_a ? 127 : 0)); // Cue
+        sendIfChanged(ch_st, 29, sync_a ? 127 : 0); // Sync
+        sendIfChanged(ch_st, 25, pfl_a ? 127 : 0);  // Headphone Cue
+        sendIfChanged(ch_st, 16, loop_a ? 127 : 0); // Loop Active
+        sendIfChanged(ch_st, 15, loop_a ? 127 : 0); // Loop 1/2X
+        sendIfChanged(ch_st, 17, loop_a ? 127 : 0); // Loop 2X
+        sendIfChanged(ch_st, 14, load_a ? 127 : 0); // Load A
+    }
+
+    // Deck B: Ch 9 (0x98) & Ch 2 (0x91)
+    for (uint8_t ch_st : {static_cast<uint8_t>(0x98), static_cast<uint8_t>(0x91)}) {
+        sendIfChanged(ch_st, 27, play_b ? 127 : (cue_b && blink_state ? 127 : 0)); // Play
+        sendIfChanged(ch_st, 30, play_b ? (blink_state ? 127 : 0) : (cue_b ? 127 : 0)); // Cue
+        sendIfChanged(ch_st, 29, sync_b ? 127 : 0); // Sync
+        sendIfChanged(ch_st, 25, pfl_b ? 127 : 0);  // Headphone Cue
+        sendIfChanged(ch_st, 16, loop_b ? 127 : 0); // Loop Active
+        sendIfChanged(ch_st, 15, loop_b ? 127 : 0); // Loop 1/2X
+        sendIfChanged(ch_st, 17, loop_b ? 127 : 0); // Loop 2X
+        sendIfChanged(ch_st, 14, load_b ? 127 : 0); // Load B
     }
 }
