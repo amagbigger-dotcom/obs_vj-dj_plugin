@@ -8,6 +8,7 @@ struct PluginSettingsConfig;
 class QComboBox;
 class QTableWidget;
 class QPushButton;
+class QLabel;
 
 class SettingsMidiTab : public QWidget {
     Q_OBJECT
