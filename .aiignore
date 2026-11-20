@@ -1,0 +1,33 @@
+# Fordítási könyvtárak és köztes binárisok
+build/
+bin/
+out/
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.idb
+
+# IDE konfigurációk és metaadatok
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosv
+*.sln.docstates
+
+# Nagy méretű binárisok és artifactok
+*.dll
+*.zip
+scratch/
+build*/
+
+# Médiatár gyorsítótárak és médiafájlok
+*.vdj.json
+*.mp4
+*.mkv
+*.mov
+*.wav
+*.mp3
+*.flac

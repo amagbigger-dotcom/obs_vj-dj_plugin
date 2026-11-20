@@ -1,6 +1,7 @@
 # OBS VJ/DJ Plugin - Rendszer Architektúra és AI Útválasztó (INDEX)
 
 Ez a dokumentum a projekt központi tartalomjegyzéke és útmutatója emberi fejlesztők és AI asszisztensek számára.
+A fejlesztési munkamenet kezdetén mindig olvasd el a [STATUS.md](file:///c:/gitrepo/obs_vj-dj_plugin/STATUS.md) fájlt!
 
 ---
 
@@ -9,7 +10,7 @@ Ez a dokumentum a projekt központi tartalomjegyzéke és útmutatója emberi fe
 * **Bináris cél:** Natív C++17 (Qt 6) OBS Studio 30+/33+ bővítmény (Windows x64).
 * **Kimenet:** Kizárólag **1 darab `obs_dj-vj_plugin.dll`**, külső runtime függőségek nélkül közvetlenül az OBS bővítmény mappájába másolva:
   `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
-* **Hardveres vezérlés:** Native Instruments TRAKTOR KONTROL S2 MK3 (USB MIDI módban).
+* **Hardveres vezérlés:** Native Instruments TRAKTOR KONTROL S2 MK3, Korg KAOSS DJ, Pioneer és általános MIDI vezérlők.
 
 ---
 
@@ -19,11 +20,13 @@ Amikor egy adott funkción dolgozol, **NEM kell a teljes kódbázist átolvasnod
 
 | Fejlesztési Terület | Részletes Dokumentáció | Érintett Forrásfájlok | Főbb Felelősségek |
 | :--- | :--- | :--- | :--- |
-| **Audió Motor & DSP** | [`docs/AUDIO_ENGINE.md`](file:///c:/gitrepo/obs_vj-dj_plugin/docs/AUDIO_ENGINE.md) | `src/sources/wmf_decoder.*`<br>`src/analyzer/analyzer_*`<br>`src/track/track_cache.*`<br>`src/audio/*`<br>`src/engine/*` | WMF dekódolás, RAM PCM puffer, 3-sávos EQ/Filter DSP, élő kick envelope follower, WASAPI füles CUE (OUT 3-4), BPM/Beatgrid detektálás, AnalyzerSilence Auto-CUE, AnalyzerKey Camelot analízis, AnalyzerGain ReplayGain, Key Lock (SOLA pitch-tartó time-stretch), kvantált loop, Master Sync és Master Clock, `.vdj.json` gyorsítótár. |
-| **Videó & Shaders** | [`docs/VIDEO_SHADERS.md`](file:///c:/gitrepo/obs_vj-dj_plugin/docs/VIDEO_SHADERS.md) | `src/video/deck_source.*`<br>`src/video/mixer_source.*`<br>`src/effects/*` | OBS forrás életciklus (`vj_deck`, `vdj_master_mixer`), 1080p GPU méretezés (FIT/FILL), 15 Master crossfader shader, 15 ISF visualizer shader (kompromisszummentes 3D raymarching), `.vdj.json` perzisztencia. |
-| **Felület & Widgetek** | [`docs/UI_COMPONENTS.md`](file:///c:/gitrepo/obs_vj-dj_plugin/docs/UI_COMPONENTS.md) | `src/widget/*`<br>`src/gui/deck_window.*`<br>`src/gui/mixer_window.*`<br>`src/gui/mixer_channel.*`<br>`src/gui/mixer_master.*`<br>`src/gui/tracklist_dock.*`<br>`src/gui/vj_fx_dialog.*`<br>`src/waveform/waveform_widget.*` | Lebegő `QDialog` ablakok (640×340 Deck, 590×340 Mixer, 540×520 VJ ablak), moduláris widgetek (MixerChannelStrip, MixerMasterPanel, TempoControl, TransportBar, LoopBar, DJSlider), gördülő hullámforma jog scratch-csel. |
-| **MIDI Hardver** | [`docs/MIDI_HARDWARE.md`](file:///c:/gitrepo/obs_vj-dj_plugin/docs/MIDI_HARDWARE.md) | `src/controllers/midi_handler.*` | Traktor S2 MK3 USB MIDI (WinMM API), CC 8, 16–21 és Note 35–38 mapping, aszinkron szálbiztos atomi vezérlés. |
-| **Építés & Munkafolyamat** | [`docs/BUILD_WORKFLOW.md`](file:///c:/gitrepo/obs_vj-dj_plugin/docs/BUILD_WORKFLOW.md) | `CMakeLists.txt`<br>`.github/workflows/build.yml` | CMake konfiguráció, MSVC build, GitHub Actions felhős fordítás, telepítés, mérföldkövek és visszaállítás. |
+| **Dinamikus Státusz** | [`STATUS.md`](file:///c:/gitrepo/obs_vj-dj_plugin/STATUS.md) | `STATUS.md` | Aktuális sprint, legutóbb kész funkciók, következő lépés, elakadások (Check-in/Check-out). |
+| **Audió Motor & DSP** | [`docs/AUDIO_ENGINE.md`](file:///c:/gitrepo/obs_vj-dj_plugin/docs/AUDIO_ENGINE.md) | `src/sources/wmf_decoder.*`<br>`src/analyzer/analyzer_*`<br>`src/track/track_cache.*`<br>`src/audio/*`<br>`src/engine/*` | WMF dekódolás, RAM PCM puffer, 3-sávos EQ/Filter DSP, élő kick envelope follower, WASAPI füles CUE (OUT 3-4), BPM/Beatgrid detektálás, AnalyzerSilence Auto-CUE, AnalyzerKey Camelot analízis, AnalyzerGain ReplayGain, Key Lock (WSOLA), kvantált loop, Master Sync és Master Clock, `.vdj.json` gyorsítótár. |
+| **Videó & Shaders** | [`docs/VIDEO_SHADERS.md`](file:///c:/gitrepo/obs_vj-dj_plugin/docs/VIDEO_SHADERS.md) | `src/video/deck_source.*`<br>`src/video/mixer_source.*`<br>`src/video/video_converter.*`<br>`src/effects/*` | OBS forrás életciklus (`vj_deck`, `vdj_master_mixer`), 1080p GPU méretezés (FIT/FILL), 13 Master crossfader shader FX, 15 ISF visualizer shader, natív C++ ISF/GLSL transzpiler és `CustomShaderManager`, `.vdj.json` perzisztencia. |
+| **Felület & Widgetek** | [`docs/UI_COMPONENTS.md`](file:///c:/gitrepo/obs_vj-dj_plugin/docs/UI_COMPONENTS.md) | `src/widget/*`<br>`src/gui/*`<br>`src/waveform/waveform_widget.*` | Lebegő `QDialog` ablakok (640×340 Deck, 590×340 Mixer, 540×520 VJ ablak), moduláris widgetek (`MixerChannelStrip`, `MixerMasterPanel`, `TempoControl`, `TransportBar`, `LoopBar`, `DJSlider`), gördülő hullámforma jog scratch-csel. |
+| **MIDI Hardver** | [`docs/MIDI_HARDWARE.md`](file:///c:/gitrepo/obs_vj-dj_plugin/docs/MIDI_HARDWARE.md) | `src/controllers/*` | Adatvezérelt MIDI motor (`MidiAction`, `MidiJogDecoder`, `MidiMappingManager`, `MidiDispatcher`), 25 Hz kétirányú LED visszajelzés, KAOSS DJ (Shift, Touchpad, Relatív Jog), Traktor S2, Pioneer DDJ profilok. |
+| **Építés & Munkafolyamat** | [`docs/BUILD_WORKFLOW.md`](file:///c:/gitrepo/obs_vj-dj_plugin/docs/BUILD_WORKFLOW.md) | `CMakeLists.txt`<br>`.github/workflows/build.yml`<br>`install_plugin.bat` | CMake konfiguráció, MSVC build, GitHub Actions felhős fordítás, telepítés, kiemelt mérföldkövek (Build #222 és #312). |
+| **Build Archívum** | [`milestones/BUILD_HISTORY.md`](file:///c:/gitrepo/obs_vj-dj_plugin/milestones/BUILD_HISTORY.md) | `milestones/*` | Teljes történeti archívum (Build #190 – #312 leírásai). |
 
 ---
 
@@ -53,7 +56,7 @@ flowchart TD
     subgraph Thread_GUI [4. Qt GUI Főszál (Main UI Thread)]
         MixerWin["MixerWindow & DeckWindow"]
         WaveformDraw["WaveformCanvas repainting (50 ms QTimer)"]
-        VjDialog["VjFxDialog Paraméterablak"]
+        VjDialog["VjFxDialog & CrossfadeFxDialog"]
     end
 
     MidiIn --> AtomicSetters
@@ -72,5 +75,5 @@ flowchart TD
 ### Szálbiztonsági Szabályok:
 1. **WinMM Szál (`midi_in_proc`):** Kizárólag atomi (`std::atomic`) settereket hívhat. **SOHA nem hívhat közvetlen Qt GUI metódust** (ez azonnali alkalmazás-összeomlást okozna).
 2. **OBS Render Szál:** Nem végezhet fájlműveletet vagy blokkoló hívást. Minden grafikai művelet `obs_enter_graphics()` / `obs_leave_graphics()` védelem alatt fut.
-3. **Audio DSP Szál:** Valós idejű szál. Nem allokálhat dinamikus memóriát a feldolgozási ciklusban (`frames`); előre lefoglalt pufferekkel dolgozik.
+3. **Audio DSP Szál:** Valós idejű szál (`THREAD_PRIORITY_TIME_CRITICAL`). Nem allokálhat dinamikus memóriát a feldolgozási ciklusban (`frames`); előre lefoglalt pufferekkel dolgozik.
 4. **Qt GUI Főszál:** A felhasználói beavatkozásokat kezeli, és egy 50 ms-os `QTimer` ütemezővel frissíti a pozíciókat, időket és animációkat.
