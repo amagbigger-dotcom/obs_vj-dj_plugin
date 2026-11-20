@@ -526,3 +526,25 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
        * `src/gui/settings_general_tab.cpp` (55 sor)
   4. **Telepítés és Hitelesítés:**
      - Sikeres fordítás a GitHub Actions runneren, felülírva a célgépen és az Asztalon.
+
+
+### Mérföldkő #28: Build #296 / GitHub Run #305 (Korg KAOSS DJ Gyári Csatornák [7/8/9], Élő Bemenet-Váltás & Realtime MIDI Monitor)
+* **Verzió & Commit:** `ab2326f`
+* **SHA256:** `838CC59780E738DBB0BE82050EE45091DC44E3790D06453F4A4CEDB305E2CC5A`
+* **GitHub Run ID:** `44698122274`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (1 229 312 bájt)
+* **Jellemzők:**
+  1. **Azonnali Hardver-Váltás és Automatikus Csatlakozás:**
+     - Az `is_target_device` korábban az `Akai Network - MIDI` virtuális portra csatlakozott fel a névbeli "midi" miatt, így a valódi `KAOSS DJ` port sosem nyílt meg.
+     - A hálózati portok kizárva, valódi kontrollerek előre rangsorolva (`kaoss`, `korg`, `traktor`, `pioneer`, stb.).
+     - A Beállítások mentésekor (`onSaveClicked`) és a legördülő lista váltásakor azonnal lefut a `vdj_midi_open_input_device()`.
+     - Induláskor (`vdj_midi_init`) a mentett eszköznév alapján nyitja meg a kívánt hardvert.
+  2. **Hivatalos Korg KAOSS DJ Gyári Csatornakiosztás:**
+     - **Ch 7 (Global):** Crossfader (CC 23), Kaoss Touchpad X/Y (CC 12/13).
+     - **Ch 8 (Deck A):** Play (Note 27), Cue (Note 30), Sync (Note 29), Headphone Cue (Note 25), Volume (CC 24), Pitch (CC 25), EQ Hi (CC 19), Mid (CC 20), Low (CC 21), Filter (CC 22), Touch Wheel (CC 16).
+     - **Ch 9 (Deck B):** Ugyanezen funkciók a 9-es MIDI csatornán.
+     - Ch 1 és Ch 2 alternatív fallback leképezések szintén beágyazva.
+  3. **Élő Valós Idejű MIDI Monitor a Beállítások Fülön:**
+     - Új `midi_activity_lbl_` állapotjelző, amely bármely gomb, fader vagy touchpad megérintésekor azonnal zöldre vált és kiírja a pontos csatornát, CC/Note számot és értéket (`🟢 ÉLŐ JEL ÉRKEZETT: Ch X | CC/Note Y | Érték: Z`).
+  4. **Telepítés és Hitelesítés:**
+     - Sikeresen felülírva és ellenőrizve az OBS telepítési könyvtárában (`C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`) és az Asztalon.
