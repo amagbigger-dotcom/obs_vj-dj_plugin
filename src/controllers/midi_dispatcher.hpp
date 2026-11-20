@@ -31,6 +31,7 @@ private:
     MidiControllerProfile profile_;
     MidiJogWheel jog_a_{MidiJogMode::SPREAD_64};
     MidiJogWheel jog_b_{MidiJogMode::SPREAD_64};
+    MidiJogWheel jog_browse_{MidiJogMode::BIN_OFFSET};
 
     bool is_learning_ = false;
     MidiAction learn_action_ = MidiAction::NONE;

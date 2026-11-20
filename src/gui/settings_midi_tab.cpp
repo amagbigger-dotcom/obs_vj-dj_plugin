@@ -164,19 +164,34 @@ void SettingsMidiTab::refreshLearnTable()
         {QStringLiteral("◀ Deck A CUE"), MidiAction::CUE, 1},
         {QStringLiteral("◀ Deck A SYNC"), MidiAction::SYNC, 1},
         {QStringLiteral("◀ Deck A Hangerő (Volume)"), MidiAction::VOLUME, 1},
+        {QStringLiteral("◀ Deck A Gain"), MidiAction::GAIN, 1},
         {QStringLiteral("◀ Deck A High EQ"), MidiAction::EQ_HI, 1},
         {QStringLiteral("◀ Deck A Mid EQ"), MidiAction::EQ_MID, 1},
         {QStringLiteral("◀ Deck A Low EQ"), MidiAction::EQ_LOW, 1},
         {QStringLiteral("◀ Deck A Filter"), MidiAction::FILTER, 1},
+        {QStringLiteral("◀ Deck A Loop Toggle"), MidiAction::LOOP_TOGGLE, 1},
+        {QStringLiteral("◀ Deck A Pitch Bend (<<)"), MidiAction::PITCH_BEND_DOWN, 1},
+        {QStringLiteral("◀ Deck A Pitch Bend (>>)"), MidiAction::PITCH_BEND_UP, 1},
+        {QStringLiteral("◀ Deck A Load Track"), MidiAction::LOAD_SELECTED_A, 1},
+
         {QStringLiteral("🎚 Master Crossfader"), MidiAction::CROSSFADER, 0},
+
         {QStringLiteral("▶ Deck B Play / Pause"), MidiAction::PLAY_PAUSE, 2},
         {QStringLiteral("▶ Deck B CUE"), MidiAction::CUE, 2},
         {QStringLiteral("▶ Deck B SYNC"), MidiAction::SYNC, 2},
         {QStringLiteral("▶ Deck B Hangerő (Volume)"), MidiAction::VOLUME, 2},
+        {QStringLiteral("▶ Deck B Gain"), MidiAction::GAIN, 2},
         {QStringLiteral("▶ Deck B High EQ"), MidiAction::EQ_HI, 2},
         {QStringLiteral("▶ Deck B Mid EQ"), MidiAction::EQ_MID, 2},
         {QStringLiteral("▶ Deck B Low EQ"), MidiAction::EQ_LOW, 2},
         {QStringLiteral("▶ Deck B Filter"), MidiAction::FILTER, 2},
+        {QStringLiteral("▶ Deck B Loop Toggle"), MidiAction::LOOP_TOGGLE, 2},
+        {QStringLiteral("▶ Deck B Pitch Bend (<<)"), MidiAction::PITCH_BEND_DOWN, 2},
+        {QStringLiteral("▶ Deck B Pitch Bend (>>)"), MidiAction::PITCH_BEND_UP, 2},
+        {QStringLiteral("▶ Deck B Load Track"), MidiAction::LOAD_SELECTED_B, 2},
+
+        {QStringLiteral("📁 Tracklist Browse Scroll"), MidiAction::BROWSE_SCROLL, 0},
+        {QStringLiteral("📁 Tracklist Load Push"), MidiAction::LOAD_SELECTED, 0},
         {QStringLiteral("✨ VJ Touchpad X / Param P0"), MidiAction::VJ_PARAM_X, 0},
         {QStringLiteral("✨ VJ Touchpad Y / Param P1"), MidiAction::VJ_PARAM_Y, 0}
     };
@@ -273,8 +288,12 @@ void SettingsMidiTab::applyConfig(const PluginSettingsConfig &cfg)
         preset_combo_->setCurrentIndex(p_idx);
         onMidiPresetChanged(p_idx);
     } else {
-        // Fallback default
-        current_profile_ = MidiControllerProfile::createTraktorS2MK3();
+        // Use active profile from dispatcher (which may have been auto-detected by MidiHandler)
+        current_profile_ = MidiDispatcher::instance().activeProfile();
+        int active_idx = preset_combo_->findData(current_profile_.name());
+        if (active_idx >= 0) {
+            preset_combo_->setCurrentIndex(active_idx);
+        }
         refreshLearnTable();
     }
 }

@@ -58,6 +58,32 @@ void vdj_import_and_load(const QString &file_path, int deck_channel)
     g_tracklist_instance->addFile(file_path, deck_channel);
 }
 
+void vdj_tracklist_move_selection(int delta)
+{
+    if (!g_tracklist_instance) {
+        QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
+        g_tracklist_instance = new TracklistDock(main_window);
+    }
+    QMetaObject::invokeMethod(g_tracklist_instance, [delta]() {
+        if (g_tracklist_instance) {
+            g_tracklist_instance->moveSelection(delta);
+        }
+    }, Qt::QueuedConnection);
+}
+
+void vdj_tracklist_load_selected(int deck_channel)
+{
+    if (!g_tracklist_instance) {
+        QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
+        g_tracklist_instance = new TracklistDock(main_window);
+    }
+    QMetaObject::invokeMethod(g_tracklist_instance, [deck_channel]() {
+        if (g_tracklist_instance) {
+            g_tracklist_instance->loadCurrentSelection(deck_channel);
+        }
+    }, Qt::QueuedConnection);
+}
+
 static bool isAudioOnlyFile(const QString &ext)
 {
     const QString e = ext.toLower();
@@ -621,6 +647,38 @@ void TracklistDock::keyPressEvent(QKeyEvent *event)
     QDialog::keyPressEvent(event);
 }
 
+void TracklistDock::moveSelection(int delta)
+{
+    if (!table_ || tracks_.empty())
+        return;
+    int cur_row = table_->currentRow();
+    if (cur_row < 0) {
+        cur_row = 0;
+    } else {
+        cur_row += delta;
+        if (cur_row < 0) cur_row = 0;
+        if (cur_row >= static_cast<int>(tracks_.size())) {
+            cur_row = static_cast<int>(tracks_.size()) - 1;
+        }
+    }
+    table_->selectRow(cur_row);
+    if (auto *item = table_->item(cur_row, 0)) {
+        table_->scrollToItem(item);
+    }
+}
+
+void TracklistDock::loadCurrentSelection(int deck_channel)
+{
+    if (!table_ || tracks_.empty())
+        return;
+    int cur_row = table_->currentRow();
+    if (cur_row < 0) {
+        cur_row = 0;
+        table_->selectRow(0);
+    }
+    loadTrackToDeck(cur_row, deck_channel);
+}
+
 void TracklistDock::addFile(const QString &path, int target_deck)
 {
     const QFileInfo fi(path);
@@ -1047,9 +1105,13 @@ void TracklistDock::loadTrackToDeck(int track_index, int deck_channel)
 
     if (target_deck) {
         if (target_deck->isPlaying()) {
-            QMessageBox::warning(this, QStringLiteral("Deck lejátszás alatt"),
-                QStringLiteral("A(z) %1 éppen lejátszás alatt áll!\n\nÚj szám betöltéséhez előbb állítsd meg a lejátszást (PAUSE / STOP).")
-                    .arg(target_deck->deckName()));
+            blog(LOG_WARNING, "[obs_vj_tracklist] Target deck %s is playing; cannot load new track",
+                 target_deck->deckName().toUtf8().constData());
+            if (isVisible()) {
+                QMessageBox::warning(this, QStringLiteral("Deck lejátszás alatt"),
+                    QStringLiteral("A(z) %1 éppen lejátszás alatt áll!\n\nÚj szám betöltéséhez előbb állítsd meg a lejátszást (PAUSE / STOP).")
+                        .arg(target_deck->deckName()));
+            }
             return;
         }
 

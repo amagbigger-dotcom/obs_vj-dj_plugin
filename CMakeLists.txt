@@ -83,6 +83,10 @@ set(SOURCES
     src/controllers/midi_jog.hpp
     src/controllers/midi_mapping.cpp
     src/controllers/midi_mapping.hpp
+    src/controllers/midi_profiles_korg.cpp
+    src/controllers/midi_profiles_traktor.cpp
+    src/controllers/midi_profiles_pioneer.cpp
+    src/controllers/midi_profiles_other.cpp
     src/controllers/midi_dispatcher.cpp
     src/controllers/midi_dispatcher.hpp
     src/controllers/midi_handler.cpp

@@ -30,6 +30,10 @@ enum class MidiAction : uint16_t {
     JOG_PITCHBEND,
 
     // Loops & Hotcues
+    LOOP_TOGGLE,
+    LOOP_HALVE,
+    LOOP_DOUBLE,
+    LOOP_SIZE_CHANGE,
     LOOP_AUTO_4,
     LOOP_IN,
     LOOP_OUT,
@@ -38,6 +42,14 @@ enum class MidiAction : uint16_t {
     HOTCUE_2,
     HOTCUE_3,
     HOTCUE_4,
+
+    // Library & Navigation
+    BROWSE_SCROLL,
+    BROWSE_NEXT,
+    BROWSE_PREV,
+    LOAD_SELECTED_A,
+    LOAD_SELECTED_B,
+    LOAD_SELECTED,
 
     // VJ & Video Controls
     VJ_PARAM_X,      // Touchpad X / Ribbon -> Shader p0

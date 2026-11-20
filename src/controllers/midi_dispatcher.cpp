@@ -1,5 +1,6 @@
 #include "controllers/midi_dispatcher.hpp"
 #include "engine/deck_engine.hpp"
+#include "gui/tracklist_dock.hpp"
 #include <algorithm>
 
 MidiDispatcher &MidiDispatcher::instance()
@@ -119,6 +120,10 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         if (target_deck) target_deck->setVolume(normalized_val);
         break;
 
+    case MidiAction::GAIN:
+        if (target_deck) target_deck->setGain(static_cast<float>(data2) / 63.5f);
+        break;
+
     case MidiAction::EQ_HI:
         if (target_deck) target_deck->setEqHi(static_cast<float>(data2) / 63.5f);
         break;
@@ -139,6 +144,18 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         if (target_deck) {
             const int speed = 50 + static_cast<int>((static_cast<unsigned int>(data2) * 100U) / 127U);
             target_deck->applySpeedSettings(speed);
+        }
+        break;
+
+    case MidiAction::PITCH_BEND_UP:
+        if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
+            target_deck->nudgePlayback(120);
+        }
+        break;
+
+    case MidiAction::PITCH_BEND_DOWN:
+        if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
+            target_deck->nudgePlayback(-120);
         }
         break;
 
@@ -166,6 +183,62 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         }
         break;
 
+    case MidiAction::LOOP_TOGGLE:
+    case MidiAction::LOOP_AUTO_4:
+        if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
+            target_deck->setLooping(!target_deck->isLooping());
+        }
+        break;
+
+    case MidiAction::LOOP_HALVE:
+        if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
+            const int cur = target_deck->loopBeatIndex();
+            if (cur > 0) {
+                target_deck->setLoopBeatIndex(cur - 1);
+                if (target_deck->isLooping()) target_deck->setLooping(true);
+            }
+        }
+        break;
+
+    case MidiAction::LOOP_DOUBLE:
+        if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
+            const int cur = target_deck->loopBeatIndex();
+            if (cur < 11) {
+                target_deck->setLoopBeatIndex(cur + 1);
+                if (target_deck->isLooping()) target_deck->setLooping(true);
+            }
+        }
+        break;
+
+    case MidiAction::LOOP_SIZE_CHANGE: {
+        auto &jog = (b->deck == 2) ? jog_b_ : jog_a_;
+        jog.setMode(b->jog_mode);
+        const double delta = jog.processDelta(data2);
+        if (target_deck && std::abs(delta) > 0.001) {
+            const int cur = target_deck->loopBeatIndex();
+            const int new_idx = std::clamp(cur + (delta > 0 ? 1 : -1), 0, 11);
+            if (new_idx != cur) {
+                target_deck->setLoopBeatIndex(new_idx);
+                if (target_deck->isLooping()) target_deck->setLooping(true);
+            }
+        }
+        break;
+    }
+
+    case MidiAction::LOOP_IN:
+        if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
+            target_deck->setLooping(false);
+            target_deck->setLooping(true);
+        }
+        break;
+
+    case MidiAction::LOOP_OUT:
+    case MidiAction::LOOP_EXIT:
+        if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
+            target_deck->setLooping(false);
+        }
+        break;
+
     case MidiAction::HOTCUE_1:
         if (target_deck) target_deck->triggerHotCue(0);
         break;
@@ -177,6 +250,57 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         break;
     case MidiAction::HOTCUE_4:
         if (target_deck) target_deck->triggerHotCue(3);
+        break;
+
+    case MidiAction::BROWSE_SCROLL: {
+        jog_browse_.setMode(b->jog_mode);
+        const double delta = jog_browse_.processDelta(data2);
+        if (std::abs(delta) > 0.001) {
+            vdj_tracklist_move_selection(delta > 0 ? 1 : -1);
+        }
+        break;
+    }
+
+    case MidiAction::BROWSE_NEXT:
+        if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
+            vdj_tracklist_move_selection(1);
+        }
+        break;
+
+    case MidiAction::BROWSE_PREV:
+        if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
+            vdj_tracklist_move_selection(-1);
+        }
+        break;
+
+    case MidiAction::LOAD_SELECTED_A:
+        if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
+            vdj_tracklist_load_selected(0);
+        }
+        break;
+
+    case MidiAction::LOAD_SELECTED_B:
+        if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
+            vdj_tracklist_load_selected(1);
+        }
+        break;
+
+    case MidiAction::LOAD_SELECTED:
+        if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
+            int target_ch = (b->deck == 2) ? 1 : ((b->deck == 1) ? 0 : -1);
+            if (target_ch < 0) {
+                DeckPlayer *da = vj_deck_a();
+                DeckPlayer *db = vj_deck_b();
+                if (da && db) {
+                    if (da->isPlaying() && !db->isPlaying()) target_ch = 1;
+                    else if (!da->isPlaying() && db->isPlaying()) target_ch = 0;
+                    else target_ch = (vj_active_deck() == db) ? 1 : 0;
+                } else {
+                    target_ch = 0;
+                }
+            }
+            vdj_tracklist_load_selected(target_ch);
+        }
         break;
 
     case MidiAction::JOG_TOUCH:
@@ -191,9 +315,9 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         const double delta = jog.processDelta(data2);
         if (target_deck && std::abs(delta) > 0.001) {
             if (jog.isTouched()) {
-                target_deck->nudgeGrid(static_cast<int64_t>(delta * 15.0), false);
+                target_deck->nudgePlayback(static_cast<int64_t>(delta * 120.0));
             } else {
-                target_deck->nudgeGrid(static_cast<int64_t>(delta * 5.0), false);
+                target_deck->nudgePlayback(static_cast<int64_t>(delta * 25.0));
             }
         }
         break;

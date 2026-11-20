@@ -41,6 +41,8 @@ public:
     void saveLibraryJson();
     void updateTrackBpm(const QString &file_path, double bpm);
     void setTrackBpmDirect(int row, double new_bpm);
+    void moveSelection(int delta);
+    void loadCurrentSelection(int deck_channel);
     const std::vector<TrackItem>& tracks() const { return tracks_; }
 
 protected:
@@ -95,6 +97,8 @@ private:
 
 // Global accessor to import & load from anywhere (e.g. Deck window)
 void vdj_import_and_load(const QString &file_path, int deck_channel);
+void vdj_tracklist_move_selection(int delta);
+void vdj_tracklist_load_selected(int deck_channel);
 void vdj_open_tracklist_window();
 void vdj_free_tracklist_window();
 bool vdj_is_track_in_library(const QString &file_path);
