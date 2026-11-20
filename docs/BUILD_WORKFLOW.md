@@ -659,3 +659,29 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - Teljes keverő (Volume, Tempo, Gain, 3-sávos EQ, Filter, Crossfader).
   5. **Telepítő Szkript (`install_plugin.bat`):**
      - Egykattintásos adminisztrátori telepítő létrehozva az Asztalon és a repóban, amely bezárja a futó OBS-t és átmásolja a DLL-t a `C:\Program Files\obs-studio\obs-plugins\64bit\` könyvtárba.
+
+
+### Mérföldkő #31: Build #312 / GitHub Run #44805359543 (Korg KAOSS DJ SHIFT Modosító, Finom Jog Pozicionálás & Beatgrid Igazítás)
+* **Verzió & Commit:** `44bca9a`
+* **SHA256:** `0D6A26A27923F5AA93DF0F16F0F37C3DCFB45C43886D1950AE231C0907F8FDBE`
+* **GitHub Run ID:** `44805359543` (Run #312)
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (1 264 640 bájt)
+* **Jellemzők és Hibajavítások:**
+  1. **Fizikai SHIFT Gomb Kezelése (Note 26):**
+     - Beépítve a Korg KAOSS DJ hardveres Shift gombja mindkét deckhez (Deck A: Ch 8 Note 26, Deck B: Ch 9 Note 26, valamint Ch 1 & Ch 2 fallback).
+     - Atomi állapotkövetés (`shift_a_`, `shift_b_`, `shift_global_`), a NOTE_OFF események automatikus feloldása `MidiControllerProfile::findBinding` kiterjesztéssel.
+     - LED visszajelzés bekötve a Note 26-ra a Shift lenyomásának idejére.
+  2. **Lassabb, Finom Jog Pozicionálás SHIFT Lenyomásakor:**
+     - **Normál Jog:** Érintéskor 120 ms/tick gyors pozicionálás, felengedve 25 ms/tick lökdösés.
+     - **SHIFT lenyomásakor (vagy hardveres CC 15 wheelTurnShift üzenetnél):** 8-szor finomabb léptetés (érintéssel 15 ms/tick, érintés nélkül 5 ms/tick), lehetővé téve a hanganyag tűpontos megállítását közvetlenül a kick dob tranziense előtt.
+  3. **Jog Feletti Érintőcsík Kettős Működése (Nudge & Beatgrid Igazítás):**
+     - **Normál módban (SHIFT nélkül):** Apró fázis-nudge a zenei mixeléshez:
+       * **`<<` (Note 21):** Gyengéd −20 ms pillanatnyi lökdösés.
+       * **`>>` (Note 23):** Gyengéd +20 ms pillanatnyi lökdösés.
+     - **SHIFT gombbal együtt:** Közvetlen Beatgrid (ütemrács) pozicionálás a kick elejére:
+       * **`<<` (Note 21):** Beatgrid eltolása balra (−10 ms lépés).
+       * **`>>` (Note 23):** Beatgrid eltolása jobbra (+10 ms lépés).
+       * **Középső gomb (Note 22):** `GRID_SET_ANCHOR` / `SET 1`: azonnal rögzíti az 1. ütem rácsvonalát a jelenlegi lejátszófej/kick pozícióra.
+       * A rácsmozgatás azonnal beíródik a `.vdj.json` gyorsítótárba, megőrizve a rács helyzetét a jövőbeli betöltésekre is.
+  4. **Automatikus Közvetlen Telepítés:**
+     - A bináris azonnal bemásolva mind az aktív OBS könyvtárba (`C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`), mind az Asztalra biztonsági másolatként.
