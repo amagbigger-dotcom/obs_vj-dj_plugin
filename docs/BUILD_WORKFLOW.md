@@ -634,7 +634,7 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
 * **Verzió & Commit:** `697adcd`
 * **SHA256:** `B284A4B4E68A66B69CB41EFACE60D9734CC37FA12B5225FE3AD22979787A92C5`
 * **GitHub Run ID:** `44779958565` (Run #309)
-* **Kész bináris mentés:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` és `c:\gitrepo\obs_vj-dj_plugin\obs_dj-vj_plugin.dll` (1 261 056 bájt)
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (1 261 056 bájt)
 * **Jellemzők és Hibajavítások:**
   1. **Valós Idejű Kétirányú MIDI LED Visszajelzés (Hardware Feedback):**
      - Megvalósítva a WinMM `midiOutShortMsg` kimeneti motor (`vdj_midi_send_short_msg`).
