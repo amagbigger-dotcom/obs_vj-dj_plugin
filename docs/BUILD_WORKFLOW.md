@@ -499,6 +499,46 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - Sikeresen felülírva és ellenőrizve az OBS telepítési könyvtárában (`C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`) és az Asztalon.
 
 
+### Mérföldkő #29: Build #297 / GitHub Run #44706004528 (Korg KAOSS DJ & Traktor S2 Teljes Hardver Térkép, Valós Jog Scratch & Zenei Navigáció)
+* **Verzió & Commit:** `d07141b`
+* **SHA256:** `ABDDBC8DD44AC4F22B8440A7790C8B65B396659B9AF1E29057A871A31092FF29`
+* **GitHub Run ID:** `44706004528`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (1 243 136 bájt)
+* **Jellemzők és Hibajavítások:**
+  1. **Valós Jog Scratch & Hangpozicionálás a Beatgrid Nudge helyett:**
+     - A korábbi kód tévesen a taktusvonalakat tolta (`nudgeGrid`), ami miatt a jog wheel forgatásakor a beatgrid pörgött a hullámforma helyett.
+     - Átállítva közvetlen audió pozicionálásra (`nudgePlayback`): érintéskor (touch scratch) 120 ms/tick sebességű varratmentes pozicionálás, felengedett érintőcsíknál 25 ms/tick finomhangolás.
+  2. **Korg KAOSS DJ Hivatalos Hardver Címzés Javítása (Hangszínek & Filter):**
+     - A gyári specifikáció alapján a korábbi téves CC 19-21 leképezés helyett bekötve a valódi hardveres címek:
+       * **GAIN:** CC 26
+       * **HI EQ:** CC 27
+       * **MID EQ:** CC 28
+       * **LOW EQ:** CC 29
+       * **FILTER:** CC 22 és másodlagos CC 30
+     - Deck A (Ch 8) és Deck B (Ch 9) natív gyári csatornákon, valamint Ch 1 & Ch 2 fallback módban is azonnal működik.
+  3. **Zenei Könyvtár (Tracklist) Böngészés & Betöltés:**
+     - `BROWSE_SCROLL` (CC 29, `BIN_OFFSET` relatív mód): a forgatógomb közvetlenül lépteti a kiválasztott dalt a táblázatban fel/le.
+     - `LOAD_SELECTED_A` (Note 45) és `LOAD_SELECTED_B` (Note 46): betölti a kijelölt dalt az adott deckre.
+     - `LOAD_SELECTED` (Note 32 enkóder benyomás): intelligens automatikus deck választó (a lejátszásban nem lévő vagy aktív deckre tölt).
+     - Szálbiztos `QMetaObject::invokeMethod` Qt hívásokkal, a modális figyelmeztető ablak blokkolása kiküszöbölve.
+  4. **Loop és Pitch Bend Kezelés:**
+     - `LOOP_TOGGLE` (Note 31): loop azonnali be/kikapcsolása az aktuális lejátszási pozíciótól.
+     - `LOOP_HALVE` (Note 28): loop méret azonnali felezése (1/2 – 32 ütem között) élő újraszámolással.
+     - `LOOP_DOUBLE` és relatív `LOOP_SIZE_CHANGE` enkóder kezelés.
+     - `PITCH_BEND_DOWN` (Note 21 `<<`) és `PITCH_BEND_UP` (Note 22 `>>`): azonnali ±120 ms-os pillanatnyi léptetés.
+  5. **Szigorú 200–300 Soros Moduláris Kódstruktúra:**
+     - A kontroller profilok külön forrásfájlokba szervezve:
+       * `src/controllers/midi_profiles_korg.cpp` (105 sor)
+       * `src/controllers/midi_profiles_traktor.cpp` (47 sor)
+       * `src/controllers/midi_profiles_pioneer.cpp` (51 sor)
+       * `src/controllers/midi_profiles_other.cpp` (39 sor)
+       * `src/controllers/midi_mapping.cpp` (111 sor)
+       * `src/controllers/midi_dispatcher.cpp` (293 sor)
+       * `src/gui/settings_midi_tab.cpp` (273 sor)
+  6. **Telepítés és Hitelesítés:**
+     - A bináris sikeresen lefordult a felhős CI-n, és bemásolásra került a `Program Files` és `Desktop` mappákba azonos SHA256 lenyomattal.
+
+
 ### Mérföldkő #27: Build #295 / GitHub Run #302 (Adatvezérelt Kontroller Architektúra, Relatív Jog Dekóder, 200-soros Moduláris Refaktoring)
 * **Verzió & Commit:** `f020530`
 * **SHA256:** `516ABDAB0A5BBDDE915809717C4567B7B666133EF06BB0D1E0904E04DBCF8B64`
@@ -548,3 +588,43 @@ Ha bármikor vissza kell állítani egy stabil, bevált állapotot:
      - Új `midi_activity_lbl_` állapotjelző, amely bármely gomb, fader vagy touchpad megérintésekor azonnal zöldre vált és kiírja a pontos csatornát, CC/Note számot és értéket (`🟢 ÉLŐ JEL ÉRKEZETT: Ch X | CC/Note Y | Érték: Z`).
   4. **Telepítés és Hitelesítés:**
      - Sikeresen felülírva és ellenőrizve az OBS telepítési könyvtárában (`C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`) és az Asztalon.
+
+
+### Mérföldkő #29: Build #297 / GitHub Run #44706004528 (Korg KAOSS DJ & Traktor S2 Teljes Hardver Térkép, Valós Jog Scratch & Zenei Navigáció)
+* **Verzió & Commit:** `d07141b`
+* **SHA256:** `ABDDBC8DD44AC4F22B8440A7790C8B65B396659B9AF1E29057A871A31092FF29`
+* **GitHub Run ID:** `44706004528`
+* **Kész bináris mentés:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` és `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (1 243 136 bájt)
+* **Jellemzők és Hibajavítások:**
+  1. **Valós Jog Scratch & Hangpozicionálás a Beatgrid Nudge helyett:**
+     - A korábbi kód tévesen a taktusvonalakat tolta (`nudgeGrid`), ami miatt a jog wheel forgatásakor a beatgrid pörgött a hullámforma helyett.
+     - Átállítva közvetlen audió pozicionálásra (`nudgePlayback`): érintéskor (touch scratch) 120 ms/tick sebességű varratmentes pozicionálás, felengedett érintőcsíknál 25 ms/tick finomhangolás.
+  2. **Korg KAOSS DJ Hivatalos Hardver Címzés Javítása (Hangszínek & Filter):**
+     - A gyári specifikáció alapján a korábbi téves CC 19-21 leképezés helyett bekötve a valódi hardveres címek:
+       * **GAIN:** CC 26
+       * **HI EQ:** CC 27
+       * **MID EQ:** CC 28
+       * **LOW EQ:** CC 29
+       * **FILTER:** CC 22 és másodlagos CC 30
+     - Deck A (Ch 8) és Deck B (Ch 9) natív gyári csatornákon, valamint Ch 1 & Ch 2 fallback módban is azonnal működik.
+  3. **Zenei Könyvtár (Tracklist) Böngészés & Betöltés:**
+     - `BROWSE_SCROLL` (CC 29, `BIN_OFFSET` relatív mód): a forgatógomb közvetlenül lépteti a kiválasztott dalt a táblázatban fel/le.
+     - `LOAD_SELECTED_A` (Note 45) és `LOAD_SELECTED_B` (Note 46): betölti a kijelölt dalt az adott deckre.
+     - `LOAD_SELECTED` (Note 32 enkóder benyomás): intelligens automatikus deck választó (a lejátszásban nem lévő vagy aktív deckre tölt).
+     - Szálbiztos `QMetaObject::invokeMethod` Qt hívásokkal, a modális figyelmeztető ablak blokkolása kiküszöbölve.
+  4. **Loop és Pitch Bend Kezelés:**
+     - `LOOP_TOGGLE` (Note 31): loop azonnali be/kikapcsolása az aktuális lejátszási pozíciótól.
+     - `LOOP_HALVE` (Note 28): loop méret azonnali felezése (1/2 – 32 ütem között) élő újraszámolással.
+     - `LOOP_DOUBLE` és relatív `LOOP_SIZE_CHANGE` enkóder kezelés.
+     - `PITCH_BEND_DOWN` (Note 21 `<<`) és `PITCH_BEND_UP` (Note 22 `>>`): azonnali ±120 ms-os pillanatnyi léptetés.
+  5. **Szigorú 200–300 Soros Moduláris Kódstruktúra:**
+     - A kontroller profilok külön forrásfájlokba szervezve:
+       * `src/controllers/midi_profiles_korg.cpp` (105 sor)
+       * `src/controllers/midi_profiles_traktor.cpp` (47 sor)
+       * `src/controllers/midi_profiles_pioneer.cpp` (51 sor)
+       * `src/controllers/midi_profiles_other.cpp` (39 sor)
+       * `src/controllers/midi_mapping.cpp` (111 sor)
+       * `src/controllers/midi_dispatcher.cpp` (293 sor)
+       * `src/gui/settings_midi_tab.cpp` (273 sor)
+  6. **Telepítés és Hitelesítés:**
+     - A bináris sikeresen lefordult a felhős CI-n, és bemásolásra került a `Program Files` és `Desktop` mappákba azonos SHA256 lenyomattal.
