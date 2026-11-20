@@ -44,6 +44,13 @@ void MidiDispatcher::cancelLearn()
     learn_action_ = MidiAction::NONE;
 }
 
+bool MidiDispatcher::isShiftPressed(int deck) const
+{
+    if (deck == 1) return shift_a_.load(std::memory_order_relaxed) || shift_global_.load(std::memory_order_relaxed);
+    if (deck == 2) return shift_b_.load(std::memory_order_relaxed) || shift_global_.load(std::memory_order_relaxed);
+    return shift_a_.load(std::memory_order_relaxed) || shift_b_.load(std::memory_order_relaxed) || shift_global_.load(std::memory_order_relaxed);
+}
+
 void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
 {
     const uint8_t msg_type_nibble = status & 0xF0U;
@@ -151,15 +158,58 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
 
     case MidiAction::PITCH_BEND_UP:
         if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
-            target_deck->nudgePlayback(120);
+            if (isShiftPressed(b->deck)) {
+                // Shift + >> : moves beatgrid forward (+10 ms) to align grid to kick drum
+                target_deck->nudgeGrid(10);
+            } else {
+                // Normal >> : gentle phase nudge (+20 ms)
+                target_deck->nudgePlayback(20);
+            }
         }
         break;
 
     case MidiAction::PITCH_BEND_DOWN:
         if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
-            target_deck->nudgePlayback(-120);
+            if (isShiftPressed(b->deck)) {
+                // Shift + << : moves beatgrid backward (-10 ms) to align grid to kick drum
+                target_deck->nudgeGrid(-10);
+            } else {
+                // Normal << : gentle phase nudge (-20 ms)
+                target_deck->nudgePlayback(-20);
+            }
         }
         break;
+
+    case MidiAction::GRID_NUDGE_RIGHT:
+        if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
+            target_deck->nudgeGrid(10);
+        }
+        break;
+
+    case MidiAction::GRID_NUDGE_LEFT:
+        if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
+            target_deck->nudgeGrid(-10);
+        }
+        break;
+
+    case MidiAction::GRID_SET_ANCHOR:
+        if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
+            target_deck->setGridAnchorAtCurrent(true);
+        }
+        break;
+
+    case MidiAction::SHIFT: {
+        const bool active = (msg_type == MidiMsgType::NOTE_ON && data2 > 0) ||
+                            (msg_type == MidiMsgType::CC && data2 > 63);
+        if (b->deck == 1) {
+            shift_a_.store(active, std::memory_order_relaxed);
+        } else if (b->deck == 2) {
+            shift_b_.store(active, std::memory_order_relaxed);
+        } else {
+            shift_global_.store(active, std::memory_order_relaxed);
+        }
+        break;
+    }
 
     case MidiAction::PLAY_PAUSE:
         if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
@@ -327,7 +377,12 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         jog.setMode(b->jog_mode);
         const double delta = jog.processDelta(data2);
         if (target_deck && std::abs(delta) > 0.001) {
-            if (jog.isTouched()) {
+            const bool shifted = isShiftPressed(b->deck) || (b->control == 15);
+            if (shifted) {
+                // Slower tempo / fine positioning when SHIFT is held (or CC 15 wheelTurnShift)
+                const double speed = jog.isTouched() ? 15.0 : 5.0;
+                target_deck->nudgePlayback(static_cast<int64_t>(delta * speed));
+            } else if (jog.isTouched()) {
                 target_deck->nudgePlayback(static_cast<int64_t>(delta * 120.0));
             } else {
                 target_deck->nudgePlayback(static_cast<int64_t>(delta * 25.0));
@@ -440,6 +495,9 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
         case MidiAction::HOTCUE_4:
             val = ((b.deck == 2 ? db : da) && (b.deck == 2 ? db : da)->hotCueMs(3) >= 0) ? 127 : 0;
             break;
+        case MidiAction::SHIFT:
+            val = (b.deck == 2 ? shift_b_.load() : shift_a_.load()) ? 127 : 0;
+            break;
         default:
             continue;
         }
@@ -455,6 +513,7 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
         sendIfChanged(ch_st, 30, play_a ? (blink_state ? 127 : 0) : (cue_a ? 127 : 0)); // Cue
         sendIfChanged(ch_st, 29, sync_a ? 127 : 0); // Sync
         sendIfChanged(ch_st, 25, pfl_a ? 127 : 0);  // Headphone Cue
+        sendIfChanged(ch_st, 26, shift_a_.load() ? 127 : 0); // Shift A
         sendIfChanged(ch_st, 16, loop_a ? 127 : 0); // Loop Active
         sendIfChanged(ch_st, 15, loop_a ? 127 : 0); // Loop 1/2X
         sendIfChanged(ch_st, 17, loop_a ? 127 : 0); // Loop 2X
@@ -467,6 +526,7 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
         sendIfChanged(ch_st, 30, play_b ? (blink_state ? 127 : 0) : (cue_b ? 127 : 0)); // Cue
         sendIfChanged(ch_st, 29, sync_b ? 127 : 0); // Sync
         sendIfChanged(ch_st, 25, pfl_b ? 127 : 0);  // Headphone Cue
+        sendIfChanged(ch_st, 26, shift_b_.load() ? 127 : 0); // Shift B
         sendIfChanged(ch_st, 16, loop_b ? 127 : 0); // Loop Active
         sendIfChanged(ch_st, 15, loop_b ? 127 : 0); // Loop 1/2X
         sendIfChanged(ch_st, 17, loop_b ? 127 : 0); // Loop 2X

@@ -2,6 +2,7 @@
 
 #include "controllers/midi_mapping.hpp"
 #include "controllers/midi_jog.hpp"
+#include <atomic>
 #include <functional>
 #include <mutex>
 
@@ -25,6 +26,8 @@ public:
     void dispatch(uint8_t status, uint8_t data1, uint8_t data2);
     void sendFeedback(bool force_refresh = false);
 
+    bool isShiftPressed(int deck = 0) const;
+
 private:
     MidiDispatcher();
 
@@ -33,6 +36,10 @@ private:
     MidiJogWheel jog_a_{MidiJogMode::SPREAD_64};
     MidiJogWheel jog_b_{MidiJogMode::SPREAD_64};
     MidiJogWheel jog_browse_{MidiJogMode::BIN_OFFSET};
+
+    std::atomic<bool> shift_a_{false};
+    std::atomic<bool> shift_b_{false};
+    std::atomic<bool> shift_global_{false};
 
     bool is_learning_ = false;
     MidiAction learn_action_ = MidiAction::NONE;

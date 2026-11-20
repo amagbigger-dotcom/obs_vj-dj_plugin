@@ -51,6 +51,12 @@ enum class MidiAction : uint16_t {
     LOAD_SELECTED_B,
     LOAD_SELECTED,
 
+    // Modifiers & Beatgrid
+    SHIFT,
+    GRID_NUDGE_LEFT,
+    GRID_NUDGE_RIGHT,
+    GRID_SET_ANCHOR,
+
     // VJ & Video Controls
     VJ_PARAM_X,      // Touchpad X / Ribbon -> Shader p0
     VJ_PARAM_Y,      // Touchpad Y -> Shader p1

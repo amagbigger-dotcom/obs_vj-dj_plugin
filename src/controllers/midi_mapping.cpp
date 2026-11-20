@@ -44,6 +44,24 @@ const MidiControlBinding *MidiControllerProfile::findBinding(MidiMsgType type, u
     if (it != lookup_.end()) {
         return &bindings_[it->second];
     }
+
+    // Fallback for NOTE_OFF: if a control was bound as NOTE_ON, allow finding it on NOTE_OFF
+    if (type == MidiMsgType::NOTE_OFF) {
+        const uint32_t note_on_exact = (static_cast<uint32_t>(MidiMsgType::NOTE_ON) << 16) |
+                                       (static_cast<uint32_t>(channel) << 8) |
+                                       static_cast<uint32_t>(control);
+        it = lookup_.find(note_on_exact);
+        if (it != lookup_.end()) {
+            return &bindings_[it->second];
+        }
+        const uint32_t note_on_any = (static_cast<uint32_t>(MidiMsgType::NOTE_ON) << 16) |
+                                     static_cast<uint32_t>(control);
+        it = lookup_.find(note_on_any);
+        if (it != lookup_.end()) {
+            return &bindings_[it->second];
+        }
+    }
+
     return nullptr;
 }
 
