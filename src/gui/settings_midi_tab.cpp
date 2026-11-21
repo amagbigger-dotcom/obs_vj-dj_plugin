@@ -67,7 +67,7 @@ void SettingsMidiTab::setupUi()
 
     hw_grid->addWidget(new QLabel(QStringLiteral("MIDI Bemeneti Eszköz:"), hw_group), 0, 0);
     midi_in_combo_ = new QComboBox(hw_group);
-    connect(midi_in_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [](int idx) {
+    connect(midi_in_combo_, QOverload<int>::of(&QComboBox::activated), this, [](int idx) {
         if (idx >= 0) {
             vdj_midi_open_input_device(idx);
         }
@@ -76,7 +76,7 @@ void SettingsMidiTab::setupUi()
 
     hw_grid->addWidget(new QLabel(QStringLiteral("MIDI Kimeneti Eszköz (Clock/LED):"), hw_group), 1, 0);
     midi_out_combo_ = new QComboBox(hw_group);
-    connect(midi_out_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [](int idx) {
+    connect(midi_out_combo_, QOverload<int>::of(&QComboBox::activated), this, [](int idx) {
         if (idx >= 0) {
             vdj_midi_open_output_device(idx);
         }
@@ -85,7 +85,7 @@ void SettingsMidiTab::setupUi()
 
     hw_grid->addWidget(new QLabel(QStringLiteral("Gyári Kontroller Térkép (Mapping):"), hw_group), 2, 0);
     preset_combo_ = new QComboBox(hw_group);
-    connect(preset_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &SettingsMidiTab::onMidiPresetChanged);
+    connect(preset_combo_, QOverload<int>::of(&QComboBox::activated), this, &SettingsMidiTab::onMidiPresetChanged);
     hw_grid->addWidget(preset_combo_, 2, 1);
 
     auto *preset_btn_layout = new QHBoxLayout();
@@ -127,6 +127,7 @@ void SettingsMidiTab::setupUi()
 
 void SettingsMidiTab::populatePresets()
 {
+    const QSignalBlocker blocker(preset_combo_);
     preset_combo_->clear();
     for (const auto &p : builtin_profiles_) {
         preset_combo_->addItem(QString("[%1] %2").arg(p.manufacturer(), p.name()), p.name());
@@ -135,6 +136,9 @@ void SettingsMidiTab::populatePresets()
 
 void SettingsMidiTab::populateDevices()
 {
+    const QSignalBlocker blockerIn(midi_in_combo_);
+    const QSignalBlocker blockerOut(midi_out_combo_);
+
     midi_in_combo_->clear();
     const auto midi_in = vdj_midi_get_input_devices();
     if (midi_in.empty()) {
@@ -282,18 +286,32 @@ void SettingsMidiTab::onLearnClicked(int row)
 
 void SettingsMidiTab::applyConfig(const PluginSettingsConfig &cfg)
 {
+    const QSignalBlocker blockerIn(midi_in_combo_);
+    const QSignalBlocker blockerOut(midi_out_combo_);
+    const QSignalBlocker blockerPreset(preset_combo_);
+
     if (!cfg.midi_input_device.isEmpty()) {
         int idx = midi_in_combo_->findText(cfg.midi_input_device);
         if (idx >= 0) midi_in_combo_->setCurrentIndex(idx);
+    } else {
+        const char *cur = vdj_midi_get_device_name();
+        if (cur && cur[0] != '\0') {
+            int idx = midi_in_combo_->findText(QString::fromLocal8Bit(cur));
+            if (idx >= 0) midi_in_combo_->setCurrentIndex(idx);
+        }
     }
+
     if (!cfg.midi_output_device.isEmpty()) {
         int idx = midi_out_combo_->findText(cfg.midi_output_device);
         if (idx >= 0) midi_out_combo_->setCurrentIndex(idx);
     }
+
     int p_idx = preset_combo_->findData(cfg.active_preset);
     if (p_idx >= 0) {
         preset_combo_->setCurrentIndex(p_idx);
-        onMidiPresetChanged(p_idx);
+        current_profile_ = builtin_profiles_[p_idx];
+        MidiDispatcher::instance().setProfile(current_profile_);
+        refreshLearnTable();
     } else {
         // Use active profile from dispatcher (which may have been auto-detected by MidiHandler)
         current_profile_ = MidiDispatcher::instance().activeProfile();

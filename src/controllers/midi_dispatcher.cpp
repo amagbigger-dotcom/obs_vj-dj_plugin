@@ -21,6 +21,7 @@ void MidiDispatcher::setProfile(const MidiControllerProfile &p)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     profile_ = p;
+    last_feedback_sent_.clear();
 }
 
 MidiControllerProfile MidiDispatcher::activeProfile() const
@@ -450,16 +451,16 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
     DeckPlayer *db = vj_deck_b();
     if (!da && !db) return;
 
-    static std::unordered_map<uint32_t, uint8_t> s_last_sent;
-    static uint32_t s_blink_counter = 0;
-    s_blink_counter++;
-    const bool blink_state = (s_blink_counter % 20) < 10; // ~400ms on, 400ms off
+    std::lock_guard<std::mutex> lock(mutex_);
 
-    auto sendIfChanged = [force_refresh](uint8_t status, uint8_t note, uint8_t val) {
+    feedback_blink_counter_++;
+    const bool blink_state = (feedback_blink_counter_ % 20) < 10; // ~400ms on, 400ms off
+
+    auto sendIfChanged = [this, force_refresh](uint8_t status, uint8_t note, uint8_t val) {
         const uint32_t key = (static_cast<uint32_t>(status) << 8) | note;
-        auto it = s_last_sent.find(key);
-        if (force_refresh || it == s_last_sent.end() || it->second != val) {
-            s_last_sent[key] = val;
+        auto it = last_feedback_sent_.find(key);
+        if (force_refresh || it == last_feedback_sent_.end() || it->second != val) {
+            last_feedback_sent_[key] = val;
             vdj_midi_send_short_msg(status, note, val);
         }
     };
@@ -478,7 +479,6 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
     const bool loop_b = db && db->isLooping();
     const bool load_b = db && (!db->filePath().isEmpty() || db->durationMs() > 0);
 
-    std::unique_lock<std::mutex> lock(mutex_);
     const auto &bindings = profile_.bindings();
 
     for (const auto &b : bindings) {
@@ -540,7 +540,6 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
 
         sendIfChanged(status, note, val);
     }
-    lock.unlock();
 
     // Specific Korg Kaoss DJ direct fallback sends to guarantee feedback on all hardware modes:
     // Deck A: Ch 8 (0x97) & Ch 1 (0x90)

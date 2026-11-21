@@ -52,4 +52,7 @@ private:
     int learn_deck_ = 0;
     LearnCallback learn_cb_;
     MonitorCallback monitor_cb_;
+
+    std::unordered_map<uint32_t, uint8_t> last_feedback_sent_;
+    uint32_t feedback_blink_counter_{0};
 };

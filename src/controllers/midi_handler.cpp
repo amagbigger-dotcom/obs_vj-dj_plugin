@@ -22,6 +22,9 @@ namespace {
 
 HMIDIIN g_midi_in = nullptr;
 HMIDIOUT g_midi_out = nullptr;
+std::mutex g_midi_out_mutex;
+int g_current_out_device_id = -1;
+char g_out_device_name[MAXPNAMELEN] = {};
 std::atomic<bool> g_connected{false};
 std::atomic<bool> g_clock_send_enabled{false};
 std::atomic<bool> g_clock_thread_running{false};
@@ -132,7 +135,10 @@ void clock_sender_loop()
         const double tick_interval_us = 60000000.0 / (eff_bpm * 24.0);
 
         const auto start_tp = std::chrono::steady_clock::now();
-        midiOutShortMsg(g_midi_out, 0xF8);
+        {
+            std::lock_guard<std::mutex> lock(g_midi_out_mutex);
+            if (g_midi_out) midiOutShortMsg(g_midi_out, 0xF8);
+        }
 
         const auto target_tp = start_tp + std::chrono::microseconds(static_cast<int64_t>(tick_interval_us));
         while (std::chrono::steady_clock::now() < target_tp && g_clock_thread_running.load(std::memory_order_relaxed)) {
@@ -348,10 +354,15 @@ void vdj_midi_shutdown()
         g_midi_in = nullptr;
     }
 
-    if (g_midi_out) {
-        midiOutReset(g_midi_out);
-        midiOutClose(g_midi_out);
-        g_midi_out = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_midi_out_mutex);
+        if (g_midi_out) {
+            midiOutReset(g_midi_out);
+            midiOutClose(g_midi_out);
+            g_midi_out = nullptr;
+        }
+        g_current_out_device_id = -1;
+        g_out_device_name[0] = '\0';
     }
 
     g_device_name[0] = '\0';
@@ -392,6 +403,18 @@ std::vector<std::string> vdj_midi_get_input_devices()
 
 bool vdj_midi_open_input_device(int device_id)
 {
+    if (device_id < 0 || device_id >= static_cast<int>(midiInGetNumDevs()))
+        return false;
+
+    MIDIINCAPSA caps = {};
+    if (midiInGetDevCapsA(static_cast<UINT>(device_id), &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+        if (g_midi_in && g_connected.load(std::memory_order_relaxed) &&
+            std::strncmp(g_device_name, caps.szPname, sizeof(g_device_name)) == 0) {
+            // Already connected to this exact input device, no teardown needed
+            return true;
+        }
+    }
+
     if (g_midi_in) {
         midiInStop(g_midi_in);
         midiInClose(g_midi_in);
@@ -401,14 +424,8 @@ bool vdj_midi_open_input_device(int device_id)
     g_connected.store(false, std::memory_order_relaxed);
     g_device_name[0] = '\0';
 
-    if (device_id < 0 || device_id >= static_cast<int>(midiInGetNumDevs()))
-        return false;
-
-    MIDIINCAPSA caps = {};
-    if (midiInGetDevCapsA(static_cast<UINT>(device_id), &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
-        std::strncpy(g_device_name, caps.szPname, sizeof(g_device_name) - 1);
-        g_device_name[sizeof(g_device_name) - 1] = '\0';
-    }
+    std::strncpy(g_device_name, caps.szPname, sizeof(g_device_name) - 1);
+    g_device_name[sizeof(g_device_name) - 1] = '\0';
 
     MMRESULT result = midiInOpen(
         &g_midi_in,
@@ -447,17 +464,46 @@ std::vector<std::string> vdj_midi_get_output_devices()
 
 bool vdj_midi_open_output_device(int device_id)
 {
+    std::lock_guard<std::mutex> lock(g_midi_out_mutex);
+
+    if (device_id < 0 || device_id >= static_cast<int>(midiOutGetNumDevs())) {
+        if (g_midi_out) {
+            midiOutReset(g_midi_out);
+            midiOutClose(g_midi_out);
+            g_midi_out = nullptr;
+        }
+        g_current_out_device_id = -1;
+        g_out_device_name[0] = '\0';
+        return false;
+    }
+
+    MIDIOUTCAPSA caps = {};
+    if (midiOutGetDevCapsA(static_cast<UINT>(device_id), &caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+        if (g_midi_out && g_current_out_device_id == device_id &&
+            std::strncmp(g_out_device_name, caps.szPname, sizeof(g_out_device_name)) == 0) {
+            // Already connected to this exact output device, no teardown needed
+            return true;
+        }
+    }
+
     if (g_midi_out) {
         midiOutReset(g_midi_out);
         midiOutClose(g_midi_out);
         g_midi_out = nullptr;
     }
 
-    if (device_id < 0)
-        return false;
+    g_current_out_device_id = -1;
+    g_out_device_name[0] = '\0';
 
     MMRESULT res = midiOutOpen(&g_midi_out, static_cast<UINT>(device_id), 0, 0, CALLBACK_NULL);
-    return res == MMSYSERR_NOERROR;
+    if (res == MMSYSERR_NOERROR) {
+        g_current_out_device_id = device_id;
+        std::strncpy(g_out_device_name, caps.szPname, sizeof(g_out_device_name) - 1);
+        g_out_device_name[sizeof(g_out_device_name) - 1] = '\0';
+        blog(LOG_INFO, "[obs-vj-deck] MIDI output connected: %s (id: %d)", g_out_device_name, device_id);
+        return true;
+    }
+    return false;
 }
 
 void vdj_midi_set_profile(const MidiControllerProfile &p)
@@ -487,6 +533,7 @@ bool vdj_midi_is_learning()
 
 void vdj_midi_send_short_msg(uint8_t status, uint8_t data1, uint8_t data2)
 {
+    std::lock_guard<std::mutex> lock(g_midi_out_mutex);
     if (!g_midi_out)
         return;
     const DWORD packed = static_cast<DWORD>(status) |
