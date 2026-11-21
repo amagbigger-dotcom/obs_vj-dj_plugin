@@ -83,7 +83,7 @@ VjFxDialog::VjFxDialog(DeckPair *decks, QWidget *parent)
     g_vj_fx_dialog = this;
 
     setWindowTitle(QStringLiteral("OBS VJ Video & Shader Master FX"));
-    setFixedSize(540, 560);
+    setFixedSize(540, 500);
     setWindowFlags(Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
     setStyleSheet(QString::fromUtf8(VJ_DIALOG_STYLESHEET));
 
@@ -651,8 +651,12 @@ void VjFxDialog::showEvent(QShowEvent *event)
     QDialog::showEvent(event);
     if (QScreen *screen = QGuiApplication::primaryScreen()) {
         const QRect geom = screen->availableGeometry();
+        const int target_w = 540;
+        const int target_h = 500;
+        setFixedSize(target_w, target_h);
+
         const int x_pos = geom.left() + 10;
-        const int y_pos = geom.top() + 10;
+        const int y_pos = geom.top() + 38;
         move(x_pos, y_pos);
     }
 }

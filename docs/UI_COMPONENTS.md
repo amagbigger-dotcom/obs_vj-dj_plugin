@@ -19,11 +19,11 @@ A felületek **nem OBS dokkoló panelek**, hanem független lebegő dialógusok 
 
 | Ablak | Cím / Menüpont | Méret (Fix) | Főbb Vezérlők |
 | :--- | :--- | :---: | :--- |
-| **DeckWindow A** | `Eszközök -> OBS VJ Deck A` | **640 × 430 px** | 175 px Waveform (135 px Detailed + 38 px Overview), Jog Scratch, 4 Hot Cue, Loop Mátrix (1/2–32), Pitch Fader, TAP melletti közvetlen BPM mező és /2, x2 gombok |
-| **DeckWindow B** | `Eszközök -> OBS VJ Deck B` | **640 × 430 px** | Megegyezik a Deck A-val, narancssárga kiemeléssel |
+| **DeckWindow A** | `Eszközök -> OBS VJ Deck A` | **640 × 410 px** | 175 px Waveform (135 px Detailed + 38 px Overview), Jog Scratch, 4 Hot Cue, Loop Mátrix (1/2–32), Pitch Fader, TAP melletti közvetlen BPM mező és /2, x2 gombok |
+| **DeckWindow B** | `Eszközök -> OBS VJ Deck B` | **640 × 410 px** | Megegyezik a Deck A-val, narancssárga kiemeléssel |
 | **MixerWindow** | `Eszközök -> Video DJ Mixer` | **590 × 340 px** | 3-sávos EQ (0 középérték, negatív vágás, előjel nélküli erősítés) és Gain, `[ ⇄ BGR ]` inverzió, Filter, Master Crossfader, `[ ⚙ BEÁLLÍTÁSOK ]`, CUE/PGM füles mix, WASAPI választó, OBS T-Bar szinkron |
-| **TracklistDock** | `Eszközök -> OBS VJ Tracklist` | **640 × 560 px** | Drag-and-drop lista, session zöld pipák, 720p–4K konverter, mini `[ A ]` és `[ B ]` betöltő gombok |
-| **VideoFxDialog (VjFxDialog)** | `Eszközök -> OBS VJ Visualizer & FX` | **540 × 560 px** | **Egységes 3-füles ablak:** 1. Fül: VJ Visualizer Shader & Deck A/B váltó (15 shader, ISF konverter), 2. Fül: Crossfade FX (13 átmenet effekt), 3. Fül: BPM-szinkronizált LFO 1 & 2 motor élő oszcilloszkópokkal |
+| **TracklistDock** | `Eszközök -> OBS VJ Tracklist` | **640 × 500 px** | Drag-and-drop lista, session zöld pipák, 720p–4K konverter, mini `[ A ]` és `[ B ]` betöltő gombok |
+| **VideoFxDialog (VjFxDialog)** | `Eszközök -> OBS VJ Visualizer & FX` | **540 × 500 px** | **Egységes 3-füles ablak:** 1. Fül: VJ Visualizer Shader & Deck A/B váltó (15 shader, ISF konverter), 2. Fül: Crossfade FX (13 átmenet effekt), 3. Fül: BPM-szinkronizált LFO 1 & 2 motor élő oszcilloszkópokkal |
 | **Teljes Elrendezés** | `Eszközök -> OBS VJ Teljes Elrendezés (Mind az 5 ablak)` | **1920 × 1080** | Mind az 5 ablakot (Deck A, Mixer, Deck B, Video FX, Tracklist) egyszerre megnyitja és pixelre pontosan elrendezi a monitoron. |
 
 ---

@@ -628,12 +628,12 @@ void DeckWindow::showEvent(QShowEvent *event)
     if (QScreen *screen = QGuiApplication::primaryScreen()) {
         const QRect geom = screen->availableGeometry();
         const int target_w = 640;
-        const int target_h = 430;
+        const int target_h = 410;
         setFixedSize(target_w, target_h);
 
-        const int y_pos = geom.top() + 580;
+        const int y_pos = std::max(0, geom.bottom() - target_h - 38);
         const bool is_b = (deck_ && deck_->side() == DeckPlayer::DeckSide::B);
-        const int x_pos = is_b ? (geom.left() + 1260) : (geom.left() + 10);
+        const int x_pos = is_b ? (geom.left() + 1255) : (geom.left() + 10);
         move(x_pos, y_pos);
     }
 }

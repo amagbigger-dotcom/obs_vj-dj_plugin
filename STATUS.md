@@ -9,13 +9,12 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Kezelőfelületi Ergonómia & 5-Ablakos Képernyő Elrendezés (Build #323):
+* **Fő cél:** Kezelőfelületi Ergonómia & 5-Ablakos Képernyő Elrendezés (Build #324):
   1. Mind az 5 ablak (Deck A, Mixer, Deck B, Video FX, Tracklist) egykattintásos elrendezése az Eszközök menüből (1920×1080).
-  2. Deck ablak magasságának növelése `640 × 430 px`-re (+90 px) a Video FX panel aljáig.
-  3. Kétrétegű Waveform magasságának optimalizálása: 175 px (135 px részletes futó hullámforma + 38 px 3-sávos áttekintő).
+  2. Ablakméretek és pozíciók pontosítása: OBS menüsor láthatósága (`y = 38`), Deck tálca fölé illesztése, Video FX & Tracklist `500 px`, Deck `410 px` magasság, 0 átfedés.
+  3. Kétrétegű Waveform magasság: 175 px (135 px részletes futó hullámforma + 38 px 3-sávos áttekintő).
   4. Deck fejlécének tehermentesítése: zenecímnek 320+ px tiszta hely, /2 és x2 áthelyezve a TAP mellé, triola (3/2) és VJ gomb törölve.
   5. Mixer EQ hangszín potméterek (HI, MID, LOW) értékkijelzésének nullázása (középen 0, vágás `-`, erősítés előjel nélkül).
-  6. Tracklist méretének és elhelyezésének rögzítése: `640 × 560 px` a jobb felső sarokban.
 
 ---
 
