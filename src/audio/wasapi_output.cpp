@@ -5,6 +5,8 @@
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <ksmedia.h>
+#include <propsys.h>
+#include <propvarutil.h>
 #include <obs.h>
 
 #include <vector>
@@ -88,27 +90,64 @@ bool WasapiOutput::open(const std::string &device_id)
         }
         hr = impl_->enumerator_->GetDevice(wid.c_str(), &impl_->device_);
 
-        // Fallback: enumerate active render endpoints and search by ID substring
+        // Fallback: enumerate active render endpoints and search by ID or friendly name substring
         if (FAILED(hr) || !impl_->device_) {
             IMMDeviceCollection *collection = nullptr;
             if (SUCCEEDED(impl_->enumerator_->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection)) && collection) {
                 UINT count = 0;
                 collection->GetCount(&count);
+                std::wstring wid_lower = wid;
+                for (auto &c : wid_lower) c = towlower(c);
+
                 for (UINT i = 0; i < count; ++i) {
                     IMMDevice *dev = nullptr;
                     if (SUCCEEDED(collection->Item(i, &dev)) && dev) {
+                        bool matched = false;
                         LPWSTR dev_id_w = nullptr;
                         if (SUCCEEDED(dev->GetId(&dev_id_w)) && dev_id_w) {
-                            if (wcsstr(dev_id_w, wid.c_str()) != nullptr ||
-                                wcsstr(wid.c_str(), dev_id_w) != nullptr) {
-                                impl_->device_ = dev;
-                                dev->AddRef();
-                                CoTaskMemFree(dev_id_w);
-                                dev->Release();
-                                hr = S_OK;
-                                break;
+                            std::wstring id_lower = dev_id_w;
+                            for (auto &c : id_lower) c = towlower(c);
+                            if (id_lower.find(wid_lower) != std::wstring::npos) {
+                                matched = true;
                             }
                             CoTaskMemFree(dev_id_w);
+                        }
+
+                        if (!matched) {
+                            IPropertyStore *store = nullptr;
+                            if (SUCCEEDED(dev->OpenPropertyStore(STGM_READ, &store)) && store) {
+                                PROPVARIANT pv;
+                                PropVariantInit(&pv);
+                                PROPERTYKEY keyFriendly = { {0xa45c254e, 0xdf1c, 0x4efd, {0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0}}, 2 };
+                                PROPERTYKEY keyDesc = { {0xb3f8fa53, 0x0004, 0x438e, {0x90, 0x03, 0x51, 0xa4, 0x6e, 0x13, 0x9b, 0xfc}}, 6 };
+
+                                if (SUCCEEDED(store->GetValue(keyFriendly, &pv)) && pv.vt == VT_LPWSTR && pv.pwszVal) {
+                                    std::wstring name_lower = pv.pwszVal;
+                                    for (auto &c : name_lower) c = towlower(c);
+                                    if (name_lower.find(wid_lower) != std::wstring::npos) {
+                                        matched = true;
+                                    }
+                                }
+                                PropVariantClear(&pv);
+
+                                if (!matched && SUCCEEDED(store->GetValue(keyDesc, &pv)) && pv.vt == VT_LPWSTR && pv.pwszVal) {
+                                    std::wstring desc_lower = pv.pwszVal;
+                                    for (auto &c : desc_lower) c = towlower(c);
+                                    if (desc_lower.find(wid_lower) != std::wstring::npos) {
+                                        matched = true;
+                                    }
+                                }
+                                PropVariantClear(&pv);
+                                store->Release();
+                            }
+                        }
+
+                        if (matched) {
+                            impl_->device_ = dev;
+                            impl_->device_->AddRef();
+                            dev->Release();
+                            hr = S_OK;
+                            break;
                         }
                         dev->Release();
                     }
@@ -119,8 +158,10 @@ bool WasapiOutput::open(const std::string &device_id)
     }
 
     if (FAILED(hr) || !impl_->device_) {
-        blog(LOG_WARNING, "[wasapi_cue] Failed to get audio device for '%s': 0x%08X, falling back to default", device_id.c_str(), hr);
-        hr = impl_->enumerator_->GetDefaultAudioEndpoint(eRender, eConsole, &impl_->device_);
+        if (device_id.empty() || device_id == "default") {
+            blog(LOG_WARNING, "[wasapi_cue] Failed to get audio device for '%s': 0x%08X, falling back to default", device_id.c_str(), hr);
+            hr = impl_->enumerator_->GetDefaultAudioEndpoint(eRender, eConsole, &impl_->device_);
+        }
         if (FAILED(hr) || !impl_->device_) {
             impl_->cleanup();
             return false;

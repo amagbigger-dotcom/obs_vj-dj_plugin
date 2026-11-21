@@ -2,6 +2,7 @@
 #include "controllers/midi_dispatcher.hpp"
 #include "gui/settings_dialog.hpp"
 #include "engine/deck_engine.hpp"
+#include "audio/wasapi_output.hpp"
 
 #include <obs-module.h>
 
@@ -32,6 +33,8 @@ std::thread g_clock_thread;
 std::atomic<bool> g_feedback_thread_running{false};
 std::thread g_feedback_thread;
 char g_device_name[MAXPNAMELEN] = {};
+WasapiOutput g_controller_audio_keepalive;
+std::atomic<bool> g_is_kaoss_hardware{false};
 
 std::string lowercase(std::string value)
 {
@@ -155,13 +158,29 @@ void clock_sender_loop()
 void feedback_sender_loop()
 {
     int refresh_counter = 0;
+    int keepalive_counter = 0;
     while (g_feedback_thread_running.load(std::memory_order_relaxed)) {
         std::this_thread::sleep_for(std::chrono::milliseconds(40));
+
+        // Automatic audio keep-alive for Korg KAOSS DJ hardware to prevent standby / sleep
+        if (g_is_kaoss_hardware.load(std::memory_order_relaxed)) {
+            if (!g_controller_audio_keepalive.isRunning()) {
+                keepalive_counter++;
+                if (keepalive_counter >= 50) { // retry open every ~2 seconds
+                    keepalive_counter = 0;
+                    g_controller_audio_keepalive.open("kaoss");
+                }
+            } else {
+                static const std::vector<float> zero_buf(192, 0.0f);
+                g_controller_audio_keepalive.writeFrames(zero_buf.data(), zero_buf.data(), zero_buf.size());
+            }
+        }
+
         if (!g_connected.load(std::memory_order_relaxed) || !g_midi_out) {
             continue;
         }
         refresh_counter++;
-        const bool force_refresh = (refresh_counter >= 25);
+        const bool force_refresh = (refresh_counter >= 40);
         if (force_refresh) refresh_counter = 0;
         MidiDispatcher::instance().sendFeedback(force_refresh);
     }
@@ -261,8 +280,10 @@ void vdj_midi_init()
     const QString preset = cfg.active_preset.toLower();
     std::string dev_lower = lowercase(g_device_name);
     if (preset.contains("kaoss") || dev_lower.find("kaoss") != std::string::npos) {
+        g_is_kaoss_hardware.store(true, std::memory_order_relaxed);
+        g_controller_audio_keepalive.open("kaoss");
         MidiDispatcher::instance().setProfile(MidiControllerProfile::createKorgKaossDJ());
-        blog(LOG_INFO, "[obs-vj-deck] Loaded Korg Kaoss DJ mapping profile");
+        blog(LOG_INFO, "[obs-vj-deck] Loaded Korg Kaoss DJ mapping profile and activated audio keepalive");
     } else if (preset.contains("400")) {
         MidiDispatcher::instance().setProfile(MidiControllerProfile::createPioneerDDJ400());
         blog(LOG_INFO, "[obs-vj-deck] Loaded Pioneer DDJ-400 mapping profile");
@@ -365,6 +386,9 @@ void vdj_midi_shutdown()
         g_out_device_name[0] = '\0';
     }
 
+    g_controller_audio_keepalive.close();
+    g_is_kaoss_hardware.store(false, std::memory_order_relaxed);
+
     g_device_name[0] = '\0';
 }
 
@@ -439,6 +463,17 @@ bool vdj_midi_open_input_device(int device_id)
         if (result == MMSYSERR_NOERROR) {
             g_connected.store(true, std::memory_order_relaxed);
             blog(LOG_INFO, "[obs-vj-deck] MIDI switched to input device: %s", g_device_name);
+
+            std::string d_lower = lowercase(g_device_name);
+            if (d_lower.find("kaoss") != std::string::npos) {
+                g_is_kaoss_hardware.store(true, std::memory_order_relaxed);
+                if (!g_controller_audio_keepalive.isRunning()) {
+                    g_controller_audio_keepalive.open("kaoss");
+                }
+            } else {
+                g_is_kaoss_hardware.store(false, std::memory_order_relaxed);
+                g_controller_audio_keepalive.close();
+            }
             return true;
         } else {
             midiInClose(g_midi_in);

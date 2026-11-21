@@ -9,29 +9,27 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Korg KAOSS DJ Standby (Stb) feloldása, Settings ablak megnyílásának felgyorsítása (Akai Network MIDI freeze megszüntetése), szálbiztos MIDI OUT kezelés.
-* **Architektúra:** Moduláris dokumentációs rendszer fenntartása, BUILD_HISTORY archiválás és szálbiztos MIDI vezérlés.
+* **Fő cél:** Korg KAOSS DJ Standby (Stb) automatikus hardveres felébresztése beépített WASAPI audio keep-alive adatfolyammal, függetlenül a Windows alapértelmezett hangkártyájától.
+* **Architektúra:** Moduláris dokumentációs rendszer fenntartása, BUILD_HISTORY archiválás és szálbiztos MIDI/Audio vezérlés.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #316)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #318)
+* [x] **Korg KAOSS DJ Automatikus WASAPI Hardveres Ébresztés & Keep-Alive:**
+  - A Korg KAOSS DJ hardver firmware-e Standby (`Stb`) módban alszik, amíg aktív audio folyamot nem érzékel.
+  - A `WasapiOutput` bővítve lett dinamikus tulajdonság-keresővel (`PKEY_Device_FriendlyName` / `DeviceDesc` alapján felismeri a `Vonal (KAOSS DJ)` eszközt).
+  - A MIDI handler automatikusan megnyitja és egy csendes háttér-adatfolyammal folyamatosan ébren tartja a Korg audio interfészét, így **azonnal felébred Standby-ból anélkül, hogy a Windowsban alapértelmezettre kellene állítani** (a főkimenet maradhat a Behringer XR18 / X-AIR ASIO)!
 * [x] **Beállítások Ablak Azonnali Megnyílása & Fagyás Megszüntetése:**
   - A `SettingsMidiTab`-ban a `currentIndexChanged` esemény helyett `activated` jelzést használunk, így az eszközlisták feltöltésekor nem indul el téves eszköznyitás.
   - `QSignalBlocker` védi a `populateDevices()`, `populatePresets()` és `applyConfig()` hívásokat.
   - Megszűnt a gép 0-s MIDI eszközének (a LAN-os `Akai Network - MIDI`) automatikus megnyitása és hálózati timeout fagyása.
-* [x] **Korg KAOSS DJ Standby / Lecsatlakozás Megelőzése:**
+* [x] **Korg KAOSS DJ Standby / Lecsatlakozás Megelőzése a Beállításokban:**
   - A Beállítások megnyitása többé nem bontja le és nem írja felül a KAOSS DJ kapcsolatot (nem vált át Wavetable Synth-re és Akai Network-re).
-  - A `vdj_midi_open_input_device` és `vdj_midi_open_output_device` ellenőrzi, hogy már a kért eszköz van-e megnyitva, megelőzve a felesleges lecsatlakozást és újranyitást.
+  - A `vdj_midi_open_input_device` és `vdj_midi_open_output_device` ellenőrzi, hogy már a kért eszköz van-e megnyitva.
 * [x] **Szálbiztos MIDI OUT & Feedback Kezelés:**
   - `std::mutex g_midi_out_mutex` védi a `g_midi_out` mutatót a valós idejű LED visszajelző szál (`feedback_sender_loop`), a clock szál és a GUI szál között.
-  - A `MidiDispatcher::sendFeedback` belső állapota (`last_feedback_sent_`, `feedback_blink_counter_`) szálbiztos tagváltozóvá vált `mutex_` védelem alatt.
-* [x] **Korg KAOSS DJ Jog Kerék Natív BIN_OFFSET Dekódolás:** A korábbi hibás `SPREAD_64` dekódolás cserélve szabványos `BIN_OFFSET`-re (1..63 jobbra/előre, 127..65 balra/hátra), megszüntetve a fordított működést és a hatalmas ugrásokat.
-* [x] **Felezve a Normál Jog Sebesség:** A tányér érintéses pozicionálása 120 ms-ról le lett véve 50 ms/tick-re (a külső gyűrűs nudge 12 ms/tick maradt a finom fázisigazításhoz).
-* [x] **SHIFT + Jog Mikroszkopikus Tranzienstűpontosság:** SHIFT nyomvatartásával a tányér és a gyűrű is ultragyengéd 2 ms/tick léptetéssel pozicionál, lehetővé téve a lábdobok mintaszintű megtalálását.
-* [x] **Folytonos Beatgrid Csúsztatás az Érintőcsíkkal (Touch Strip CC 33):**
-  - SHIFT nyomvatartása mellett az érintőcsíkon húzva az ujjat a beatgrid folyamatosan és simán csúsztatható a lábdob elé (`nudgeGrid`), nem ugrik 1/8-adokat a zenén.
-  - Normál módban az érintőcsík folytonos audio keresőként (scrub) funkcionál.
-* [x] **SHIFT + Nudge Gombok (`<<` / `>>` Note 21 / 23):** Finom rácstologatás (±5 ms), a középső gombbal (Note 22) + SHIFT pedig `SET 1` rácshorgonyzás.
+* [x] **Korg KAOSS DJ Jog Kerék Natív BIN_OFFSET Dekódolás:** A fordított működés és túlfutások megszűntek (50 ms normál / 2 ms SHIFT).
+* [x] **Folytonos Beatgrid Csúsztatás az Érintőcsíkkal (Touch Strip CC 33):** SHIFT-tel folytonos rácsmozgatás a lábdob elé.
 
 ---
 
