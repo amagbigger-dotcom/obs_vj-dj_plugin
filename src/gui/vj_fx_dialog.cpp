@@ -637,7 +637,7 @@ void VjFxDialog::rebuildParamControls()
 
         connect(mod_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, p_idx](int idx) {
             if (DeckPlayer *d = currentDeck()) {
-                d->setVjParamModMode(p_idx, idx);
+                d->setVjParamMod(p_idx, idx);
             }
         });
 
