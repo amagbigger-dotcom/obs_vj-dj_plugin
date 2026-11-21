@@ -17,7 +17,7 @@
 #include <cmath>
 
 namespace {
-constexpr int kOverviewHeight = 50;
+constexpr int kOverviewHeight = 38;
 constexpr double kDefaultZoomSeconds = 6.0; // 6 seconds visible across width (smoother, natural scrolling rate)
 }
 
@@ -31,7 +31,7 @@ WaveformCanvas::WaveformCanvas(DeckPlayer *deck, bool is_deck_a, QWidget *parent
       is_deck_a_(is_deck_a),
       zoom_seconds_(kDefaultZoomSeconds)
 {
-    setFixedHeight(135);
+    setFixedHeight(105);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setCursor(Qt::PointingHandCursor);
     setMouseTracking(true);

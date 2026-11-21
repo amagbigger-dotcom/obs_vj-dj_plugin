@@ -143,6 +143,7 @@ void vdj_open_mixer_window()
         QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
         g_mixer_window = new MixerWindow(decks, main_window);
     }
+    g_mixer_window->applyWindowPosition();
     g_mixer_window->show();
     g_mixer_window->raise();
     g_mixer_window->activateWindow();
@@ -181,6 +182,7 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
 {
     setWindowTitle(QStringLiteral("OBS VJ Mixer"));
     setFixedSize(590, 340);
+    setAttribute(Qt::WA_Moved, true);
     setWindowFlags(Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowMinimizeButtonHint);
     setStyleSheet(QString::fromUtf8(MIXER_STYLESHEET));
 
@@ -277,31 +279,24 @@ void MixerWindow::refreshMixer()
     }
 }
 
-void MixerWindow::showEvent(QShowEvent *event)
+void MixerWindow::applyWindowPosition()
 {
-    QDialog::showEvent(event);
-    const int target_w = 590;
-    const int target_h = 340;
-    setFixedSize(target_w, target_h);
-
+    setFixedSize(590, 340);
     const auto &cfg = SettingsDialog::config();
-    if (cfg.win_mixer_x >= 0 && cfg.win_mixer_y >= 0) {
-        move(cfg.win_mixer_x, cfg.win_mixer_y);
-    } else if (QScreen *screen = QGuiApplication::primaryScreen()) {
-        const QRect geom = screen->availableGeometry();
-        const int y_pos = std::max(0, geom.bottom() - target_h - 38);
-        const int x_pos = geom.left() + 660;
-        move(x_pos, y_pos);
+    int x_pos = cfg.win_mixer_x;
+    int y_pos = cfg.win_mixer_y;
+
+    if (x_pos < 0 || y_pos < 0 || (x_pos == 655 && y_pos == 317)) {
+        x_pos = 660;
+        y_pos = 654;
     }
+    move(x_pos, y_pos);
 }
 
-void MixerWindow::moveEvent(QMoveEvent *event)
+void MixerWindow::showEvent(QShowEvent *event)
 {
-    QDialog::moveEvent(event);
-    if (isVisible() && SettingsDialog::config().auto_save_window_pos) {
-        SettingsDialog::config().win_mixer_x = x();
-        SettingsDialog::config().win_mixer_y = y();
-    }
+    applyWindowPosition();
+    QDialog::showEvent(event);
 }
 
 void MixerWindow::keyPressEvent(QKeyEvent *event)

@@ -85,6 +85,7 @@ VjFxDialog::VjFxDialog(DeckPair *decks, QWidget *parent)
 
     setWindowTitle(QStringLiteral("OBS VJ Video & Shader Master FX"));
     setFixedSize(540, 500);
+    setAttribute(Qt::WA_Moved, true);
     setWindowFlags(Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
     setStyleSheet(QString::fromUtf8(VJ_DIALOG_STYLESHEET));
 
@@ -647,31 +648,24 @@ void VjFxDialog::rebuildParamControls()
     params_layout_->addStretch(1);
 }
 
-void VjFxDialog::showEvent(QShowEvent *event)
+void VjFxDialog::applyWindowPosition()
 {
-    QDialog::showEvent(event);
-    const int target_w = 540;
-    const int target_h = 500;
-    setFixedSize(target_w, target_h);
-
+    setFixedSize(540, 500);
     const auto &cfg = SettingsDialog::config();
-    if (cfg.win_vj_fx_x >= 0 && cfg.win_vj_fx_y >= 0) {
-        move(cfg.win_vj_fx_x, cfg.win_vj_fx_y);
-    } else if (QScreen *screen = QGuiApplication::primaryScreen()) {
-        const QRect geom = screen->availableGeometry();
-        const int x_pos = geom.left() + 10;
-        const int y_pos = geom.top() + 38;
-        move(x_pos, y_pos);
+    int x_pos = cfg.win_vj_fx_x;
+    int y_pos = cfg.win_vj_fx_y;
+
+    if (x_pos < 0 || y_pos < 0 || (x_pos == 680 && y_pos == 237)) {
+        x_pos = 10;
+        y_pos = 38;
     }
+    move(x_pos, y_pos);
 }
 
-void VjFxDialog::moveEvent(QMoveEvent *event)
+void VjFxDialog::showEvent(QShowEvent *event)
 {
-    QDialog::moveEvent(event);
-    if (isVisible() && SettingsDialog::config().auto_save_window_pos) {
-        SettingsDialog::config().win_vj_fx_x = x();
-        SettingsDialog::config().win_vj_fx_y = y();
-    }
+    applyWindowPosition();
+    QDialog::showEvent(event);
 }
 
 void VjFxDialog::keyPressEvent(QKeyEvent *event)
@@ -693,6 +687,7 @@ void vdj_open_vj_fx_dialog_tab(int tab_idx, int target_deck)
         QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
         g_vj_fx_dialog = new VjFxDialog(decks, main_window);
     }
+    g_vj_fx_dialog->applyWindowPosition();
     g_vj_fx_dialog->selectTab(tab_idx);
     if (tab_idx == 0) {
         g_vj_fx_dialog->selectDeck(target_deck);

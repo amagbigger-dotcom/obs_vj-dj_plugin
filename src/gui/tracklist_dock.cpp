@@ -36,6 +36,7 @@ void vdj_open_tracklist_window()
         QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
         g_tracklist_instance = new TracklistDock(main_window);
     }
+    g_tracklist_instance->applyWindowPosition();
     g_tracklist_instance->show();
     g_tracklist_instance->raise();
     g_tracklist_instance->activateWindow();
@@ -117,6 +118,7 @@ TracklistDock::TracklistDock(QWidget *parent)
     g_tracklist_instance = this;
     setWindowTitle(QStringLiteral("OBS VJ Tracklist - Médiatár & 1080p Konverter"));
     setFixedSize(640, 500);
+    setAttribute(Qt::WA_Moved, true);
     setAcceptDrops(true);
 
     setStyleSheet(QStringLiteral(
@@ -619,31 +621,24 @@ void TracklistDock::cancelActiveConversion()
     processNextConversion();
 }
 
-void TracklistDock::showEvent(QShowEvent *event)
+void TracklistDock::applyWindowPosition()
 {
-    QDialog::showEvent(event);
-    const int target_w = 640;
-    const int target_h = 500;
-    setFixedSize(target_w, target_h);
-
+    setFixedSize(640, 500);
     const auto &cfg = SettingsDialog::config();
-    if (cfg.win_tracklist_x >= 0 && cfg.win_tracklist_y >= 0) {
-        move(cfg.win_tracklist_x, cfg.win_tracklist_y);
-    } else if (QScreen *screen = QGuiApplication::primaryScreen()) {
-        const QRect geom = screen->availableGeometry();
-        const int x_pos = geom.left() + 1255;
-        const int y_pos = geom.top() + 38;
-        move(x_pos, y_pos);
+    int x_pos = cfg.win_tracklist_x;
+    int y_pos = cfg.win_tracklist_y;
+
+    if (x_pos < 0 || y_pos < 0 || (x_pos == 630 && y_pos == 237)) {
+        x_pos = 1255;
+        y_pos = 38;
     }
+    move(x_pos, y_pos);
 }
 
-void TracklistDock::moveEvent(QMoveEvent *event)
+void TracklistDock::showEvent(QShowEvent *event)
 {
-    QDialog::moveEvent(event);
-    if (isVisible() && SettingsDialog::config().auto_save_window_pos) {
-        SettingsDialog::config().win_tracklist_x = x();
-        SettingsDialog::config().win_tracklist_y = y();
-    }
+    applyWindowPosition();
+    QDialog::showEvent(event);
 }
 
 void TracklistDock::dragEnterEvent(QDragEnterEvent *event)

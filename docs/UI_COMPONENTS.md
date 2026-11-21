@@ -19,8 +19,8 @@ A felületek **nem OBS dokkoló panelek**, hanem független lebegő dialógusok 
 
 | Ablak | Cím / Menüpont | Méret (Fix) | Főbb Vezérlők |
 | :--- | :--- | :---: | :--- |
-| **DeckWindow A** | `Eszközök -> OBS VJ Deck A` | **640 × 370 px** | 135 px Waveform (83 px Detailed + 50 px Overview, simított szubpixel rajzolás), Jog Scratch, 4 Hot Cue, Loop Mátrix (1/2–32), Pitch Fader, TAP melletti közvetlen BPM mező és /2, x2 gombok |
-| **DeckWindow B** | `Eszközök -> OBS VJ Deck B` | **640 × 370 px** | Megegyezik a Deck A-val, narancssárga kiemeléssel |
+| **DeckWindow A** | `Eszközök -> OBS VJ Deck A` | **640 × 340 px** | 105 px Waveform (65 px Detailed + 38 px Overview, simított szubpixel rajzolás), Jog Scratch, 4 Hot Cue, Loop Mátrix (1/2–32), Pitch Fader, TAP melletti közvetlen BPM mező és /2, x2 gombok |
+| **DeckWindow B** | `Eszközök -> OBS VJ Deck B` | **640 × 340 px** | Megegyezik a Deck A-val, narancssárga kiemeléssel |
 | **MixerWindow** | `Eszközök -> Video DJ Mixer` | **590 × 340 px** | 3-sávos EQ (0 középérték, negatív vágás, előjel nélküli erősítés) és Gain, `[ ⇄ BGR ]` inverzió, Filter, Master Crossfader, `[ ⚙ BEÁLLÍTÁSOK ]`, CUE/PGM füles mix, WASAPI választó, OBS T-Bar szinkron |
 | **TracklistDock** | `Eszközök -> OBS VJ Tracklist` | **640 × 500 px** | Drag-and-drop lista, session zöld pipák, 720p–4K konverter, mini `[ A ]` és `[ B ]` betöltő gombok |
 | **VideoFxDialog (VjFxDialog)** | `Eszközök -> OBS VJ Visualizer & FX` | **540 × 500 px** | **Egységes 3-füles ablak:** 1. Fül: VJ Visualizer Shader & Deck A/B váltó (15 shader, ISF konverter), 2. Fül: Crossfade FX (13 átmenet effekt), 3. Fül: BPM-szinkronizált LFO 1 & 2 motor élő oszcilloszkópokkal |

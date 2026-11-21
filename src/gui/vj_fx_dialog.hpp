@@ -24,10 +24,10 @@ public:
     void reloadShaderList();
     void refreshCrossfade();
     void refreshLfo();
+    void applyWindowPosition();
 
 protected:
     void showEvent(QShowEvent *event) override;
-    void moveEvent(QMoveEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
 private:

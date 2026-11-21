@@ -44,10 +44,10 @@ public:
     void moveSelection(int delta);
     void loadCurrentSelection(int deck_channel);
     const std::vector<TrackItem>& tracks() const { return tracks_; }
+    void applyWindowPosition();
 
 protected:
     void showEvent(QShowEvent *event) override;
-    void moveEvent(QMoveEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;

@@ -25,11 +25,11 @@ public:
 
     void bindDeck(DeckPlayer *deck);
     void fitTo1080p();
+    void applyWindowPosition();
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
     void showEvent(QShowEvent *event) override;
-    void moveEvent(QMoveEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;

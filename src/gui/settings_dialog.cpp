@@ -119,6 +119,28 @@ void SettingsDialog::loadSettings()
     g_config.win_vj_fx_x = obj.value(QStringLiteral("win_vj_fx_x")).toInt(-1);
     g_config.win_vj_fx_y = obj.value(QStringLiteral("win_vj_fx_y")).toInt(-1);
     g_config.auto_save_window_pos = obj.value(QStringLiteral("auto_save_window_pos")).toBool(true);
+
+    // Sanitize old centered values
+    if (g_config.win_deck_a_x == 630 && g_config.win_deck_a_y == 302) {
+        g_config.win_deck_a_x = 10;
+        g_config.win_deck_a_y = 654;
+    }
+    if (g_config.win_deck_b_x == 630 && g_config.win_deck_b_y == 302) {
+        g_config.win_deck_b_x = 1255;
+        g_config.win_deck_b_y = 654;
+    }
+    if (g_config.win_mixer_x == 655 && g_config.win_mixer_y == 317) {
+        g_config.win_mixer_x = 660;
+        g_config.win_mixer_y = 654;
+    }
+    if (g_config.win_tracklist_x == 630 && g_config.win_tracklist_y == 237) {
+        g_config.win_tracklist_x = 1255;
+        g_config.win_tracklist_y = 38;
+    }
+    if (g_config.win_vj_fx_x == 680 && g_config.win_vj_fx_y == 237) {
+        g_config.win_vj_fx_x = 10;
+        g_config.win_vj_fx_y = 38;
+    }
 }
 
 void SettingsDialog::saveSettings()
@@ -397,9 +419,9 @@ void vdj_reset_window_positions()
     auto &cfg = SettingsDialog::config();
     // Default 5-window layout from ideal screenshot (Image 2)
     cfg.win_deck_a_x = 10;
-    cfg.win_deck_a_y = 624;
+    cfg.win_deck_a_y = 654;
     cfg.win_deck_b_x = 1255;
-    cfg.win_deck_b_y = 624;
+    cfg.win_deck_b_y = 654;
     cfg.win_mixer_x = 660;
     cfg.win_mixer_y = 654;
     cfg.win_vj_fx_x = 10;
@@ -409,9 +431,9 @@ void vdj_reset_window_positions()
 
     SettingsDialog::saveSettings();
 
-    if (auto *w = vdj_get_deck_window_a()) w->move(cfg.win_deck_a_x, cfg.win_deck_a_y);
-    if (auto *w = vdj_get_deck_window_b()) w->move(cfg.win_deck_b_x, cfg.win_deck_b_y);
-    if (auto *w = vdj_get_mixer_window()) w->move(cfg.win_mixer_x, cfg.win_mixer_y);
-    if (auto *w = vdj_get_vj_fx_dialog()) w->move(cfg.win_vj_fx_x, cfg.win_vj_fx_y);
-    if (auto *w = vdj_get_tracklist_window()) w->move(cfg.win_tracklist_x, cfg.win_tracklist_y);
+    if (auto *w = vdj_get_deck_window_a()) w->applyWindowPosition();
+    if (auto *w = vdj_get_deck_window_b()) w->applyWindowPosition();
+    if (auto *w = vdj_get_mixer_window()) w->applyWindowPosition();
+    if (auto *w = vdj_get_vj_fx_dialog()) w->applyWindowPosition();
+    if (auto *w = vdj_get_tracklist_window()) w->applyWindowPosition();
 }

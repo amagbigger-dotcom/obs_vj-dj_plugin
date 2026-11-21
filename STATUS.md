@@ -1,7 +1,7 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #325 (GitHub Run #333)
-* **Aktuális Git Commit:** `256228e`
+* **Legutolsó stabil mérföldkő:** Build #326 (GitHub Run folyamatban)
+* **Aktuális Git Commit:** előkészítés alatt
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 271 296 bájt)
 * **Bináris SHA256:** `712A5CA27837FE83228881DD63A1BE15A54D97EE5A2AB518C7FD4ED46448539E`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
@@ -9,16 +9,27 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Kezelőfelületi Ablakpozíciók Mentése & Hullámforma Megújítás (Build #325):
-  1. **Ablakpozíciók perzisztens tárolása:** Mind az 5 ablak (Deck A, Mixer, Deck B, Video FX, Tracklist) pozíciójának automatikus mentése `obs_vj_settings.json`-ba.
-  2. **Beállítások ablak elrendezés vezérlők:** A `Nyelv & Rendszer` fülön új `[ 📍 Jelenlegi Ablakpozíciók Mentése ]` és `[ ↺ Alapértelmezett 5-Ablakos Layout ]` gombok, valamint automatikus mentés opció.
-  3. **Hullámforma arányok áthangolása:**
-     - A futó részletes hullámforma magassága 135 px-ről **83 px**-re csökkentve (karcsú, dinamikus, nem terheli a decket).
-     - Az alsó pozicionáló áttekintő hullámforma 38 px-ről **50 px**-re növelve (+32% extra magasság a CUE, drop pontok és kattintható keresés számára).
-     - DeckWindow mérete fix **640 × 370 px**-re optimalizálva (tökéletes távolság a felső panelektől és a Windows tálcától).
-  4. **Pixelesség és lépcsősség megszüntetése (Anti-Pixelation):**
-     - Szub-minta lineáris interpoláció (`lerp`) a hullámforma amplitúdó és a 3-sávos spektrum mintái között: nincsenek diszkrét vízszintes platók.
-     - 3-pontos oszlopsimítás a képernyő szélességében és szubpixel anti-aliased kirajzolás (`QPointF`).
+* **Fő cél:** Ablak-középreugrási hiba végleges megszüntetése, 640×340 Deck méret és referencia-elrendezés helyreállítása (Build #326):
+  1. **Középre ugrási hiba elhárítása (Auto-Centering Bug):**
+     - A `moveEvent` teljes eltávolítása a dialógus osztályokból (`DeckWindow`, `MixerWindow`, `TracklistDock`, `VjFxDialog`). A Qt alapértelmezett szülőhöz-középrehelyezési mechanizmusa (`QDialog::showEvent`) a `moveEvent`-en keresztül korábban azonnal felülírta a beállításokat a középső koordinátákkal (`630, 302`), egymásra pakolva az ablakokat.
+     - `setAttribute(Qt::WA_Moved, true);` beállítása minden ablak konstruktorában és `applyWindowPosition()` hívása közvetlenül `show()` és `showEvent()` előtt, teljesen megakadályozva a Qt belső középre rendezését.
+  2. **Ablakméretek szigorú visszaállítása (AGENTS.md & 2. Kép referencia):**
+     - **DeckWindow A & B:** Szigorúan fix **`640 × 340 px`**.
+     - **Hullámforma (WaveformCanvas):** Fix **`105 px`** (65 px futó részletes sáv + 2 px hézag + 38 px alsó áttekintő spektrum).
+     - **MixerWindow:** Szigorúan fix **`590 × 340 px`**.
+     - **TracklistDock:** Szigorúan fix **`640 × 500 px`**.
+     - **VideoFxDialog:** Szigorúan fix **`540 × 500 px`**.
+  3. **Tiszta referencia koordináták (Image 2 - 1920×1080 elrendezés):**
+     - `Deck A`: `x = 10, y = 654`
+     - `Mixer`: `x = 660, y = 654`
+     - `Deck B`: `x = 1255, y = 654`
+     - `Video FX`: `x = 10, y = 38`
+     - `Tracklist`: `x = 1255, y = 38`
+     - Az alsó 3 ablak pontosan egy vonalban ($y=654$), 38 px-rel a Windows tálca felett ül. A felső panelek 38 px-rel az OBS menüsor alatt indulnak ($y=38$). A felső és alsó ablakok között 116 px tiszta légrés biztosított!
+  4. **Perzisztencia tisztítás & Mentés vezérlés:**
+     - A sérült konfigurációk automatikus korrekciója a `SettingsDialog::loadSettings()` és `applyWindowPosition()` metódusokban.
+     - Közvetlen `obs_vj_settings.json` tisztítás lefutott.
+     - A pozíciók mentése dedikáltan a Beállítások menü `[ 📍 Jelenlegi Ablakpozíciók Mentése ]` gombjával, illetve a plugin szabályos bezárásakor (`free_deck_ui()`) történik.
 
 ---
 
@@ -96,12 +107,12 @@
 ---
 
 ## 3. Következő Lépés (Next Action)
-* [x] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #325, Commit `256228e`).
-* [x] GitHub Actions CI fordítás sikeres lefutása (Run #333), kész DLL letöltése és telepítése (SHA256: `712A5CA2`).
+* [ ] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #326).
+* [ ] GitHub Actions CI fordítás lefutása, kész DLL letöltése és telepítése.
 * [ ] Éles tesztelés az OBS Studio elindításával:
-  - Hullámforma arányok (83 px futó + 50 px áttekintő, lépcsősség-mentes simítás).
-  - DeckWindow magasság (370 px, kényelmes távolság a tálcától és felső ablakoktól).
-  - Ablakpozíciók mentése: tetszőleges rendezés után `Beállítások -> Nyelv & Rendszer -> [ 📍 Jelenlegi Ablakpozíciók Mentése ]` ellenőrzése.
+  - Mind az 5 ablak egyszerre megnyílik a referencia pozíciókban (`x=10, 660, 1255`, `y=654` alul; `x=10, 1255`, `y=38` felül).
+  - DeckWindow magasság szigorúan 340 px, MixerWindow 340 px, Waveform 105 px (65 px futó + 38 px alsó áttekintő).
+  - Beállítások menü pozíció mentés (`[ 📍 Jelenlegi Ablakpozíciók Mentése ]`) és visszaállítás (`[ ↺ Alapértelmezett 5-Ablakos Layout ]`) ellenőrzése.
 
 ---
 

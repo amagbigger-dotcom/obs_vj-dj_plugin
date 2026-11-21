@@ -64,6 +64,7 @@ static void open_deck_window_a(void *data)
         QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
         g_deck_window_a = new DeckWindow(g_deck_a, main_window);
     }
+    g_deck_window_a->applyWindowPosition();
     g_deck_window_a->show();
     g_deck_window_a->raise();
     g_deck_window_a->activateWindow();
@@ -82,6 +83,7 @@ static void open_deck_window_b(void *data)
         QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
         g_deck_window_b = new DeckWindow(g_deck_b, main_window);
     }
+    g_deck_window_b->applyWindowPosition();
     g_deck_window_b->show();
     g_deck_window_b->raise();
     g_deck_window_b->activateWindow();
@@ -107,6 +109,12 @@ static void open_all_layout(void *data)
     open_deck_window_b(nullptr);
     vdj_open_tracklist_window();
     vdj_open_vj_fx_dialog();
+
+    if (g_deck_window_a) g_deck_window_a->applyWindowPosition();
+    if (g_deck_window_b) g_deck_window_b->applyWindowPosition();
+    if (auto *w = vdj_get_mixer_window()) w->applyWindowPosition();
+    if (auto *w = vdj_get_vj_fx_dialog()) w->applyWindowPosition();
+    if (auto *w = vdj_get_tracklist_window()) w->applyWindowPosition();
 }
 
 void init_deck_engine()

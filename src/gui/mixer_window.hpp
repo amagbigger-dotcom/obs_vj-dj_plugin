@@ -15,9 +15,10 @@ public:
     explicit MixerWindow(DeckPair *decks, QWidget *parent = nullptr);
     ~MixerWindow() override;
 
+    void applyWindowPosition();
+
 protected:
     void showEvent(QShowEvent *event) override;
-    void moveEvent(QMoveEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
 private:
