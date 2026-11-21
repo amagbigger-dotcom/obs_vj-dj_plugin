@@ -1,9 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #323 (GitHub Run #329)
-* **Aktuális Git Commit:** `5c01c23`
+* **Legutolsó stabil mérföldkő:** Build #324 (GitHub Run #331)
+* **Aktuális Git Commit:** `55f7c05`
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 256 448 bájt)
-* **Bináris SHA256:** `1097FD9CE4AE2B0E55917B691F9FACFF5CA112EAFFD9A85ECC47294AE8E2F7EC`
+* **Bináris SHA256:** `7994E334249CE1F8F74AC1EC0798DD695D66F516D0BB1301A959D7FF3446D273`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
@@ -18,7 +18,11 @@
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #323)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #324)
+* [x] **Ablakméretek & Pozíciók Geometriai Korrekciója (Build #324):**
+  - **OBS menüsor láthatóság:** A felső panelek (`VideoFxDialog` és `TracklistDock`) koordinátája `y = geom.top() + 38`-ra lett állítva, így az OBS Studio felső menüsora (Fájl, Szerkesztés, Nézet stb.) 100%-ban szabadon látható és kattintható.
+  - **Tálca alácsúszás megszüntetése:** A Deck (`640 × 410 px`) és a Mixer (`590 × 340 px`) pozíciója közvetlenül a képernyő munkaterületének aljához (`geom.bottom() - target_h - 38`) igazodik, így a fader- és bend-gombok pontosan a Windows tálca felett ülnek.
+  - **Összecsúszás felszámolása:** A felső ablakok magassága fix `500 px`-re, a Deck magassága `410 px`-re lett rögzítve, így a felső panelek és az alsó deckek között tiszta, ~11 px-es légrés alakult ki teljes átfedés-mentességgel.
 * [x] **Teljes 5-Ablakos Elrendezés & Deck/Mixer Ergonómiai Megújítás (Build #323):**
   - **1920×1080 egykattintásos 5-ablakos layout:** Az OBS Eszközök menüjében a korábbi 3 ablak helyett az új `OBS VJ Teljes Elrendezés (Mind az 5 ablak)` egyszerre nyitja meg és rendezi el pixelre pontosan a Deck A (`640×430`), Mixer (`590×340`), Deck B (`640×430`), Video FX (`540×560`) és Tracklist (`640×560`) ablakokat.
   - **Hullámforma méretoptimalizálás (+90 px):** A teljes extra magasság a hullámformára került (175 px magas). A futó részletes hullámforma 135 px magas (kristálytiszta dinamika és tranziensek), az alsó 3-sávos áttekintő pedig 38 px (kényelmes CUE és ütem drop jelölők).
