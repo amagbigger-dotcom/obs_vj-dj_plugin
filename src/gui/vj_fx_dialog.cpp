@@ -274,7 +274,8 @@ QWidget *VjFxDialog::createShaderTabWidget()
         if (picked.isValid()) {
             dp->setVjCustomColor(static_cast<float>(picked.redF()),
                                  static_cast<float>(picked.greenF()),
-                                 static_cast<float>(picked.blueF()));
+                                 static_cast<float>(picked.blueF()),
+                                 cfg.color_mod_mode);
             updateColorUi();
         }
     });
@@ -289,7 +290,8 @@ QWidget *VjFxDialog::createShaderTabWidget()
     reset_col_btn->setDefault(false);
     connect(reset_col_btn, &QPushButton::clicked, this, [this]() {
         if (DeckPlayer *dp = currentDeck()) {
-            dp->setVjCustomColor(-1.0f, -1.0f, -1.0f);
+            const VjDeckConfig cfg = dp->vjConfig();
+            dp->setVjCustomColor(-1.0f, -1.0f, -1.0f, cfg.color_mod_mode);
             updateColorUi();
         }
     });
@@ -312,7 +314,8 @@ QWidget *VjFxDialog::createShaderTabWidget()
 
     connect(color_mod_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
         if (DeckPlayer *dp = currentDeck()) {
-            dp->setVjColorModMode(idx);
+            const VjDeckConfig cfg = dp->vjConfig();
+            dp->setVjCustomColor(cfg.custom_color_r, cfg.custom_color_g, cfg.custom_color_b, idx);
         }
     });
     col_row->addWidget(color_mod_combo_, 1);
@@ -474,9 +477,9 @@ void VjFxDialog::rebuildParamControls()
 
     for (int p_idx = 0; p_idx < 8; ++p_idx) {
         const auto &p_def = cur_def.params[p_idx];
-        const float cur_val = cfg.params[p_idx];
-        const int cur_mod = cfg.param_mod_sources[p_idx];
-        const float cur_depth = cfg.param_mod_depths[p_idx];
+        const float cur_val = cfg.params[p_idx].value;
+        const int cur_mod = cfg.params[p_idx].mod_mode;
+        const float cur_depth = cfg.params[p_idx].mod_depth;
 
         auto *card_frame = new QFrame(params_container_);
         card_frame->setStyleSheet(QStringLiteral(
@@ -579,7 +582,7 @@ void VjFxDialog::rebuildParamControls()
         // Value updates
         auto applyVal = [this, p_idx, p_def, val_edit, base_slider](float v) {
             v = std::clamp(v, p_def.min_val, p_def.max_val);
-            if (DeckPlayer *d = currentDeck()) d->setVjParam(p_idx, v);
+            if (DeckPlayer *d = currentDeck()) d->setVjParamValue(p_idx, v);
             val_edit->setText(QString::number(v, 'f', 2));
             const QSignalBlocker b(base_slider);
             float n = (p_def.max_val > p_def.min_val) ? ((v - p_def.min_val) / (p_def.max_val - p_def.min_val)) : 0.0f;
@@ -594,14 +597,14 @@ void VjFxDialog::rebuildParamControls()
         connect(btn_minus, &QPushButton::clicked, this, [this, p_idx, p_def, applyVal]() {
             if (DeckPlayer *d = currentDeck()) {
                 const float step = (p_def.max_val - p_def.min_val) * 0.05f;
-                applyVal(d->vjConfig().params[p_idx] - step);
+                applyVal(d->vjConfig().params[p_idx].value - step);
             }
         });
 
         connect(btn_plus, &QPushButton::clicked, this, [this, p_idx, p_def, applyVal]() {
             if (DeckPlayer *d = currentDeck()) {
                 const float step = (p_def.max_val - p_def.min_val) * 0.05f;
-                applyVal(d->vjConfig().params[p_idx] + step);
+                applyVal(d->vjConfig().params[p_idx].value + step);
             }
         });
 
@@ -634,7 +637,7 @@ void VjFxDialog::rebuildParamControls()
 
         connect(mod_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, p_idx](int idx) {
             if (DeckPlayer *d = currentDeck()) {
-                d->setVjParamMod(p_idx, idx);
+                d->setVjParamModMode(p_idx, idx);
             }
         });
 

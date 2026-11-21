@@ -421,10 +421,6 @@ void MixerMasterPanel::refresh()
         }
         updateCfLabel(cf_val);
     }
-
-    if (cf_fx_dialog_ && cf_fx_dialog_->isVisible()) {
-        cf_fx_dialog_->refresh();
-    }
 }
 
 bool MixerMasterPanel::handleKeyPress(QKeyEvent *event)
