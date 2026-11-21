@@ -66,15 +66,15 @@ cmake --build build --config Release --parallel
 * **Visszaállítás parancsa:**
   `Copy-Item "c:\gitrepo\obs_vj-dj_plugin\milestones\obs_dj-vj_plugin_run231_build222.dll" "C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll" -Force`
 
-### Aktuális Legfrissebb Állapot: Build #315 / GitHub Run #44823480365 (Milestone #32)
-* **Commit:** `21be464`
-* **SHA256:** `4EF448253656D34312D0FCB7532ECA8046348E6CB92E47B3058D3756F6CDA556`
-* **Méret:** 1 265 664 bájt
+### Aktuális Legfrissebb Állapot: Build #317 / GitHub Run #44891655313 (Milestone #33)
+* **Commit:** `e4523dc`
+* **SHA256:** `D2C887DC7BF5D8CECB4A729017BD16901984E80A197FC2DA904352C65C0F655B`
+* **Méret:** 1 267 200 bájt
 * **Főbb funkciók:**
-  - Korg KAOSS DJ Jog kerék irányjavítás (natív `BIN_OFFSET` relatív dekódolás, fordított irány és túlfutások megszűntek).
-  - Sima jog sebesség felezve (50 ms/tick).
-  - SHIFT + Jog mikroszkopikus precíziós pozicionálás (2 ms/tick) lábdob tranziensekhez.
-  - Érintőcsík (Touch Strip CC 33) folytonos Beatgrid húzás SHIFT-tel és smooth scrub normál módban.
+  - Beállítások (Settings) ablak azonnali megnyílása (Akai Network MIDI fagyás és timeout megszüntetése `activated` és `QSignalBlocker` használatával).
+  - Korg KAOSS DJ véletlenszerű lecsatlakozásának és Standby-ba esésének megelőzése.
+  - Szálbiztos MIDI OUT (`std::mutex g_midi_out_mutex`) és belső LED feedback memóriakezelés.
+  - Korg KAOSS DJ Jog kerék `BIN_OFFSET` irány és 50 ms / 2 ms Shift finomítás, folytonos Touch Strip Beatgrid húzás.
 
 > [!NOTE]
 > A korábbi 31 mérföldkő (Build #222-től Build #312-ig) és a korábbi fejlesztési backlog teljes részletes leírása megtalálható a **[milestones/BUILD_HISTORY.md](file:///c:/gitrepo/obs_vj-dj_plugin/milestones/BUILD_HISTORY.md)** archívumban.
