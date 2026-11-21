@@ -1,8 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #325
-* **Fő fókusz:** Ablakpozíciók Perzisztenciája (Beállítások) & Hullámforma Arányok és Szubpixel Simítás
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
+* **Legutolsó stabil mérföldkő:** Build #325 (GitHub Run #333)
+* **Aktuális Git Commit:** `256228e`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 271 296 bájt)
+* **Bináris SHA256:** `712A5CA27837FE83228881DD63A1BE15A54D97EE5A2AB518C7FD4ED46448539E`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
@@ -95,9 +96,12 @@
 ---
 
 ## 3. Következő Lépés (Next Action)
-* [x] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #323, Commit `5c01c23`).
-* [x] GitHub Actions CI fordítás sikeres lefutása (Run #329), kész DLL letöltése és telepítése (SHA256: `1097FD9C`).
-* [ ] Éles tesztelés az OBS Studio elindításával (5-ablakos layout ellenőrzése, 175 px hullámforma és nullázott EQ működése).
+* [x] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #325, Commit `256228e`).
+* [x] GitHub Actions CI fordítás sikeres lefutása (Run #333), kész DLL letöltése és telepítése (SHA256: `712A5CA2`).
+* [ ] Éles tesztelés az OBS Studio elindításával:
+  - Hullámforma arányok (83 px futó + 50 px áttekintő, lépcsősség-mentes simítás).
+  - DeckWindow magasság (370 px, kényelmes távolság a tálcától és felső ablakoktól).
+  - Ablakpozíciók mentése: tetszőleges rendezés után `Beállítások -> Nyelv & Rendszer -> [ 📍 Jelenlegi Ablakpozíciók Mentése ]` ellenőrzése.
 
 ---
 
