@@ -1,9 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #326 (GitHub Run folyamatban)
-* **Aktuális Git Commit:** előkészítés alatt
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 271 296 bájt)
-* **Bináris SHA256:** `712A5CA27837FE83228881DD63A1BE15A54D97EE5A2AB518C7FD4ED46448539E`
+* **Legutolsó stabil mérföldkő:** Build #326 (GitHub Run #44961894749)
+* **Aktuális Git Commit:** `92842a5`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 270 272 bájt)
+* **Bináris SHA256:** `3E775DE68D373D118BA4B0DB3C5422EC5057BDF3E24FFF848BAA78F8D1F0C56A`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
@@ -107,8 +107,8 @@
 ---
 
 ## 3. Következő Lépés (Next Action)
-* [ ] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #326).
-* [ ] GitHub Actions CI fordítás lefutása, kész DLL letöltése és telepítése.
+* [x] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #326, Commit `92842a5`).
+* [x] GitHub Actions CI fordítás sikeres lefutása (Run #44961894749), kész DLL letöltése és telepítése (SHA256: `3E775DE6`).
 * [ ] Éles tesztelés az OBS Studio elindításával:
   - Mind az 5 ablak egyszerre megnyílik a referencia pozíciókban (`x=10, 660, 1255`, `y=654` alul; `x=10, 1255`, `y=38` felül).
   - DeckWindow magasság szigorúan 340 px, MixerWindow 340 px, Waveform 105 px (65 px futó + 38 px alsó áttekintő).
