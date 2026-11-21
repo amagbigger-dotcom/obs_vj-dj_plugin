@@ -66,6 +66,19 @@ struct PluginSettingsConfig {
     // Language & General
     QString language = "hu"; // "hu", "en", "de", "fr"
     bool auto_save_on_exit = true;
+
+    // Window Positions (-1 = uninitialized / use default layout)
+    int win_deck_a_x = -1;
+    int win_deck_a_y = -1;
+    int win_deck_b_x = -1;
+    int win_deck_b_y = -1;
+    int win_mixer_x = -1;
+    int win_mixer_y = -1;
+    int win_tracklist_x = -1;
+    int win_tracklist_y = -1;
+    int win_vj_fx_x = -1;
+    int win_vj_fx_y = -1;
+    bool auto_save_window_pos = true;
 };
 
 class SettingsDialog : public QDialog {
@@ -96,3 +109,5 @@ private:
 
 void vdj_open_settings_dialog();
 void vdj_free_settings_dialog();
+void vdj_save_current_window_positions();
+void vdj_reset_window_positions();

@@ -47,6 +47,7 @@ public:
 
 protected:
     void showEvent(QShowEvent *event) override;
+    void moveEvent(QMoveEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
@@ -101,5 +102,6 @@ void vdj_tracklist_move_selection(int delta);
 void vdj_tracklist_load_selected(int deck_channel);
 void vdj_open_tracklist_window();
 void vdj_free_tracklist_window();
+TracklistDock *vdj_get_tracklist_window();
 bool vdj_is_track_in_library(const QString &file_path);
 void vdj_notify_track_bpm_changed(const QString &file_path, double new_bpm);

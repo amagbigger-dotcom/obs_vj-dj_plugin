@@ -157,6 +157,11 @@ void vdj_free_mixer_window()
     }
 }
 
+MixerWindow *vdj_get_mixer_window()
+{
+    return g_mixer_window;
+}
+
 MixerWindow::~MixerWindow()
 {
     if (refresh_timer_) {
@@ -275,15 +280,27 @@ void MixerWindow::refreshMixer()
 void MixerWindow::showEvent(QShowEvent *event)
 {
     QDialog::showEvent(event);
-    if (QScreen *screen = QGuiApplication::primaryScreen()) {
-        const QRect geom = screen->availableGeometry();
-        const int target_w = 590;
-        const int target_h = 340;
-        setFixedSize(target_w, target_h);
+    const int target_w = 590;
+    const int target_h = 340;
+    setFixedSize(target_w, target_h);
 
+    const auto &cfg = SettingsDialog::config();
+    if (cfg.win_mixer_x >= 0 && cfg.win_mixer_y >= 0) {
+        move(cfg.win_mixer_x, cfg.win_mixer_y);
+    } else if (QScreen *screen = QGuiApplication::primaryScreen()) {
+        const QRect geom = screen->availableGeometry();
         const int y_pos = std::max(0, geom.bottom() - target_h - 38);
         const int x_pos = geom.left() + 660;
         move(x_pos, y_pos);
+    }
+}
+
+void MixerWindow::moveEvent(QMoveEvent *event)
+{
+    QDialog::moveEvent(event);
+    if (isVisible() && SettingsDialog::config().auto_save_window_pos) {
+        SettingsDialog::config().win_mixer_x = x();
+        SettingsDialog::config().win_mixer_y = y();
     }
 }
 

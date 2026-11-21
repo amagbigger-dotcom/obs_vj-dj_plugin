@@ -1,4 +1,5 @@
 #include "gui/deck_window.hpp"
+#include "gui/settings_dialog.hpp"
 #include "engine/deck_engine.hpp"
 #include "waveform/waveform_widget.hpp"
 #include "widget/loop_bar.hpp"
@@ -47,8 +48,7 @@ DeckWindow::DeckWindow(DeckPlayer *deck, QWidget *parent)
     : QDialog(parent), deck_(deck)
 {
     setWindowTitle(QStringLiteral("OBS VJ Deck"));
-    // Fix kompakt méret a monitor alsó egyharmadához igazítva (1/3 Screen Height, 640x340 px)
-    setFixedSize(640, 340);
+    setFixedSize(640, 370);
     setWindowFlags(Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowMinimizeButtonHint);
     setAcceptDrops(true);
     setStyleSheet(QStringLiteral(
@@ -163,10 +163,10 @@ void DeckWindow::setupUi()
     main_layout->addLayout(top_bar);
 
     // ==========================================
-    // 2. CLEAN WAVEFORM CANVAS (175 px: 135 px detailed + 38 px overview)
+    // 2. CLEAN WAVEFORM CANVAS (135 px: 83 px detailed + 50 px overview)
     // ==========================================
     waveform_canvas_ = new WaveformCanvas(deck_, true, this);
-    waveform_canvas_->setFixedHeight(175);
+    waveform_canvas_->setFixedHeight(135);
     main_layout->addWidget(waveform_canvas_);
 
     // ==========================================
@@ -625,16 +625,37 @@ void DeckWindow::keyPressEvent(QKeyEvent *event)
 void DeckWindow::showEvent(QShowEvent *event)
 {
     QDialog::showEvent(event);
-    if (QScreen *screen = QGuiApplication::primaryScreen()) {
-        const QRect geom = screen->availableGeometry();
-        const int target_w = 640;
-        const int target_h = 410;
-        setFixedSize(target_w, target_h);
+    const int target_w = 640;
+    const int target_h = 370;
+    setFixedSize(target_w, target_h);
 
+    const auto &cfg = SettingsDialog::config();
+    const bool is_b = (deck_ && deck_->side() == DeckPlayer::DeckSide::B);
+    const int saved_x = is_b ? cfg.win_deck_b_x : cfg.win_deck_a_x;
+    const int saved_y = is_b ? cfg.win_deck_b_y : cfg.win_deck_a_y;
+
+    if (saved_x >= 0 && saved_y >= 0) {
+        move(saved_x, saved_y);
+    } else if (QScreen *screen = QGuiApplication::primaryScreen()) {
+        const QRect geom = screen->availableGeometry();
         const int y_pos = std::max(0, geom.bottom() - target_h - 38);
-        const bool is_b = (deck_ && deck_->side() == DeckPlayer::DeckSide::B);
         const int x_pos = is_b ? (geom.left() + 1255) : (geom.left() + 10);
         move(x_pos, y_pos);
+    }
+}
+
+void DeckWindow::moveEvent(QMoveEvent *event)
+{
+    QDialog::moveEvent(event);
+    if (isVisible() && SettingsDialog::config().auto_save_window_pos) {
+        const bool is_b = (deck_ && deck_->side() == DeckPlayer::DeckSide::B);
+        if (is_b) {
+            SettingsDialog::config().win_deck_b_x = x();
+            SettingsDialog::config().win_deck_b_y = y();
+        } else {
+            SettingsDialog::config().win_deck_a_x = x();
+            SettingsDialog::config().win_deck_a_y = y();
+        }
     }
 }
 

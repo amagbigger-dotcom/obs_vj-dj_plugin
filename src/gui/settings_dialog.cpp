@@ -3,6 +3,10 @@
 #include "gui/settings_video_tab.hpp"
 #include "gui/settings_midi_tab.hpp"
 #include "gui/settings_general_tab.hpp"
+#include "gui/deck_window.hpp"
+#include "gui/mixer_window.hpp"
+#include "gui/tracklist_dock.hpp"
+#include "gui/vj_fx_dialog.hpp"
 #include "controllers/midi_handler.hpp"
 #include "engine/deck_engine.hpp"
 
@@ -102,6 +106,19 @@ void SettingsDialog::loadSettings()
     // General
     g_config.language = obj.value(QStringLiteral("language")).toString(QStringLiteral("hu"));
     g_config.auto_save_on_exit = obj.value(QStringLiteral("auto_save_on_exit")).toBool(true);
+
+    // Window Positions
+    g_config.win_deck_a_x = obj.value(QStringLiteral("win_deck_a_x")).toInt(-1);
+    g_config.win_deck_a_y = obj.value(QStringLiteral("win_deck_a_y")).toInt(-1);
+    g_config.win_deck_b_x = obj.value(QStringLiteral("win_deck_b_x")).toInt(-1);
+    g_config.win_deck_b_y = obj.value(QStringLiteral("win_deck_b_y")).toInt(-1);
+    g_config.win_mixer_x = obj.value(QStringLiteral("win_mixer_x")).toInt(-1);
+    g_config.win_mixer_y = obj.value(QStringLiteral("win_mixer_y")).toInt(-1);
+    g_config.win_tracklist_x = obj.value(QStringLiteral("win_tracklist_x")).toInt(-1);
+    g_config.win_tracklist_y = obj.value(QStringLiteral("win_tracklist_y")).toInt(-1);
+    g_config.win_vj_fx_x = obj.value(QStringLiteral("win_vj_fx_x")).toInt(-1);
+    g_config.win_vj_fx_y = obj.value(QStringLiteral("win_vj_fx_y")).toInt(-1);
+    g_config.auto_save_window_pos = obj.value(QStringLiteral("auto_save_window_pos")).toBool(true);
 }
 
 void SettingsDialog::saveSettings()
@@ -160,6 +177,19 @@ void SettingsDialog::saveSettings()
 
     obj[QStringLiteral("language")] = g_config.language;
     obj[QStringLiteral("auto_save_on_exit")] = g_config.auto_save_on_exit;
+
+    // Window Positions
+    obj[QStringLiteral("win_deck_a_x")] = g_config.win_deck_a_x;
+    obj[QStringLiteral("win_deck_a_y")] = g_config.win_deck_a_y;
+    obj[QStringLiteral("win_deck_b_x")] = g_config.win_deck_b_x;
+    obj[QStringLiteral("win_deck_b_y")] = g_config.win_deck_b_y;
+    obj[QStringLiteral("win_mixer_x")] = g_config.win_mixer_x;
+    obj[QStringLiteral("win_mixer_y")] = g_config.win_mixer_y;
+    obj[QStringLiteral("win_tracklist_x")] = g_config.win_tracklist_x;
+    obj[QStringLiteral("win_tracklist_y")] = g_config.win_tracklist_y;
+    obj[QStringLiteral("win_vj_fx_x")] = g_config.win_vj_fx_x;
+    obj[QStringLiteral("win_vj_fx_y")] = g_config.win_vj_fx_y;
+    obj[QStringLiteral("auto_save_window_pos")] = g_config.auto_save_window_pos;
 
     f.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
     f.close();
@@ -318,4 +348,70 @@ void vdj_free_settings_dialog()
         delete g_settings_dialog;
         g_settings_dialog = nullptr;
     }
+}
+
+extern DeckWindow *vdj_get_deck_window_a();
+extern DeckWindow *vdj_get_deck_window_b();
+extern MixerWindow *vdj_get_mixer_window();
+extern TracklistDock *vdj_get_tracklist_window();
+extern VjFxDialog *vdj_get_vj_fx_dialog();
+
+void vdj_save_current_window_positions()
+{
+    auto &cfg = SettingsDialog::config();
+    if (auto *w = vdj_get_deck_window_a()) {
+        if (w->isVisible()) {
+            cfg.win_deck_a_x = w->x();
+            cfg.win_deck_a_y = w->y();
+        }
+    }
+    if (auto *w = vdj_get_deck_window_b()) {
+        if (w->isVisible()) {
+            cfg.win_deck_b_x = w->x();
+            cfg.win_deck_b_y = w->y();
+        }
+    }
+    if (auto *w = vdj_get_mixer_window()) {
+        if (w->isVisible()) {
+            cfg.win_mixer_x = w->x();
+            cfg.win_mixer_y = w->y();
+        }
+    }
+    if (auto *w = vdj_get_tracklist_window()) {
+        if (w->isVisible()) {
+            cfg.win_tracklist_x = w->x();
+            cfg.win_tracklist_y = w->y();
+        }
+    }
+    if (auto *w = vdj_get_vj_fx_dialog()) {
+        if (w->isVisible()) {
+            cfg.win_vj_fx_x = w->x();
+            cfg.win_vj_fx_y = w->y();
+        }
+    }
+    SettingsDialog::saveSettings();
+}
+
+void vdj_reset_window_positions()
+{
+    auto &cfg = SettingsDialog::config();
+    // Default 5-window layout from ideal screenshot (Image 2)
+    cfg.win_deck_a_x = 10;
+    cfg.win_deck_a_y = 624;
+    cfg.win_deck_b_x = 1255;
+    cfg.win_deck_b_y = 624;
+    cfg.win_mixer_x = 660;
+    cfg.win_mixer_y = 654;
+    cfg.win_vj_fx_x = 10;
+    cfg.win_vj_fx_y = 38;
+    cfg.win_tracklist_x = 1255;
+    cfg.win_tracklist_y = 38;
+
+    SettingsDialog::saveSettings();
+
+    if (auto *w = vdj_get_deck_window_a()) w->move(cfg.win_deck_a_x, cfg.win_deck_a_y);
+    if (auto *w = vdj_get_deck_window_b()) w->move(cfg.win_deck_b_x, cfg.win_deck_b_y);
+    if (auto *w = vdj_get_mixer_window()) w->move(cfg.win_mixer_x, cfg.win_mixer_y);
+    if (auto *w = vdj_get_vj_fx_dialog()) w->move(cfg.win_vj_fx_x, cfg.win_vj_fx_y);
+    if (auto *w = vdj_get_tracklist_window()) w->move(cfg.win_tracklist_x, cfg.win_tracklist_y);
 }

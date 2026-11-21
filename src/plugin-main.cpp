@@ -19,6 +19,9 @@ static DeckPair *g_deck_pair = nullptr;
 static DeckWindow *g_deck_window_a = nullptr;
 static DeckWindow *g_deck_window_b = nullptr;
 
+DeckWindow *vdj_get_deck_window_a() { return g_deck_window_a; }
+DeckWindow *vdj_get_deck_window_b() { return g_deck_window_b; }
+
 extern "C" {
 void vdj_register_deck_source(void);
 void vdj_register_sources(void);
@@ -159,6 +162,9 @@ void init_deck_ui()
 
 void free_deck_ui()
 {
+    if (SettingsDialog::config().auto_save_window_pos) {
+        vdj_save_current_window_positions();
+    }
     vdj_free_settings_dialog();
     vdj_free_mixer_window();
     vdj_free_tracklist_window();

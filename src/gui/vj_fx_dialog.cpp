@@ -1,4 +1,5 @@
 #include "gui/vj_fx_dialog.hpp"
+#include "gui/settings_dialog.hpp"
 #include "gui/crossfade_fx_dialog.hpp"
 #include "gui/lfo_dialog.hpp"
 #include "gui/isf_converter_dialog.hpp"
@@ -649,15 +650,27 @@ void VjFxDialog::rebuildParamControls()
 void VjFxDialog::showEvent(QShowEvent *event)
 {
     QDialog::showEvent(event);
-    if (QScreen *screen = QGuiApplication::primaryScreen()) {
-        const QRect geom = screen->availableGeometry();
-        const int target_w = 540;
-        const int target_h = 500;
-        setFixedSize(target_w, target_h);
+    const int target_w = 540;
+    const int target_h = 500;
+    setFixedSize(target_w, target_h);
 
+    const auto &cfg = SettingsDialog::config();
+    if (cfg.win_vj_fx_x >= 0 && cfg.win_vj_fx_y >= 0) {
+        move(cfg.win_vj_fx_x, cfg.win_vj_fx_y);
+    } else if (QScreen *screen = QGuiApplication::primaryScreen()) {
+        const QRect geom = screen->availableGeometry();
         const int x_pos = geom.left() + 10;
         const int y_pos = geom.top() + 38;
         move(x_pos, y_pos);
+    }
+}
+
+void VjFxDialog::moveEvent(QMoveEvent *event)
+{
+    QDialog::moveEvent(event);
+    if (isVisible() && SettingsDialog::config().auto_save_window_pos) {
+        SettingsDialog::config().win_vj_fx_x = x();
+        SettingsDialog::config().win_vj_fx_y = y();
     }
 }
 
@@ -706,4 +719,9 @@ void vdj_free_vj_fx_dialog()
         delete g_vj_fx_dialog;
         g_vj_fx_dialog = nullptr;
     }
+}
+
+VjFxDialog *vdj_get_vj_fx_dialog()
+{
+    return g_vj_fx_dialog;
 }

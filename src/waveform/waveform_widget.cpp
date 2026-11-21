@@ -17,7 +17,7 @@
 #include <cmath>
 
 namespace {
-constexpr int kOverviewHeight = 38;
+constexpr int kOverviewHeight = 50;
 constexpr double kDefaultZoomSeconds = 6.0; // 6 seconds visible across width (smoother, natural scrolling rate)
 }
 
@@ -31,7 +31,7 @@ WaveformCanvas::WaveformCanvas(DeckPlayer *deck, bool is_deck_a, QWidget *parent
       is_deck_a_(is_deck_a),
       zoom_seconds_(kDefaultZoomSeconds)
 {
-    setFixedHeight(175);
+    setFixedHeight(135);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setCursor(Qt::PointingHandCursor);
     setMouseTracking(true);
@@ -194,7 +194,7 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
         }
     }
 
-    // 3. High-Resolution Scrolling Waveform (Every kick attack clearly visible!)
+    // 3. High-Resolution Smooth Scrolling Waveform (Every kick attack clearly visible without pixel stepping!)
     if (duration > 0 && !detailed.empty()) {
         const QColor theme_main = is_deck_a_ ? QColor(0, 225, 255) : QColor(255, 128, 0);
         const QColor theme_core = is_deck_a_ ? QColor(0, 110, 180) : QColor(180, 60, 0);
@@ -209,72 +209,118 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
             ? (static_cast<double>(duration) / static_cast<double>(detailed.size()))
             : 10.0;
 
+        const bool zoomed_in = (ms_per_pixel <= ms_per_sample);
+
+        // Pre-sample across all pixel columns with fractional linear interpolation
+        std::vector<float> col_amp(w, 0.0f);
+        std::vector<float> col_l(w, 0.0f);
+        std::vector<float> col_m(w, 0.0f);
+        std::vector<float> col_h(w, 0.0f);
+
         for (int x = 0; x < w; ++x) {
-            const int64_t t_start = current + static_cast<int64_t>((x - playhead_x) * ms_per_pixel);
-            const int64_t t_end = current + static_cast<int64_t>((x + 1 - playhead_x) * ms_per_pixel);
-            if (t_end < 0 || t_start >= duration)
+            const double t_center = static_cast<double>(current) + (static_cast<double>(x) - playhead_x + 0.5) * ms_per_pixel;
+            if (t_center < 0.0 || t_center >= static_cast<double>(duration))
                 continue;
 
-            const size_t idx_start = static_cast<size_t>(std::clamp<double>(static_cast<double>(std::max<int64_t>(0, t_start)) / ms_per_sample, 0.0, static_cast<double>(detailed.size() - 1)));
-            const size_t idx_end = static_cast<size_t>(std::clamp<double>(static_cast<double>(std::min<int64_t>(duration - 1, t_end)) / ms_per_sample, 0.0, static_cast<double>(detailed.size() - 1)));
+            const double s_pos = t_center / ms_per_sample;
+            if (zoomed_in) {
+                const size_t i0 = static_cast<size_t>(std::clamp<double>(std::floor(s_pos), 0.0, static_cast<double>(detailed.size() - 1)));
+                const size_t i1 = std::min(i0 + 1, detailed.size() - 1);
+                const float frac = static_cast<float>(s_pos - static_cast<double>(i0));
 
-            float peak_amp = 0.0f;
-            float peak_l = 0.0f, peak_m = 0.0f, peak_h = 0.0f;
-            for (size_t s = idx_start; s <= idx_end; ++s) {
-                if (detailed[s] > peak_amp) peak_amp = detailed[s];
+                col_amp[x] = (1.0f - frac) * detailed[i0] + frac * detailed[i1];
                 if (has_det_spec) {
-                    if (det_low[s] > peak_l) peak_l = det_low[s];
-                    if (det_mid[s] > peak_m) peak_m = det_mid[s];
-                    if (det_high[s] > peak_h) peak_h = det_high[s];
+                    col_l[x] = (1.0f - frac) * det_low[i0] + frac * det_low[i1];
+                    col_m[x] = (1.0f - frac) * det_mid[i0] + frac * det_mid[i1];
+                    col_h[x] = (1.0f - frac) * det_high[i0] + frac * det_high[i1];
                 }
-            }
+            } else {
+                const double s_start = (t_center - 0.5 * ms_per_pixel) / ms_per_sample;
+                const double s_end = (t_center + 0.5 * ms_per_pixel) / ms_per_sample;
+                const size_t idx_start = static_cast<size_t>(std::clamp<double>(std::floor(s_start), 0.0, static_cast<double>(detailed.size() - 1)));
+                const size_t idx_end = static_cast<size_t>(std::clamp<double>(std::ceil(s_end), 0.0, static_cast<double>(detailed.size() - 1)));
 
-            const int bar_h = static_cast<int>(peak_amp * (wave_height / 2 - 2));
-            if (bar_h <= 0)
+                float peak_amp = 0.0f, peak_l = 0.0f, peak_m = 0.0f, peak_h = 0.0f;
+                for (size_t s = idx_start; s <= idx_end; ++s) {
+                    if (detailed[s] > peak_amp) peak_amp = detailed[s];
+                    if (has_det_spec) {
+                        if (det_low[s] > peak_l) peak_l = det_low[s];
+                        if (det_mid[s] > peak_m) peak_m = det_mid[s];
+                        if (det_high[s] > peak_h) peak_h = det_high[s];
+                    }
+                }
+                col_amp[x] = peak_amp;
+                col_l[x] = peak_l;
+                col_m[x] = peak_m;
+                col_h[x] = peak_h;
+            }
+        }
+
+        // Fast 3-tap smoothing pass across columns to eradicate stair-step pixel blocks
+        std::vector<float> smooth_amp(w, 0.0f);
+        for (int x = 0; x < w; ++x) {
+            const float prev = (x > 0) ? col_amp[x - 1] : col_amp[x];
+            const float curr = col_amp[x];
+            const float next = (x + 1 < w) ? col_amp[x + 1] : col_amp[x];
+            smooth_amp[x] = 0.20f * prev + 0.60f * curr + 0.20f * next;
+        }
+
+        const float max_bar_h = (static_cast<float>(wave_height) * 0.5f) - 2.0f;
+
+        for (int x = 0; x < w; ++x) {
+            const float bar_h = smooth_amp[x] * max_bar_h;
+            if (bar_h <= 0.5f)
                 continue;
+
+            const qreal top_y = static_cast<qreal>(center_y) - bar_h;
+            const qreal bot_y = static_cast<qreal>(center_y) + bar_h;
 
             if (has_det_spec) {
-                const float pow_l = std::pow(peak_l, 1.8f);
-                const float pow_m = std::pow(peak_m, 1.8f);
-                const float pow_h = std::pow(peak_h, 1.8f);
+                const float pow_l = std::pow(col_l[x], 1.8f);
+                const float pow_m = std::pow(col_m[x], 1.8f);
+                const float pow_h = std::pow(col_h[x], 1.8f);
                 const float tot = pow_l + pow_m + pow_h + 0.0001f;
                 const float wl = pow_l / tot;
                 const float wm = pow_m / tot;
                 const float wh = pow_h / tot;
 
                 // 3-Sávos Színek a gördülő nézetben: Mély = Telt Kék, Közép = Meleg Narancs/Arany, Magas = Cián/Fehér
-                int r_col = static_cast<int>(std::clamp(wl * 0.0f   + wm * 255.0f + wh * 0.0f,   0.0f, 255.0f));
-                int g_col = static_cast<int>(std::clamp(wl * 70.0f  + wm * 160.0f + wh * 240.0f, 0.0f, 255.0f));
-                int b_col = static_cast<int>(std::clamp(wl * 255.0f + wm * 0.0f   + wh * 255.0f, 0.0f, 255.0f));
+                const int r_col = static_cast<int>(std::clamp(wl * 0.0f   + wm * 255.0f + wh * 0.0f,   0.0f, 255.0f));
+                const int g_col = static_cast<int>(std::clamp(wl * 70.0f  + wm * 160.0f + wh * 240.0f, 0.0f, 255.0f));
+                const int b_col = static_cast<int>(std::clamp(wl * 255.0f + wm * 0.0f   + wh * 255.0f, 0.0f, 255.0f));
 
-                p.setPen(QPen(QColor(r_col, g_col, b_col, 220), 1));
-                p.drawLine(x, center_y - bar_h, x, center_y + bar_h);
+                p.setPen(QPen(QColor(r_col, g_col, b_col, 220), 1.0));
+                p.drawLine(QPointF(x, top_y), QPointF(x, bot_y));
 
-                if (bar_h > 4) {
-                    int r_core = std::min(255, r_col + 35);
-                    int g_core = std::min(255, g_col + 35);
-                    int b_core = std::min(255, b_col + 35);
-                    p.setPen(QPen(QColor(r_core, g_core, b_core, 255), 1));
-                    p.drawLine(x, center_y - bar_h * 2 / 3, x, center_y + bar_h * 2 / 3);
+                if (bar_h > 3.0f) {
+                    const int r_core = std::min(255, r_col + 35);
+                    const int g_core = std::min(255, g_col + 35);
+                    const int b_core = std::min(255, b_col + 35);
+                    p.setPen(QPen(QColor(r_core, g_core, b_core, 255), 1.0));
+                    p.drawLine(QPointF(x, static_cast<qreal>(center_y) - bar_h * 0.66f),
+                               QPointF(x, static_cast<qreal>(center_y) + bar_h * 0.66f));
                 }
 
                 // Lábdob leütés (Kick Transient Attack): a lábdob mély leütése borotvaéles kék-fehér tüskeként ragyog fel!
-                if (peak_l > 0.60f && peak_amp > 0.55f) {
-                    p.setPen(QPen(QColor(180, 240, 255, 255), 1));
-                    p.drawLine(x, center_y - bar_h / 2, x, center_y + bar_h / 2);
+                if (col_l[x] > 0.58f && smooth_amp[x] > 0.50f) {
+                    p.setPen(QPen(QColor(180, 240, 255, 255), 1.0));
+                    p.drawLine(QPointF(x, static_cast<qreal>(center_y) - bar_h * 0.45f),
+                               QPointF(x, static_cast<qreal>(center_y) + bar_h * 0.45f));
                 }
             } else {
-                p.setPen(QPen(theme_core, 1));
-                p.drawLine(x, center_y - bar_h, x, center_y + bar_h);
+                p.setPen(QPen(theme_core, 1.0));
+                p.drawLine(QPointF(x, top_y), QPointF(x, bot_y));
 
-                if (bar_h > 4) {
-                    p.setPen(QPen(theme_main, 1));
-                    p.drawLine(x, center_y - bar_h * 2 / 3, x, center_y + bar_h * 2 / 3);
+                if (bar_h > 3.0f) {
+                    p.setPen(QPen(theme_main, 1.0));
+                    p.drawLine(QPointF(x, static_cast<qreal>(center_y) - bar_h * 0.66f),
+                               QPointF(x, static_cast<qreal>(center_y) + bar_h * 0.66f));
                 }
 
-                if (peak_amp > 0.60f) {
-                    p.setPen(QPen(theme_kick, 1));
-                    p.drawLine(x, center_y - bar_h / 3, x, center_y + bar_h / 3);
+                if (smooth_amp[x] > 0.58f) {
+                    p.setPen(QPen(theme_kick, 1.0));
+                    p.drawLine(QPointF(x, static_cast<qreal>(center_y) - bar_h * 0.40f),
+                               QPointF(x, static_cast<qreal>(center_y) + bar_h * 0.40f));
                 }
             }
         }
@@ -373,16 +419,38 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
         // Draw clear dynamic audio waveform across the full width with 3-band spectral coloring
         for (int ox = 0; ox < w; ++ox) {
             const double norm = static_cast<double>(ox) / static_cast<double>(w);
-            const size_t s_idx = static_cast<size_t>(norm * (overview.size() - 1));
-            const float amp = overview[s_idx];
-            const int bar_h = static_cast<int>(amp * (kOverviewHeight / 2 - 4));
-            const float tonus = has_tonus ? ov_tonus[std::min<size_t>(static_cast<size_t>(norm * (ov_tonus.size() - 1)), ov_tonus.size() - 1)] : 0.5f;
+            const double s_pos = norm * static_cast<double>(overview.size() - 1);
+            const size_t s0 = static_cast<size_t>(std::clamp<double>(std::floor(s_pos), 0.0, static_cast<double>(overview.size() - 1)));
+            const size_t s1 = std::min(s0 + 1, overview.size() - 1);
+            const float s_frac = static_cast<float>(s_pos - static_cast<double>(s0));
+
+            const float amp = (1.0f - s_frac) * overview[s0] + s_frac * overview[s1];
+            const float max_ov_h = (static_cast<float>(kOverviewHeight) * 0.5f) - 4.0f;
+            const float bar_h = amp * max_ov_h;
+            if (bar_h <= 0.5f)
+                continue;
+
+            const qreal top_y = static_cast<qreal>(ov_center_y) - bar_h;
+            const qreal bot_y = static_cast<qreal>(ov_center_y) + bar_h;
+
+            float tonus = 0.5f;
+            if (has_tonus) {
+                const double ton_pos = norm * static_cast<double>(ov_tonus.size() - 1);
+                const size_t t0 = static_cast<size_t>(std::clamp<double>(std::floor(ton_pos), 0.0, static_cast<double>(ov_tonus.size() - 1)));
+                const size_t t1 = std::min(t0 + 1, ov_tonus.size() - 1);
+                const float t_frac = static_cast<float>(ton_pos - static_cast<double>(t0));
+                tonus = (1.0f - t_frac) * ov_tonus[t0] + t_frac * ov_tonus[t1];
+            }
 
             if (has_spec) {
-                const size_t sp_idx = static_cast<size_t>(norm * (ov_low.size() - 1));
-                const float l = ov_low[sp_idx];
-                const float m = ov_mid[sp_idx];
-                const float h_val = ov_high[sp_idx];
+                const double spec_pos = norm * static_cast<double>(ov_low.size() - 1);
+                const size_t sp0 = static_cast<size_t>(std::clamp<double>(std::floor(spec_pos), 0.0, static_cast<double>(ov_low.size() - 1)));
+                const size_t sp1 = std::min(sp0 + 1, ov_low.size() - 1);
+                const float sp_frac = static_cast<float>(spec_pos - static_cast<double>(sp0));
+
+                const float l = (1.0f - sp_frac) * ov_low[sp0] + sp_frac * ov_low[sp1];
+                const float m = (1.0f - sp_frac) * ov_mid[sp0] + sp_frac * ov_mid[sp1];
+                const float h_val = (1.0f - sp_frac) * ov_high[sp0] + sp_frac * ov_high[sp1];
 
                 // 3-Band Spectral Color Synthesis (Low = Deep Blue, Mid = Warm Gold, High = Cyan/White)
                 const float pow_l = std::pow(l, 1.8f);
@@ -400,45 +468,49 @@ void WaveformCanvas::paintEvent(QPaintEvent *)
                 const int blue  = static_cast<int>(std::clamp(wl * 255.0f + wm * 0.0f   + wh * 255.0f - ton_warmth * 65.0f, 0.0f, 255.0f));
 
                 const QColor spec_outer(red, green, blue, 220);
-                p.setPen(QPen(spec_outer, 1));
-                p.drawLine(ox, ov_center_y - bar_h, ox, ov_center_y + bar_h);
+                p.setPen(QPen(spec_outer, 1.0));
+                p.drawLine(QPointF(ox, top_y), QPointF(ox, bot_y));
 
-                if (bar_h > 2) {
+                if (bar_h > 2.5f) {
                     const int r_core = std::min(255, red + 35);
                     const int g_core = std::min(255, green + 35);
                     const int b_core = std::min(255, blue + 35);
-                    p.setPen(QPen(QColor(r_core, g_core, b_core, 255), 1));
-                    p.drawLine(ox, ov_center_y - bar_h * 2 / 3, ox, ov_center_y + bar_h * 2 / 3);
+                    p.setPen(QPen(QColor(r_core, g_core, b_core, 255), 1.0));
+                    p.drawLine(QPointF(ox, static_cast<qreal>(ov_center_y) - bar_h * 0.66f),
+                               QPointF(ox, static_cast<qreal>(ov_center_y) + bar_h * 0.66f));
                 }
 
                 // Diszkrét fehér mag kizárólag a legmagasabb szintű összetett csúcsoknál (> 85% hangerő):
                 if (amp > 0.85f && l > 0.65f && h_val > 0.65f) {
-                    p.setPen(QPen(QColor(255, 255, 255, 240), 1));
-                    p.drawLine(ox, ov_center_y - bar_h / 4, ox, ov_center_y + bar_h / 4);
+                    p.setPen(QPen(QColor(255, 255, 255, 240), 1.0));
+                    p.drawLine(QPointF(ox, static_cast<qreal>(ov_center_y) - bar_h * 0.25f),
+                               QPointF(ox, static_cast<qreal>(ov_center_y) + bar_h * 0.25f));
                 }
             } else {
                 // Classic gold fallback if spectral data is not yet computed
-                p.setPen(QPen(QColor(160, 105, 15, 200), 1));
-                p.drawLine(ox, ov_center_y - bar_h, ox, ov_center_y + bar_h);
+                p.setPen(QPen(QColor(160, 105, 15, 200), 1.0));
+                p.drawLine(QPointF(ox, top_y), QPointF(ox, bot_y));
 
-                if (bar_h > 2) {
-                    p.setPen(QPen(QColor(255, 195, 25, 240), 1));
-                    p.drawLine(ox, ov_center_y - bar_h * 2 / 3, ox, ov_center_y + bar_h * 2 / 3);
+                if (bar_h > 2.5f) {
+                    p.setPen(QPen(QColor(255, 195, 25, 240), 1.0));
+                    p.drawLine(QPointF(ox, static_cast<qreal>(ov_center_y) - bar_h * 0.66f),
+                               QPointF(ox, static_cast<qreal>(ov_center_y) + bar_h * 0.66f));
                 }
 
                 if (amp > 0.65f) {
-                    p.setPen(QPen(QColor(255, 245, 160, 255), 1));
-                    p.drawLine(ox, ov_center_y - bar_h / 3, ox, ov_center_y + bar_h / 3);
+                    p.setPen(QPen(QColor(255, 245, 160, 255), 1.0));
+                    p.drawLine(QPointF(ox, static_cast<qreal>(ov_center_y) - bar_h * 0.33f),
+                               QPointF(ox, static_cast<qreal>(ov_center_y) + bar_h * 0.33f));
                 }
             }
 
             // Sleek Macroscopic Tonus (Build-Up) Indicator Ribbon along the bottom of the overview bar
-            const int ton_h = std::clamp(static_cast<int>(tonus * 3.5f), 1, 3);
+            const int ton_h = std::clamp(static_cast<int>(tonus * 4.0f), 1, 4);
             const int ton_r = static_cast<int>(std::clamp(tonus * 255.0f, 0.0f, 255.0f));
             const int ton_g = static_cast<int>(std::clamp((1.0f - std::abs(tonus - 0.5f) * 2.0f) * 220.0f, 0.0f, 255.0f));
             const int ton_b = static_cast<int>(std::clamp((1.0f - tonus) * 255.0f, 0.0f, 255.0f));
-            p.setPen(QPen(QColor(ton_r, ton_g, ton_b, 200), 1));
-            p.drawLine(ox, ov_top + kOverviewHeight - 1 - ton_h, ox, ov_top + kOverviewHeight - 1);
+            p.setPen(QPen(QColor(ton_r, ton_g, ton_b, 200), 1.0));
+            p.drawLine(QPointF(ox, ov_top + kOverviewHeight - 1 - ton_h), QPointF(ox, ov_top + kOverviewHeight - 1));
         }
 
         // Played progress tint

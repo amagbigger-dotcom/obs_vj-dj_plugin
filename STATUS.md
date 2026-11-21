@@ -1,24 +1,36 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #324 (GitHub Run #331)
-* **Aktuális Git Commit:** `55f7c05`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 256 448 bájt)
-* **Bináris SHA256:** `7994E334249CE1F8F74AC1EC0798DD695D66F516D0BB1301A959D7FF3446D273`
+* **Legutolsó stabil mérföldkő:** Build #325
+* **Fő fókusz:** Ablakpozíciók Perzisztenciája (Beállítások) & Hullámforma Arányok és Szubpixel Simítás
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Kezelőfelületi Ergonómia & 5-Ablakos Képernyő Elrendezés (Build #324):
-  1. Mind az 5 ablak (Deck A, Mixer, Deck B, Video FX, Tracklist) egykattintásos elrendezése az Eszközök menüből (1920×1080).
-  2. Ablakméretek és pozíciók pontosítása: OBS menüsor láthatósága (`y = 38`), Deck tálca fölé illesztése, Video FX & Tracklist `500 px`, Deck `410 px` magasság, 0 átfedés.
-  3. Kétrétegű Waveform magasság: 175 px (135 px részletes futó hullámforma + 38 px 3-sávos áttekintő).
-  4. Deck fejlécének tehermentesítése: zenecímnek 320+ px tiszta hely, /2 és x2 áthelyezve a TAP mellé, triola (3/2) és VJ gomb törölve.
-  5. Mixer EQ hangszín potméterek (HI, MID, LOW) értékkijelzésének nullázása (középen 0, vágás `-`, erősítés előjel nélkül).
+* **Fő cél:** Kezelőfelületi Ablakpozíciók Mentése & Hullámforma Megújítás (Build #325):
+  1. **Ablakpozíciók perzisztens tárolása:** Mind az 5 ablak (Deck A, Mixer, Deck B, Video FX, Tracklist) pozíciójának automatikus mentése `obs_vj_settings.json`-ba.
+  2. **Beállítások ablak elrendezés vezérlők:** A `Nyelv & Rendszer` fülön új `[ 📍 Jelenlegi Ablakpozíciók Mentése ]` és `[ ↺ Alapértelmezett 5-Ablakos Layout ]` gombok, valamint automatikus mentés opció.
+  3. **Hullámforma arányok áthangolása:**
+     - A futó részletes hullámforma magassága 135 px-ről **83 px**-re csökkentve (karcsú, dinamikus, nem terheli a decket).
+     - Az alsó pozicionáló áttekintő hullámforma 38 px-ről **50 px**-re növelve (+32% extra magasság a CUE, drop pontok és kattintható keresés számára).
+     - DeckWindow mérete fix **640 × 370 px**-re optimalizálva (tökéletes távolság a felső panelektől és a Windows tálcától).
+  4. **Pixelesség és lépcsősség megszüntetése (Anti-Pixelation):**
+     - Szub-minta lineáris interpoláció (`lerp`) a hullámforma amplitúdó és a 3-sávos spektrum mintái között: nincsenek diszkrét vízszintes platók.
+     - 3-pontos oszlopsimítás a képernyő szélességében és szubpixel anti-aliased kirajzolás (`QPointF`).
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #324)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #325)
+* [x] **Ablakpozíciók Perzisztenciája & Beállítások Vezérlők (Build #325):**
+  - Mind az 5 ablak (`DeckWindow A`, `DeckWindow B`, `MixerWindow`, `TracklistDock`, `VjFxDialog`) mozgatásakor az aktuális koordináták rögzítésre kerülnek a konfigurációban.
+  - A Beállítások menü `🌐 Nyelv & Rendszer` fülén a felhasználó a `[ 📍 Jelenlegi Ablakpozíciók Mentése ]` gombbal közvetlenül elmentheti az általa beállított képernyőelrendezést.
+  - A `[ ↺ Alapértelmezett 5-Ablakos Layout ]` gombbal bármikor visszaállítható a tiszta referencia-elrendezés.
+  - OBS bezárásakor vagy modul unloadkor az ablakpozíciók automatikusan beíródnak az `obs_vj_settings.json` fájlba.
+* [x] **Hullámforma Arányok & Szubpixel Simítás (Build #325):**
+  - **Arányok:** A részletes futó hullámforma 83 px, az alsó áttekintő sáv 50 px, a teljes canvas magassága 135 px.
+  - A DeckWindow ablakmagasság 410 px-ről **370 px**-re karcsúsodott, így sosem ér le a tálca alá és ~86 px tiszta légrés marad a felső panelek alatt.
+  - **Anti-pixelation:** A diszkrét lépcsős mintavételezést folyamatos tört-indexű lineáris interpoláció (`lerp`) váltotta fel, 3-pontos oszlopsimítással és szubpixel anti-aliasinggal.
 * [x] **Ablakméretek & Pozíciók Geometriai Korrekciója (Build #324):**
   - **OBS menüsor láthatóság:** A felső panelek (`VideoFxDialog` és `TracklistDock`) koordinátája `y = geom.top() + 38`-ra lett állítva, így az OBS Studio felső menüsora (Fájl, Szerkesztés, Nézet stb.) 100%-ban szabadon látható és kattintható.
   - **Tálca alácsúszás megszüntetése:** A Deck (`640 × 410 px`) és a Mixer (`590 × 340 px`) pozíciója közvetlenül a képernyő munkaterületének aljához (`geom.bottom() - target_h - 38`) igazodik, így a fader- és bend-gombok pontosan a Windows tálca felett ülnek.

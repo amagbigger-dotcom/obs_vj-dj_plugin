@@ -17,6 +17,7 @@ public:
 
 protected:
     void showEvent(QShowEvent *event) override;
+    void moveEvent(QMoveEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
 private:
@@ -36,3 +37,4 @@ private:
 
 void vdj_open_mixer_window();
 void vdj_free_mixer_window();
+MixerWindow *vdj_get_mixer_window();

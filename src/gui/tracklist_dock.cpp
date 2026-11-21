@@ -1,4 +1,5 @@
 #include "gui/tracklist_dock.hpp"
+#include "gui/settings_dialog.hpp"
 #include "engine/deck_engine.hpp"
 #include "audio/audio_analyzer.hpp"
 
@@ -47,6 +48,11 @@ void vdj_free_tracklist_window()
         delete g_tracklist_instance;
         g_tracklist_instance = nullptr;
     }
+}
+
+TracklistDock *vdj_get_tracklist_window()
+{
+    return g_tracklist_instance;
 }
 
 void vdj_import_and_load(const QString &file_path, int deck_channel)
@@ -616,15 +622,27 @@ void TracklistDock::cancelActiveConversion()
 void TracklistDock::showEvent(QShowEvent *event)
 {
     QDialog::showEvent(event);
-    if (QScreen *screen = QGuiApplication::primaryScreen()) {
-        const QRect geom = screen->availableGeometry();
-        const int target_w = 640;
-        const int target_h = 500;
-        setFixedSize(target_w, target_h);
+    const int target_w = 640;
+    const int target_h = 500;
+    setFixedSize(target_w, target_h);
 
+    const auto &cfg = SettingsDialog::config();
+    if (cfg.win_tracklist_x >= 0 && cfg.win_tracklist_y >= 0) {
+        move(cfg.win_tracklist_x, cfg.win_tracklist_y);
+    } else if (QScreen *screen = QGuiApplication::primaryScreen()) {
+        const QRect geom = screen->availableGeometry();
         const int x_pos = geom.left() + 1255;
         const int y_pos = geom.top() + 38;
         move(x_pos, y_pos);
+    }
+}
+
+void TracklistDock::moveEvent(QMoveEvent *event)
+{
+    QDialog::moveEvent(event);
+    if (isVisible() && SettingsDialog::config().auto_save_window_pos) {
+        SettingsDialog::config().win_tracklist_x = x();
+        SettingsDialog::config().win_tracklist_y = y();
     }
 }
 

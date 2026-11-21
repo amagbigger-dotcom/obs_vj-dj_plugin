@@ -25,8 +25,8 @@ public:
     void zoomIn();
     void zoomOut();
 
-    QSize sizeHint() const override { return QSize(400, 175); }
-    QSize minimumSizeHint() const override { return QSize(300, 150); }
+    QSize sizeHint() const override { return QSize(400, 135); }
+    QSize minimumSizeHint() const override { return QSize(300, 135); }
 
 signals:
     void seekRequested(double normalized_pos);

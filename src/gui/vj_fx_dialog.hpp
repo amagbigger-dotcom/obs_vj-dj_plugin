@@ -27,6 +27,7 @@ public:
 
 protected:
     void showEvent(QShowEvent *event) override;
+    void moveEvent(QMoveEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
 private:
@@ -61,3 +62,4 @@ private:
 void vdj_open_vj_fx_dialog(int target_deck = 0);
 void vdj_open_vj_fx_dialog_tab(int tab_idx, int target_deck = 0);
 void vdj_free_vj_fx_dialog();
+VjFxDialog *vdj_get_vj_fx_dialog();
