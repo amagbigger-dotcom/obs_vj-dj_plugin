@@ -247,6 +247,13 @@ void MixerChannelStrip::setupUi()
     vol_fx_combo_->addItem(QStringLiteral("VOL FX: Sötétedés"), 1);
     vol_fx_combo_->addItem(QStringLiteral("VOL FX: Kiégés"), 2);
     vol_fx_combo_->addItem(QStringLiteral("VOL FX: Homályosítás"), 3);
+    vol_fx_combo_->addItem(QStringLiteral("VOL FX: Kör Szűkülés"), 4);
+    vol_fx_combo_->addItem(QStringLiteral("VOL FX: 16:9 Téglalap"), 5);
+    vol_fx_combo_->addItem(QStringLiteral("VOL FX: 1:1 Négyzet"), 6);
+    vol_fx_combo_->addItem(QStringLiteral("VOL FX: Rombusz / Gyémánt"), 7);
+    vol_fx_combo_->addItem(QStringLiteral("VOL FX: Vízszintes Lamellák"), 8);
+    vol_fx_combo_->addItem(QStringLiteral("VOL FX: Függőleges Lamellák"), 9);
+    vol_fx_combo_->addItem(QStringLiteral("VOL FX: Zoom Középre"), 10);
     vol_fx_combo_->setCurrentIndex(deck_ ? deck_->volumeFxMode() : 0);
     connect(vol_fx_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
         if (deck_) deck_->setVolumeFxMode(idx);

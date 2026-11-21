@@ -67,6 +67,7 @@ uniform float vol_fx_val_b;
 
 uniform float cf_fx_mode;
 uniform float cf_fx_mid;
+uniform float cf_blend_boost;
 uniform float cf_param_intensity;
 uniform float cf_param_rate;
 uniform float anim_time;
@@ -236,24 +237,92 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
 )";
 
 static const char *MIXER_EFFECT_PART2 = R"(
+float get_shape_wipe_mask(float fx_mode, float fx_val, float2 uv)
+{
+    if (fx_mode < 3.5 || fx_val <= 0.001)
+        return 1.0;
+
+    float2 center = float2(0.5, 0.5);
+    float2 p = uv - center;
+    float2 p_ar = p * float2(1.7777778, 1.0);
+
+    if (fx_mode > 3.5 && fx_mode < 4.5) {
+        // Mode 4: Kör Szűkülés (Iris Circle)
+        float r = length(p_ar);
+        float cur_r = (1.0 - fx_val) * 1.05;
+        return 1.0 - smoothstep(max(cur_r - 0.02, 0.0), cur_r + 0.02, r);
+    }
+    else if (fx_mode > 4.5 && fx_mode < 5.5) {
+        // Mode 5: 16:9 Téglalap (Box Iris)
+        float2 ap = abs(p);
+        float d = max(ap.x, ap.y * 1.7777778);
+        float cur_box = (1.0 - fx_val) * 0.52;
+        return 1.0 - smoothstep(max(cur_box - 0.02, 0.0), cur_box + 0.02, d);
+    }
+    else if (fx_mode > 5.5 && fx_mode < 6.5) {
+        // Mode 6: 1:1 Négyzet (Square Iris)
+        float2 ap = abs(p_ar);
+        float d = max(ap.x, ap.y);
+        float cur_sq = (1.0 - fx_val) * 0.90;
+        return 1.0 - smoothstep(max(cur_sq - 0.02, 0.0), cur_sq + 0.02, d);
+    }
+    else if (fx_mode > 6.5 && fx_mode < 7.5) {
+        // Mode 7: Rombusz / Gyémánt (Diamond)
+        float2 ap = abs(p_ar);
+        float d = ap.x + ap.y;
+        float cur_dia = (1.0 - fx_val) * 1.35;
+        return 1.0 - smoothstep(max(cur_dia - 0.025, 0.0), cur_dia + 0.025, d);
+    }
+    else if (fx_mode > 7.5 && fx_mode < 8.5) {
+        // Mode 8: Vízszintes Lamellák (Venetian Stripes)
+        float stripes_y = frac(uv.y * 12.0);
+        float d = abs(stripes_y - 0.5) * 2.0;
+        float cur_s = (1.0 - fx_val);
+        return 1.0 - smoothstep(max(cur_s - 0.03, 0.0), cur_s + 0.03, d);
+    }
+    else if (fx_mode > 8.5 && fx_mode < 9.5) {
+        // Mode 9: Függőleges Lamellák (Vertical Slices)
+        float slices_x = frac(uv.x * 18.0);
+        float d = abs(slices_x - 0.5) * 2.0;
+        float cur_s = (1.0 - fx_val);
+        return 1.0 - smoothstep(max(cur_s - 0.03, 0.0), cur_s + 0.03, d);
+    }
+    else if (fx_mode > 9.5 && fx_mode < 10.5) {
+        // Mode 10: Zoom Középre (Zoom Out to Center)
+        float zoom_scale = max(1.0 - fx_val * 0.96, 0.01);
+        float2 z_uv = p / zoom_scale + center;
+        float mask_x = smoothstep(0.0, 0.015, z_uv.x) * (1.0 - smoothstep(0.985, 1.0, z_uv.x));
+        float mask_y = smoothstep(0.0, 0.015, z_uv.y) * (1.0 - smoothstep(0.985, 1.0, z_uv.y));
+        return saturate(mask_x * mask_y);
+    }
+
+    return 1.0;
+}
+
 float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx_val, float4 gains, float sat)
 {
+    float2 sample_uv = uv;
+    if (fx_mode > 9.5 && fx_mode < 10.5 && fx_val > 0.001) {
+        float zoom_scale = max(1.0 - fx_val * 0.96, 0.01);
+        sample_uv = (uv - float2(0.5, 0.5)) / zoom_scale + float2(0.5, 0.5);
+    }
+
     float4 col;
-    if (fx_mode > 2.5 && fx_val > 0.01) {
+    if (fx_mode > 2.5 && fx_mode < 3.5 && fx_val > 0.01) {
         // Mode 3: Soft Focus / Homályosítás (Multi-tap Box/Gaussian Blur)
         float2 off = float2(fx_val * 0.012, fx_val * 0.012);
-        float4 sum = img.Sample(def_sampler, uv);
-        sum += img.Sample(def_sampler, uv + float2(off.x, 0));
-        sum += img.Sample(def_sampler, uv - float2(off.x, 0));
-        sum += img.Sample(def_sampler, uv + float2(0, off.y));
-        sum += img.Sample(def_sampler, uv - float2(0, off.y));
-        sum += img.Sample(def_sampler, uv + float2(off.x * 0.7, off.y * 0.7));
-        sum += img.Sample(def_sampler, uv - float2(off.x * 0.7, off.y * 0.7));
-        sum += img.Sample(def_sampler, uv + float2(-off.x * 0.7, off.y * 0.7));
-        sum += img.Sample(def_sampler, uv + float2(off.x * 0.7, -off.y * 0.7));
+        float4 sum = img.Sample(def_sampler, sample_uv);
+        sum += img.Sample(def_sampler, sample_uv + float2(off.x, 0));
+        sum += img.Sample(def_sampler, sample_uv - float2(off.x, 0));
+        sum += img.Sample(def_sampler, sample_uv + float2(0, off.y));
+        sum += img.Sample(def_sampler, sample_uv - float2(0, off.y));
+        sum += img.Sample(def_sampler, sample_uv + float2(off.x * 0.7, off.y * 0.7));
+        sum += img.Sample(def_sampler, sample_uv - float2(off.x * 0.7, off.y * 0.7));
+        sum += img.Sample(def_sampler, sample_uv + float2(-off.x * 0.7, off.y * 0.7));
+        sum += img.Sample(def_sampler, sample_uv + float2(off.x * 0.7, -off.y * 0.7));
         col = sum / 9.0;
     } else {
-        col = img.Sample(def_sampler, uv);
+        col = img.Sample(def_sampler, sample_uv);
     }
 
     // Színkorrekció (RGB Gain & Saturation)
@@ -268,7 +337,10 @@ float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx
         col.rgb = lerp(col.rgb, float3(1.0, 1.0, 1.0), fx_val);
     }
 
-    col.a = 1.0;
+    // Alakzat-alapú maszk (Shape Wipe Mask)
+    float mask = get_shape_wipe_mask(fx_mode, fx_val, uv);
+    col.a = mask;
+    col.rgb *= mask;
     return saturate(col);
 }
 
@@ -330,8 +402,23 @@ float4 PS(VertData v) : TARGET
 
     float4 res;
 
+    // Alakzat-alapú áttűnés (Shape Wipe Blending) ha a faderek alakzat módban vannak
+    if ((vol_fx_mode_a > 3.5 && vol_fx_val_a > 0.001) || (vol_fx_mode_b > 3.5 && vol_fx_val_b > 0.001)) {
+        float m_a = a.a;
+        float m_b = b.a;
+        float3 comp;
+        if (vol_fx_mode_a > 3.5 && vol_fx_mode_b <= 3.5) {
+            comp = lerp(b.rgb, a.rgb, m_a);
+        } else if (vol_fx_mode_b > 3.5 && vol_fx_mode_a <= 3.5) {
+            comp = lerp(a.rgb, b.rgb, m_b);
+        } else {
+            float tot = m_a + m_b;
+            comp = (tot > 0.001) ? (a.rgb * m_a + b.rgb * m_b) / tot : float3(0.0, 0.0, 0.0);
+        }
+        res = float4(comp, 1.0);
+    }
     // Mode 6: Luma Dissolve (Fényerő-alapú áttűnés)
-    if (cf_fx_mode > 5.5 && cf_fx_mode < 6.5) {
+    else if (cf_fx_mode > 5.5 && cf_fx_mode < 6.5) {
         float luma_a = dot(a.rgb, float3(0.2126, 0.7152, 0.0722));
         if (cf_p5 > 0.5) luma_a = 1.0 - luma_a;
         float thresh = crossfade;
@@ -355,21 +442,30 @@ float4 PS(VertData v) : TARGET
             res.rgb = lerp(add_col, screen_col, 0.65);
             res.a = 1.0;
         } else {
-            // Linear Fade / Crossfade
+            // Equal Power & Smooth S-Curve Crossfade (Konstans Energiájú, nem sötétedő átkeverés)
             float cf = crossfade;
             if (abs(cf_curve - 1.0) > 0.02) cf = pow(saturate(cf), max(cf_curve, 0.05));
             if (cf_smooth > 0.01) cf = lerp(cf, smoothstep(0.0, 1.0, cf), cf_smooth);
-            res = lerp(a, b, cf);
+
+            float pi_half = 1.57079632679;
+            float w_a = cos(cf * pi_half);
+            float w_b = sin(cf * pi_half);
+
+            float3 eq_blend = a.rgb * w_a + b.rgb * w_b;
+            float3 lin_blend = lerp(a.rgb, b.rgb, cf);
+            res.rgb = lerp(eq_blend, lin_blend, 0.30); // 70% Equal Power védelem a sötétedés ellen
+            res.a = 1.0;
         }
     }
 
-    // Mode 10: CRT / VHS Scanline (Analóg TV & Csík)
+    // Mode 10: CRT / VHS Scanline (Analóg TV & Csík - Fényerővédelemmel)
     if (cf_fx_mode > 9.5 && cf_fx_mode < 10.5 && cf_fx_mid > 0.01) {
         float density = cf_p0 * cf_param_rate;
         float line_int = cf_p1;
         float flash_int = cf_p3;
         float scan = sin(v.uv.y * density * 3.14159);
-        res.rgb *= (1.0 - cf_fx_mid * line_int * cf_param_intensity * (scan * 0.5 + 0.5));
+        // Csökkentsük a vonalak elsötétítő mélységét, hogy a háttér tiszta és látható maradjon:
+        res.rgb *= (1.0 - cf_fx_mid * line_int * 0.40 * cf_param_intensity * (scan * 0.5 + 0.5));
         float2 p_scan = v.uv - float2(0.5, 0.5);
         if (cf_fx_mid > 0.75) {
             float col_factor = saturate((cf_fx_mid - 0.75) / 0.25);
@@ -377,11 +473,11 @@ float4 PS(VertData v) : TARGET
             res.rgb = lerp(res.rgb, float3(1.3, 1.3, 1.4), beam);
         }
         if (cf_p4 > 0.01) {
-            float vig = 1.0 - dot(p_scan, p_scan) * cf_p4;
+            float vig = 1.0 - dot(p_scan, p_scan) * cf_p4 * 0.5;
             res.rgb *= saturate(vig);
         }
     }
-    // Mode 11: Pop-Art Halftone (Képregény Pontrács)
+    // Mode 11: Pop-Art Halftone (Képregény Pontrács - Energiamegőrzéssel)
     else if (cf_fx_mode > 10.5 && cf_fx_mode < 11.5 && cf_fx_mid > 0.01) {
         float2 grid = frac(v.uv * float2(cf_p0 * cf_param_rate, cf_p1 * cf_param_rate)) - 0.5;
         float dist = length(grid);
@@ -390,10 +486,11 @@ float4 PS(VertData v) : TARGET
         float dot_mask = smoothstep(radius + cf_p3, radius - cf_p3, dist);
         float q_steps = max(cf_p4, 1.0);
         float3 pop_color = floor(res.rgb * q_steps + 0.5) / q_steps;
-        float3 halftone = pop_color * dot_mask * cf_p5;
-        res.rgb = lerp(res.rgb, halftone, saturate(cf_fx_mid * 0.9 * cf_param_intensity));
+        // Energiamegőrzés: a pontok között a kép 50%-a megmarad, a pontokon pedig ragyog:
+        float3 halftone = lerp(res.rgb * 0.50, pop_color * cf_p5, dot_mask);
+        res.rgb = lerp(res.rgb, halftone, saturate(cf_fx_mid * 0.85 * cf_param_intensity));
     }
-    // Mode 12: Neon Kontúr (Sobel Edge Glow)
+    // Mode 12: Neon Kontúr (Sobel Edge Glow - Alapvideó megtartással)
     else if (cf_fx_mode > 11.5 && cf_fx_mode < 12.5 && cf_fx_mid > 0.01) {
         float thick = cf_p0;
         float2 d = float2(thick / 1920.0, thick / 1080.0);
@@ -415,16 +512,15 @@ float4 PS(VertData v) : TARGET
         float3 neon_a = float3(0.0, 0.9, 1.0) * edge_val_a * cf_p1 * cf_p2 * cf_param_intensity;
         float3 neon_b = float3(1.0, 0.1, 0.8) * edge_val_b * cf_p1 * cf_p2 * cf_param_intensity;
         float3 wireframe = neon_a * (1.0 - crossfade) + neon_b * crossfade;
-        float3 base_comp = res.rgb * cf_p4;
-        res.rgb = lerp(res.rgb, base_comp + wireframe, saturate(cf_fx_mid * 0.95 * cf_param_intensity));
+        // Az alapvideó arányát nem nyomjuk le, legalább 0.70-en tartjuk a jó láthatóságért:
+        float base_weight = max(cf_p4, 0.70);
+        float3 base_comp = res.rgb * base_weight;
+        res.rgb = lerp(res.rgb, base_comp + wireframe, saturate(cf_fx_mid * 0.90 * cf_param_intensity));
     }
 
-    // Foolproof Mélyfekete Védelem & Kontraszt Kiemelés (Beködösödés Megakadályozása)
-    res.rgb = max(res.rgb, 0.0);
-    // Vágjuk le a tejszerű szürke szivárgást (0.015 alatt tiszta fekete):
-    res.rgb = smoothstep(0.015, 1.0, res.rgb);
-    // Lágy S-görbe tónus a gazdag mélységhez:
-    res.rgb = pow(res.rgb, float3(1.08, 1.08, 1.08));
+    // Globális Blend Boost (Keverési Fényerő Kiemelés: 0.5x .. 2.5x)
+    float boost = max(cf_blend_boost, 0.1);
+    res.rgb *= boost;
 
     res.a = 1.0;
     return saturate(res);
@@ -709,12 +805,16 @@ static void set_color_params(MixerSource *context,
 
     const float eff_intensity = computeEffectiveParamSimple(raw_intensity, 0.0f, 2.0f, 0.0f, intensity_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
     const float eff_rate = computeEffectiveParamSimple(raw_rate, 0.1f, 3.0f, 0.0f, rate_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
+    const float blend_boost = decks ? decks->crossfadeFxBlendBoost() : 1.0f;
 
     if ((param = gs_effect_get_param_by_name(context->effect, "cf_param_intensity")))
         gs_effect_set_float(param, eff_intensity);
 
     if ((param = gs_effect_get_param_by_name(context->effect, "cf_param_rate")))
         gs_effect_set_float(param, eff_rate);
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "cf_blend_boost")))
+        gs_effect_set_float(param, blend_boost);
 
     const float cf_curve = decks ? decks->crossfadeFxParamValue(0, 0) : 1.0f;
     const float cf_smooth = decks ? decks->crossfadeFxParamValue(0, 1) : 0.0f;

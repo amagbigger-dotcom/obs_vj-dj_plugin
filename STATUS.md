@@ -1,6 +1,6 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #320 / GitHub Run #44907080548 (Milestone #35)
+* **Legutolsó stabil mérföldkő:** Build #321 (Fejlesztés alatt)
 * **Aktuális Git Commit:** `21dee34`
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 254 400 bájt)
 * **Bináris SHA256:** `D7905AC9DEFAF0367FD5F2DC5E9C5D90977A498A05EB637CFDFCC32157967CA2`
@@ -9,15 +9,31 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Kezelőfelületi ergonómiai megújítás:
-  1. Tracklist ablak méretezése pontosan a Deck szélességére (640 px), oszlopok karcsúsítása, kompakt mini Load A/B gombok.
-  2. Video FX rendszerek összevonása egyetlen multifunkciós, fix méretű ablakba (540 × 560 px: VJ Shaders, Crossfade FX, LFO fülek).
-  3. Felesleges FIT/FILL gomb eltávolítása a Master Mixerről.
+* **Fő cél:** Vizuális Motor & Shader Rendszer Korszerűsítése:
+  1. Crossfade FX átkeverési sötétség megszüntetése, Equal Power görbe és Fényerő Kiemelés bevezetése.
+  2. Deck Hangerő Potméter (Volume FX) bővítése alakzat-alapú áttűnésekkel (kör, téglalap, négyzet, gyémánt, lamellák, zoom).
+  3. CustomShaderManager (ISF / GLSL transzpiler motor) okosítása (Smart Audio Injektor külső/AI kódokhoz).
+  4. 15 beépített VJ shader zenei reaktivitásának auditja (túlvezérlések lecsillapítása, alvó shaderek felébresztése, smoothstep mélyfekete vágás eltávolítása).
 * **Architektúra:** Moduláris dokumentációs rendszer fenntartása, BUILD_HISTORY archiválás és szálbiztos vezérlés.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #320)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #321)
+* [x] **Vizuális Motor, Crossfade FX és VJ Shader Korszerűsítés (Build #321):**
+  - **Crossfade Sötétedés Megszüntetése & Equal Power Átkeverés:**
+    - A `mixer_source.cpp` pixel shader kimenetéről törölve a globális `smoothstep(0.015, 1.0, res.rgb)` és `pow(res.rgb, 1.08)` sötétítés, így a kép nem veszít a dinamikájából.
+    - Szinuszos-koszinuszos **Equal Power keverési görbe** bevezetése: a felezőponton sem esik be a fényerő.
+    - Új **Fényerő Kiemelés (Blend Boost 50% .. 250%)** csúszka a Crossfade FX dialógusban és mixer shaderben.
+    - CRT Scanline, Pop-Art Halftone és Neon Sobel Edge effektek fényelnyelésének kompenzálása (energiamegőrző blend).
+  - **Deck Volume Fader Alakzat-Áttűnések (Shape Wipes):**
+    - A csatorna hangerő faderhez 7 új zenei geometriai átvezető mód készült: Kör szűkülés (Iris Circle), 16:9 téglalap, 1:1 négyzet, rombusz/gyémánt, vízszintes lamellák, függőleges lamellák, középponti zsugorodás (Zoom Out).
+    - A fader lehúzásakor a kép az adott alakzatban csukódik be középre, miközben alatta a másik deck teljes pompájában átlátszik.
+  - **15 Beépített VJ Shader Zenei Reaktivitásának Normalizálása:**
+    - 14 shader végéről törölve a mélyfekete tónusokat levágó `smoothstep(0.015, 1.0, ...)` torzítás.
+    - A túlvezérelt `ShapeTwist` (Shader 3) lecsillapítva (`bass_energy * 40.0` helyett stabil `6.0`, zoom és vastagság normalizálás).
+    - Az alvó `StringArt` (Shader 4), `Dodecahedron` (Shader 5) és `CubeField` (Shader 11) felébresztve dinamikus zenei pulzusokkal és forgással.
+  - **CustomShaderManager Smart Audio Injektor:**
+    - A transzpiler a `TIME`, `time`, `iTime` makrókba és a `render_custom` kimenetbe automatikus zenei pulzust (`anim_time + bass_energy * 0.12`) injektál, így a külső ShaderToy és AI által generált shaderek is azonnal lélegezni kezdenek a ritmusra.
 * [x] **Kezelőfelületi & Ablak-Ergonómiai Megújítás (Build #320):**
   - **Tracklist Méretének Igazítása a Deckhez:**
     - Az ablak szélessége fix `640 px`-re lett állítva (`setFixedWidth(640)`), így pixelre pontosan illeszkedik a Deck A és Deck B ablakok szélességéhez.
@@ -52,9 +68,9 @@
 ---
 
 ## 3. Következő Lépés (Next Action)
-* [x] Változtatások commitolása és pusholása a távoli GitHub repóba (Commit `21dee34`).
-* [x] Build #320 lefordítása a GitHub Actions CI-n keresztül, DLL letöltése és telepítése.
-* [ ] Éles tesztelés az OBS Studio elindításával (Tracklist 640 px elrendezés, mini [ A ]/[ B ] gombok, 3-füles Video FX ablak fókuszálása, FIT/FILL hiánya a keverőn).
+* [ ] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #321).
+* [ ] GitHub Actions CI fordítás lefutása, kész DLL letöltése és telepítése.
+* [ ] Éles tesztelés az OBS Studio elindításával (Crossfade fényerő és Equal Power görbe ellenőrzése, fader alakzat-áttűnések tesztelése, auditált VJ shaderek és Smart Audio Injektor működése).
 
 ---
 

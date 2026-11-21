@@ -85,12 +85,28 @@ A Crossfader melletti **`[ ⚙ FX ]`** gombbal megnyitható a Crossfader Vizuál
   - **Pop-Art Halftone:** `grid_x`, `grid_y`, `dot_size`, `softness`, `posterize`, `brightness`.
   - **Neon Kontúr (Sobel Edge):** `thickness`, `glow`, `neon_color`, `threshold`, `blend_base`.
   - **Normál Átúsztatás (Fade):** `curve` (Görbület), `smoothness` (S-Curve lágyság).
+* **Equal Power (Állandó Energiájú) Átkeverés:** A lineáris dip-in-the-middle fényerő-vesztés elkerülésére a crossfade szinuszos-koszinuszos energiamegőrző súlyozással dolgozik, így a felezőponton is 100% fényerő marad.
+* **Globális Fényerő Kiemelés (Blend Boost 50% .. 250%):** A Crossfade FX dialógus felső sávjában dedikált csúszkával tetszőleges effekt alatt megnövelhető vagy visszafogható a keverési expozíció.
 * **Egyenkénti Zenei Mozgató / Modulációs Algoritmusok (Minden paraméterhez külön-külön választható!):**
   1. `🥁 Kick Pulzus (Beat Pulse)`: A leütések pillanatában azonnal megrántja az adott paraméter értékét a lábdob transient energiája (`bass_energy`) alapján.
   2. `📈 Zenei Tónus (Macro-Tonus)`: A sáv makroszkopikus felépülését, zenei sűrűsödését követi le Gauss-simított energiagörbével (`macro_tonus`), a kiállásoktól a dropig fokozva a paraméter hatását.
   3. `⚡ Mindkettő (Both)`: Kombinálja a gyors lábdob lüktetést és a makroszkopikus felépülést.
   4. `✋ Kézi (Off)`: Statikus potméter beállítás.
 * **Effektenkénti Memória:** Minden Crossfade FX egyedi paraméter-beállítása külön-külön tárolódik a memóriában, így effektek közötti váltáskor minden korábbi beállítás megmarad.
+
+### 3.2. Deck Hangerő Potméter Átvezetések (Channel Volume Fader Shape Wipes)
+A csatornahangerő lehúzásakor a `vol_fx_combo_` nemcsak sima fényerő-csökkentést, hanem zenei alakzat-alapú áttűnéseket kínál:
+* `0: VOL FX: Ki`: Csak a hangot szabályozza.
+* `1: Sötétedés`: Fade to Black.
+* `2: Kiégés`: Fade to White.
+* `3: Homályosítás`: Soft Focus (Gaussian Blur).
+* `4: Kör Szűkülés (Iris Circle)`: 16:9 arányú kör záródik össze középre a faderrel; alatta a másik deck képe tűnik át.
+* `5: 16:9 Téglalap (Box Iris)`: Képarányos téglalap csukódik be középre.
+* `6: 1:1 Négyzet (Square Iris)`: Négyzet alakú maszk.
+* `7: Rombusz / Gyémánt`: 45 fokos gyémánt maszkolás.
+* `8: Vízszintes Lamellák (Venetian Stripes)`: 12 vízszintes sávban szétnyíló/összecsukódó redőny.
+* `9: Függőleges Lamellák (Vertical Slices)`: 18 függőleges csíkban szeletelt záródás.
+* `10: Zoom Középre`: A videó a képernyő középpontjába kicsinyül le a fader lehúzásakor.
 
 ---
 

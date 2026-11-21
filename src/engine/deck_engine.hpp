@@ -346,6 +346,9 @@ public:
     int crossfadeFxRateMod() const noexcept { return cf_fx_rate_mod_.load(std::memory_order_relaxed); }
     void setCrossfadeFxRateMod(int m) noexcept { cf_fx_rate_mod_.store(std::clamp(m, 0, 3), std::memory_order_relaxed); }
 
+    float crossfadeFxBlendBoost() const noexcept { return cf_fx_blend_boost_.load(std::memory_order_relaxed); }
+    void setCrossfadeFxBlendBoost(float val) noexcept { cf_fx_blend_boost_.store(std::clamp(val, 0.5f, 2.5f), std::memory_order_relaxed); }
+
     float crossfadeFxParamValue(int fx_mode, int param_idx) const noexcept;
     void setCrossfadeFxParamValue(int fx_mode, int param_idx, float val) noexcept;
     int crossfadeFxParamMod(int fx_mode, int param_idx) const noexcept;
@@ -431,6 +434,7 @@ private:
     std::atomic<int> cf_fx_intensity_mod_{0};
     std::atomic<float> cf_fx_rate_{1.0f};
     std::atomic<int> cf_fx_rate_mod_{0};
+    std::atomic<float> cf_fx_blend_boost_{1.0f};
     std::atomic<float> cf_fx_params_val_[16][8];
     std::atomic<int> cf_fx_params_mod_[16][8];
     std::atomic<float> cf_fx_params_depth_[16][8];

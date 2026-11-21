@@ -61,6 +61,43 @@ void CrossfadeFxTab::setupUi()
 
     main_layout->addWidget(fx_sel_frame);
 
+    // Keverési Fényerő Kiemelés (Blend Boost) Sáv
+    auto *boost_frame = new QFrame(this);
+    boost_frame->setStyleSheet(QStringLiteral("background: #111722; border: 1px solid #1f2c3d; border-radius: 4px; padding: 4px;"));
+    auto *boost_layout = new QHBoxLayout(boost_frame);
+    boost_layout->setContentsMargins(6, 2, 6, 2);
+    boost_layout->setSpacing(8);
+
+    auto *boost_lbl = new QLabel(QStringLiteral("Fényerő Kiemelés / Boost:"), boost_frame);
+    boost_lbl->setStyleSheet(QStringLiteral("font-size: 10px; font-weight: bold; color: #ffaa00;"));
+    boost_layout->addWidget(boost_lbl);
+
+    auto *boost_slider = new DJSlider(Qt::Horizontal, 100, boost_frame);
+    boost_slider->setRange(50, 250);
+    const int cur_boost = decks_ ? static_cast<int>(decks_->crossfadeFxBlendBoost() * 100.0f + 0.5f) : 100;
+    boost_slider->setValue(cur_boost);
+    boost_slider->setFixedHeight(18);
+    boost_slider->setStyleSheet(QStringLiteral(
+        "QSlider::groove:horizontal { height: 4px; background: #162232; border-radius: 2px; } "
+        "QSlider::handle:horizontal { background: #ffaa00; width: 14px; margin: -5px 0; border-radius: 3px; border: 1px solid #fff; } "
+        "QSlider::handle:horizontal:hover { background: #ffbb22; }"));
+    boost_layout->addWidget(boost_slider, 1);
+
+    auto *boost_val_lbl = new QLabel(QString::asprintf("%d%%", cur_boost), boost_frame);
+    boost_val_lbl->setFixedWidth(38);
+    boost_val_lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    boost_val_lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; font-weight: bold; color: #ffaa00;"));
+    boost_layout->addWidget(boost_val_lbl);
+
+    connect(boost_slider, &QSlider::valueChanged, this, [this, boost_val_lbl](int val) {
+        if (decks_) {
+            decks_->setCrossfadeFxBlendBoost(static_cast<float>(val) / 100.0f);
+        }
+        boost_val_lbl->setText(QString::asprintf("%d%%", val));
+    });
+
+    main_layout->addWidget(boost_frame);
+
     // Parameters Scroll Area
     scroll_area_ = new QScrollArea(this);
     scroll_area_->setWidgetResizable(true);

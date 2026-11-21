@@ -400,11 +400,11 @@ uniform texture2d dummy_texture;
 uniform float visualizer_mode;
 uniform float anim_time;
 
-#define TIME anim_time
-#define time anim_time
-#define iTime anim_time
-#define shader_time anim_time
-#define u_time anim_time
+#define TIME (anim_time + bass_energy * 0.12)
+#define time (anim_time + bass_energy * 0.12)
+#define iTime (anim_time + bass_energy * 0.12)
+#define shader_time (anim_time + bass_energy * 0.12)
+#define u_time (anim_time + bass_energy * 0.12)
 #define RENDERSIZE float2(1920.0, 1080.0)
 #define iResolution float3(1920.0, 1080.0, 1.0)
 
@@ -1074,7 +1074,8 @@ bool CustomShaderManager::transpileIsfToHlsl(const std::string &raw_isf_code,
             body = before_main + QStringLiteral("\nfloat4 render_custom(float2 uv)\n{\n"
                                                "    float4 gl_FragColor = float4(0.0, 0.0, 0.0, 1.0);\n") +
                    func_code +
-                   QStringLiteral("\n    return float4(saturate(gl_FragColor.rgb), 1.0);\n}\n") +
+                   QStringLiteral("\n    gl_FragColor.rgb *= (1.0 + bass_energy * 0.20);\n"
+                                  "    return float4(saturate(gl_FragColor.rgb), 1.0);\n}\n") +
                    after_main;
         }
     } else {
@@ -1088,6 +1089,7 @@ bool CustomShaderManager::transpileIsfToHlsl(const std::string &raw_isf_code,
                 "    float2 fragCoord = uv * float2(1920.0, 1080.0);\n"
                 "    float4 fragColor = float4(0.0, 0.0, 0.0, 1.0);\n"
                 "    mainImage_internal(fragColor, fragCoord);\n"
+                "    fragColor.rgb *= (1.0 + bass_energy * 0.20);\n"
                 "    return float4(saturate(fragColor.rgb), 1.0);\n"
                 "}\n"
             );
