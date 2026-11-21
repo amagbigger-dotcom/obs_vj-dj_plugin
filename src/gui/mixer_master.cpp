@@ -303,7 +303,6 @@ void MixerMasterPanel::setupUi()
     cf_fx_combo_->setCurrentIndex(decks_ ? decks_->crossfadeFxMode() : 0);
     connect(cf_fx_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
         if (decks_) decks_->setCrossfadeFxMode(idx);
-        if (cf_fx_dialog_) cf_fx_dialog_->refresh();
     });
     fx_scale_row->addWidget(cf_fx_combo_, 1);
 
@@ -313,18 +312,8 @@ void MixerMasterPanel::setupUi()
     cf_fx_settings_btn_->setStyleSheet(QStringLiteral(
         "QPushButton { background: #1a2230; border: 1px solid #2d3e56; color: #ffaa00; font-size: 8px; font-weight: bold; padding: 1px 5px; border-radius: 3px; } "
         "QPushButton:hover { background: #253347; border-color: #ffaa00; }"));
-    connect(cf_fx_settings_btn_, &QPushButton::clicked, this, [this]() {
-        if (!cf_fx_dialog_) {
-            cf_fx_dialog_ = new CrossfadeFxDialog(decks_, this);
-        }
-        if (cf_fx_dialog_->isVisible()) {
-            cf_fx_dialog_->hide();
-        } else {
-            cf_fx_dialog_->refresh();
-            cf_fx_dialog_->show();
-            cf_fx_dialog_->raise();
-            cf_fx_dialog_->activateWindow();
-        }
+    connect(cf_fx_settings_btn_, &QPushButton::clicked, this, []() {
+        vdj_open_crossfade_fx_dialog();
     });
     fx_scale_row->addWidget(cf_fx_settings_btn_);
 
@@ -334,35 +323,10 @@ void MixerMasterPanel::setupUi()
     lfo_btn_->setStyleSheet(QStringLiteral(
         "QPushButton { background: #1a2230; border: 1px solid #2d3e56; color: #00d2ff; font-size: 8px; font-weight: bold; padding: 1px 5px; border-radius: 3px; } "
         "QPushButton:hover { background: #253347; border-color: #00d2ff; }"));
-    connect(lfo_btn_, &QPushButton::clicked, this, [this]() {
-        if (!lfo_dialog_) {
-            lfo_dialog_ = new LfoDialog(decks_, this);
-        }
-        if (lfo_dialog_->isVisible()) {
-            lfo_dialog_->hide();
-        } else {
-            lfo_dialog_->refresh();
-            lfo_dialog_->show();
-            lfo_dialog_->raise();
-            lfo_dialog_->activateWindow();
-        }
+    connect(lfo_btn_, &QPushButton::clicked, this, []() {
+        vdj_open_lfo_dialog();
     });
     fx_scale_row->addWidget(lfo_btn_);
-
-    scale_btn_ = new QPushButton(decks_ && decks_->videoScaleMode() == 0 ? QStringLiteral("📺 FIT") : QStringLiteral("📺 FILL"), this);
-    scale_btn_->setFixedHeight(20);
-    scale_btn_->setToolTip(QStringLiteral("OBS Vászon Képméretezés:\nFILL = Teljes vászonkitöltés fekete sávok nélkül\nFIT = Aránytartó teljes kép"));
-    scale_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #182230; border: 1px solid #2d3e56; color: #00d2ff; font-size: 8px; font-weight: bold; padding: 1px 6px; border-radius: 3px; } "
-        "QPushButton:hover { background: #223247; border-color: #00d2ff; }"));
-    connect(scale_btn_, &QPushButton::clicked, this, [this]() {
-        if (!decks_) return;
-        const int cur = decks_->videoScaleMode();
-        const int next = (cur == 0) ? 1 : 0;
-        decks_->setVideoScaleMode(next);
-        scale_btn_->setText(next == 0 ? QStringLiteral("📺 FIT") : QStringLiteral("📺 FILL"));
-    });
-    fx_scale_row->addWidget(scale_btn_);
 
     cf_box->addLayout(fx_scale_row);
 

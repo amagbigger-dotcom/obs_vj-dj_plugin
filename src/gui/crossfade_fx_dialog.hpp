@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include <QWidget>
 #include <vector>
 
 class DeckPair;
@@ -11,29 +11,25 @@ class QPushButton;
 class QScrollArea;
 class QVBoxLayout;
 
-class CrossfadeFxDialog final : public QDialog {
+class CrossfadeFxTab final : public QWidget {
     Q_OBJECT
 public:
-    explicit CrossfadeFxDialog(DeckPair *decks, QWidget *parent = nullptr);
-    ~CrossfadeFxDialog() override;
+    explicit CrossfadeFxTab(DeckPair *decks, QWidget *parent = nullptr);
+    ~CrossfadeFxTab() override = default;
 
     void refresh();
-
-protected:
-    void showEvent(QShowEvent *event) override;
-    void keyPressEvent(QKeyEvent *event) override;
+    void rebuildParamControls();
 
 private:
     void setupUi();
-    void rebuildParamControls();
 
     DeckPair *decks_ = nullptr;
-
     QComboBox *fx_combo_ = nullptr;
-
     QScrollArea *scroll_area_ = nullptr;
     QWidget *params_container_ = nullptr;
     QVBoxLayout *params_layout_ = nullptr;
-
     int last_fx_mode_ = -1;
 };
+
+void vdj_open_crossfade_fx_dialog();
+void vdj_free_crossfade_fx_dialog();

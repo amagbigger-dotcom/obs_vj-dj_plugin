@@ -9,12 +9,30 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Korg KAOSS DJ Standby (Stb) automatikus hardveres felébresztése beépített WASAPI audio keep-alive adatfolyammal, függetlenül a Windows alapértelmezett hangkártyájától.
-* **Architektúra:** Moduláris dokumentációs rendszer fenntartása, BUILD_HISTORY archiválás és szálbiztos MIDI/Audio vezérlés.
+* **Fő cél:** Kezelőfelületi ergonómiai megújítás:
+  1. Tracklist ablak méretezése pontosan a Deck szélességére (640 px), oszlopok karcsúsítása, kompakt mini Load A/B gombok.
+  2. Video FX rendszerek összevonása egyetlen multifunkciós, fix méretű ablakba (540 × 560 px: VJ Shaders, Crossfade FX, LFO fülek).
+  3. Felesleges FIT/FILL gomb eltávolítása a Master Mixerről.
+* **Architektúra:** Moduláris dokumentációs rendszer fenntartása, BUILD_HISTORY archiválás és szálbiztos vezérlés.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #318)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #320)
+* [x] **Kezelőfelületi & Ablak-Ergonómiai Megújítás (Build #320):**
+  - **Tracklist Méretének Igazítása a Deckhez:**
+    - Az ablak szélessége fix `640 px`-re lett állítva (`setFixedWidth(640)`), így pixelre pontosan illeszkedik a Deck A és Deck B ablakok szélességéhez.
+    - Kétsoros szellős felső vezérlősáv (1. sor: VJ mappa, tallózás, IMPORT; 2. sor: Törlés, Konvertálás, Analízis, Új szett, Profil választó).
+    - Oszlopok karcsúsítása: ST (30 px), BPM (54 px), KEY (38 px), IDŐ (46 px), FORM (52 px), LOAD (68 px), így a zenecímnek több mint 280 px tiszta hely jut vízszintes görgetés nélkül.
+    - **Szuper-kompakt mini betöltő gombok:** A korábbi 175 px-es két batár gomb helyett diszkrét `[ A ]` (kék) és `[ B ]` (narancs) 28×20 px gombok készültek.
+  - **Egységes Multifunkciós Video FX Ablak (`VideoFxDialog`, 540 × 560 px):**
+    - A 3 korábbi különálló lebegő ablak (`VjFxDialog`, `CrossfadeFxDialog`, `LfoDialog`) összevonva **1 darab fix méretű (540 × 560 px)** multifunkciós ablakba.
+    - Felül stílusos fülekkel váltható 3 alrendszer:
+      1. `⚡ VJ SHADER`: Deck A/B váltó, 15 shader lista, ISF konverter, alapszín és moduláció, 8 shader paraméter kártya.
+      2. `⚙ CROSSFADE FX`: 13 átmenet effekt lista, effektenkénti 8 paraméter és modulációs mátrix.
+      3. `〰 LFO MOTOR`: LFO 1 & 2 szekciók és futó valós idejű mini oszcilloszkópok (`LfoScopeWidget`), intelligens CPU-kímélő timerrel.
+    - Gomb-fókuszált megnyitás: Deck VJ gomb $\rightarrow$ Shader fül (Deck A vagy B fókusszal); Mixer FX gomb $\rightarrow$ Crossfade fül; Mixer LFO gomb $\rightarrow$ LFO fül.
+  - **FIT / FILL Gomb Eltávolítása a Mixerről:**
+    - A `scale_btn_` törölve lett a Master Crossfader feletti sávból, megszüntetve a felesleges zsúfoltságot; a háttérben fixen az aránytartó teljes vászonkitöltés (`Fill`) aktív.
 * [x] **Korg KAOSS DJ Automatikus WASAPI Hardveres Ébresztés & Keep-Alive:**
   - A Korg KAOSS DJ hardver firmware-e Standby (`Stb`) módban alszik, amíg aktív audio folyamot nem érzékel.
   - A `WasapiOutput` bővítve lett dinamikus tulajdonság-keresővel (`PKEY_Device_FriendlyName` / `DeviceDesc` alapján felismeri a `Vonal (KAOSS DJ)` eszközt).
@@ -34,8 +52,8 @@
 ---
 
 ## 3. Következő Lépés (Next Action)
-* [ ] Build #316 lefordítása CI-vel, telepítés és éles tesztelés az OBS-ben.
-* [ ] Audioless Controller Mode (Deck B Touch Slider + Headphone Cue bekapcsoláskor) használata, ha külső hangkártya (XR18) van beállítva.
+* [ ] Változtatások commitolása és pusholása a távoli GitHub repóba.
+* [ ] Build #320 lefordítása a GitHub Actions CI-n keresztül, DLL letöltése és éles OBS tesztelés.
 
 ---
 

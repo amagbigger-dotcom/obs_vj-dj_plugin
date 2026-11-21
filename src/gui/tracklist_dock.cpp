@@ -110,8 +110,9 @@ TracklistDock::TracklistDock(QWidget *parent)
 {
     g_tracklist_instance = this;
     setWindowTitle(QStringLiteral("OBS VJ Tracklist - Médiatár & 1080p Konverter"));
-    setMinimumSize(880, 500);
-    resize(940, 560);
+    setFixedWidth(640);
+    setMinimumHeight(400);
+    resize(640, 520);
     setAcceptDrops(true);
 
     setStyleSheet(QStringLiteral(
@@ -209,49 +210,59 @@ void TracklistDock::setupUi()
     main_layout->setSpacing(10);
 
     // ==========================================
-    // Top Bar: Library path, Browse, Actions
+    // Top Bar 1: VJ Library Folder, Browse, Import
     // ==========================================
-    auto *top_bar = new QHBoxLayout();
-    top_bar->setSpacing(8);
+    auto *top_row1 = new QHBoxLayout();
+    top_row1->setSpacing(6);
 
-    auto *lbl_folder = new QLabel(QStringLiteral("📁 VJ Mappa:"), this);
-    lbl_folder->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4;"));
-    top_bar->addWidget(lbl_folder);
+    auto *lbl_folder = new QLabel(QStringLiteral("📁 VJ:"), this);
+    lbl_folder->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 10px;"));
+    top_row1->addWidget(lbl_folder);
 
     dir_edit_ = new QLineEdit(library_dir_, this);
     dir_edit_->setReadOnly(true);
-    top_bar->addWidget(dir_edit_, 1);
+    dir_edit_->setStyleSheet(QStringLiteral("background: #181d26; color: #ffffff; border: 1px solid #2e3e54; border-radius: 3px; padding: 2px 6px; font-size: 10px;"));
+    top_row1->addWidget(dir_edit_, 1);
 
     auto *browse_btn = new QPushButton(QStringLiteral("Tallózás..."), this);
+    browse_btn->setStyleSheet(QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; padding: 2px 8px; font-size: 10px; border-radius: 3px;"));
     connect(browse_btn, &QPushButton::clicked, this, &TracklistDock::onBrowseFolder);
-    top_bar->addWidget(browse_btn);
+    top_row1->addWidget(browse_btn);
 
-    auto *import_btn = new QPushButton(QStringLiteral("⚡ IMPORT MEDIA"), this);
-    import_btn->setStyleSheet(QStringLiteral("background: #0088cc; border: 1px solid #00aaff; color: #ffffff; padding: 5px 12px; font-size: 11px;"));
+    auto *import_btn = new QPushButton(QStringLiteral("⚡ IMPORT"), this);
+    import_btn->setStyleSheet(QStringLiteral("background: #0088cc; border: 1px solid #00aaff; color: #ffffff; padding: 2px 10px; font-weight: bold; font-size: 10px; border-radius: 3px;"));
     import_btn->setToolTip(QStringLiteral("Médiafájlok behúzása: a rendszer automatikusan észleli a formátumot, és csak a videókat alakítja 1080p-re az RTX 3060-nal"));
     connect(import_btn, &QPushButton::clicked, this, &TracklistDock::onImportButtonClicked);
-    top_bar->addWidget(import_btn);
+    top_row1->addWidget(import_btn);
+
+    main_layout->addLayout(top_row1);
+
+    // ==========================================
+    // Top Bar 2: Actions & Conversion Profile
+    // ==========================================
+    auto *top_row2 = new QHBoxLayout();
+    top_row2->setSpacing(6);
 
     auto *del_btn = new QPushButton(QStringLiteral("🗑 TÖRLÉS"), this);
-    del_btn->setStyleSheet(QStringLiteral("background: #3a1c1c; border: 1px solid #703838; color: #ff8888; padding: 5px 10px; font-size: 11px;"));
+    del_btn->setStyleSheet(QStringLiteral("background: #3a1c1c; border: 1px solid #703838; color: #ff8888; padding: 2px 6px; font-size: 9px; font-weight: bold; border-radius: 3px;"));
     del_btn->setToolTip(QStringLiteral("Kijelölt szám törlése a listából (Delete gomb)"));
     connect(del_btn, &QPushButton::clicked, this, &TracklistDock::deleteSelectedTrack);
-    top_bar->addWidget(del_btn);
+    top_row2->addWidget(del_btn);
 
-    reconv_btn_ = new QPushButton(QStringLiteral("🔄 ÚJRAKONVERTÁLÁS"), this);
-    reconv_btn_->setStyleSheet(QStringLiteral("background: #143522; border: 1px solid #236838; color: #55ff99; padding: 5px 10px; font-size: 11px;"));
-    reconv_btn_->setToolTip(QStringLiteral("Kijelölt szám (akár videó, akár audió) kényszerített 1080p All-Intra újrakonvertálása"));
+    reconv_btn_ = new QPushButton(QStringLiteral("🔄 KONVERT"), this);
+    reconv_btn_->setStyleSheet(QStringLiteral("background: #143522; border: 1px solid #236838; color: #55ff99; padding: 2px 6px; font-size: 9px; font-weight: bold; border-radius: 3px;"));
+    reconv_btn_->setToolTip(QStringLiteral("Kijelölt szám kényszerített 1080p All-Intra újrakonvertálása"));
     connect(reconv_btn_, &QPushButton::clicked, this, &TracklistDock::onReconvertButtonClicked);
-    top_bar->addWidget(reconv_btn_);
+    top_row2->addWidget(reconv_btn_);
 
-    reanalyze_btn_ = new QPushButton(QStringLiteral("⚡ ANALIZÁLÁS"), this);
-    reanalyze_btn_->setStyleSheet(QStringLiteral("background: #2b1f47; border: 1px solid #7c3aed; color: #e9d5ff; padding: 5px 10px; font-size: 11px; font-weight: bold; border-radius: 4px;"));
-    reanalyze_btn_->setToolTip(QStringLiteral("Kijelölt vagy hiányos dalok gyors zenei újraanalizálása (BPM, Camelot Key, Auto-CUE, ReplayGain) videokonvertálás nélkül"));
+    reanalyze_btn_ = new QPushButton(QStringLiteral("⚡ ANALÍZIS"), this);
+    reanalyze_btn_->setStyleSheet(QStringLiteral("background: #2b1f47; border: 1px solid #7c3aed; color: #e9d5ff; padding: 2px 6px; font-size: 9px; font-weight: bold; border-radius: 3px;"));
+    reanalyze_btn_->setToolTip(QStringLiteral("Zenei újraanalizálás (BPM, Camelot Key, Auto-CUE, ReplayGain)"));
     connect(reanalyze_btn_, &QPushButton::clicked, this, &TracklistDock::onReanalyzeButtonClicked);
-    top_bar->addWidget(reanalyze_btn_);
+    top_row2->addWidget(reanalyze_btn_);
 
     auto *new_set_btn = new QPushButton(QStringLiteral("↺ ÚJ SZETT"), this);
-    new_set_btn->setStyleSheet(QStringLiteral("background: #1c2635; border: 1px solid #334863; color: #8da0b8; padding: 5px 10px; font-size: 11px; font-weight: bold;"));
+    new_set_btn->setStyleSheet(QStringLiteral("background: #1c2635; border: 1px solid #334863; color: #8da0b8; padding: 2px 6px; font-size: 9px; font-weight: bold; border-radius: 3px;"));
     new_set_btn->setToolTip(QStringLiteral("Lejátszott (zöld pipa) jelölések törlése új szett indításához"));
     connect(new_set_btn, &QPushButton::clicked, this, [this]() {
         for (auto &it : tracks_) {
@@ -259,11 +270,11 @@ void TracklistDock::setupUi()
         }
         updateTable();
     });
-    top_bar->addWidget(new_set_btn);
+    top_row2->addWidget(new_set_btn);
 
     res_combo_ = new QComboBox(this);
     res_combo_->setStyleSheet(QStringLiteral(
-        "QComboBox { background: #1c2635; border: 1px solid #334863; color: #00d2ff; padding: 4px 8px; font-size: 11px; font-weight: bold; border-radius: 4px; }"
+        "QComboBox { background: #1c2635; border: 1px solid #334863; color: #00d2ff; padding: 2px 6px; font-size: 9px; font-weight: bold; border-radius: 3px; }"
         "QComboBox QAbstractItemView { background: #151a24; color: #ffffff; selection-background-color: #0088cc; }"
     ));
     res_combo_->addItem(QStringLiteral("🎬 1080p FHD"), 1080);
@@ -271,10 +282,10 @@ void TracklistDock::setupUi()
     res_combo_->addItem(QStringLiteral("🎬 2K QHD"), 1440);
     res_combo_->addItem(QStringLiteral("🎬 720p HD"), 720);
     res_combo_->addItem(QStringLiteral("🎬 Auto (Eredeti)"), 0);
-    res_combo_->setToolTip(QStringLiteral("Konvertálási profil: ha a videó kisebb, a rendszer sosem skálázza fel (No Upscaling)"));
-    top_bar->addWidget(res_combo_);
+    res_combo_->setToolTip(QStringLiteral("Konvertálási profil"));
+    top_row2->addWidget(res_combo_);
 
-    main_layout->addLayout(top_bar);
+    main_layout->addLayout(top_row2);
 
     // Status bar & Progress
     auto *status_bar = new QHBoxLayout();
@@ -319,8 +330,8 @@ void TracklistDock::setupUi()
         QStringLiteral("BPM"),
         QStringLiteral("KEY"),
         QStringLiteral("IDŐ"),
-        QStringLiteral("FORMÁTUM"),
-        QStringLiteral("BETÖLTÉS A DECKBE")
+        QStringLiteral("FORM"),
+        QStringLiteral("LOAD")
     });
 
     table_->setAlternatingRowColors(true);
@@ -332,24 +343,24 @@ void TracklistDock::setupUi()
     table_->setContextMenuPolicy(Qt::CustomContextMenu);
 
     table_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
-    table_->setColumnWidth(0, 48);
+    table_->setColumnWidth(0, 30);
 
     table_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
 
     table_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
-    table_->setColumnWidth(2, 72);
+    table_->setColumnWidth(2, 54);
 
     table_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed);
-    table_->setColumnWidth(3, 56);
+    table_->setColumnWidth(3, 38);
 
     table_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed);
-    table_->setColumnWidth(4, 68);
+    table_->setColumnWidth(4, 46);
 
     table_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed);
-    table_->setColumnWidth(5, 100);
+    table_->setColumnWidth(5, 52);
 
     table_->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Fixed);
-    table_->setColumnWidth(6, 175);
+    table_->setColumnWidth(6, 68);
 
     connect(table_, &QTableWidget::cellDoubleClicked, this, &TracklistDock::onTableItemDoubleClicked);
     connect(table_, &QTableWidget::customContextMenuRequested, this, &TracklistDock::onCustomContextMenuRequested);
@@ -1072,27 +1083,31 @@ void TracklistDock::updateRow(int row)
         fmt_item->setForeground(QColor(160, 175, 195));
     }
 
-    // Col 6: Load Actions Widget
+    // Col 6: Load Actions Widget (Kompakt mini gombok: [ A ] [ B ])
     if (!table_->cellWidget(row, 6)) {
         auto *action_widget = new QWidget(table_);
         auto *act_layout = new QHBoxLayout(action_widget);
-        act_layout->setContentsMargins(4, 2, 4, 2);
-        act_layout->setSpacing(4);
+        act_layout->setContentsMargins(2, 1, 2, 1);
+        act_layout->setSpacing(3);
 
-        auto *load_a = new QPushButton(QStringLiteral("LOAD A"), action_widget);
+        auto *load_a = new QPushButton(QStringLiteral("A"), action_widget);
+        load_a->setFixedSize(28, 20);
+        load_a->setToolTip(QStringLiteral("Betöltés a Deck A-ba"));
         load_a->setStyleSheet(QStringLiteral(
-            "QPushButton { background: #006699; border: 1px solid #00aaff; color: #ffffff; font-weight: bold; font-size: 10px; border-radius: 3px; padding: 3px 6px; }"
-            "QPushButton:hover { background: #0088cc; }"
+            "QPushButton { background: #006699; border: 1px solid #00aaff; color: #ffffff; font-weight: bold; font-size: 10px; border-radius: 3px; padding: 0px; }"
+            "QPushButton:hover { background: #0088cc; border-color: #38e0ff; }"
         ));
         connect(load_a, &QPushButton::clicked, this, [this, row]() {
             loadTrackToDeck(row, 0);
         });
         act_layout->addWidget(load_a);
 
-        auto *load_b = new QPushButton(QStringLiteral("LOAD B"), action_widget);
+        auto *load_b = new QPushButton(QStringLiteral("B"), action_widget);
+        load_b->setFixedSize(28, 20);
+        load_b->setToolTip(QStringLiteral("Betöltés a Deck B-be"));
         load_b->setStyleSheet(QStringLiteral(
-            "QPushButton { background: #a04400; border: 1px solid #ff7700; color: #ffffff; font-weight: bold; font-size: 10px; border-radius: 3px; padding: 3px 6px; }"
-            "QPushButton:hover { background: #c05500; }"
+            "QPushButton { background: #a04400; border: 1px solid #ff7700; color: #ffffff; font-weight: bold; font-size: 10px; border-radius: 3px; padding: 0px; }"
+            "QPushButton:hover { background: #c05500; border-color: #ffaa33; }"
         ));
         connect(load_b, &QPushButton::clicked, this, [this, row]() {
             loadTrackToDeck(row, 1);

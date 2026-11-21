@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include <QWidget>
 #include "engine/lfo_engine.hpp"
 
 class DeckPair;
@@ -11,16 +11,14 @@ class QPushButton;
 class QTimer;
 class LfoScopeWidget;
 
-class LfoDialog final : public QDialog {
+class LfoTab final : public QWidget {
     Q_OBJECT
 public:
-    explicit LfoDialog(DeckPair *decks, QWidget *parent = nullptr);
-    ~LfoDialog() override;
+    explicit LfoTab(DeckPair *decks, QWidget *parent = nullptr);
+    ~LfoTab() override;
 
     void refresh();
-
-protected:
-    void showEvent(QShowEvent *event) override;
+    void setTimerActive(bool active);
 
 private:
     void setupUi();

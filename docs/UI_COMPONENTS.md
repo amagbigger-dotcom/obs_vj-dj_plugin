@@ -22,10 +22,8 @@ A felületek **nem OBS dokkoló panelek**, hanem független lebegő dialógusok 
 | **DeckWindow A** | `Eszközök -> OBS VJ Deck A` | **640 × 340 px** | Waveform, Jog Scratch, 4 Hot Cue, Loop Mátrix (1/2–32), Pitch Fader, `[ ⚡ VJ ]` gomb |
 | **DeckWindow B** | `Eszközök -> OBS VJ Deck B` | **640 × 340 px** | Megegyezik a Deck A-val, narancssárga kiemeléssel |
 | **MixerWindow** | `Eszközök -> Video DJ Mixer` | **590 × 340 px** | 3-sávos EQ és Gain, `[ ⇄ BGR ]` inverzió, Filter, Master Crossfader, `[ ⚙ FX ]` beállítások, `[ 〰 LFO ]` gomb, CUE/PGM füles mix, WASAPI választó, OBS T-Bar szinkron |
-| **VjFxDialog** | `[ ⚡ VJ ]` gomb a Deckeken | **560 × 560 px** | Deck A/B váltó, 15 shader választó, 8 kifordított paraméter, kattintható értékmezők, `[-]`/`[+]` léptetők, 8 modulációs forrás és bipoláris mélység csúszka |
-| **CrossfadeFxDialog** | `[ ⚙ FX ]` gomb a Mixeren | **520 × 480 px** | 13 effekt választó, effektenkénti 8 paraméter (szimmetrikus kaleidoszkóp pan-nel, fix középpontok), kattintható értékmezők, `[-]`/`[+]` léptetők és bipoláris mélység |
-| **LfoDialog** | `[ 〰 LFO ]` gomb / Eszközök menü | **520 × 400 px** | LFO 1 & LFO 2 oszcillátor, élő `LfoScopeWidget` mini oszcilloszkópok, 1/16 .. 64 ütem ráták, 4 klasszikus hullámforma, depth, offset, fázis (0°..360°) |
-| **TracklistDock** | `Eszközök -> OBS VJ Tracklist` | Rugalmas Dock | Drag-and-drop lista, keresőmező, session zöld pipák, 720p–4K konverter |
+| **TracklistDock** | `Eszközök -> OBS VJ Tracklist` | **640 px széles** (Deck szélesség) | Drag-and-drop lista, session zöld pipák, 720p–4K konverter, mini `[ A ]` és `[ B ]` betöltő gombok |
+| **VideoFxDialog (VjFxDialog)** | `[ ⚡ VJ ]` a Deckeken / `[ ⚙ FX ]` & `[ 〰 LFO ]` a Mixeren | **540 × 560 px** | **Egységes 3-füles ablak:** 1. Fül: VJ Visualizer Shader & Deck A/B váltó (15 shader, ISF konverter), 2. Fül: Crossfade FX (13 átmenet effekt), 3. Fül: BPM-szinkronizált LFO 1 & 2 motor élő oszcilloszkópokkal |
 
 ---
 
