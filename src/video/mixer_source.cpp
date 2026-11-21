@@ -674,11 +674,12 @@ static bool render_to_texture(MixerSource *context,
                 }
             }
 
+            const float audio_time = time_sec + bass_val * 0.12f;
             gs_eparam_t *p = nullptr;
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_mode")))
                 gs_effect_set_float(p, viz_mode);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "anim_time")))
-                gs_effect_set_float(p, time_sec);
+                gs_effect_set_float(p, audio_time);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bpm")))
                 gs_effect_set_float(p, bpm_val);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "audio_amp")))

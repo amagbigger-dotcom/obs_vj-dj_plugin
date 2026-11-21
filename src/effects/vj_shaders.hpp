@@ -31,11 +31,11 @@ uniform texture2d dummy_texture;
 uniform float visualizer_mode;      // 0..11
 uniform float anim_time;            // Másodperc alapú futásidő
 
-#define TIME (anim_time + bass_energy * 0.12)
-#define time (anim_time + bass_energy * 0.12)
-#define iTime (anim_time + bass_energy * 0.12)
-#define shader_time (anim_time + bass_energy * 0.12)
-#define u_time (anim_time + bass_energy * 0.12)
+#define TIME anim_time
+#define time anim_time
+#define iTime anim_time
+#define shader_time anim_time
+#define u_time anim_time
 #define RENDERSIZE float2(1920.0, 1080.0)
 #define iResolution float3(1920.0, 1080.0, 1.0)
 
