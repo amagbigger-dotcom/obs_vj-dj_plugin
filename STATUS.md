@@ -1,9 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #322 (GitHub Run #327)
-* **Aktuális Git Commit:** `5957796` (Build #323 előkészítve)
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 263 104 bájt)
-* **Bináris SHA256:** `9A0F3982E47DF54B64D6D5157E99001B808C4B15CA0A94F6F4BB4CF5F4E007CE`
+* **Legutolsó stabil mérföldkő:** Build #323 (GitHub Run #329)
+* **Aktuális Git Commit:** `5c01c23`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 256 448 bájt)
+* **Bináris SHA256:** `1097FD9CE4AE2B0E55917B691F9FACFF5CA112EAFFD9A85ECC47294AE8E2F7EC`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
@@ -80,8 +80,8 @@
 ---
 
 ## 3. Következő Lépés (Next Action)
-* [ ] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #323).
-* [ ] GitHub Actions CI fordítás lefutása, kész DLL letöltése és telepítése.
+* [x] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #323, Commit `5c01c23`).
+* [x] GitHub Actions CI fordítás sikeres lefutása (Run #329), kész DLL letöltése és telepítése (SHA256: `1097FD9C`).
 * [ ] Éles tesztelés az OBS Studio elindításával (5-ablakos layout ellenőrzése, 175 px hullámforma és nullázott EQ működése).
 
 ---
