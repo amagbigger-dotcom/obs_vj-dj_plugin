@@ -66,13 +66,13 @@ cmake --build build --config Release --parallel
 * **Visszaállítás parancsa:**
   `Copy-Item "c:\gitrepo\obs_vj-dj_plugin\milestones\obs_dj-vj_plugin_run231_build222.dll" "C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll" -Force`
 
-### Aktuális Legfrissebb Állapot: Build #317 / GitHub Run #44891655313 (Milestone #33)
-* **Commit:** `e4523dc`
-* **SHA256:** `D2C887DC7BF5D8CECB4A729017BD16901984E80A197FC2DA904352C65C0F655B`
-* **Méret:** 1 267 200 bájt
+### Aktuális Legfrissebb Állapot: Build #319 / GitHub Run #44894319532 (Milestone #34)
+* **Commit:** `03031c2`
+* **SHA256:** `3D539136406144773F887AC1606D3B5116C2145FEE12AB12BE5EC6A9B2FA1DEE`
+* **Méret:** 1 272 320 bájt
 * **Főbb funkciók:**
+  - Korg KAOSS DJ automatikus WASAPI hardveres ébresztés és csendes Keep-Alive adatfolyam (`Vonal (KAOSS DJ)` automatikus felderítése névre és leírásra). A kontroller azonnal felébred Standby (`Stb`) módból anélkül, hogy a Windowsban alapértelmezetté kellene tenni.
   - Beállítások (Settings) ablak azonnali megnyílása (Akai Network MIDI fagyás és timeout megszüntetése `activated` és `QSignalBlocker` használatával).
-  - Korg KAOSS DJ véletlenszerű lecsatlakozásának és Standby-ba esésének megelőzése.
   - Szálbiztos MIDI OUT (`std::mutex g_midi_out_mutex`) és belső LED feedback memóriakezelés.
   - Korg KAOSS DJ Jog kerék `BIN_OFFSET` irány és 50 ms / 2 ms Shift finomítás, folytonos Touch Strip Beatgrid húzás.
 
