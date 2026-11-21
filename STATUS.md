@@ -1,9 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #321 (GitHub Run #325)
-* **Aktuális Git Commit:** `d831c20`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 263 616 bájt)
-* **Bináris SHA256:** `B917B2337E62ABB6C84F48BFDAAAA92D2BE468A12AF005F31C4C9B1D4C06BE4D`
+* **Legutolsó stabil mérföldkő:** Build #322 (GitHub Run #327)
+* **Aktuális Git Commit:** `5957796`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 263 104 bájt)
+* **Bináris SHA256:** `9A0F3982E47DF54B64D6D5157E99001B808C4B15CA0A94F6F4BB4CF5F4E007CE`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
@@ -18,7 +18,11 @@
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #321)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #322)
+* [x] **Shader Betöltési & OBS Effect-Parser Kompatibilitási Javítás (Build #322):**
+  - **Hiba elhárítása:** Az OBS `libobs` shader elemzője (`effect-parser.c`) kifejezéseket tartalmazó `#define` makrók esetén azonnali szintaktikai hibát dob (`Expected ',' or ')'`), emiatt a korábbi `#define TIME (anim_time + bass_energy * 0.12)` sor miatt a `fluid_flow_effect` shader egyáltalán nem fordult le és sem a beépített 15 shader, sem a custom shaderek nem jelentek meg.
+  - **Megoldás:** A makrók visszaállítva tiszta aliasokra (`#define TIME anim_time` stb.), a zenei pulzust közvetlenül a C++ oldalon adjuk hozzá az `anim_time` shader paraméterhez (`time_sec + bass_val * 0.12f`) mind a `deck_source.cpp`-ben, mind a `mixer_source.cpp`-ben.
+  - **Eredmény:** A shader motor 100%-os hibátlan lefordulása, azonnal látható VJ megjelenítés, a külső/AI és beépített shaderek tökéletes zenei reaktivitása.
 * [x] **Vizuális Motor, Crossfade FX és VJ Shader Korszerűsítés (Build #321):**
   - **Crossfade Sötétedés Megszüntetése & Equal Power Átkeverés:**
     - A `mixer_source.cpp` pixel shader kimenetéről törölve a globális `smoothstep(0.015, 1.0, res.rgb)` és `pow(res.rgb, 1.08)` sötétítés, így a kép nem veszít a dinamikájából.
