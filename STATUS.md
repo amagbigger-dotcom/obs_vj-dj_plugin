@@ -1,9 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #319 / GitHub Run #44894319532 (Milestone #34)
-* **Aktuális Git Commit:** `03031c2`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 272 320 bájt)
-* **Bináris SHA256:** `3D539136406144773F887AC1606D3B5116C2145FEE12AB12BE5EC6A9B2FA1DEE`
+* **Legutolsó stabil mérföldkő:** Build #320 / GitHub Run #44907080548 (Milestone #35)
+* **Aktuális Git Commit:** `21dee34`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 254 400 bájt)
+* **Bináris SHA256:** `D7905AC9DEFAF0367FD5F2DC5E9C5D90977A498A05EB637CFDFCC32157967CA2`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
@@ -52,8 +52,9 @@
 ---
 
 ## 3. Következő Lépés (Next Action)
-* [ ] Változtatások commitolása és pusholása a távoli GitHub repóba.
-* [ ] Build #320 lefordítása a GitHub Actions CI-n keresztül, DLL letöltése és éles OBS tesztelés.
+* [x] Változtatások commitolása és pusholása a távoli GitHub repóba (Commit `21dee34`).
+* [x] Build #320 lefordítása a GitHub Actions CI-n keresztül, DLL letöltése és telepítése.
+* [ ] Éles tesztelés az OBS Studio elindításával (Tracklist 640 px elrendezés, mini [ A ]/[ B ] gombok, 3-füles Video FX ablak fókuszálása, FIT/FILL hiánya a keverőn).
 
 ---
 
