@@ -651,9 +651,8 @@ void VjFxDialog::showEvent(QShowEvent *event)
     QDialog::showEvent(event);
     if (QScreen *screen = QGuiApplication::primaryScreen()) {
         const QRect geom = screen->availableGeometry();
-        const int target_w = width() > 0 ? width() : 540;
-        const int x_pos = geom.right() - target_w - 12;
-        const int y_pos = geom.top() + 38;
+        const int x_pos = geom.left() + 10;
+        const int y_pos = geom.top() + 10;
         move(x_pos, y_pos);
     }
 }

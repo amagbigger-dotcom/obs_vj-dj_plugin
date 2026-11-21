@@ -94,7 +94,7 @@ static void open_mixer_window(void *data)
 }
 
 // =============================================================================
-// Mindhárom ablak egykattintásos elrendezése (Open Dual Deck + Mixer Layout)
+// Mind az 5 ablak egykattintásos elrendezése (Open 5-Window Complete Layout)
 // =============================================================================
 static void open_all_layout(void *data)
 {
@@ -102,6 +102,8 @@ static void open_all_layout(void *data)
     open_deck_window_a(nullptr);
     open_mixer_window(nullptr);
     open_deck_window_b(nullptr);
+    vdj_open_tracklist_window();
+    vdj_open_vj_fx_dialog();
 }
 
 void init_deck_engine()
@@ -148,9 +150,9 @@ void init_deck_ui()
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Deck A").toUtf8().constData(), open_deck_window_a, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Mixer").toUtf8().constData(), open_mixer_window, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Deck B").toUtf8().constData(), open_deck_window_b, nullptr);
-    obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Layout (Mindhárom megnyitása)").toUtf8().constData(), open_all_layout, nullptr);
+    obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Teljes Elrendezés (Mind az 5 ablak)").toUtf8().constData(), open_all_layout, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Tracklist").toUtf8().constData(), open_tracklist_menu, nullptr);
-    obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Visualizer Shader").toUtf8().constData(), open_vj_fx_menu, nullptr);
+    obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Visualizer & FX").toUtf8().constData(), open_vj_fx_menu, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ LFO Oszcillátor").toUtf8().constData(), open_lfo_menu, nullptr);
     obs_frontend_add_tools_menu_item(QStringLiteral("OBS VJ Beállítások (Settings)").toUtf8().constData(), open_settings_menu, nullptr);
 }

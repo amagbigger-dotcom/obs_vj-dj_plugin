@@ -48,7 +48,6 @@ private:
     // Kezelőszervek és gombok (UI Controls & Buttons)
     QPushButton *open_btn_ = nullptr;
     QPushButton *tracklist_btn_ = nullptr;
-    QPushButton *vj_shader_btn_ = nullptr;
 
     QLabel *file_lbl_ = nullptr;
     QFrame *time_container_ = nullptr;
@@ -57,7 +56,6 @@ private:
     QLineEdit *bpm_edit_ = nullptr;
     QPushButton *bpm_half_btn_ = nullptr;
     QPushButton *bpm_double_btn_ = nullptr;
-    QPushButton *bpm_trip_btn_ = nullptr;
     QLabel *key_badge_lbl_ = nullptr;
     QPushButton *tap_bpm_btn_ = nullptr;
 

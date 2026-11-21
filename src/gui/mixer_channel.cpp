@@ -22,10 +22,11 @@ QString formatGain(int v)
     return QString::asprintf("%+.1f dB", db);
 }
 
-QString formatRgb(int v)
+QString formatEq(int v)
 {
-    if (v == 0) return QStringLiteral("1.00");
-    return QString::asprintf("%.2f", 1.0f + static_cast<float>(v) / 100.0f);
+    if (v == 0) return QStringLiteral("0");
+    const float val = static_cast<float>(v) / 100.0f;
+    return QString::asprintf("%.2f", val);
 }
 
 QString formatFilter(int v)
@@ -112,11 +113,11 @@ void MixerChannelStrip::setupUi()
     addSliderRow(QStringLiteral("GAIN"), QStringLiteral("#8da0b8"), &gain_slider_, &gain_val_lbl_, nullptr, 0,
                  [this](float v) { if (deck_) deck_->setGain(v); }, formatGain);
     addSliderRow(QStringLiteral("HI"), QStringLiteral("#ff4444"), &hi_slider_, &hi_val_lbl_, &hi_title_lbl_, 0,
-                 [this](float v) { if (deck_) deck_->setEqHi(v); }, formatRgb);
+                 [this](float v) { if (deck_) deck_->setEqHi(v); }, formatEq);
     addSliderRow(QStringLiteral("MID"), QStringLiteral("#00ff88"), &mid_slider_, &mid_val_lbl_, nullptr, 0,
-                 [this](float v) { if (deck_) deck_->setEqMid(v); }, formatRgb);
+                 [this](float v) { if (deck_) deck_->setEqMid(v); }, formatEq);
     addSliderRow(QStringLiteral("LOW"), QStringLiteral("#4488ff"), &low_slider_, &low_val_lbl_, &low_title_lbl_, 0,
-                 [this](float v) { if (deck_) deck_->setEqLow(v); }, formatRgb);
+                 [this](float v) { if (deck_) deck_->setEqLow(v); }, formatEq);
     addSliderRow(QStringLiteral("FLT"), QStringLiteral("#ffaa00"), &flt_slider_, &flt_val_lbl_, nullptr, 0,
                  [this](float v) { if (deck_) deck_->setFilterVal(v - 1.0f); }, formatFilter);
 
@@ -312,9 +313,9 @@ void MixerChannelStrip::refresh()
     };
 
     updateSliderFromVal(gain_slider_, gain_val_lbl_, static_cast<int>((deck_->gain() - 1.0f) * 100.0f), formatGain);
-    updateSliderFromVal(hi_slider_, hi_val_lbl_, static_cast<int>((deck_->eqHi() - 1.0f) * 100.0f), formatRgb);
-    updateSliderFromVal(mid_slider_, mid_val_lbl_, static_cast<int>((deck_->eqMid() - 1.0f) * 100.0f), formatRgb);
-    updateSliderFromVal(low_slider_, low_val_lbl_, static_cast<int>((deck_->eqLow() - 1.0f) * 100.0f), formatRgb);
+    updateSliderFromVal(hi_slider_, hi_val_lbl_, static_cast<int>((deck_->eqHi() - 1.0f) * 100.0f), formatEq);
+    updateSliderFromVal(mid_slider_, mid_val_lbl_, static_cast<int>((deck_->eqMid() - 1.0f) * 100.0f), formatEq);
+    updateSliderFromVal(low_slider_, low_val_lbl_, static_cast<int>((deck_->eqLow() - 1.0f) * 100.0f), formatEq);
     updateSliderFromVal(flt_slider_, flt_val_lbl_, static_cast<int>(deck_->filterVal() * 100.0f), formatFilter);
 
     if (vol_slider_ && !vol_slider_->isSliderDown()) {

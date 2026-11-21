@@ -110,9 +110,7 @@ TracklistDock::TracklistDock(QWidget *parent)
 {
     g_tracklist_instance = this;
     setWindowTitle(QStringLiteral("OBS VJ Tracklist - Médiatár & 1080p Konverter"));
-    setFixedWidth(640);
-    setMinimumHeight(400);
-    resize(640, 520);
+    setFixedSize(640, 560);
     setAcceptDrops(true);
 
     setStyleSheet(QStringLiteral(
@@ -620,8 +618,8 @@ void TracklistDock::showEvent(QShowEvent *event)
     QDialog::showEvent(event);
     if (QScreen *screen = QGuiApplication::primaryScreen()) {
         const QRect geom = screen->availableGeometry();
-        const int x_pos = geom.left() + 845;
-        const int y_pos = geom.top() + 390;
+        const int x_pos = geom.left() + 1260;
+        const int y_pos = geom.top() + 10;
         move(x_pos, y_pos);
     }
 }

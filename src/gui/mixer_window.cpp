@@ -208,17 +208,6 @@ MixerWindow::MixerWindow(DeckPair *decks, QWidget *parent)
     bottom_row->addWidget(midi_status_lbl_);
     bottom_row->addStretch(1);
 
-    auto *vj_fx_btn = new QPushButton(QStringLiteral("⚡ VJ SHADER FX"), this);
-    vj_fx_btn->setFixedHeight(20);
-    vj_fx_btn->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #182230; border: 1px solid #2d3e56; color: #00d2ff; font-weight: bold; font-size: 9px; padding: 1px 8px; border-radius: 3px; } "
-        "QPushButton:hover { background: #0088cc; color: #ffffff; border-color: #00d2ff; }"));
-    vj_fx_btn->setToolTip(QStringLiteral("VJ Visualizer Shader kiválasztása és zenei lüktetés/tónuskövetés beállításai"));
-    connect(vj_fx_btn, &QPushButton::clicked, this, []() {
-        vdj_open_vj_fx_dialog();
-    });
-    bottom_row->addWidget(vj_fx_btn);
-
     auto *settings_btn = new QPushButton(QStringLiteral("⚙ BEÁLLÍTÁSOK"), this);
     settings_btn->setFixedHeight(20);
     settings_btn->setStyleSheet(QStringLiteral(
@@ -292,8 +281,8 @@ void MixerWindow::showEvent(QShowEvent *event)
         const int target_h = 340;
         setFixedSize(target_w, target_h);
 
-        const int y_pos = std::max(0, geom.bottom() - target_h - 40);
-        const int x_pos = geom.left() + 665;
+        const int y_pos = geom.top() + 670;
+        const int x_pos = geom.left() + 660;
         move(x_pos, y_pos);
     }
 }

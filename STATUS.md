@@ -1,7 +1,7 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
 * **Legutolsó stabil mérföldkő:** Build #322 (GitHub Run #327)
-* **Aktuális Git Commit:** `5957796`
+* **Aktuális Git Commit:** `5957796` (Build #323 előkészítve)
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 263 104 bájt)
 * **Bináris SHA256:** `9A0F3982E47DF54B64D6D5157E99001B808C4B15CA0A94F6F4BB4CF5F4E007CE`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
@@ -9,16 +9,24 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Vizuális Motor & Shader Rendszer Korszerűsítése:
-  1. Crossfade FX átkeverési sötétség megszüntetése, Equal Power görbe és Fényerő Kiemelés bevezetése.
-  2. Deck Hangerő Potméter (Volume FX) bővítése alakzat-alapú áttűnésekkel (kör, téglalap, négyzet, gyémánt, lamellák, zoom).
-  3. CustomShaderManager (ISF / GLSL transzpiler motor) okosítása (Smart Audio Injektor külső/AI kódokhoz).
-  4. 15 beépített VJ shader zenei reaktivitásának auditja (túlvezérlések lecsillapítása, alvó shaderek felébresztése, smoothstep mélyfekete vágás eltávolítása).
-* **Architektúra:** Moduláris dokumentációs rendszer fenntartása, BUILD_HISTORY archiválás és szálbiztos vezérlés.
+* **Fő cél:** Kezelőfelületi Ergonómia & 5-Ablakos Képernyő Elrendezés (Build #323):
+  1. Mind az 5 ablak (Deck A, Mixer, Deck B, Video FX, Tracklist) egykattintásos elrendezése az Eszközök menüből (1920×1080).
+  2. Deck ablak magasságának növelése `640 × 430 px`-re (+90 px) a Video FX panel aljáig.
+  3. Kétrétegű Waveform magasságának optimalizálása: 175 px (135 px részletes futó hullámforma + 38 px 3-sávos áttekintő).
+  4. Deck fejlécének tehermentesítése: zenecímnek 320+ px tiszta hely, /2 és x2 áthelyezve a TAP mellé, triola (3/2) és VJ gomb törölve.
+  5. Mixer EQ hangszín potméterek (HI, MID, LOW) értékkijelzésének nullázása (középen 0, vágás `-`, erősítés előjel nélkül).
+  6. Tracklist méretének és elhelyezésének rögzítése: `640 × 560 px` a jobb felső sarokban.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #322)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #323)
+* [x] **Teljes 5-Ablakos Elrendezés & Deck/Mixer Ergonómiai Megújítás (Build #323):**
+  - **1920×1080 egykattintásos 5-ablakos layout:** Az OBS Eszközök menüjében a korábbi 3 ablak helyett az új `OBS VJ Teljes Elrendezés (Mind az 5 ablak)` egyszerre nyitja meg és rendezi el pixelre pontosan a Deck A (`640×430`), Mixer (`590×340`), Deck B (`640×430`), Video FX (`540×560`) és Tracklist (`640×560`) ablakokat.
+  - **Hullámforma méretoptimalizálás (+90 px):** A teljes extra magasság a hullámformára került (175 px magas). A futó részletes hullámforma 135 px magas (kristálytiszta dinamika és tranziensek), az alsó 3-sávos áttekintő pedig 38 px (kényelmes CUE és ütem drop jelölők).
+  - **Szellős Deck fejléc:** A felesleges VJ gomb és a 3/2 triola gomb törölve; a közvetlen BPM beviteli mező, a mértékegység, valamint a `/2` és `x2` gombok lekerültek az alsó rácssávba a `[ TAP ]` gomb mellé. A zenecím mező így több mint 320 px szélességet kap.
+  - **Mixer EQ nullázott kijelzés:** A HI, MID és LOW potméterek középállásban `0`-t jeleznek ki; a kivonás/vágás negatív előjellel (`-`), az erősítés előjel nélkül, de `0`-ról indulva jelenik meg (pl. `-0.50` .. `0` .. `0.50`).
+  - **Mixer felület tisztítás:** A felesleges `[ ⚡ VJ SHADER FX ]` gomb eltávolítva a keverő alsó sávjából.
+  - **Tracklist igazítás:** Fix `640 × 560 px` méret (szélességben a Deckhez, magasságban a Video FX-hez illeszkedve), jobb felső pozicionálással (`x = 1260, y = 10`).
 * [x] **Shader Betöltési & OBS Effect-Parser Kompatibilitási Javítás (Build #322):**
   - **Hiba elhárítása:** Az OBS `libobs` shader elemzője (`effect-parser.c`) kifejezéseket tartalmazó `#define` makrók esetén azonnali szintaktikai hibát dob (`Expected ',' or ')'`), emiatt a korábbi `#define TIME (anim_time + bass_energy * 0.12)` sor miatt a `fluid_flow_effect` shader egyáltalán nem fordult le és sem a beépített 15 shader, sem a custom shaderek nem jelentek meg.
   - **Megoldás:** A makrók visszaállítva tiszta aliasokra (`#define TIME anim_time` stb.), a zenei pulzust közvetlenül a C++ oldalon adjuk hozzá az `anim_time` shader paraméterhez (`time_sec + bass_val * 0.12f`) mind a `deck_source.cpp`-ben, mind a `mixer_source.cpp`-ben.
@@ -72,9 +80,9 @@
 ---
 
 ## 3. Következő Lépés (Next Action)
-* [ ] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #321).
+* [ ] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #323).
 * [ ] GitHub Actions CI fordítás lefutása, kész DLL letöltése és telepítése.
-* [ ] Éles tesztelés az OBS Studio elindításával (Crossfade fényerő és Equal Power görbe ellenőrzése, fader alakzat-áttűnések tesztelése, auditált VJ shaderek és Smart Audio Injektor működése).
+* [ ] Éles tesztelés az OBS Studio elindításával (5-ablakos layout ellenőrzése, 175 px hullámforma és nullázott EQ működése).
 
 ---
 

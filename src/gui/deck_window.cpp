@@ -136,88 +136,6 @@ void DeckWindow::setupUi()
 
     top_bar->addWidget(time_container_, 0);
 
-    // Közvetlen kézi BPM beviteli mező (In-Place Direct BPM Input, Enter commits)
-    auto *bpm_box = new QHBoxLayout();
-    bpm_box->setSpacing(3);
-
-    bpm_edit_ = new QLineEdit(QStringLiteral("128.00"), this);
-    bpm_edit_->setFixedWidth(56);
-    bpm_edit_->setFixedHeight(24);
-    bpm_edit_->setAlignment(Qt::AlignCenter);
-    bpm_edit_->setStyleSheet(QStringLiteral(
-        "QLineEdit { background: #141b24; color: #00d2ff; font-family: 'Consolas', monospace; font-size: 12px; font-weight: bold; border: 1px solid #2e3e54; border-radius: 3px; padding: 2px 2px; }"
-        "QLineEdit:focus { border: 1px solid #00d2ff; background: #1c2635; color: #ffffff; }"
-    ));
-    bpm_edit_->setToolTip(QStringLiteral("BPM kézi beírása (Enter lenyomására azonnal menti és igazítja a rácsot)"));
-    auto *bpm_val = new QDoubleValidator(40.0, 300.0, 2, bpm_edit_);
-    bpm_val->setNotation(QDoubleValidator::StandardNotation);
-    bpm_edit_->setValidator(bpm_val);
-
-    connect(bpm_edit_, &QLineEdit::returnPressed, this, [this]() {
-        bool ok = false;
-        const double val = bpm_edit_->text().toDouble(&ok);
-        if (ok && deck_) {
-            deck_->setBpm(val);
-        }
-        bpm_edit_->clearFocus();
-    });
-
-    connect(bpm_edit_, &QLineEdit::editingFinished, this, [this]() {
-        bool ok = false;
-        const double val = bpm_edit_->text().toDouble(&ok);
-        if (ok && deck_) {
-            deck_->setBpm(val);
-        }
-    });
-
-    bpm_box->addWidget(bpm_edit_);
-
-    auto *bpm_unit = new QLabel(QStringLiteral("BPM"), this);
-    bpm_unit->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px; margin-left: 1px;"));
-    bpm_box->addWidget(bpm_unit);
-
-    auto make_bpm_btn = [this](const QString &text, const QString &tip) {
-        auto *btn = new QPushButton(text, this);
-        btn->setFixedSize(22, 22);
-        btn->setAutoDefault(false);
-        btn->setDefault(false);
-        btn->setFocusPolicy(Qt::NoFocus);
-        btn->setStyleSheet(QStringLiteral(
-            "QPushButton { background: #1c2635; color: #8da0b8; border: 1px solid #2e3e54; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 0px; }"
-            "QPushButton:hover { background: #26354a; color: #00d2ff; border-color: #00d2ff; }"
-            "QPushButton:pressed { background: #0088cc; color: #ffffff; }"
-        ));
-        btn->setToolTip(tip);
-        return btn;
-    };
-
-    bpm_half_btn_ = make_bpm_btn(QStringLiteral("/2"), QStringLiteral("BPM Felezése (/2)"));
-    connect(bpm_half_btn_, &QPushButton::clicked, this, [this]() {
-        if (!deck_) return;
-        const double b = std::round((deck_->bpm() / 2.0) * 100.0) / 100.0;
-        deck_->setBpm(b);
-        if (bpm_edit_) bpm_edit_->setText(QString::number(b, 'f', 2));
-    });
-    bpm_box->addWidget(bpm_half_btn_);
-
-    bpm_double_btn_ = make_bpm_btn(QStringLiteral("x2"), QStringLiteral("BPM Duplázása (x2)"));
-    connect(bpm_double_btn_, &QPushButton::clicked, this, [this]() {
-        if (!deck_) return;
-        const double b = std::round((deck_->bpm() * 2.0) * 100.0) / 100.0;
-        deck_->setBpm(b);
-        if (bpm_edit_) bpm_edit_->setText(QString::number(b, 'f', 2));
-    });
-    bpm_box->addWidget(bpm_double_btn_);
-
-    bpm_trip_btn_ = make_bpm_btn(QStringLiteral("3/2"), QStringLiteral("BPM Másfélszerezése / Triola (x1.5)"));
-    connect(bpm_trip_btn_, &QPushButton::clicked, this, [this]() {
-        if (!deck_) return;
-        const double b = std::round((deck_->bpm() * 1.5) * 100.0) / 100.0;
-        deck_->setBpm(b);
-        if (bpm_edit_) bpm_edit_->setText(QString::number(b, 'f', 2));
-    });
-    bpm_box->addWidget(bpm_trip_btn_);
-
     key_badge_lbl_ = new QLabel(QStringLiteral("--"), this);
     key_badge_lbl_->setFixedSize(36, 24);
     key_badge_lbl_->setAlignment(Qt::AlignCenter);
@@ -225,9 +143,7 @@ void DeckWindow::setupUi()
         "QLabel { background: #141b24; color: #ffcc00; font-family: 'Consolas', monospace; font-size: 11px; font-weight: bold; border: 1px solid #2e3e54; border-radius: 3px; }"
     ));
     key_badge_lbl_->setToolTip(QStringLiteral("Zenei hangnem (Camelot kód) a harmonikus keveréshez"));
-    bpm_box->addWidget(key_badge_lbl_);
-
-    top_bar->addLayout(bpm_box);
+    top_bar->addWidget(key_badge_lbl_, 0);
 
     tracklist_btn_ = new QPushButton(QStringLiteral("📋"), this);
     tracklist_btn_->setAutoDefault(false);
@@ -244,29 +160,13 @@ void DeckWindow::setupUi()
     });
     top_bar->addWidget(tracklist_btn_, 0);
 
-    vj_shader_btn_ = new QPushButton(QStringLiteral("⚡ VJ"), this);
-    vj_shader_btn_->setAutoDefault(false);
-    vj_shader_btn_->setDefault(false);
-    vj_shader_btn_->setFixedSize(38, 24);
-    vj_shader_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1a2738; border: 1px solid #38bdf8; color: #38bdf8; font-size: 10px; font-weight: bold; border-radius: 3px; }"
-        "QPushButton:hover { background: #0284c7; color: #ffffff; }"
-    ));
-    vj_shader_btn_->setToolTip(QStringLiteral("Deck VJ Visualizer Shader és paraméter beállítások megnyitása"));
-    connect(vj_shader_btn_, &QPushButton::clicked, this, [this]() {
-        extern void vdj_open_vj_fx_dialog(int target_deck);
-        const int target_d = (deck_ && deck_->side() == DeckPlayer::DeckSide::B) ? 1 : 0;
-        vdj_open_vj_fx_dialog(target_d);
-    });
-    top_bar->addWidget(vj_shader_btn_, 0);
-
     main_layout->addLayout(top_bar);
 
     // ==========================================
-    // 2. CLEAN WAVEFORM CANVAS (No duplicate header!)
+    // 2. CLEAN WAVEFORM CANVAS (175 px: 135 px detailed + 38 px overview)
     // ==========================================
     waveform_canvas_ = new WaveformCanvas(deck_, true, this);
-    waveform_canvas_->setFixedHeight(85);
+    waveform_canvas_->setFixedHeight(175);
     main_layout->addWidget(waveform_canvas_);
 
     // ==========================================
@@ -367,7 +267,7 @@ void DeckWindow::setupUi()
     move_bar->addStretch(1);
 
     // =========================================================================
-    // TAP BPM gomb valós idejű intervallum-számítással és automatikus újraindítással
+    // TAP BPM gomb és áthelyezett közvetlen BPM beviteli mező + felező/duplázó
     // =========================================================================
     tap_bpm_btn_ = new QPushButton(QStringLiteral("TAP"), this);
     tap_bpm_btn_->setFixedSize(38, 22);
@@ -403,6 +303,75 @@ void DeckWindow::setupUi()
         }
     });
     move_bar->addWidget(tap_bpm_btn_);
+
+    // Közvetlen kézi BPM beviteli mező (In-Place Direct BPM Input, Enter commits)
+    bpm_edit_ = new QLineEdit(QStringLiteral("128.00"), this);
+    bpm_edit_->setFixedWidth(54);
+    bpm_edit_->setFixedHeight(22);
+    bpm_edit_->setAlignment(Qt::AlignCenter);
+    bpm_edit_->setStyleSheet(QStringLiteral(
+        "QLineEdit { background: #141b24; color: #00d2ff; font-family: 'Consolas', monospace; font-size: 11px; font-weight: bold; border: 1px solid #2e3e54; border-radius: 3px; padding: 1px 2px; }"
+        "QLineEdit:focus { border: 1px solid #00d2ff; background: #1c2635; color: #ffffff; }"
+    ));
+    bpm_edit_->setToolTip(QStringLiteral("BPM kézi beírása (Enter lenyomására azonnal menti és igazítja a rácsot)"));
+    auto *bpm_val = new QDoubleValidator(40.0, 300.0, 2, bpm_edit_);
+    bpm_val->setNotation(QDoubleValidator::StandardNotation);
+    bpm_edit_->setValidator(bpm_val);
+
+    connect(bpm_edit_, &QLineEdit::returnPressed, this, [this]() {
+        bool ok = false;
+        const double val = bpm_edit_->text().toDouble(&ok);
+        if (ok && deck_) {
+            deck_->setBpm(val);
+        }
+        bpm_edit_->clearFocus();
+    });
+
+    connect(bpm_edit_, &QLineEdit::editingFinished, this, [this]() {
+        bool ok = false;
+        const double val = bpm_edit_->text().toDouble(&ok);
+        if (ok && deck_) {
+            deck_->setBpm(val);
+        }
+    });
+    move_bar->addWidget(bpm_edit_);
+
+    auto *bpm_unit = new QLabel(QStringLiteral("BPM"), this);
+    bpm_unit->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px; margin-left: 1px;"));
+    move_bar->addWidget(bpm_unit);
+
+    auto make_bpm_btn = [this](const QString &text, const QString &tip) {
+        auto *btn = new QPushButton(text, this);
+        btn->setFixedSize(22, 22);
+        btn->setAutoDefault(false);
+        btn->setDefault(false);
+        btn->setFocusPolicy(Qt::NoFocus);
+        btn->setStyleSheet(QStringLiteral(
+            "QPushButton { background: #1c2635; color: #8da0b8; border: 1px solid #2e3e54; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 0px; }"
+            "QPushButton:hover { background: #26354a; color: #00d2ff; border-color: #00d2ff; }"
+            "QPushButton:pressed { background: #0088cc; color: #ffffff; }"
+        ));
+        btn->setToolTip(tip);
+        return btn;
+    };
+
+    bpm_half_btn_ = make_bpm_btn(QStringLiteral("/2"), QStringLiteral("BPM Felezése (/2)"));
+    connect(bpm_half_btn_, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        const double b = std::round((deck_->bpm() / 2.0) * 100.0) / 100.0;
+        deck_->setBpm(b);
+        if (bpm_edit_) bpm_edit_->setText(QString::number(b, 'f', 2));
+    });
+    move_bar->addWidget(bpm_half_btn_);
+
+    bpm_double_btn_ = make_bpm_btn(QStringLiteral("x2"), QStringLiteral("BPM Duplázása (x2)"));
+    connect(bpm_double_btn_, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        const double b = std::round((deck_->bpm() * 2.0) * 100.0) / 100.0;
+        deck_->setBpm(b);
+        if (bpm_edit_) bpm_edit_->setText(QString::number(b, 'f', 2));
+    });
+    move_bar->addWidget(bpm_double_btn_);
 
     main_layout->addLayout(move_bar);
 
@@ -481,11 +450,6 @@ void DeckWindow::applyTheme(bool is_a)
         if (time_container_) {
             time_container_->setStyleSheet(QStringLiteral("QFrame { background: #060d16; border: 1px solid #14283d; border-radius: 4px; }"));
         }
-        if (vj_shader_btn_) {
-            vj_shader_btn_->setStyleSheet(QStringLiteral(
-                "QPushButton { background: #101e30; border: 1px solid #00d2ff; color: #00d2ff; font-size: 10px; font-weight: bold; border-radius: 3px; }"
-                "QPushButton:hover { background: #0088cc; color: #ffffff; }"));
-        }
         if (tempo_control_) {
             tempo_control_->applyTheme(true);
         }
@@ -517,11 +481,6 @@ void DeckWindow::applyTheme(bool is_a)
         }
         if (time_container_) {
             time_container_->setStyleSheet(QStringLiteral("QFrame { background: #140a04; border: 1px solid #3d2312; border-radius: 4px; }"));
-        }
-        if (vj_shader_btn_) {
-            vj_shader_btn_->setStyleSheet(QStringLiteral(
-                "QPushButton { background: #2c1a0c; border: 1px solid #ff8800; color: #ff8800; font-size: 10px; font-weight: bold; border-radius: 3px; }"
-                "QPushButton:hover { background: #cc5500; color: #ffffff; }"));
         }
         if (tempo_control_) {
             tempo_control_->applyTheme(false);
@@ -669,12 +628,12 @@ void DeckWindow::showEvent(QShowEvent *event)
     if (QScreen *screen = QGuiApplication::primaryScreen()) {
         const QRect geom = screen->availableGeometry();
         const int target_w = 640;
-        const int target_h = 340;
+        const int target_h = 430;
         setFixedSize(target_w, target_h);
 
-        const int y_pos = std::max(0, geom.bottom() - target_h - 40);
+        const int y_pos = geom.top() + 580;
         const bool is_b = (deck_ && deck_->side() == DeckPlayer::DeckSide::B);
-        const int x_pos = is_b ? (geom.left() + 1268) : (geom.left() + 12);
+        const int x_pos = is_b ? (geom.left() + 1260) : (geom.left() + 10);
         move(x_pos, y_pos);
     }
 }
