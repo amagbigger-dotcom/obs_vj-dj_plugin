@@ -1,32 +1,33 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #349 (GitHub Run #45028789668)
-* **Aktuális Git Commit:** `4bb54dd`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 362 432 bájt)
-* **Bináris SHA256:** `303F2B39406588559A46E3726A1520FBD42A6A8E4DFDF96F98580613A7CF41E8`
+* **Legutolsó stabil mérföldkő:** Build #351 (GitHub Run #45031304428)
+* **Aktuális Git Commit:** `f6fe2c8`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 366 528 bájt)
+* **Bináris SHA256:** `50B6E954E957B4CAC4E4F9A74FE31ED3AA27C321CEF4B499E07FB01660F58D74`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #349 Tracklist Lejátszási Listák (Playlists), 4 Gyorsgomb & Relink Ellenőrzése OBS Studio-ban:
-  1. **4 Gyorsgomb & Listaválasztás:**
-     - `[ 🎵 MIND ]` (Slot 1) fixen a teljes médiatárat jeleníti meg.
-     - Slot 2, 3, 4 split gombokkal és `[ ▾ ]` lenyíló menüvel tetszőleges lejátszási lista választható ki.
-     - A gombokon kizárólag a tiszta lista név látható (darabszámok nélkül), kattintásra azonnali szűrés.
-  2. **Új Lista Készítése & Számok Hozzárendelése:**
-     - `[ ➕ ]` gombbal új lista készíthető névvel, műfajjal és opcionális okos kulcsszóval.
-     - Táblázat jobb klikkes menüből: `📁 Hozzáadás listához ▶ [Lista neve]`.
-     - Egyedi listában a `[ 🗑 TÖRLÉS ]` vagy `Del` gomb csak az adott listából veszi ki a dalt, a fő médiatárban megmarad.
-  3. **Hiányzó Fájlok (⚠️) Észlelése & Újrakeresése (Relink):**
-     - Ha egy médiafájl elérési útja megváltozik, a `ST` oszlopban sárga `⚠️` figyelmeztetés jelenik meg.
-     - Dupla kattintásra vagy jobb klikkes `📁 Fájl újrakeresése...` menüpontra fájlválasztóval megadható az új útvonal, ami azonnal elmentődik.
-  4. **Ablakméret és Légrés:**
-     - A Tracklist ablak 640 × 560 px méretűre nőtt lefelé: a táblázatban több sor látszik, és 56 px tiszta légrés marad az alatta lévő Deck B ablak felett.
+* **Fő cél:** Build #351 Nyers Videó Relink Auto-Konvertálás & Deck Tick Deadlock Védelem Ellenőrzése OBS Studio-ban:
+  1. **Nyers Videó Relink & Önjavítás:**
+     - Ellenőrizni, hogy ha egy videónak hiányzik a konvertált `_vj1080.mp4` változata, a rendszer `Konvertálatlan` státusszal jelzi és nem engedi nyersként betölteni a deckbe.
+     - A számon az újrakonvertálás (`[ 🔄 KONVERT ]` gombbal vagy relinkkel) automatikusan elindítja az RTX 3060 NVENC 1080p All-Intra konvertálást.
+  2. **Akadásmentes Lejátszás & Zéró Monitoring Lag:**
+     - A korábbi másodpercenként 60-szor lefutó `obs_source_set_monitoring_type` hívások megszűntek, nincs audió buffer túlcsordulás (`max audio buffering`) és nincs forrás újraindítási ciklus.
+  3. **4 Gyorsgomb & Playlists Működése:**
+     - A 4 lista gomb, a split gombok lenyíló menüi, a jobb klikkes lista hozzáadás és a keresőmező stabilan működik.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #349)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #351)
+* [x] **Nyers Videó Relink Védelem, Auto-Konvertálás & Tick Monitoring Optimalizálás (Build #351):**
+  - **Fagyási ok feltárása:** A `B166ER - Vp32 (Sequence 1)` egy 2 GB-os, 2560×1440 (2K QHD), 31 Mbps Long-GOP videó volt, ami a relinkelés után nem konvertálódott 1080p All-Intrára. A valós idejű dekódolás túlterhelte az OBS audió alrendszerét (741 ms buffer lag), a frame-enkénti monitoring type reset pedig szál-holtpontot és fagyást idézett elő.
+  - **Relink Auto-Konvertálás:** Ha a felhasználó egy olyan videót tallóz be újrakereséskor, aminek nincs még kész 1080p változata a VJ könyvtárban, a rendszer automatikusan sorba állítja és elindítja az RTX NVENC 1080p All-Intra konvertálást.
+  - **Deck Betöltési Védelem (`loadTrackToDeck`):** Nyers, nem konvertált videó nem tölthető be közvetlenül a forgó deckbe; a rendszer figyelmeztetést ad és azonnal elindítja a konvertálást.
+  - **Önjavítás (`loadLibraryJson`):** A könyvtár betöltésekor automatikusan korrigálja azokat a videókat, amelyek tévesen késznek voltak jelölve, de a cél `_vj1080.mp4` fájljuk hiányzott a lemezről.
+  - **Tick Monitoring Optimalizálás (`deck_source.cpp`):** A `deck_video_tick` ciklusból eltávolításra került a folyamatos, másodpercenként 60-szor feleslegesen lefutó `obs_source_set_monitoring_type` és `obs_source_set_audio_mixers` hívás.
+  - **Telepített bináris:** 1 366 528 bájt, SHA256 `50B6E954E957B4CAC4E4F9A74FE31ED3AA27C321CEF4B499E07FB01660F58D74`.
 * [x] **Tracklist Lejátszási Listák, 4 Gyorsgomb, Élő Kereső & Fájl Relink (Build #349):**
   - **4 Gyorsgomb Sáv (Quick Slots):**
     - Slot 1: `[ 🎵 MIND ]` fixen a teljes könyvtárra vált.
