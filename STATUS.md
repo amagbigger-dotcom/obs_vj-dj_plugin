@@ -9,26 +9,26 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Traktor Kontrol S2 MK3 Mixer FX Rendszer Implementáció (Build #357):
-  1. **4 Dedikált Mixer FX architektúra:**
-     - 🔴 **Piros:** Sima Filter (bi-direkcionális másodrendű LPF/HPF szűrő).
-     - 🔵 **Kék:** Filter + Delay (3/4 beat tempó-szinkronizált dub echo analóg csillapítással és természetes lecsengéssel).
-     - 🟢 **Zöld:** Filter + Reverb (4-Comb + 2-AllPass Freeverb sztereó dekorrelációval és térzengéssel).
-     - 🟡 **Sárga:** Filter + Flanger (90°-os sztereó kvadratúra Jet vadászgép fésűszűrő sweep).
-  2. **Bipoláris potméter-vezérlés:**
-     - Középállásban (0.0): transzparens bypass (0% effekt).
-     - Jobbra (> 0.0): High-Pass szűrés + növekvő effektintenzitás.
-     - Balra (< 0.0): Low-Pass szűrés + növekvő effektintenzitás.
-  3. **Zero Allocation Real-Time DSP:**
-     - Előre lefoglalt bufferek, nulla heap allokáció a valósidejű audió szálon.
-  4. **Központi és csatorna GUI:**
-     - Középen 4 RGB-stílusú nyomógomb, a csatornákon dinamikus `FLT`/`DLY`/`REV`/`FLG` visszajelzés és közvetlen kattintható váltás.
-  5. **MIDI & Traktor S2 kétirányú LED visszajelzés:**
-     - `MIXER_FX_1..4` és `MIXER_FX_SELECT` akciók, aktív gomb hardveres megvilágítása.
+* **Fő cél:** Build #358 - Mixer FX Akusztikai Finomhangolás & Gerjedésmentes Erősítés:
+  1. **High-Pass Szűrő (Jobbra tekerés) Lágyítása:**
+     - Korábbi hiba: 8000 Hz-ig vágott fel, ami 100%-nál teljes süketséget okozott, így az effekt sem hallatszott.
+     - Javítás: A maximális vágási frekvencia max ~2400 Hz-re korlátozva (~70%-os zenei energiavágás). A lábdob és basszus teljesen eltűnik, de az ének, pergő, cin és a visszhangok/zengések kristálytisztán szólnak 100%-nál is, nincs süketség.
+  2. **Low-Pass Szűrő (Balra tekerés) Mélyítése:**
+     - Korábbi hiba: Csak 200 Hz-ig ment le, ami jóval 100 Hz felett megállt és túl sok hangot hagyott bent.
+     - Javítás: A cutoff 18 000 Hz-ről lefelé egészen **50 Hz-ig** lemegy, valódi klubos mély szub-basszust és sötét búgást adva.
+  3. **Effektek Jelenlétének és Hangerejének Növelése (Boost):**
+     - **Delay:** `send_gain` 0.70 $\to$ 0.90, `wet_gain` 1.20 $\to$ 1.50, `feedback` max 0.78 lágy szalagos telítéssel (gerjedés kizárva).
+     - **Reverb:** `send_gain` 0.75 $\to$ 0.85, `wet_gain` 0.75 $\to$ 1.50, `room_size` max 0.88 buja térzengéssel.
+     - **Flanger:** `wet_gain` 0.70 $\to$ 1.30, `feedback` max 0.80 erőteljes, vastag sztereó Jet áthúzással.
+     - Száraz jel enyhe kompenzálása (`dry_gain = 1.0 - amount * 0.20`), így az effekt kiemelkedik és magával ragadóvá válik.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #357)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #358)
+* [x] **Mixer FX Akusztikai Finomhangolás & Hangosságnövelés (Build #358):**
+  - HPF max cutoff 2400 Hz-re optimalizálva (nincs többé 100%-os süketség a magas irányba, az effektek tisztán és fényesen szólnak).
+  - LPF cutoff 50 Hz-re mélyítve (200 Hz helyett), igazi mély szub-basszus vágás balra tekerve.
+  - Delay, Reverb és Flanger wet szintje 1.30–1.50-re emelve, 0.78–0.80 gerjedésmentes, szaturált feedback korlátozással.
 * [x] **Traktor Kontrol S2 MK3 4 Mixer FX Rendszer (Build #357):**
   - **Új `src/engine/mixer_fx.hpp/.cpp` modul:**
     - `MixerFxProcessor` és `MixerFxState` nulla dinamikus allokációjú valósidejű DSP motor.

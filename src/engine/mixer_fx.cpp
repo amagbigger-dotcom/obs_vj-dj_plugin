@@ -101,24 +101,25 @@ void MixerFxProcessor::process(float *channel_data,
     const float smooth_rate = 0.002f; // ~10 ms simítás a cipzár-zaj ellen
 
     // =========================================================================
-    // 1. Bipoláris DJ Filter Feldolgozása (MINDIG AKTÍV MIND A 4 EFFEKTBEN)
+    // 1. Bipoláris DJ Filter Feldolgozása (AKUSZTIKAILAG OPTIMALIZÁLT GÖRBÉKKEL)
     // =========================================================================
     for (size_t i = 0; i < num_frames; ++i) {
         st.cur_flt += (target_flt - st.cur_flt) * smooth_rate;
         float out = channel_data[i];
 
         if (st.cur_flt < -0.001f) {
-            // Low Pass: cutoff 18 000 Hz-ről le 200 Hz-re
+            // Low Pass: cutoff 18 000 Hz-ről le egészen 50 Hz-ig (igazi mély szub-basszusig)
             const float norm = 1.0f + st.cur_flt;
-            const float cutoff = 200.0f + norm * norm * 17800.0f;
+            const float cutoff = 50.0f + norm * norm * 17950.0f;
             const float a_lp = std::clamp(2.0f * PI * cutoff / sr, 0.001f, 0.95f);
             st.dj_lp += a_lp * (out - st.dj_lp);
             st.dj_hp += 0.05f * (0.0f - st.dj_hp);
             out = st.dj_lp;
         } else if (st.cur_flt > 0.001f) {
-            // High Pass: cutoff 20 Hz-ről fel 8000 Hz-re
+            // High Pass: cutoff 20 Hz-ről fel max ~2400 Hz-re (~70% zenei energiavágás,
+            // nem némítja el a zenét 100%-nál, az ének és magasak tiszták maradnak az effekthez)
             const float norm = st.cur_flt;
-            const float cutoff = 20.0f + norm * norm * 7980.0f;
+            const float cutoff = 20.0f + norm * norm * 2400.0f;
             const float a_hp = std::clamp(2.0f * PI * cutoff / sr, 0.001f, 0.95f);
             st.dj_hp += a_hp * (out - st.dj_hp);
             st.dj_lp += 0.05f * (out - st.dj_lp);
@@ -134,7 +135,7 @@ void MixerFxProcessor::process(float *channel_data,
 
     const float amount = std::clamp(std::abs(st.cur_flt), 0.0f, 1.0f);
 
-    // Ha az alap 🔴 Sima Filter aktív, vagy a poti középállásban áll és nincs tail igény, kész vagyunk
+    // Ha az alap 🔴 Sima Filter aktív, kész vagyunk
     if (type == MixerFxType::FILTER) {
         return;
     }
@@ -154,11 +155,14 @@ void MixerFxProcessor::process(float *channel_data,
         // Finom delay-idő simítás
         st.cur_delay_samples += (target_samples - st.cur_delay_samples) * 0.001f;
 
-        const float send_gain = amount * 0.70f;
-        const float feedback = 0.35f + amount * 0.40f; // 0.35 .. 0.75
+        // Erőteljes, zenei jelenlét és feedback gerjedésvédelemmel (max 0.78)
+        const float send_gain = amount * 0.90f;
+        const float feedback = 0.40f + amount * 0.38f; // 0.40 .. 0.78
+        const float dry_gain = 1.0f - amount * 0.20f;
+        const float wet_gain = amount * 1.50f;
 
-        // Feedback sávszűrő (analóg szalagcsillapítás: 3800 Hz LPF, 140 Hz HPF)
-        const float alpha_damp_lp = std::clamp(2.0f * PI * 3800.0f / sr, 0.01f, 0.95f);
+        // Feedback sávszűrő (analóg szalagcsillapítás: 4200 Hz LPF, 140 Hz HPF)
+        const float alpha_damp_lp = std::clamp(2.0f * PI * 4200.0f / sr, 0.01f, 0.95f);
         const float alpha_damp_hp = std::clamp(2.0f * PI * 140.0f / sr, 0.01f, 0.95f);
 
         const size_t buf_size = st.delay_buf.size();
@@ -179,7 +183,7 @@ void MixerFxProcessor::process(float *channel_data,
             st.delay_damp_hp += alpha_damp_hp * (st.delay_damp_lp - st.delay_damp_hp);
             float fb_sig = st.delay_damp_lp - st.delay_damp_hp;
 
-            // Lágy telítés (Soft saturation: x - 1/3 x^3)
+            // Lágy telítés (Soft saturation: x - 1/3 x^3) -> gerjedés kizárva
             fb_sig = std::clamp(fb_sig, -1.2f, 1.2f);
             fb_sig = fb_sig - 0.333f * fb_sig * fb_sig * fb_sig;
 
@@ -187,8 +191,8 @@ void MixerFxProcessor::process(float *channel_data,
             st.delay_buf[st.delay_write_pos] = in_sample * send_gain + fb_sig * feedback;
             st.delay_write_pos = (st.delay_write_pos + 1) % buf_size;
 
-            // Kimeneti keverék: száraz jel + visszhang
-            channel_data[i] = in_sample + delayed * std::min(1.0f, amount * 1.2f);
+            // Kimeneti keverék: dinamikus száraz jel + hangsúlyos visszhang
+            channel_data[i] = in_sample * dry_gain + delayed * wet_gain;
         }
         return;
     }
@@ -197,10 +201,12 @@ void MixerFxProcessor::process(float *channel_data,
     // 3. 🟢 Zöld: Filter + Reverb (4-Comb + 2-AllPass Freeverb & Tail Spillover)
     // =========================================================================
     if (type == MixerFxType::FILTER_REVERB) {
-        const float send_gain = amount * 0.75f;
-        const float room_size = 0.70f + amount * 0.20f; // 0.70 .. 0.90
-        const float damp = 0.25f;                        // Magashang csillapítás
-        const float wet_gain = amount * 0.75f;
+        // Erőteljes zengés küldés és tágas tér (room size max 0.88, zéró gerjedés)
+        const float send_gain = amount * 0.85f;
+        const float room_size = 0.72f + amount * 0.16f; // 0.72 .. 0.88
+        const float damp = 0.22f;                        // Magashang elnyelés
+        const float dry_gain = 1.0f - amount * 0.20f;
+        const float wet_gain = amount * 1.50f;
 
         for (size_t i = 0; i < num_frames; ++i) {
             const float in_sample = channel_data[i];
@@ -226,7 +232,7 @@ void MixerFxProcessor::process(float *channel_data,
                 st.allpass_pos[a] = (st.allpass_pos[a] + 1) % len;
             }
 
-            channel_data[i] = in_sample + ap_sig * wet_gain;
+            channel_data[i] = in_sample * dry_gain + ap_sig * wet_gain;
         }
         return;
     }
@@ -235,8 +241,9 @@ void MixerFxProcessor::process(float *channel_data,
     // 4. 🟡 Sárga: Filter + Flanger (Stereo 90° Quadrature Jet Sweep)
     // =========================================================================
     if (type == MixerFxType::FILTER_FLANGER) {
-        const float wet_gain = amount * 0.70f;
-        const float feedback = 0.40f + amount * 0.45f; // 0.40 .. 0.85
+        const float dry_gain = 1.0f - amount * 0.15f;
+        const float wet_gain = amount * 1.30f;
+        const float feedback = 0.45f + amount * 0.35f; // 0.45 .. 0.80 (stabil, erőteljes Jet)
 
         // LFO frekvencia: ütemhez igazított 2 taktusos (8 ütem) söprés, vagy ~0.25 Hz
         float lfo_freq = 0.25f;
@@ -273,7 +280,7 @@ void MixerFxProcessor::process(float *channel_data,
             st.flanger_buf[st.flanger_write_pos] = std::clamp(in_sample + flg_delayed * feedback, -1.2f, 1.2f);
             st.flanger_write_pos = (st.flanger_write_pos + 1) % buf_size;
 
-            channel_data[i] = in_sample + flg_delayed * wet_gain;
+            channel_data[i] = in_sample * dry_gain + flg_delayed * wet_gain;
         }
         return;
     }
