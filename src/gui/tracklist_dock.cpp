@@ -1035,13 +1035,25 @@ void TracklistDock::processNextConversion()
     if (cancel_btn_) {
         cancel_btn_->setVisible(true);
     }
+    const auto target_res = selectedTargetResolution();
+    QString profile_str = QStringLiteral("1080p");
+    if (target_res == VideoConverter::TargetResolution::Res4K) profile_str = QStringLiteral("4K");
+    else if (target_res == VideoConverter::TargetResolution::Res1440p) profile_str = QStringLiteral("2K");
+    else if (target_res == VideoConverter::TargetResolution::Res720p) profile_str = QStringLiteral("720p");
+    else if (target_res == VideoConverter::TargetResolution::Auto) profile_str = QStringLiteral("Auto");
+
     if (status_lbl_) {
-        status_lbl_->setText(QStringLiteral("RTX 3060 NVENC 1080p All-Intra: %1").arg(QFileInfo(orig).fileName()));
+        status_lbl_->setText(QStringLiteral("RTX 3060 NVENC %1: %2").arg(profile_str, QFileInfo(orig).fileName()));
         status_lbl_->setStyleSheet(QStringLiteral("color: #00d2ff; font-size: 11px; font-weight: bold;"));
     }
 
-    converter_->setTargetResolution(selectedTargetResolution());
-    converter_->startConversion(orig, out_path, 1920, 1080);
+    const bool started = converter_->convertVideo(orig, library_dir_, target_res);
+    if (!started) {
+        item.status = QStringLiteral("Nem indítható");
+        active_conversion_idx_ = -1;
+        applyFilterAndPopulate();
+        processNextConversion();
+    }
 }
 
 VideoConverter::TargetResolution TracklistDock::selectedTargetResolution() const
@@ -1050,9 +1062,9 @@ VideoConverter::TargetResolution TracklistDock::selectedTargetResolution() const
     const int val = res_combo_->currentData().toInt();
     switch (val) {
         case 2160: return VideoConverter::TargetResolution::Res4K;
-        case 1440: return VideoConverter::TargetResolution::Res2K;
+        case 1440: return VideoConverter::TargetResolution::Res1440p;
         case 720:  return VideoConverter::TargetResolution::Res720p;
-        case 0:    return VideoConverter::TargetResolution::ResAuto;
+        case 0:    return VideoConverter::TargetResolution::Auto;
         default:   return VideoConverter::TargetResolution::Res1080p;
     }
 }
@@ -1128,7 +1140,7 @@ void TracklistDock::processNextAnalysis()
     }
 
     const int cur_idx = active_analysis_idx_;
-    AudioAnalyzer::analyzeAsync(target_file, [this, cur_idx](const TrackAnalysisResult &res) {
+    AudioAnalyzer::analyzeFileAsync(target_file, [this, cur_idx](const TrackAnalysisResult &res) {
         QMetaObject::invokeMethod(this, [this, cur_idx, res]() {
             if (cur_idx >= 0 && cur_idx < static_cast<int>(tracks_.size())) {
                 auto &track = tracks_[cur_idx];
