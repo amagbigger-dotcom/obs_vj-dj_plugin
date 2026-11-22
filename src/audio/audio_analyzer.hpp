@@ -35,16 +35,24 @@ struct TrackAnalysisResult {
 
     bool has_vj_config = false;
     VjDeckConfig vj_config;
+    bool has_vj_config_deck_a = false;
+    VjDeckConfig vj_config_deck_a;
+    bool has_vj_config_deck_b = false;
+    VjDeckConfig vj_config_deck_b;
+    bool has_master_fx = false;
+    MasterFxTrackConfig master_fx;
 };
 
 class AudioAnalyzer {
 public:
     static QString cacheFilePath(const QString &file_path);
-    static bool loadCache(const QString &file_path, TrackAnalysisResult &out_res);
+    static bool loadCache(const QString &file_path, TrackAnalysisResult &out_res, int deck_side = -1);
     static bool saveCache(const QString &file_path, const TrackAnalysisResult &res);
     static bool updateCacheUserEdits(const QString &file_path, double bpm, int64_t grid_offset_ms, int64_t cue_point_ms, int lock_bpm = -1, int lock_grid = -1);
     static bool updateCacheHotCues(const QString &file_path, const int64_t hot_cues[4]);
-    static bool updateCacheVjConfig(const QString &file_path, const VjDeckConfig &config);
+    static bool updateCacheVjConfig(const QString &file_path, const VjDeckConfig &config, int deck_side = -1);
+    static bool updateCacheMasterFxConfig(const QString &file_path, const MasterFxTrackConfig &cfg);
+    static bool loadCacheMasterFxConfig(const QString &file_path, MasterFxTrackConfig &out_cfg);
 
     static TrackAnalysisResult analyzeFile(const QString &file_path, bool force_reanalyze = false);
     static void analyzeFileAsync(const QString &file_path,

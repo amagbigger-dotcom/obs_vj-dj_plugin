@@ -347,8 +347,12 @@ void MixerChannelStrip::refresh()
     }
 
     if (meter_) {
-        const bool playing = deck_->isPlaying();
-        const int vol = static_cast<int>(deck_->volume() * deck_->gain() * 75.0f);
-        meter_->setValue(playing ? std::min(100, vol + (rand() % 10)) : 0);
+        float amp = 0.0f;
+        if (deck_ && deck_->isPlaying() && deck_->hasAudioBuffer() && !deck_->isAtEnd()) {
+            amp = deck_->currentAmplitude();
+        }
+        const float vol = (deck_ ? deck_->volume() : 0.8f) * (deck_ ? deck_->gain() : 1.0f);
+        const int level = static_cast<int>(std::clamp(amp * vol * 100.0f, 0.0f, 100.0f));
+        meter_->setValue(level);
     }
 }

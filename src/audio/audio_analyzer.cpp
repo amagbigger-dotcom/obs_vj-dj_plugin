@@ -19,9 +19,9 @@ QString AudioAnalyzer::cacheFilePath(const QString &file_path)
     return TrackCache::filePath(file_path);
 }
 
-bool AudioAnalyzer::loadCache(const QString &file_path, TrackAnalysisResult &out_res)
+bool AudioAnalyzer::loadCache(const QString &file_path, TrackAnalysisResult &out_res, int deck_side)
 {
-    return TrackCache::load(file_path, out_res);
+    return TrackCache::load(file_path, out_res, deck_side);
 }
 
 bool AudioAnalyzer::saveCache(const QString &file_path, const TrackAnalysisResult &res)
@@ -39,9 +39,19 @@ bool AudioAnalyzer::updateCacheHotCues(const QString &file_path, const int64_t h
     return TrackCache::updateHotCues(file_path, hot_cues);
 }
 
-bool AudioAnalyzer::updateCacheVjConfig(const QString &file_path, const VjDeckConfig &config)
+bool AudioAnalyzer::updateCacheVjConfig(const QString &file_path, const VjDeckConfig &config, int deck_side)
 {
-    return TrackCache::updateVjConfig(file_path, config);
+    return TrackCache::updateVjConfig(file_path, config, deck_side);
+}
+
+bool AudioAnalyzer::updateCacheMasterFxConfig(const QString &file_path, const MasterFxTrackConfig &cfg)
+{
+    return TrackCache::updateMasterFxConfig(file_path, cfg);
+}
+
+bool AudioAnalyzer::loadCacheMasterFxConfig(const QString &file_path, MasterFxTrackConfig &out_cfg)
+{
+    return TrackCache::loadMasterFxConfig(file_path, out_cfg);
 }
 
 TrackAnalysisResult AudioAnalyzer::analyzeFile(const QString &file_path, bool force_reanalyze)

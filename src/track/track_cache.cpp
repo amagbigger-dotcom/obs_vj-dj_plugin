@@ -14,7 +14,171 @@ QString TrackCache::filePath(const QString &media_file_path)
     return media_file_path + QStringLiteral(".vdj.json");
 }
 
-bool TrackCache::load(const QString &media_file_path, TrackAnalysisResult &out_res)
+static QJsonObject serializeVjConfig(const VjDeckConfig &config)
+{
+    QJsonObject vj_obj;
+    vj_obj.insert(QStringLiteral("shader_idx"), config.shader_idx);
+    vj_obj.insert(QStringLiteral("color_r"), std::round(config.custom_color_r * 1000.0) / 1000.0);
+    vj_obj.insert(QStringLiteral("color_g"), std::round(config.custom_color_g * 1000.0) / 1000.0);
+    vj_obj.insert(QStringLiteral("color_b"), std::round(config.custom_color_b * 1000.0) / 1000.0);
+    vj_obj.insert(QStringLiteral("color_mod"), config.color_mod_mode);
+    vj_obj.insert(QStringLiteral("rgb_inverted"), config.rgb_inverted);
+
+    QJsonObject all_s;
+    for (int s = 0; s < 64; ++s) {
+        QJsonArray s_arr;
+        for (int i = 0; i < 8; ++i) {
+            QJsonObject p_obj;
+            p_obj.insert(QStringLiteral("val"), std::round(config.all_shader_params[s][i].value * 10000.0) / 10000.0);
+            p_obj.insert(QStringLiteral("mod"), config.all_shader_params[s][i].mod_mode);
+            p_obj.insert(QStringLiteral("depth"), std::round(config.all_shader_params[s][i].mod_depth * 1000.0) / 1000.0);
+            s_arr.append(p_obj);
+        }
+        all_s.insert(QString::number(s), s_arr);
+    }
+    vj_obj.insert(QStringLiteral("all_shaders"), all_s);
+
+    QJsonArray p_arr;
+    for (int i = 0; i < 8; ++i) {
+        QJsonObject p_obj;
+        p_obj.insert(QStringLiteral("val"), std::round(config.params[i].value * 10000.0) / 10000.0);
+        p_obj.insert(QStringLiteral("mod"), config.params[i].mod_mode);
+        p_obj.insert(QStringLiteral("depth"), std::round(config.params[i].mod_depth * 1000.0) / 1000.0);
+        p_arr.append(p_obj);
+    }
+    vj_obj.insert(QStringLiteral("params"), p_arr);
+    return vj_obj;
+}
+
+static VjDeckConfig deserializeVjConfig(const QJsonObject &vj_obj)
+{
+    const int s_idx = std::clamp(vj_obj.value(QStringLiteral("shader_idx")).toInt(0), 0, 63);
+    VjDeckConfig cfg = getDefaultVjConfig(s_idx);
+    cfg.shader_idx = s_idx;
+    cfg.custom_color_r = static_cast<float>(vj_obj.value(QStringLiteral("color_r")).toDouble(-1.0));
+    cfg.custom_color_g = static_cast<float>(vj_obj.value(QStringLiteral("color_g")).toDouble(-1.0));
+    cfg.custom_color_b = static_cast<float>(vj_obj.value(QStringLiteral("color_b")).toDouble(-1.0));
+    cfg.color_mod_mode = vj_obj.value(QStringLiteral("color_mod")).toInt(0);
+    cfg.rgb_inverted = vj_obj.value(QStringLiteral("rgb_inverted")).toBool(false);
+
+    if (vj_obj.contains(QStringLiteral("all_shaders"))) {
+        QJsonObject all_s = vj_obj.value(QStringLiteral("all_shaders")).toObject();
+        for (int s = 0; s < 64; ++s) {
+            const QString key = QString::number(s);
+            if (all_s.contains(key)) {
+                QJsonArray s_arr = all_s.value(key).toArray();
+                for (int i = 0; i < std::min<int>(8, static_cast<int>(s_arr.size())); ++i) {
+                    QJsonObject p_obj = s_arr[i].toObject();
+                    cfg.all_shader_params[s][i].value = static_cast<float>(p_obj.value(QStringLiteral("val")).toDouble(1.0));
+                    cfg.all_shader_params[s][i].mod_mode = p_obj.value(QStringLiteral("mod")).toInt(0);
+                    cfg.all_shader_params[s][i].mod_depth = static_cast<float>(p_obj.value(QStringLiteral("depth")).toDouble(0.0));
+                }
+            }
+        }
+    }
+
+    QJsonArray p_arr = vj_obj.value(QStringLiteral("params")).toArray();
+    for (int i = 0; i < std::min<int>(8, static_cast<int>(p_arr.size())); ++i) {
+        QJsonObject p_obj = p_arr[i].toObject();
+        cfg.params[i].value = static_cast<float>(p_obj.value(QStringLiteral("val")).toDouble(1.0));
+        cfg.params[i].mod_mode = p_obj.value(QStringLiteral("mod")).toInt(0);
+        cfg.params[i].mod_depth = static_cast<float>(p_obj.value(QStringLiteral("depth")).toDouble(0.0));
+    }
+    cfg.all_shader_params[s_idx] = cfg.params;
+    return cfg;
+}
+
+static QJsonObject serializeMasterFx(const MasterFxTrackConfig &cfg)
+{
+    QJsonObject obj;
+    obj.insert(QStringLiteral("cf_mode"), cfg.crossfade_fx_mode);
+    obj.insert(QStringLiteral("intensity"), std::round(cfg.intensity * 1000.0) / 1000.0);
+    obj.insert(QStringLiteral("intensity_mod"), cfg.intensity_mod);
+    obj.insert(QStringLiteral("rate"), std::round(cfg.rate * 1000.0) / 1000.0);
+    obj.insert(QStringLiteral("rate_mod"), cfg.rate_mod);
+    obj.insert(QStringLiteral("blend_boost"), std::round(cfg.blend_boost * 1000.0) / 1000.0);
+
+    QJsonObject all_p;
+    for (int m = 0; m < 16; ++m) {
+        QJsonArray p_arr;
+        for (int i = 0; i < 8; ++i) {
+            QJsonObject p_obj;
+            p_obj.insert(QStringLiteral("val"), std::round(cfg.fx_params[m][i].value * 10000.0) / 10000.0);
+            p_obj.insert(QStringLiteral("mod"), cfg.fx_params[m][i].mod_mode);
+            p_obj.insert(QStringLiteral("depth"), std::round(cfg.fx_params[m][i].mod_depth * 1000.0) / 1000.0);
+            p_arr.append(p_obj);
+        }
+        all_p.insert(QString::number(m), p_arr);
+    }
+    obj.insert(QStringLiteral("fx_params"), all_p);
+
+    QJsonObject lfo1_obj;
+    lfo1_obj.insert(QStringLiteral("waveform"), cfg.lfo1.waveform);
+    lfo1_obj.insert(QStringLiteral("rate_idx"), cfg.lfo1.rate_idx);
+    lfo1_obj.insert(QStringLiteral("depth"), std::round(cfg.lfo1.depth * 1000.0) / 1000.0);
+    lfo1_obj.insert(QStringLiteral("offset"), std::round(cfg.lfo1.offset * 1000.0) / 1000.0);
+    lfo1_obj.insert(QStringLiteral("phase_deg"), std::round(cfg.lfo1.phase_deg * 10.0) / 10.0);
+    obj.insert(QStringLiteral("lfo1"), lfo1_obj);
+
+    QJsonObject lfo2_obj;
+    lfo2_obj.insert(QStringLiteral("waveform"), cfg.lfo2.waveform);
+    lfo2_obj.insert(QStringLiteral("rate_idx"), cfg.lfo2.rate_idx);
+    lfo2_obj.insert(QStringLiteral("depth"), std::round(cfg.lfo2.depth * 1000.0) / 1000.0);
+    lfo2_obj.insert(QStringLiteral("offset"), std::round(cfg.lfo2.offset * 1000.0) / 1000.0);
+    lfo2_obj.insert(QStringLiteral("phase_deg"), std::round(cfg.lfo2.phase_deg * 10.0) / 10.0);
+    obj.insert(QStringLiteral("lfo2"), lfo2_obj);
+
+    return obj;
+}
+
+static MasterFxTrackConfig deserializeMasterFx(const QJsonObject &obj)
+{
+    MasterFxTrackConfig cfg;
+    cfg.valid = true;
+    cfg.crossfade_fx_mode = std::clamp(obj.value(QStringLiteral("cf_mode")).toInt(0), 0, 15);
+    cfg.intensity = static_cast<float>(obj.value(QStringLiteral("intensity")).toDouble(1.0));
+    cfg.intensity_mod = std::clamp(obj.value(QStringLiteral("intensity_mod")).toInt(0), 0, 7);
+    cfg.rate = static_cast<float>(obj.value(QStringLiteral("rate")).toDouble(1.0));
+    cfg.rate_mod = std::clamp(obj.value(QStringLiteral("rate_mod")).toInt(0), 0, 7);
+    cfg.blend_boost = static_cast<float>(obj.value(QStringLiteral("blend_boost")).toDouble(1.0));
+
+    if (obj.contains(QStringLiteral("fx_params"))) {
+        QJsonObject all_p = obj.value(QStringLiteral("fx_params")).toObject();
+        for (int m = 0; m < 16; ++m) {
+            const QString k = QString::number(m);
+            if (all_p.contains(k)) {
+                QJsonArray p_arr = all_p.value(k).toArray();
+                for (int i = 0; i < std::min<int>(8, static_cast<int>(p_arr.size())); ++i) {
+                    QJsonObject p_obj = p_arr[i].toObject();
+                    cfg.fx_params[m][i].value = static_cast<float>(p_obj.value(QStringLiteral("val")).toDouble(1.0));
+                    cfg.fx_params[m][i].mod_mode = std::clamp(p_obj.value(QStringLiteral("mod")).toInt(0), 0, 7);
+                    cfg.fx_params[m][i].mod_depth = static_cast<float>(p_obj.value(QStringLiteral("depth")).toDouble(0.0));
+                }
+            }
+        }
+    }
+
+    if (obj.contains(QStringLiteral("lfo1"))) {
+        QJsonObject l1 = obj.value(QStringLiteral("lfo1")).toObject();
+        cfg.lfo1.waveform = std::clamp(l1.value(QStringLiteral("waveform")).toInt(0), 0, 4);
+        cfg.lfo1.rate_idx = std::clamp(l1.value(QStringLiteral("rate_idx")).toInt(6), 0, 10);
+        cfg.lfo1.depth = static_cast<float>(l1.value(QStringLiteral("depth")).toDouble(1.0));
+        cfg.lfo1.offset = static_cast<float>(l1.value(QStringLiteral("offset")).toDouble(0.0));
+        cfg.lfo1.phase_deg = static_cast<float>(l1.value(QStringLiteral("phase_deg")).toDouble(0.0));
+    }
+    if (obj.contains(QStringLiteral("lfo2"))) {
+        QJsonObject l2 = obj.value(QStringLiteral("lfo2")).toObject();
+        cfg.lfo2.waveform = std::clamp(l2.value(QStringLiteral("waveform")).toInt(0), 0, 4);
+        cfg.lfo2.rate_idx = std::clamp(l2.value(QStringLiteral("rate_idx")).toInt(6), 0, 10);
+        cfg.lfo2.depth = static_cast<float>(l2.value(QStringLiteral("depth")).toDouble(1.0));
+        cfg.lfo2.offset = static_cast<float>(l2.value(QStringLiteral("offset")).toDouble(0.0));
+        cfg.lfo2.phase_deg = static_cast<float>(l2.value(QStringLiteral("phase_deg")).toDouble(0.0));
+    }
+
+    return cfg;
+}
+
+bool TrackCache::load(const QString &media_file_path, TrackAnalysisResult &out_res, int deck_side)
 {
     const QString cache_path = filePath(media_file_path);
     QFile file(cache_path);
@@ -98,42 +262,42 @@ bool TrackCache::load(const QString &media_file_path, TrackAnalysisResult &out_r
         out_res.overview_tonus.assign(out_res.overview_peaks.size(), 0.5f);
     }
 
+    if (root.contains(QStringLiteral("vj_shader_deck_a"))) {
+        out_res.vj_config_deck_a = deserializeVjConfig(root.value(QStringLiteral("vj_shader_deck_a")).toObject());
+        out_res.has_vj_config_deck_a = true;
+    }
+    if (root.contains(QStringLiteral("vj_shader_deck_b"))) {
+        out_res.vj_config_deck_b = deserializeVjConfig(root.value(QStringLiteral("vj_shader_deck_b")).toObject());
+        out_res.has_vj_config_deck_b = true;
+    }
     if (root.contains(QStringLiteral("vj_shader"))) {
-        QJsonObject vj_obj = root.value(QStringLiteral("vj_shader")).toObject();
-        const int s_idx = std::clamp(vj_obj.value(QStringLiteral("shader_idx")).toInt(0), 0, 63);
-        out_res.vj_config = getDefaultVjConfig(s_idx);
-        out_res.vj_config.shader_idx = s_idx;
-        out_res.vj_config.custom_color_r = static_cast<float>(vj_obj.value(QStringLiteral("color_r")).toDouble(-1.0));
-        out_res.vj_config.custom_color_g = static_cast<float>(vj_obj.value(QStringLiteral("color_g")).toDouble(-1.0));
-        out_res.vj_config.custom_color_b = static_cast<float>(vj_obj.value(QStringLiteral("color_b")).toDouble(-1.0));
-        out_res.vj_config.color_mod_mode = vj_obj.value(QStringLiteral("color_mod")).toInt(0);
-        out_res.vj_config.rgb_inverted = vj_obj.value(QStringLiteral("rgb_inverted")).toBool(false);
-
-        if (vj_obj.contains(QStringLiteral("all_shaders"))) {
-            QJsonObject all_s = vj_obj.value(QStringLiteral("all_shaders")).toObject();
-            for (int s = 0; s < 64; ++s) {
-                const QString key = QString::number(s);
-                if (all_s.contains(key)) {
-                    QJsonArray s_arr = all_s.value(key).toArray();
-                    for (int i = 0; i < std::min<int>(8, static_cast<int>(s_arr.size())); ++i) {
-                        QJsonObject p_obj = s_arr[i].toObject();
-                        out_res.vj_config.all_shader_params[s][i].value = static_cast<float>(p_obj.value(QStringLiteral("val")).toDouble(1.0));
-                        out_res.vj_config.all_shader_params[s][i].mod_mode = p_obj.value(QStringLiteral("mod")).toInt(0);
-                        out_res.vj_config.all_shader_params[s][i].mod_depth = static_cast<float>(p_obj.value(QStringLiteral("depth")).toDouble(0.0));
-                    }
-                }
-            }
-        }
-
-        QJsonArray p_arr = vj_obj.value(QStringLiteral("params")).toArray();
-        for (int i = 0; i < std::min<int>(8, static_cast<int>(p_arr.size())); ++i) {
-            QJsonObject p_obj = p_arr[i].toObject();
-            out_res.vj_config.params[i].value = static_cast<float>(p_obj.value(QStringLiteral("val")).toDouble(1.0));
-            out_res.vj_config.params[i].mod_mode = p_obj.value(QStringLiteral("mod")).toInt(0);
-            out_res.vj_config.params[i].mod_depth = static_cast<float>(p_obj.value(QStringLiteral("depth")).toDouble(0.0));
-        }
-        out_res.vj_config.all_shader_params[s_idx] = out_res.vj_config.params;
+        out_res.vj_config = deserializeVjConfig(root.value(QStringLiteral("vj_shader")).toObject());
         out_res.has_vj_config = true;
+    }
+
+    if (deck_side == 0) {
+        if (out_res.has_vj_config_deck_a) {
+            out_res.vj_config = out_res.vj_config_deck_a;
+            out_res.has_vj_config = true;
+        }
+    } else if (deck_side == 1) {
+        if (out_res.has_vj_config_deck_b) {
+            out_res.vj_config = out_res.vj_config_deck_b;
+            out_res.has_vj_config = true;
+        }
+    } else {
+        if (out_res.has_vj_config_deck_a) {
+            out_res.vj_config = out_res.vj_config_deck_a;
+            out_res.has_vj_config = true;
+        } else if (out_res.has_vj_config_deck_b) {
+            out_res.vj_config = out_res.vj_config_deck_b;
+            out_res.has_vj_config = true;
+        }
+    }
+
+    if (root.contains(QStringLiteral("master_fx"))) {
+        out_res.master_fx = deserializeMasterFx(root.value(QStringLiteral("master_fx")).toObject());
+        out_res.has_master_fx = true;
     }
 
     out_res.waveform_peaks = out_res.overview_peaks;
@@ -187,39 +351,17 @@ bool TrackCache::save(const QString &media_file_path, const TrackAnalysisResult 
     }
     root.insert(QStringLiteral("detailed_peaks"), det_arr);
 
+    if (res.has_vj_config_deck_a) {
+        root.insert(QStringLiteral("vj_shader_deck_a"), serializeVjConfig(res.vj_config_deck_a));
+    }
+    if (res.has_vj_config_deck_b) {
+        root.insert(QStringLiteral("vj_shader_deck_b"), serializeVjConfig(res.vj_config_deck_b));
+    }
     if (res.has_vj_config) {
-        QJsonObject vj_obj;
-        vj_obj.insert(QStringLiteral("shader_idx"), res.vj_config.shader_idx);
-        vj_obj.insert(QStringLiteral("color_r"), std::round(res.vj_config.custom_color_r * 1000.0) / 1000.0);
-        vj_obj.insert(QStringLiteral("color_g"), std::round(res.vj_config.custom_color_g * 1000.0) / 1000.0);
-        vj_obj.insert(QStringLiteral("color_b"), std::round(res.vj_config.custom_color_b * 1000.0) / 1000.0);
-        vj_obj.insert(QStringLiteral("color_mod"), res.vj_config.color_mod_mode);
-        vj_obj.insert(QStringLiteral("rgb_inverted"), res.vj_config.rgb_inverted);
-
-        QJsonObject all_s;
-        for (int s = 0; s < 64; ++s) {
-            QJsonArray s_arr;
-            for (int i = 0; i < 8; ++i) {
-                QJsonObject p_obj;
-                p_obj.insert(QStringLiteral("val"), std::round(res.vj_config.all_shader_params[s][i].value * 10000.0) / 10000.0);
-                p_obj.insert(QStringLiteral("mod"), res.vj_config.all_shader_params[s][i].mod_mode);
-                p_obj.insert(QStringLiteral("depth"), std::round(res.vj_config.all_shader_params[s][i].mod_depth * 1000.0) / 1000.0);
-                s_arr.append(p_obj);
-            }
-            all_s.insert(QString::number(s), s_arr);
-        }
-        vj_obj.insert(QStringLiteral("all_shaders"), all_s);
-
-        QJsonArray p_arr;
-        for (int i = 0; i < 8; ++i) {
-            QJsonObject p_obj;
-            p_obj.insert(QStringLiteral("val"), std::round(res.vj_config.params[i].value * 10000.0) / 10000.0);
-            p_obj.insert(QStringLiteral("mod"), res.vj_config.params[i].mod_mode);
-            p_obj.insert(QStringLiteral("depth"), std::round(res.vj_config.params[i].mod_depth * 1000.0) / 1000.0);
-            p_arr.append(p_obj);
-        }
-        vj_obj.insert(QStringLiteral("params"), p_arr);
-        root.insert(QStringLiteral("vj_shader"), vj_obj);
+        root.insert(QStringLiteral("vj_shader"), serializeVjConfig(res.vj_config));
+    }
+    if (res.has_master_fx) {
+        root.insert(QStringLiteral("master_fx"), serializeMasterFx(res.master_fx));
     }
 
     QFile file(cache_path);
@@ -231,7 +373,7 @@ bool TrackCache::save(const QString &media_file_path, const TrackAnalysisResult 
     return true;
 }
 
-bool TrackCache::updateVjConfig(const QString &media_file_path, const VjDeckConfig &config)
+bool TrackCache::updateVjConfig(const QString &media_file_path, const VjDeckConfig &config, int deck_side)
 {
     const QString cache_path = filePath(media_file_path);
     QFile file(cache_path);
@@ -241,42 +383,59 @@ bool TrackCache::updateVjConfig(const QString &media_file_path, const VjDeckConf
         file.close();
     }
 
-    QJsonObject vj_obj;
-    vj_obj.insert(QStringLiteral("shader_idx"), config.shader_idx);
-    vj_obj.insert(QStringLiteral("color_r"), std::round(config.custom_color_r * 1000.0) / 1000.0);
-    vj_obj.insert(QStringLiteral("color_g"), std::round(config.custom_color_g * 1000.0) / 1000.0);
-    vj_obj.insert(QStringLiteral("color_b"), std::round(config.custom_color_b * 1000.0) / 1000.0);
-    vj_obj.insert(QStringLiteral("color_mod"), config.color_mod_mode);
-    vj_obj.insert(QStringLiteral("rgb_inverted"), config.rgb_inverted);
-
-    QJsonObject all_s;
-    for (int s = 0; s < 64; ++s) {
-        QJsonArray s_arr;
-        for (int i = 0; i < 8; ++i) {
-            QJsonObject p_obj;
-            p_obj.insert(QStringLiteral("val"), std::round(config.all_shader_params[s][i].value * 10000.0) / 10000.0);
-            p_obj.insert(QStringLiteral("mod"), config.all_shader_params[s][i].mod_mode);
-            p_obj.insert(QStringLiteral("depth"), std::round(config.all_shader_params[s][i].mod_depth * 1000.0) / 1000.0);
-            s_arr.append(p_obj);
-        }
-        all_s.insert(QString::number(s), s_arr);
+    QJsonObject vj_obj = serializeVjConfig(config);
+    if (deck_side == 0) {
+        root.insert(QStringLiteral("vj_shader_deck_a"), vj_obj);
+        root.insert(QStringLiteral("vj_shader"), vj_obj);
+    } else if (deck_side == 1) {
+        root.insert(QStringLiteral("vj_shader_deck_b"), vj_obj);
+        root.insert(QStringLiteral("vj_shader"), vj_obj);
+    } else {
+        root.insert(QStringLiteral("vj_shader"), vj_obj);
     }
-    vj_obj.insert(QStringLiteral("all_shaders"), all_s);
-
-    QJsonArray p_arr;
-    for (int i = 0; i < 8; ++i) {
-        QJsonObject p_obj;
-        p_obj.insert(QStringLiteral("val"), std::round(config.params[i].value * 10000.0) / 10000.0);
-        p_obj.insert(QStringLiteral("mod"), config.params[i].mod_mode);
-        p_obj.insert(QStringLiteral("depth"), std::round(config.params[i].mod_depth * 1000.0) / 1000.0);
-        p_arr.append(p_obj);
-    }
-    vj_obj.insert(QStringLiteral("params"), p_arr);
-    root.insert(QStringLiteral("vj_shader"), vj_obj);
 
     if (file.open(QIODevice::WriteOnly)) {
         file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
         file.close();
+        return true;
+    }
+    return false;
+}
+
+bool TrackCache::updateMasterFxConfig(const QString &media_file_path, const MasterFxTrackConfig &cfg)
+{
+    if (!cfg.valid || media_file_path.isEmpty()) return false;
+    const QString cache_path = filePath(media_file_path);
+    QFile file(cache_path);
+    QJsonObject root;
+    if (file.exists() && file.open(QIODevice::ReadOnly)) {
+        root = QJsonDocument::fromJson(file.readAll()).object();
+        file.close();
+    }
+
+    root.insert(QStringLiteral("master_fx"), serializeMasterFx(cfg));
+
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        file.close();
+        return true;
+    }
+    return false;
+}
+
+bool TrackCache::loadMasterFxConfig(const QString &media_file_path, MasterFxTrackConfig &out_cfg)
+{
+    if (media_file_path.isEmpty()) return false;
+    const QString cache_path = filePath(media_file_path);
+    QFile file(cache_path);
+    if (!file.exists() || !file.open(QIODevice::ReadOnly))
+        return false;
+
+    QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
+    file.close();
+
+    if (root.contains(QStringLiteral("master_fx"))) {
+        out_cfg = deserializeMasterFx(root.value(QStringLiteral("master_fx")).toObject());
         return true;
     }
     return false;

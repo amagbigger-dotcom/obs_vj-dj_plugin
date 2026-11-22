@@ -352,17 +352,17 @@ public:
     void setCrossfadeFxTransBeats(int beats) noexcept { cf_fx_trans_beats_.store(std::clamp(beats, 0, 16), std::memory_order_relaxed); }
 
     float crossfadeFxIntensity() const noexcept { return cf_fx_intensity_.load(std::memory_order_relaxed); }
-    void setCrossfadeFxIntensity(float val) noexcept { cf_fx_intensity_.store(std::clamp(val, 0.0f, 2.0f), std::memory_order_relaxed); }
+    void setCrossfadeFxIntensity(float val) noexcept;
     int crossfadeFxIntensityMod() const noexcept { return cf_fx_intensity_mod_.load(std::memory_order_relaxed); }
-    void setCrossfadeFxIntensityMod(int m) noexcept { cf_fx_intensity_mod_.store(std::clamp(m, 0, 3), std::memory_order_relaxed); }
+    void setCrossfadeFxIntensityMod(int m) noexcept;
 
     float crossfadeFxRate() const noexcept { return cf_fx_rate_.load(std::memory_order_relaxed); }
-    void setCrossfadeFxRate(float val) noexcept { cf_fx_rate_.store(std::clamp(val, 0.1f, 3.0f), std::memory_order_relaxed); }
+    void setCrossfadeFxRate(float val) noexcept;
     int crossfadeFxRateMod() const noexcept { return cf_fx_rate_mod_.load(std::memory_order_relaxed); }
-    void setCrossfadeFxRateMod(int m) noexcept { cf_fx_rate_mod_.store(std::clamp(m, 0, 3), std::memory_order_relaxed); }
+    void setCrossfadeFxRateMod(int m) noexcept;
 
     float crossfadeFxBlendBoost() const noexcept { return cf_fx_blend_boost_.load(std::memory_order_relaxed); }
-    void setCrossfadeFxBlendBoost(float val) noexcept { cf_fx_blend_boost_.store(std::clamp(val, 0.5f, 2.5f), std::memory_order_relaxed); }
+    void setCrossfadeFxBlendBoost(float val) noexcept;
 
     float crossfadeFxParamValue(int fx_mode, int param_idx) const noexcept;
     void setCrossfadeFxParamValue(int fx_mode, int param_idx, float val) noexcept;
@@ -371,6 +371,14 @@ public:
     float crossfadeFxParamModDepth(int fx_mode, int param_idx) const noexcept;
     void setCrossfadeFxParamModDepth(int fx_mode, int param_idx, float depth) noexcept;
     void resetCrossfadeFxParams(int fx_mode) noexcept;
+
+    // Master FX Priority & Delayed Handover
+    void notifyTrackLoaded(int deck_idx, const QString &file_path);
+    void checkAndExecutePendingHandover() noexcept;
+    void applyMasterFxConfig(const MasterFxTrackConfig &cfg) noexcept;
+    void saveMasterFxToPriorityTrack() noexcept;
+    MasterFxTrackConfig currentMasterFxConfig() const noexcept;
+    int masterFxPriorityDeck() const noexcept { return master_fx_priority_deck_.load(std::memory_order_relaxed); }
 
     // Dual BPM-Synced LFO Engine
     LfoConfig lfo1Config() const noexcept;
@@ -457,6 +465,14 @@ private:
     std::atomic<float> cf_fx_params_val_[16][8];
     std::atomic<int> cf_fx_params_mod_[16][8];
     std::atomic<float> cf_fx_params_depth_[16][8];
+    std::atomic<int> master_fx_priority_deck_{-1};
+    std::atomic<bool> pending_fx_handover_ready_{false};
+    std::atomic<bool> is_applying_cached_fx_{false};
+    std::atomic<uint64_t> track_loaded_ns_a_{0};
+    std::atomic<uint64_t> track_loaded_ns_b_{0};
+    MasterFxTrackConfig cached_fx_config_a_{};
+    MasterFxTrackConfig cached_fx_config_b_{};
+    mutable std::mutex fx_cache_mutex_;
     mutable std::mutex lfo_mutex_;
     LfoConfig lfo1_config_{0, 6, 1.0f, 0.0f, 0.0f};
     LfoConfig lfo2_config_{1, 4, 1.0f, 0.0f, 90.0f};

@@ -184,6 +184,7 @@ void DeckPlayer::loadFile(const QString &path)
             const int other_master = (side() == DeckSide::A) ? DeckPair::MASTER_DECK_B : DeckPair::MASTER_DECK_A;
             dp->setMasterMode(other_master);
         }
+        dp->notifyTrackLoaded((side() == DeckSide::B) ? 1 : 0, path);
     }
 
     clearAudioBuffer();
@@ -845,6 +846,10 @@ void DeckPlayer::setVjParamModDepth(int param_idx, float depth) noexcept
 
 void DeckPlayer::setVjShaderIdx(int idx) noexcept
 {
+    DeckPair *dp = vdj_decks();
+    if (dp) {
+        dp->checkAndExecutePendingHandover();
+    }
     const int new_s = std::clamp(idx, 0, 63);
     int old_s = 0;
     bool changed = false;
@@ -911,7 +916,8 @@ void DeckPlayer::saveVjConfigToCache()
     const QString fp = filePath();
     if (fp.isEmpty()) return;
     VjDeckConfig cfg = vjConfig();
-    AudioAnalyzer::updateCacheVjConfig(fp, cfg);
+    const int deck_side = (side() == DeckSide::B) ? 1 : 0;
+    AudioAnalyzer::updateCacheVjConfig(fp, cfg, deck_side);
 }
 
 void DeckPlayer::loadVjConfigFromCache()
@@ -919,7 +925,8 @@ void DeckPlayer::loadVjConfigFromCache()
     const QString fp = filePath();
     if (fp.isEmpty()) return;
     TrackAnalysisResult res;
-    if (AudioAnalyzer::loadCache(fp, res) && res.has_vj_config) {
+    const int deck_side = (side() == DeckSide::B) ? 1 : 0;
+    if (AudioAnalyzer::loadCache(fp, res, deck_side) && res.has_vj_config) {
         std::lock_guard<std::mutex> lock(vj_config_mutex_);
         vj_config_ = res.vj_config;
         const int s = std::clamp(vj_config_.shader_idx, 0, 63);
@@ -1689,6 +1696,36 @@ DeckPair::DeckPair()
     cue_thread_ = std::thread(&DeckPair::cueWorkerLoop, this);
 }
 
+void DeckPair::setCrossfadeFxIntensity(float val) noexcept
+{
+    cf_fx_intensity_.store(std::clamp(val, 0.0f, 2.0f), std::memory_order_relaxed);
+    saveMasterFxToPriorityTrack();
+}
+
+void DeckPair::setCrossfadeFxIntensityMod(int m) noexcept
+{
+    cf_fx_intensity_mod_.store(std::clamp(m, 0, 3), std::memory_order_relaxed);
+    saveMasterFxToPriorityTrack();
+}
+
+void DeckPair::setCrossfadeFxRate(float val) noexcept
+{
+    cf_fx_rate_.store(std::clamp(val, 0.1f, 3.0f), std::memory_order_relaxed);
+    saveMasterFxToPriorityTrack();
+}
+
+void DeckPair::setCrossfadeFxRateMod(int m) noexcept
+{
+    cf_fx_rate_mod_.store(std::clamp(m, 0, 3), std::memory_order_relaxed);
+    saveMasterFxToPriorityTrack();
+}
+
+void DeckPair::setCrossfadeFxBlendBoost(float val) noexcept
+{
+    cf_fx_blend_boost_.store(std::clamp(val, 0.5f, 2.5f), std::memory_order_relaxed);
+    saveMasterFxToPriorityTrack();
+}
+
 float DeckPair::crossfadeFxParamValue(int fx_mode, int param_idx) const noexcept
 {
     const int m = std::clamp(fx_mode, 0, 15);
@@ -1701,6 +1738,7 @@ void DeckPair::setCrossfadeFxParamValue(int fx_mode, int param_idx, float val) n
     const int m = std::clamp(fx_mode, 0, 15);
     const int i = std::clamp(param_idx, 0, 7);
     cf_fx_params_val_[m][i].store(val, std::memory_order_relaxed);
+    saveMasterFxToPriorityTrack();
 }
 
 int DeckPair::crossfadeFxParamMod(int fx_mode, int param_idx) const noexcept
@@ -1715,6 +1753,7 @@ void DeckPair::setCrossfadeFxParamMod(int fx_mode, int param_idx, int mod) noexc
     const int m = std::clamp(fx_mode, 0, 15);
     const int i = std::clamp(param_idx, 0, 7);
     cf_fx_params_mod_[m][i].store(std::clamp(mod, 0, 7), std::memory_order_relaxed);
+    saveMasterFxToPriorityTrack();
 }
 
 float DeckPair::crossfadeFxParamModDepth(int fx_mode, int param_idx) const noexcept
@@ -1729,6 +1768,7 @@ void DeckPair::setCrossfadeFxParamModDepth(int fx_mode, int param_idx, float dep
     const int m = std::clamp(fx_mode, 0, 15);
     const int i = std::clamp(param_idx, 0, 7);
     cf_fx_params_depth_[m][i].store(std::clamp(depth, -1.0f, 1.0f), std::memory_order_relaxed);
+    saveMasterFxToPriorityTrack();
 }
 
 void DeckPair::resetCrossfadeFxParams(int fx_mode) noexcept
@@ -1744,6 +1784,7 @@ void DeckPair::resetCrossfadeFxParams(int fx_mode) noexcept
         cf_fx_params_mod_[m][i].store(0, std::memory_order_relaxed);
         cf_fx_params_depth_[m][i].store(0.0f, std::memory_order_relaxed);
     }
+    saveMasterFxToPriorityTrack();
 }
 
 LfoConfig DeckPair::lfo1Config() const noexcept
@@ -1754,8 +1795,11 @@ LfoConfig DeckPair::lfo1Config() const noexcept
 
 void DeckPair::setLfo1Config(const LfoConfig &cfg) noexcept
 {
-    std::lock_guard<std::mutex> lock(lfo_mutex_);
-    lfo1_config_ = cfg;
+    {
+        std::lock_guard<std::mutex> lock(lfo_mutex_);
+        lfo1_config_ = cfg;
+    }
+    saveMasterFxToPriorityTrack();
 }
 
 LfoConfig DeckPair::lfo2Config() const noexcept
@@ -1765,6 +1809,13 @@ LfoConfig DeckPair::lfo2Config() const noexcept
 }
 
 void DeckPair::setLfo2Config(const LfoConfig &cfg) noexcept
+{
+    {
+        std::lock_guard<std::mutex> lock(lfo_mutex_);
+        lfo2_config_ = cfg;
+    }
+    saveMasterFxToPriorityTrack();
+}
 {
     std::lock_guard<std::mutex> lock(lfo_mutex_);
     lfo2_config_ = cfg;
@@ -1836,6 +1887,7 @@ int DeckPair::transitionMode() const noexcept
 
 void DeckPair::setCrossfadeFxMode(int mode) noexcept
 {
+    checkAndExecutePendingHandover();
     const int new_m = std::clamp(mode, 0, 15);
     const int cur_m = crossfade_fx_mode_.load(std::memory_order_relaxed);
     if (new_m != cur_m) {
@@ -1864,6 +1916,7 @@ void DeckPair::setCrossfadeFxMode(int mode) noexcept
             cf_fx_trans_progress_.store(0.0f, std::memory_order_relaxed);
         }
     }
+    saveMasterFxToPriorityTrack();
 }
 
 void DeckPair::updateCrossfadeFxTransition(float dt_sec) noexcept
@@ -2052,6 +2105,23 @@ void DeckPair::updateSync()
     } else if (mode == MASTER_DECK_B && (!db->isPlaying() || db->isAtEnd())) {
         if (da->isPlaying()) {
             setMasterMode(MASTER_DECK_A);
+        }
+    }
+
+    // Master FX prioritás figyelése: ha a prioritásban lévő szám lejár vagy megáll,
+    // felkészülünk a késleltetett prioritás-átadásra (pending handover), de NEM rántjuk be azonnal
+    const int prio = master_fx_priority_deck_.load(std::memory_order_relaxed);
+    if (prio == 0) {
+        if (da && (!da->isPlaying() || da->isAtEnd())) {
+            if (db && !db->filePath().isEmpty()) {
+                pending_fx_handover_ready_.store(true, std::memory_order_relaxed);
+            }
+        }
+    } else if (prio == 1) {
+        if (db && (!db->isPlaying() || db->isAtEnd())) {
+            if (da && !da->filePath().isEmpty()) {
+                pending_fx_handover_ready_.store(true, std::memory_order_relaxed);
+            }
         }
     }
 
@@ -2405,4 +2475,145 @@ void DeckPair::cueWorkerLoop()
     }
 
     wasapi_out.close();
+}
+
+MasterFxTrackConfig DeckPair::currentMasterFxConfig() const noexcept
+{
+    MasterFxTrackConfig cfg;
+    cfg.valid = true;
+    cfg.crossfade_fx_mode = crossfadeFxMode();
+    cfg.intensity = crossfadeFxIntensity();
+    cfg.intensity_mod = crossfadeFxIntensityMod();
+    cfg.rate = crossfadeFxRate();
+    cfg.rate_mod = crossfadeFxRateMod();
+    cfg.blend_boost = crossfadeFxBlendBoost();
+
+    for (int m = 0; m < 16; ++m) {
+        for (int i = 0; i < 8; ++i) {
+            cfg.fx_params[m][i].value = crossfadeFxParamValue(m, i);
+            cfg.fx_params[m][i].mod_mode = crossfadeFxParamMod(m, i);
+            cfg.fx_params[m][i].mod_depth = crossfadeFxParamModDepth(m, i);
+        }
+    }
+    cfg.lfo1 = lfo1Config();
+    cfg.lfo2 = lfo2Config();
+    return cfg;
+}
+
+void DeckPair::applyMasterFxConfig(const MasterFxTrackConfig &cfg) noexcept
+{
+    if (!cfg.valid) return;
+    setCrossfadeFxMode(cfg.crossfade_fx_mode);
+    setCrossfadeFxIntensity(cfg.intensity);
+    setCrossfadeFxIntensityMod(cfg.intensity_mod);
+    setCrossfadeFxRate(cfg.rate);
+    setCrossfadeFxRateMod(cfg.rate_mod);
+    setCrossfadeFxBlendBoost(cfg.blend_boost);
+
+    for (int m = 0; m < 16; ++m) {
+        for (int i = 0; i < 8; ++i) {
+            setCrossfadeFxParamValue(m, i, cfg.fx_params[m][i].value);
+            setCrossfadeFxParamMod(m, i, cfg.fx_params[m][i].mod_mode);
+            setCrossfadeFxParamModDepth(m, i, cfg.fx_params[m][i].mod_depth);
+        }
+    }
+    setLfo1Config(cfg.lfo1);
+    setLfo2Config(cfg.lfo2);
+}
+
+void DeckPair::saveMasterFxToPriorityTrack() noexcept
+{
+    if (is_applying_cached_fx_.load(std::memory_order_relaxed)) return;
+
+    const int prio = master_fx_priority_deck_.load(std::memory_order_relaxed);
+    DeckPlayer *target_deck = (prio == 1) ? vj_deck_b() : (prio == 0 ? vj_deck_a() : nullptr);
+    if (!target_deck) {
+        if (vj_deck_a() && vj_deck_a()->isPlaying()) target_deck = vj_deck_a();
+        else if (vj_deck_b() && vj_deck_b()->isPlaying()) target_deck = vj_deck_b();
+        else if (vj_deck_a() && !vj_deck_a()->filePath().isEmpty()) target_deck = vj_deck_a();
+        else if (vj_deck_b() && !vj_deck_b()->filePath().isEmpty()) target_deck = vj_deck_b();
+    }
+    if (!target_deck) return;
+    const QString fp = target_deck->filePath();
+    if (fp.isEmpty()) return;
+
+    MasterFxTrackConfig cfg = currentMasterFxConfig();
+    {
+        std::lock_guard<std::mutex> lock(fx_cache_mutex_);
+        if (target_deck == vj_deck_b()) cached_fx_config_b_ = cfg;
+        else cached_fx_config_a_ = cfg;
+    }
+    AudioAnalyzer::updateCacheMasterFxConfig(fp, cfg);
+}
+
+void DeckPair::notifyTrackLoaded(int deck_idx, const QString &file_path)
+{
+    if (file_path.isEmpty()) return;
+
+    const uint64_t now_ns = os_gettime_ns();
+    MasterFxTrackConfig loaded_cfg;
+    const bool has_cfg = AudioAnalyzer::loadCacheMasterFxConfig(file_path, loaded_cfg);
+
+    DeckPlayer *da = vj_deck_a();
+    DeckPlayer *db = vj_deck_b();
+
+    std::lock_guard<std::mutex> lock(fx_cache_mutex_);
+    if (deck_idx == 0) {
+        track_loaded_ns_a_.store(now_ns, std::memory_order_relaxed);
+        if (has_cfg) cached_fx_config_a_ = loaded_cfg;
+        else cached_fx_config_a_ = MasterFxTrackConfig{};
+
+        const uint64_t b_loaded = track_loaded_ns_b_.load(std::memory_order_relaxed);
+        const bool b_active = (db && db->isPlaying() && !db->isAtEnd());
+
+        if (b_active && b_loaded > 0 && b_loaded < now_ns) {
+            master_fx_priority_deck_.store(1, std::memory_order_relaxed);
+        } else {
+            master_fx_priority_deck_.store(0, std::memory_order_relaxed);
+            pending_fx_handover_ready_.store(false, std::memory_order_relaxed);
+            if (has_cfg) {
+                is_applying_cached_fx_.store(true, std::memory_order_relaxed);
+                applyMasterFxConfig(loaded_cfg);
+                is_applying_cached_fx_.store(false, std::memory_order_relaxed);
+            }
+        }
+    } else {
+        track_loaded_ns_b_.store(now_ns, std::memory_order_relaxed);
+        if (has_cfg) cached_fx_config_b_ = loaded_cfg;
+        else cached_fx_config_b_ = MasterFxTrackConfig{};
+
+        const uint64_t a_loaded = track_loaded_ns_a_.load(std::memory_order_relaxed);
+        const bool a_active = (da && da->isPlaying() && !da->isAtEnd());
+
+        if (a_active && a_loaded > 0 && a_loaded < now_ns) {
+            master_fx_priority_deck_.store(0, std::memory_order_relaxed);
+        } else {
+            master_fx_priority_deck_.store(1, std::memory_order_relaxed);
+            pending_fx_handover_ready_.store(false, std::memory_order_relaxed);
+            if (has_cfg) {
+                is_applying_cached_fx_.store(true, std::memory_order_relaxed);
+                applyMasterFxConfig(loaded_cfg);
+                is_applying_cached_fx_.store(false, std::memory_order_relaxed);
+            }
+        }
+    }
+}
+
+void DeckPair::checkAndExecutePendingHandover() noexcept
+{
+    if (!pending_fx_handover_ready_.load(std::memory_order_relaxed))
+        return;
+
+    const int cur_prio = master_fx_priority_deck_.load(std::memory_order_relaxed);
+    const int new_prio = (cur_prio == 0) ? 1 : 0;
+    master_fx_priority_deck_.store(new_prio, std::memory_order_relaxed);
+    pending_fx_handover_ready_.store(false, std::memory_order_relaxed);
+
+    std::lock_guard<std::mutex> lock(fx_cache_mutex_);
+    const MasterFxTrackConfig &cfg = (new_prio == 0) ? cached_fx_config_a_ : cached_fx_config_b_;
+    if (cfg.valid) {
+        is_applying_cached_fx_.store(true, std::memory_order_relaxed);
+        applyMasterFxConfig(cfg);
+        is_applying_cached_fx_.store(false, std::memory_order_relaxed);
+    }
 }

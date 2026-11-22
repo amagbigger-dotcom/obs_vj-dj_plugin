@@ -653,7 +653,7 @@ static bool render_to_texture(MixerSource *context,
         }
         obs_source_video_render(source);
         gs_matrix_pop();
-    } else if (deck && !deck->hasVideo()) {
+    } else if (deck && deck->hasAudioOnlyTrack() && deck->isPlaying() && !deck->isAtEnd()) {
         // Procedurális Audio-Reaktív VJ Shader Suite (audió fájlokhoz vagy üres deckhez)
         if (context && context->fluid_effect && context->dummy_tex) {
             const float time_sec = static_cast<float>(os_gettime_ns() / 1000000ULL) * 0.001f;

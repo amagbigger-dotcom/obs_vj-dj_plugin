@@ -45,6 +45,22 @@ struct VjDeckConfig {
     bool rgb_inverted = false;
 };
 
+#include "effects/crossfade_fx_config.hpp"
+#include "engine/lfo_engine.hpp"
+
+struct MasterFxTrackConfig {
+    bool valid = false;
+    int crossfade_fx_mode = 0;
+    float intensity = 1.0f;
+    int intensity_mod = 0;
+    float rate = 1.0f;
+    int rate_mod = 0;
+    float blend_boost = 1.0f;
+    std::array<std::array<CrossfadeFxParamConfig, 8>, 16> fx_params{};
+    LfoConfig lfo1{};
+    LfoConfig lfo2{};
+};
+
 // VJ Shader definíciók lekérdezése (15 beépített + dinamikus felhasználói ISF shaderek)
 const std::vector<VjShaderDef>& getVjShaderDefinitions();
 

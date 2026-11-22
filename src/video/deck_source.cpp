@@ -466,7 +466,7 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                 }
                 obs_source_video_render(media);
                 gs_matrix_pop();
-            } else if (context->deck && !context->deck->hasVideo()) {
+            } else if (context->deck && context->deck->hasAudioOnlyTrack() && context->deck->isPlaying() && !context->deck->isAtEnd()) {
                 // Procedurális Audio-Reaktív VJ Shader Suite (audió fájlokhoz vagy üres deckhez)
                 const uint32_t cur_vj_ver = CustomShaderManager::instance().version();
                 if (context->fluid_effect && context->loaded_vj_effect_version != cur_vj_ver) {
