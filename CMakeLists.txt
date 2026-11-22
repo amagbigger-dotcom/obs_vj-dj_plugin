@@ -117,6 +117,10 @@ set(SOURCES
     src/gui/mixer_master.hpp
     src/gui/tracklist_dock.cpp
     src/gui/tracklist_dock.hpp
+    src/gui/playlist_manager.cpp
+    src/gui/playlist_manager.hpp
+    src/gui/playlist_dialog.cpp
+    src/gui/playlist_dialog.hpp
     src/gui/vj_fx_dialog.cpp
     src/gui/vj_fx_dialog.hpp
     src/gui/crossfade_fx_dialog.cpp

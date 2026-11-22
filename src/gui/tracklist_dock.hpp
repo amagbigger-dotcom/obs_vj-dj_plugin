@@ -10,6 +10,7 @@
 #include <QTimer>
 #include <vector>
 #include "video/video_converter.hpp"
+#include "gui/playlist_manager.hpp"
 
 struct TrackItem {
     QString title;
@@ -46,6 +47,8 @@ public:
     const std::vector<TrackItem>& tracks() const { return tracks_; }
     void applyWindowPosition();
 
+    void relinkTrackFile(int real_track_index);
+
 protected:
     void showEvent(QShowEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
@@ -62,10 +65,20 @@ private slots:
     void onTableItemDoubleClicked(int row, int column);
     void onCustomContextMenuRequested(const QPoint &pos);
 
+    void onSlotMainClicked(int slot_idx);
+    void onSlotMenuClicked(int slot_offset);
+    void onNewPlaylistClicked();
+    void onSearchTextChanged(const QString &text);
+
 private:
     void setupUi();
     void updateTable();
     void updateRow(int row);
+    void applyFilterAndPopulate();
+    void updateSlotButtons();
+    void onEditPlaylist(const QString &playlist_id);
+    void onDeletePlaylist(const QString &playlist_id);
+
     void processNextConversion();
     void processNextAnalysis();
     void cancelActiveAnalysis();
@@ -76,6 +89,9 @@ private:
 
     QString library_dir_{};
     std::vector<TrackItem> tracks_;
+    std::vector<int> filtered_track_indices_;
+    PlaylistManager playlist_mgr_;
+
     std::vector<int> conversion_queue_;
     int active_conversion_idx_ = -1;
 
@@ -92,6 +108,17 @@ private:
     QPushButton *cancel_btn_ = nullptr;
     QProgressBar *progress_bar_ = nullptr;
     QLabel *status_lbl_ = nullptr;
+
+    // Playlist Quick Slots Bar
+    struct QuickSlotWidget {
+        QPushButton *main_btn = nullptr;
+        QPushButton *menu_btn = nullptr;
+    };
+    QPushButton *btn_slot_all_ = nullptr;
+    QuickSlotWidget slot_widgets_[3]; // Slot 2, Slot 3, Slot 4
+    QPushButton *btn_new_playlist_ = nullptr;
+    QLineEdit *search_edit_ = nullptr;
+
     QTableWidget *table_ = nullptr;
     QTimer *status_timer_ = nullptr;
 };
