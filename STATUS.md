@@ -1,31 +1,37 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #354 (GitHub Run #45050625767)
-* **Aktuális Git Commit:** `803a3eb`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 381 888 bájt)
+* **Legutolsó stabil mérföldkő:** Build #355 (Hibajavítás & Stabilitás)
+* **Aktuális Git Commit:** `PENDING_BUILD_355`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (Build #354)
 * **Bináris SHA256:** `E1F6C8B3B6382A574BE63EF28E2B0C7C5D56E6E4FDAA514C975AF473ECF8F0CB`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #354 Deck Kezelőfelület & Loop Rendszer Ergonómiai Megújítása:
-  1. **Jog Nudge Gombok Áthelyezése ("Lejjebb hozása"):**
-     - A `◀ NUDGE` és `NUDGE ▶` gombok kivétele a szűkös `LoopBar` sorából.
-     - Áthelyezésük a közvetlenül alatta lévő `TransportBar`-ba, kihasználva a Hot Cue gombok melletti ~198 px üres helyet (kényelmes 34 px magassággal, kézre álló CUE/PLAY közelségben).
-  2. **Harmadolós (Triola / 3-bar) Loop Ciklusok Beépítése (6, 12, 24, 48, 96):**
-     - A meglévő 12 bináris loop érték kibővítése 17 eleműre:
-       `1/16, 1/8, 1/4, 1/2, 1, 2, 4, [6], 8, [12], 16, [24], 32, [48], 64, [96], 128`.
-     - `EngineLoop` szorzótábla és clamp határok frissítése (`0..16`).
-     - Mind a 17 nyomógomb kényelmesen elfér a felszabadult LoopBar sorban (30 px gombok, 2 px hézag = 578 px a 624 px-ből).
-  3. **Alapértelmezett Loop Méret 4 Beat-re (Ütem) Állítása:**
-     - A korábbi téves `loop_beat_index_{3}` (ami a `1/2` volt) javítása az új tömbnek megfelelő indexre (`6`), így a loop azonnal egy teljes 4-negyedes (4 beat) ütemet fog meg.
-  4. **MIDI Dispatcher Frissítés:**
-     - Halve / Double és Size encoder léptetések kiterjesztése a 16-os maximális indexig.
+* **Fő cél:** Build #355 - Konvertált videó eltűnési hiba, MIDI/Qt fagyási hiba és render log-áradat felszámolása:
+  1. **Konvertált videó fájleltűnés megszűntetése (`VideoConverter` cancel / destructor bugfix):**
+     - A `VideoConverter::onProcessFinished()` sikeres konvertálás után nem ürítette ki a `current_output_path_` változót.
+     - OBS bezárásakor vagy a dock újranyitásakor a destruktor meghívta a `cancel()`-t, ami a még kitöltött elérési út alapján letörölte a kész videofájlt a lemezről (`vp17`).
+     - Javítás: a sikeres befejezéskor azonnal kiürítjük az útvonalat; a `cancel()` pedig kizárólag akkor törölhet, ha a konvertálás ténylegesen aktív és félbeszakadt.
+  2. **Keresztszálú Qt GUI hívások kivédése (MIDI vezérlő fagyás megelőzése):**
+     - A MIDI szálról érkező `vdj_import_and_load`, `vdj_tracklist_move_selection` és `vdj_tracklist_load_selected` hívások közvetlenül a WinMM szálon hozták létre a `TracklistDock`-ot, ami Qt szálütközést és azonnali fagyást okozott.
+     - Javítás: `QThread::currentThread() != qApp->thread()` vizsgálat és szálbiztos `QMetaObject::invokeMethod(qApp, ...)` átütemezés a GUI főszálra.
+  3. **Táblázat újraépítési vihar (Table widget storm) megszüntetése:**
+     - A konvertálási folyamatjelző korábban másodpercenként 60–100 alkalommal hívta meg a teljes táblázatot leromboló és újraépítő `applyFilterAndPopulate()` függvényt.
+     - Javítás: célzott `updateRow(active_row)` frissítés kizárólag a konvertált sorra.
+  4. **OBS Render szál lock contention & log flood felszámolása:**
+     - A `deck_source.cpp` `deck_video_tick` ciklusa másodpercenként 120-szor hívta a deprecated `obs_source_get_monitoring_type` függvényt, zárakat versenyeztetve és százezer soros figyelmeztetésáradatot generálva.
+     - Javítás: `DeckSourceContext::last_monitoring_mode` gyorsítótárazás.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #354)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #355)
+* [x] **Konvertált Média Megőrzés, MIDI Szálvédelem & UI Stabilitás (Build #355):**
+  - **Fájlmegőrzés:** SOHA többé nem törlődhet kész videófájl OBS bezárásakor vagy leállásakor.
+  - **Fagyásmegelőzés:** Minden hardveres és külső szálról indított Tracklist akció szigorúan a Qt GUI főszálon fut le.
+  - **Optimális felületi frissítés:** A konvertálás ideje alatt nincs táblázat-újraépítés, csupán 1 cella szövege frissül.
+  - **Tiszta logok:** Megszűnt a másodpercenkénti 120 monitoring warning az OBS logban.
 * [x] **Deck Jog Nudge Áthelyezés & 17-Állapotú Harmadolós Loop Rendszer (Build #354):**
   - **Jog Nudge Gombok Áthelyezése a TransportBar-ba:**
     - A `◀ NUDGE` és `NUDGE ▶` gombok kikerültek a `LoopBar` sorából, így a loop sor teljesen fellélegzett és tiszta lett.

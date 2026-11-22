@@ -98,6 +98,7 @@ struct DeckSourceContext {
 
     std::thread audio_thread;
     std::atomic<bool> audio_thread_running{false};
+    int last_monitoring_mode = -1;
 };
 
 static const char *deck_get_name(void *)
@@ -373,21 +374,14 @@ static void deck_video_tick(void *data, float seconds)
     if (context->source) {
         DeckPair *decks = vdj_decks();
         const bool has_master = (decks && decks->masterSource() != nullptr);
-        if (has_master) {
-            // Ha a Master Mixer a jelenetben van, a Deck A/B forrás ne küldjön hangot,
-            // megelőzve a hangerő duplázódást és fáziskioltást az 1-2 kimeneten
-            if (obs_source_get_monitoring_type(context->source) != OBS_MONITORING_TYPE_NONE) {
+        const int target_mode = has_master ? 0 : 1;
+        if (context->last_monitoring_mode != target_mode) {
+            context->last_monitoring_mode = target_mode;
+            if (has_master) {
                 obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_NONE);
-            }
-            if (obs_source_get_audio_mixers(context->source) != 0) {
                 obs_source_set_audio_mixers(context->source, 0);
-            }
-        } else {
-            const uint32_t mixers = obs_source_get_audio_mixers(context->source);
-            if (mixers == 0) {
+            } else {
                 obs_source_set_audio_mixers(context->source, 0x3F);
-            }
-            if (obs_source_get_monitoring_type(context->source) != OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT) {
                 obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
             }
         }

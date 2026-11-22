@@ -217,14 +217,21 @@ void VideoConverter::cancel()
     if (watchdog_timer_) {
         watchdog_timer_->stop();
     }
+    const bool was_active = is_converting_ || (process_ && process_->state() != QProcess::NotRunning);
+    is_converting_ = false;
+
     if (process_ && process_->state() != QProcess::NotRunning) {
         process_->kill();
         process_->waitForFinished(1000);
     }
-    if (!current_output_path_.isEmpty() && QFile::exists(current_output_path_)) {
+    // SOHA ne töröljünk kész fájlt! Csak akkor töröljük a kimenetet,
+    // ha a konvertálás ténylegesen folyamatban volt és félbeszakadt:
+    if (was_active && !current_output_path_.isEmpty() && QFile::exists(current_output_path_)) {
+        blog(LOG_INFO, "[vj_converter] Félbeszakadt konvertálás törlése: %s", current_output_path_.toUtf8().constData());
         QFile::remove(current_output_path_);
     }
-    is_converting_ = false;
+    current_output_path_.clear();
+    current_input_path_.clear();
 }
 
 void VideoConverter::checkWatchdog()
@@ -296,9 +303,16 @@ void VideoConverter::onProcessFinished(int exit_code, QProcess::ExitStatus exit_
 
     is_converting_ = false;
     const bool success = (exit_code == 0 && exit_status == QProcess::NormalExit);
-    if (!success && !current_output_path_.isEmpty() && QFile::exists(current_output_path_)) {
-        QFile::remove(current_output_path_);
+    const QString out_file = current_output_path_;
+
+    if (!success && !out_file.isEmpty() && QFile::exists(out_file)) {
+        QFile::remove(out_file);
     }
+    // A konvertálás lezárult: azonnal tisztítjuk a kimeneti útvonalat,
+    // így az OBS bezárásakor vagy leállásakor a destruktor sosem törölheti a kész fájlt!
+    current_output_path_.clear();
+    current_input_path_.clear();
+
     emit progressChanged(success ? 100 : 0);
-    emit conversionFinished(current_output_path_, success, success ? QString() : QStringLiteral("Conversion error (code %1)").arg(exit_code));
+    emit conversionFinished(out_file, success, success ? QString() : QStringLiteral("Conversion error (code %1)").arg(exit_code));
 }

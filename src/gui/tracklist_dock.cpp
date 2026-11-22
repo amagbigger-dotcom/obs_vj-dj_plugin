@@ -27,14 +27,16 @@
 #include <QMimeData>
 #include <QUrl>
 #include <QGuiApplication>
+#include <QApplication>
+#include <QThread>
 #include <QScreen>
 
 static TracklistDock *g_tracklist_instance = nullptr;
 
 void vdj_open_tracklist_window()
 {
+    QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
     if (!g_tracklist_instance) {
-        QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
         g_tracklist_instance = new TracklistDock(main_window);
     }
     g_tracklist_instance->applyWindowPosition();
@@ -59,6 +61,12 @@ TracklistDock *vdj_get_tracklist_window()
 
 void vdj_import_and_load(const QString &file_path, int deck_channel)
 {
+    if (qApp && QThread::currentThread() != qApp->thread()) {
+        QMetaObject::invokeMethod(qApp, [file_path, deck_channel]() {
+            vdj_import_and_load(file_path, deck_channel);
+        }, Qt::QueuedConnection);
+        return;
+    }
     if (!g_tracklist_instance) {
         QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
         g_tracklist_instance = new TracklistDock(main_window);
@@ -68,32 +76,36 @@ void vdj_import_and_load(const QString &file_path, int deck_channel)
 
 void vdj_tracklist_move_selection(int delta)
 {
+    if (qApp && QThread::currentThread() != qApp->thread()) {
+        QMetaObject::invokeMethod(qApp, [delta]() {
+            vdj_tracklist_move_selection(delta);
+        }, Qt::QueuedConnection);
+        return;
+    }
     if (!g_tracklist_instance) {
         QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
         g_tracklist_instance = new TracklistDock(main_window);
     }
-    QMetaObject::invokeMethod(g_tracklist_instance, [delta]() {
-        if (g_tracklist_instance) {
-            if (!g_tracklist_instance->isVisible()) {
-                g_tracklist_instance->show();
-                g_tracklist_instance->raise();
-            }
-            g_tracklist_instance->moveSelection(delta);
-        }
-    }, Qt::QueuedConnection);
+    if (!g_tracklist_instance->isVisible()) {
+        g_tracklist_instance->show();
+        g_tracklist_instance->raise();
+    }
+    g_tracklist_instance->moveSelection(delta);
 }
 
 void vdj_tracklist_load_selected(int deck_channel)
 {
+    if (qApp && QThread::currentThread() != qApp->thread()) {
+        QMetaObject::invokeMethod(qApp, [deck_channel]() {
+            vdj_tracklist_load_selected(deck_channel);
+        }, Qt::QueuedConnection);
+        return;
+    }
     if (!g_tracklist_instance) {
         QWidget *main_window = static_cast<QWidget *>(obs_frontend_get_main_window());
         g_tracklist_instance = new TracklistDock(main_window);
     }
-    QMetaObject::invokeMethod(g_tracklist_instance, [deck_channel]() {
-        if (g_tracklist_instance) {
-            g_tracklist_instance->loadCurrentSelection(deck_channel);
-        }
-    }, Qt::QueuedConnection);
+    g_tracklist_instance->loadCurrentSelection(deck_channel);
 }
 
 static bool isAudioOnlyFile(const QString &ext)
@@ -148,7 +160,12 @@ TracklistDock::TracklistDock(QWidget *parent)
             progress_bar_->setValue(pct);
             if (active_conversion_idx_ >= 0 && active_conversion_idx_ < static_cast<int>(tracks_.size())) {
                 tracks_[active_conversion_idx_].status = QStringLiteral("Conv %1%").arg(pct);
-                applyFilterAndPopulate();
+                for (size_t r = 0; r < filtered_track_indices_.size(); ++r) {
+                    if (filtered_track_indices_[r] == active_conversion_idx_) {
+                        updateRow(static_cast<int>(r));
+                        break;
+                    }
+                }
             }
         }
     });
