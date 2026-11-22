@@ -109,11 +109,13 @@ public:
     void setEqMid(float val) noexcept;
     void setEqLow(float val) noexcept;
     void setFilterVal(float val) noexcept;
+    void setMixerFxType(int type) noexcept;
 
     float eqHi() const noexcept;
     float eqMid() const noexcept;
     float eqLow() const noexcept;
     float filterVal() const noexcept;
+    int mixerFxType() const noexcept;
 
     void processAudioDsp(float *channel_data, size_t num_frames, size_t channel_idx, size_t sample_rate);
 
@@ -251,6 +253,7 @@ private:
     std::atomic<float> eq_mid_{1.0f};
     std::atomic<float> eq_low_{1.0f};
     std::atomic<float> filter_val_{0.0f};
+    std::atomic<int> mixer_fx_type_{0};
 
     std::atomic<bool> is_master_{false};
     std::atomic<bool> is_sync_{false};
@@ -443,6 +446,9 @@ public:
     void updateAudioMix() noexcept;
     void enableAudioMonitoring() noexcept;
 
+    void setMixerFxType(int type) noexcept;
+    int mixerFxType() const noexcept { return master_mixer_fx_type_.load(std::memory_order_relaxed); }
+
 private:
     obs_source_t *master_source_ = nullptr;
     mutable std::mutex cue_source_mutex_;
@@ -484,6 +490,7 @@ private:
     std::atomic<bool> visualizer_tone_{true};
     std::atomic<float> headphone_volume_{1.0f};
     std::atomic<float> headphone_mix_{0.5f};
+    std::atomic<int> master_mixer_fx_type_{0};
     std::atomic<int> master_mode_{0};
     std::atomic<double> master_clock_bpm_{128.0};
     std::atomic<int> loop_beat_idx_a_{EngineLoop::DEFAULT_LOOP_INDEX};

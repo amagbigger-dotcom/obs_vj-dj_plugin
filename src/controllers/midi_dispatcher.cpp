@@ -150,6 +150,43 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         if (target_deck) target_deck->setFilterVal(bipolar_val);
         break;
 
+    case MidiAction::MIXER_FX_1:
+        if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
+            if (target_deck) target_deck->setMixerFxType(0);
+            if (auto *decks = vdj_decks()) decks->setMixerFxType(0);
+        }
+        break;
+
+    case MidiAction::MIXER_FX_2:
+        if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
+            if (target_deck) target_deck->setMixerFxType(1);
+            if (auto *decks = vdj_decks()) decks->setMixerFxType(1);
+        }
+        break;
+
+    case MidiAction::MIXER_FX_3:
+        if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
+            if (target_deck) target_deck->setMixerFxType(2);
+            if (auto *decks = vdj_decks()) decks->setMixerFxType(2);
+        }
+        break;
+
+    case MidiAction::MIXER_FX_4:
+        if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
+            if (target_deck) target_deck->setMixerFxType(3);
+            if (auto *decks = vdj_decks()) decks->setMixerFxType(3);
+        }
+        break;
+
+    case MidiAction::MIXER_FX_SELECT:
+        if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
+            const int cur = target_deck ? target_deck->mixerFxType() : (vdj_decks() ? vdj_decks()->mixerFxType() : 0);
+            const int next = (cur + 1) % 4;
+            if (target_deck) target_deck->setMixerFxType(next);
+            if (auto *decks = vdj_decks()) decks->setMixerFxType(next);
+        }
+        break;
+
     case MidiAction::TEMPO_SPEED:
         if (target_deck) {
             const int speed = 50 + static_cast<int>((static_cast<unsigned int>(data2) * 100U) / 127U);
@@ -530,6 +567,18 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
             break;
         case MidiAction::HOTCUE_4:
             val = ((b.deck == 2 ? db : da) && (b.deck == 2 ? db : da)->hotCueMs(3) >= 0) ? 127 : 0;
+            break;
+        case MidiAction::MIXER_FX_1:
+            val = ((b.deck == 2 ? db : da) ? ((b.deck == 2 ? db : da)->mixerFxType() == 0) : (vdj_decks() && vdj_decks()->mixerFxType() == 0)) ? 127 : 0;
+            break;
+        case MidiAction::MIXER_FX_2:
+            val = ((b.deck == 2 ? db : da) ? ((b.deck == 2 ? db : da)->mixerFxType() == 1) : (vdj_decks() && vdj_decks()->mixerFxType() == 1)) ? 127 : 0;
+            break;
+        case MidiAction::MIXER_FX_3:
+            val = ((b.deck == 2 ? db : da) ? ((b.deck == 2 ? db : da)->mixerFxType() == 2) : (vdj_decks() && vdj_decks()->mixerFxType() == 2)) ? 127 : 0;
+            break;
+        case MidiAction::MIXER_FX_4:
+            val = ((b.deck == 2 ? db : da) ? ((b.deck == 2 ? db : da)->mixerFxType() == 3) : (vdj_decks() && vdj_decks()->mixerFxType() == 3)) ? 127 : 0;
             break;
         case MidiAction::SHIFT:
             val = (b.deck == 2 ? shift_b_.load() : shift_a_.load()) ? 127 : 0;

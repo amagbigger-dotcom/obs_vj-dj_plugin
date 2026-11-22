@@ -100,6 +100,9 @@ DeckPlayer::DeckPlayer(const char *source_name, const char *display_name)
     obs_source_set_audio_mixers(source_, 0);
     obs_source_set_monitoring_type(source_, OBS_MONITORING_TYPE_NONE);
 
+    dsp_states_[0].fx.init(48000, 0);
+    dsp_states_[1].fx.init(48000, 1);
+
     applyAudioVolume();
 }
 
@@ -1004,6 +1007,16 @@ float DeckPlayer::eqMid() const noexcept { return eq_mid_.load(std::memory_order
 float DeckPlayer::eqLow() const noexcept { return eq_low_.load(std::memory_order_relaxed); }
 float DeckPlayer::filterVal() const noexcept { return filter_val_.load(std::memory_order_relaxed); }
 
+void DeckPlayer::setMixerFxType(int type) noexcept
+{
+    mixer_fx_type_.store(std::clamp(type, 0, 3), std::memory_order_relaxed);
+}
+
+int DeckPlayer::mixerFxType() const noexcept
+{
+    return mixer_fx_type_.load(std::memory_order_relaxed);
+}
+
 void DeckPlayer::setRed(float value) noexcept { red_.store(std::clamp(value, 0.0f, 2.0f), std::memory_order_relaxed); }
 void DeckPlayer::setGreen(float value) noexcept { green_.store(std::clamp(value, 0.0f, 2.0f), std::memory_order_relaxed); }
 void DeckPlayer::setBlue(float value) noexcept { blue_.store(std::clamp(value, 0.0f, 2.0f), std::memory_order_relaxed); }
@@ -1096,8 +1109,11 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
     LiveEnvelopes envs;
     LiveEnvelopes *penvs = (channel_idx == 0) ? &envs : nullptr;
 
+    const MixerFxType fx_t = static_cast<MixerFxType>(mixer_fx_type_.load(std::memory_order_relaxed));
+    const double cur_bpm = effectiveBpm();
+
     EngineDsp::process(channel_data, num_frames, channel_idx, sample_rate,
-                       g_low, g_mid, g_hi, f_val, dsp_states_[ch], penvs);
+                       g_low, g_mid, g_hi, f_val, dsp_states_[ch], penvs, fx_t, cur_bpm);
 
     if (penvs) {
         auto updateEnvelope = [](std::atomic<float> &atom, float target) {
@@ -2227,6 +2243,14 @@ void DeckPair::updateAudioMix() noexcept
         da->setMixGain(gain_a);
         db->setMixGain(gain_b);
     }
+}
+
+void DeckPair::setMixerFxType(int type) noexcept
+{
+    const int clamped = std::clamp(type, 0, 3);
+    master_mixer_fx_type_.store(clamped, std::memory_order_relaxed);
+    if (auto *da = vj_deck_a()) da->setMixerFxType(clamped);
+    if (auto *db = vj_deck_b()) db->setMixerFxType(clamped);
 }
 
 obs_source_t *DeckPair::cueSource() const noexcept

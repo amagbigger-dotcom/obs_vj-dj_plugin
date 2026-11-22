@@ -47,4 +47,9 @@ private:
     QLabel *hp_vol_val_lbl_ = nullptr;
     DJSlider *hp_mix_slider_ = nullptr;
     QLabel *hp_mix_val_lbl_ = nullptr;
+
+    QPushButton *fx_filter_btn_ = nullptr;
+    QPushButton *fx_delay_btn_ = nullptr;
+    QPushButton *fx_reverb_btn_ = nullptr;
+    QPushButton *fx_flanger_btn_ = nullptr;
 };

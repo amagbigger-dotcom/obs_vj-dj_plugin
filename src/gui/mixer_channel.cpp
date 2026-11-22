@@ -29,11 +29,19 @@ QString formatEq(int v)
     return QString::asprintf("%.2f", val);
 }
 
-QString formatFilter(int v)
+QString formatFilter(int v, int fx_type = 0)
 {
-    if (v == 0) return QStringLiteral("FLAT");
-    if (v < 0) return QString::asprintf("LPF %d%%", -v);
-    return QString::asprintf("HPF %d%%", v);
+    if (v == 0) {
+        return (fx_type == 0) ? QStringLiteral("FLAT") : QStringLiteral("OFF");
+    }
+    const char *prefix = "";
+    if (fx_type == 1) prefix = (v < 0) ? "LP+DLY" : "HP+DLY";
+    else if (fx_type == 2) prefix = (v < 0) ? "LP+REV" : "HP+REV";
+    else if (fx_type == 3) prefix = (v < 0) ? "LP+FLG" : "HP+FLG";
+    else prefix = (v < 0) ? "LPF" : "HPF";
+
+    const int pct = (v < 0) ? -v : v;
+    return QString::asprintf("%s %d%%", prefix, pct);
 }
 
 } // namespace
@@ -118,8 +126,32 @@ void MixerChannelStrip::setupUi()
                  [this](float v) { if (deck_) deck_->setEqMid(v); }, formatEq);
     addSliderRow(QStringLiteral("LOW"), QStringLiteral("#4488ff"), &low_slider_, &low_val_lbl_, &low_title_lbl_, 0,
                  [this](float v) { if (deck_) deck_->setEqLow(v); }, formatEq);
-    addSliderRow(QStringLiteral("FLT"), QStringLiteral("#ffaa00"), &flt_slider_, &flt_val_lbl_, nullptr, 0,
-                 [this](float v) { if (deck_) deck_->setFilterVal(v - 1.0f); }, formatFilter);
+    addSliderRow(QStringLiteral("FLT"), QStringLiteral("#ef4444"), &flt_slider_, &flt_val_lbl_, &flt_title_lbl_, 0,
+                 [this](float v) { if (deck_) deck_->setFilterVal(v - 1.0f); },
+                 [this](int v) { return formatFilter(v, deck_ ? deck_->mixerFxType() : 0); });
+
+    if (flt_title_lbl_) {
+        flt_title_lbl_->setCursor(Qt::PointingHandCursor);
+        flt_title_lbl_->setToolTip(QStringLiteral("Mixer FX: Kattints az effekt váltásához (Filter / Delay / Reverb / Flanger)"));
+        class FxClickFilter : public QObject {
+        public:
+            std::function<void()> on_click;
+            explicit FxClickFilter(QObject *parent, std::function<void()> cb) : QObject(parent), on_click(std::move(cb)) {}
+            bool eventFilter(QObject *obj, QEvent *ev) override {
+                if (ev->type() == QEvent::MouseButtonPress) {
+                    if (on_click) on_click();
+                    return true;
+                }
+                return QObject::eventFilter(obj, ev);
+            }
+        };
+        flt_title_lbl_->installEventFilter(new FxClickFilter(flt_title_lbl_, [this]() {
+            if (deck_) {
+                deck_->setMixerFxType((deck_->mixerFxType() + 1) % 4);
+                refresh();
+            }
+        }));
+    }
 
     // 2. Buttons Row: Headphone CUE, Visual EQ & RGB Invert Toggle
     auto *btn_row = new QHBoxLayout();
@@ -312,11 +344,38 @@ void MixerChannelStrip::refresh()
         }
     };
 
+    const int fx_mode = deck_->mixerFxType();
+    if (flt_title_lbl_) {
+        switch (fx_mode) {
+        case 0:
+            flt_title_lbl_->setText(QStringLiteral("FLT"));
+            flt_title_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #ef4444;"));
+            flt_title_lbl_->setToolTip(QStringLiteral("Mixer FX 1: Sima Filter (Piros / Red) - Kattints a váltáshoz!"));
+            break;
+        case 1:
+            flt_title_lbl_->setText(QStringLiteral("DLY"));
+            flt_title_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #38bdf8;"));
+            flt_title_lbl_->setToolTip(QStringLiteral("Mixer FX 2: Filter + Delay (Kék / Blue) - Kattints a váltáshoz!"));
+            break;
+        case 2:
+            flt_title_lbl_->setText(QStringLiteral("REV"));
+            flt_title_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #22c55e;"));
+            flt_title_lbl_->setToolTip(QStringLiteral("Mixer FX 3: Filter + Reverb (Zöld / Green) - Kattints a váltáshoz!"));
+            break;
+        case 3:
+            flt_title_lbl_->setText(QStringLiteral("FLG"));
+            flt_title_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #eab308;"));
+            flt_title_lbl_->setToolTip(QStringLiteral("Mixer FX 4: Filter + Flanger (Sárga / Yellow) - Kattints a váltáshoz!"));
+            break;
+        }
+    }
+
     updateSliderFromVal(gain_slider_, gain_val_lbl_, static_cast<int>((deck_->gain() - 1.0f) * 100.0f), formatGain);
     updateSliderFromVal(hi_slider_, hi_val_lbl_, static_cast<int>((deck_->eqHi() - 1.0f) * 100.0f), formatEq);
     updateSliderFromVal(mid_slider_, mid_val_lbl_, static_cast<int>((deck_->eqMid() - 1.0f) * 100.0f), formatEq);
     updateSliderFromVal(low_slider_, low_val_lbl_, static_cast<int>((deck_->eqLow() - 1.0f) * 100.0f), formatEq);
-    updateSliderFromVal(flt_slider_, flt_val_lbl_, static_cast<int>(deck_->filterVal() * 100.0f), formatFilter);
+    updateSliderFromVal(flt_slider_, flt_val_lbl_, static_cast<int>(deck_->filterVal() * 100.0f),
+                        [fx_mode](int v) { return formatFilter(v, fx_mode); });
 
     if (vol_slider_ && !vol_slider_->isSliderDown()) {
         const int target_vol = static_cast<int>(deck_->volume() * 100.0f);

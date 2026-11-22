@@ -23,6 +23,11 @@ enum class MidiAction : uint16_t {
     FILTER,
     GAIN,
     CROSSFADER,
+    MIXER_FX_SELECT,
+    MIXER_FX_1,
+    MIXER_FX_2,
+    MIXER_FX_3,
+    MIXER_FX_4,
 
     // Jog Wheels
     JOG_TOUCH,

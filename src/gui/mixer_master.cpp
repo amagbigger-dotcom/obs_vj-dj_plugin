@@ -242,6 +242,55 @@ void MixerMasterPanel::setupUi()
         if (hp_mix_val_lbl_) hp_mix_val_lbl_->setText(QString::asprintf("%d/%d", 100 - v, v));
     });
 
+    // 1.5. Traktor Kontrol S2 MK3 Mixer FX Section
+    auto *mxfx_box = new QFrame(this);
+    mxfx_box->setStyleSheet(QStringLiteral("background: #0f1218; border: 1px solid #1c232f; border-radius: 3px; padding: 2px;"));
+    auto *mxfx_vbox = new QVBoxLayout(mxfx_box);
+    mxfx_vbox->setContentsMargins(3, 2, 3, 2);
+    mxfx_vbox->setSpacing(2);
+
+    auto *mxfx_hdr = new QLabel(QStringLiteral("MIXER FX (TRAKTOR S2)"), mxfx_box);
+    mxfx_hdr->setStyleSheet(QStringLiteral("font-size: 8px; font-weight: bold; color: #8da0b8;"));
+    mxfx_vbox->addWidget(mxfx_hdr);
+
+    auto *mxfx_row = new QHBoxLayout();
+    mxfx_row->setSpacing(3);
+
+    auto createFxBtn = [this, mxfx_box](const QString &text, int fx_idx, const QString &active_col) {
+        auto *btn = new QPushButton(text, mxfx_box);
+        btn->setCheckable(true);
+        btn->setFixedHeight(20);
+        btn->setStyleSheet(QStringLiteral(
+            "QPushButton { background: #161c24; border: 1px solid #2b3545; color: #8da0b8; font-weight: bold; font-size: 8px; border-radius: 3px; padding: 1px; } "
+            "QPushButton:hover { background: #222b38; color: #ffffff; } "
+            "QPushButton:checked { background: %1; color: #ffffff; border: 1px solid %1; font-weight: bold; }")
+            .arg(active_col));
+        connect(btn, &QPushButton::clicked, this, [this, fx_idx]() {
+            if (decks_) decks_->setMixerFxType(fx_idx);
+        });
+        return btn;
+    };
+
+    fx_filter_btn_ = createFxBtn(QStringLiteral("🔴 FLT"), 0, QStringLiteral("#dc2626"));
+    fx_filter_btn_->setToolTip(QStringLiteral("Mixer FX 1: Sima Filter (Piros / Red)"));
+
+    fx_delay_btn_ = createFxBtn(QStringLiteral("🔵 DLY"), 1, QStringLiteral("#0284c7"));
+    fx_delay_btn_->setToolTip(QStringLiteral("Mixer FX 2: Filter + Delay (Kék / Blue, 3/4 ütem)"));
+
+    fx_reverb_btn_ = createFxBtn(QStringLiteral("🟢 REV"), 2, QStringLiteral("#16a34a"));
+    fx_reverb_btn_->setToolTip(QStringLiteral("Mixer FX 3: Filter + Reverb (Zöld / Green, Térzengés)"));
+
+    fx_flanger_btn_ = createFxBtn(QStringLiteral("🟡 FLG"), 3, QStringLiteral("#ca8a04"));
+    fx_flanger_btn_->setToolTip(QStringLiteral("Mixer FX 4: Filter + Flanger (Sárga / Yellow, Jet Sweep)"));
+
+    mxfx_row->addWidget(fx_filter_btn_, 1);
+    mxfx_row->addWidget(fx_delay_btn_, 1);
+    mxfx_row->addWidget(fx_reverb_btn_, 1);
+    mxfx_row->addWidget(fx_flanger_btn_, 1);
+
+    mxfx_vbox->addLayout(mxfx_row);
+    layout->addWidget(mxfx_box);
+
     layout->addStretch(1);
 
     // 2. Center Master Crossfader
@@ -421,6 +470,20 @@ void MixerMasterPanel::refresh()
         }
         updateCfLabel(cf_val);
     }
+
+    const int cur_fx = decks_->mixerFxType();
+    auto updateFxBtnState = [cur_fx](QPushButton *btn, int idx) {
+        if (!btn) return;
+        const bool active = (cur_fx == idx);
+        if (btn->isChecked() != active) {
+            QSignalBlocker blocker(btn);
+            btn->setChecked(active);
+        }
+    };
+    updateFxBtnState(fx_filter_btn_, 0);
+    updateFxBtnState(fx_delay_btn_, 1);
+    updateFxBtnState(fx_reverb_btn_, 2);
+    updateFxBtnState(fx_flanger_btn_, 3);
 }
 
 bool MixerMasterPanel::handleKeyPress(QKeyEvent *event)

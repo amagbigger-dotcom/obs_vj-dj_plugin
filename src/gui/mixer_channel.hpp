@@ -41,6 +41,7 @@ private:
 
     QLabel *hi_title_lbl_ = nullptr;
     QLabel *low_title_lbl_ = nullptr;
+    QLabel *flt_title_lbl_ = nullptr;
 
     QProgressBar *meter_ = nullptr;
     QPushButton *hp_cue_btn_ = nullptr;

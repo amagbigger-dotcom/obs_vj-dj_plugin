@@ -3,16 +3,16 @@
 #include <cstddef>
 #include <cmath>
 #include <algorithm>
+#include "engine/mixer_fx.hpp"
 
 struct EngineDspState {
     float lp = 0.0f;
     float hp = 0.0f;
-    float dj_lp = 0.0f;
-    float dj_hp = 0.0f;
     float cur_low = 1.0f;
     float cur_mid = 1.0f;
     float cur_hi = 1.0f;
-    float cur_flt = 0.0f;
+
+    MixerFxState fx;
 };
 
 struct LiveEnvelopes {
@@ -33,5 +33,7 @@ public:
                         float g_hi,
                         float f_val,
                         EngineDspState &st,
-                        LiveEnvelopes *out_envelopes = nullptr);
+                        LiveEnvelopes *out_envelopes = nullptr,
+                        MixerFxType fx_type = MixerFxType::FILTER,
+                        double bpm = 128.0);
 };

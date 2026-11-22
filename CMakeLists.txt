@@ -28,6 +28,8 @@ set(SOURCES
     src/engine/deck_engine.hpp
     src/engine/engine_dsp.cpp
     src/engine/engine_dsp.hpp
+    src/engine/mixer_fx.cpp
+    src/engine/mixer_fx.hpp
     src/engine/engine_loop.cpp
     src/engine/engine_loop.hpp
     src/engine/engine_sync.cpp

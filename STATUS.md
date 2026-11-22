@@ -9,20 +9,42 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #356 - TransportBar Gombok Finomhangolása (Összecsúszás Megszüntetése):
-  1. **CUE, PLAY, SYNC, MASTER Gombok Finom Méretcsökkentése:**
-     - `CUE`: 65 px $\to$ 54 px
-     - `PLAY`: 90 px $\to$ 76 px
-     - `SYNC`: 65 px $\to$ 54 px
-     - `MASTER`: 65 px $\to$ 58 px
-  2. **Gombközök (spacing) optimalizálása:**
-     - 8 px $\to$ 6 px
-  3. **Eredmény:**
-     - A teljes TransportBar szélessége 664 px-ről 609 px-re csökkent, így a 624 px hasznos ablakszélességben tökéletesen, szellősen elfér, megszűnt a PLAY és SYNC gombok egymásba csúszása.
+* **Fő cél:** Traktor Kontrol S2 MK3 Mixer FX Rendszer Implementáció (Build #357):
+  1. **4 Dedikált Mixer FX architektúra:**
+     - 🔴 **Piros:** Sima Filter (bi-direkcionális másodrendű LPF/HPF szűrő).
+     - 🔵 **Kék:** Filter + Delay (3/4 beat tempó-szinkronizált dub echo analóg csillapítással és természetes lecsengéssel).
+     - 🟢 **Zöld:** Filter + Reverb (4-Comb + 2-AllPass Freeverb sztereó dekorrelációval és térzengéssel).
+     - 🟡 **Sárga:** Filter + Flanger (90°-os sztereó kvadratúra Jet vadászgép fésűszűrő sweep).
+  2. **Bipoláris potméter-vezérlés:**
+     - Középállásban (0.0): transzparens bypass (0% effekt).
+     - Jobbra (> 0.0): High-Pass szűrés + növekvő effektintenzitás.
+     - Balra (< 0.0): Low-Pass szűrés + növekvő effektintenzitás.
+  3. **Zero Allocation Real-Time DSP:**
+     - Előre lefoglalt bufferek, nulla heap allokáció a valósidejű audió szálon.
+  4. **Központi és csatorna GUI:**
+     - Középen 4 RGB-stílusú nyomógomb, a csatornákon dinamikus `FLT`/`DLY`/`REV`/`FLG` visszajelzés és közvetlen kattintható váltás.
+  5. **MIDI & Traktor S2 kétirányú LED visszajelzés:**
+     - `MIXER_FX_1..4` és `MIXER_FX_SELECT` akciók, aktív gomb hardveres megvilágítása.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #356)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #357)
+* [x] **Traktor Kontrol S2 MK3 4 Mixer FX Rendszer (Build #357):**
+  - **Új `src/engine/mixer_fx.hpp/.cpp` modul:**
+    - `MixerFxProcessor` és `MixerFxState` nulla dinamikus allokációjú valósidejű DSP motor.
+    - 4 effekt: 🔴 Piros (Sima Filter), 🔵 Kék (Filter + 3/4 Beat Delay analóg csillapítással), 🟢 Zöld (Filter + Reverb 4-comb + 2-allpass Freeverb zengővel), 🟡 Sárga (Filter + Flanger 90°-os sztereó Jet söpréssel).
+    - **Tail Spillover (Természetes lecsengés):** A potmétert középre tekerve az új bemenet némul, de a delay/reverb farok zeneien, lágyan cseng le.
+  - **MixerMasterPanel 4-Gombos Hardveres Elrendezés:**
+    - Dedikált `MIXER FX (TRAKTOR S2)` vezérlődoboz a Crossfader felett (`[ 🔴 FLT ] [ 🔵 DLY ] [ 🟢 REV ] [ 🟡 FLG ]`).
+    - Élénk színű aktív állapotjelzés, gombnyomásra azonnali deck-szinkronizált váltás.
+  - **MixerChannelStrip Csatorna Visszajelzés:**
+    - A csatorna címkéje dinamikusan mutatja az aktív effektet és színét (`FLT`, `DLY`, `REV`, `FLG`).
+    - Kattintható címke a csatornánkénti közvetlen váltáshoz.
+    - Százalékos iránykijelzés: `LPF 45%` / `HPF 45%`, `LP+DLY 45%` / `HP+DLY 45%` stb.
+  - **MIDI Hardver Kiosztás & Kétirányú LED Visszajelzés:**
+    - `MIXER_FX_1..4` és `MIXER_FX_SELECT` akciók a `midi_types.hpp`-ban és `midi_dispatcher.cpp`-ben.
+    - Traktor S2 MK3 profilban Note 44..47 gyári gombok bekötve.
+    - `sendFeedback()`: az aktív effekt fizikai LED-je világít a hardveren.
 * [x] **TransportBar Gombok Finomhangolása (Build #356):**
   - CUE (54px), PLAY (76px), SYNC (54px), MASTER (58px) arányosított méretezése.
   - 6 px gombközökkel garantált a 624 px-es belső szélességbe való tökéletes illeszkedés, zéró átfedés.
@@ -192,12 +214,14 @@
 ---
 
 ## 3. Következő Lépés (Next Action)
-* [ ] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #354).
+* [ ] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #357).
 * [ ] GitHub Actions CI fordítás ellenőrzése, a kész DLL letöltése és telepítése.
 * [ ] Éles tesztelés az OBS Studio-ban:
-  - Loop kapcsolók ellenőrzése a Deck A és Deck B ablakokban (17 gomb, köztük a 6, 12, 24, 48, 96 harmadolós értékek).
-  - Alapértelmezett loop indítás tesztelése (pontosan 4 ütemet kell megfognia az 1/2 helyett).
-  - A TransportBar jobb szélén lévő `[◀ NUDGE]` és `[NUDGE ▶]` gombok lemez-lassító és toló hatásának ellenőrzése (nyomva tartva és kattintva).
+  - Mixer FX gombok ellenőrzése a keverőablakban (🔴 FLT, 🔵 DLY, 🟢 REV, 🟡 FLG).
+  - Csatorna potméterek tekerése mindkét irányba (LPF és HPF átmenetek).
+  - Delay ütemszinkron és természetes lecsengés (tail spillover) ellenőrzése.
+  - Reverb térzengés és Flanger sztereó Jet pásztázás tesztelése.
+  - Traktor Kontrol S2 MK3 hardveres gombok és LED visszajelzés ellenőrzése.
 
 ---
 

@@ -9,7 +9,9 @@ void EngineDsp::process(float *channel_data,
                         float g_hi,
                         float f_val,
                         EngineDspState &st,
-                        LiveEnvelopes *out_envelopes)
+                        LiveEnvelopes *out_envelopes,
+                        MixerFxType fx_type,
+                        double bpm)
 {
     if (!channel_data || num_frames == 0)
         return;
@@ -33,14 +35,13 @@ void EngineDsp::process(float *channel_data,
     float sum_sq_mid = 0.0f;
     float sum_sq_high = 0.0f;
 
+    // 1. 3-sávos EQ szűrés és szétbontás
     for (size_t i = 0; i < num_frames; ++i) {
         const float in = channel_data[i];
 
-        // Smooth parameters per sample to eliminate all zipper noise & crackle
         st.cur_low += (g_low - st.cur_low) * smooth_rate;
         st.cur_mid += (g_mid - st.cur_mid) * smooth_rate;
         st.cur_hi  += (g_hi  - st.cur_hi)  * smooth_rate;
-        st.cur_flt += (f_val - st.cur_flt) * smooth_rate;
 
         st.lp += alpha_low * (in - st.lp);
         st.hp += alpha_high * (in - st.hp);
@@ -54,33 +55,19 @@ void EngineDsp::process(float *channel_data,
         sum_sq_mid += mid_band * mid_band;
         sum_sq_high += high_band * high_band;
 
-        float out = low_band * st.cur_low + mid_band * st.cur_mid + high_band * st.cur_hi;
-
-        // DJ Filter: continuous tracking prevents stale DC offsets and pops
-        if (st.cur_flt < -0.001f) {
-            // Low Pass: cutoff from ~18000 Hz down to 200 Hz
-            const float norm = 1.0f + st.cur_flt;
-            const float cutoff = 200.0f + norm * norm * 17800.0f;
-            const float a_lp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.001f, 0.95f);
-            st.dj_lp += a_lp * (out - st.dj_lp);
-            st.dj_hp += 0.05f * (0.0f - st.dj_hp);
-            out = st.dj_lp;
-        } else if (st.cur_flt > 0.001f) {
-            // High Pass: cutoff from ~20 Hz up to 8000 Hz
-            const float norm = st.cur_flt;
-            const float cutoff = 20.0f + norm * norm * 7980.0f;
-            const float a_hp = std::clamp(2.0f * 3.14159265f * cutoff / sr, 0.001f, 0.95f);
-            st.dj_hp += a_hp * (out - st.dj_hp);
-            st.dj_lp += 0.05f * (out - st.dj_lp);
-            out = out - st.dj_hp;
-        } else {
-            st.dj_lp += 0.05f * (out - st.dj_lp);
-            st.dj_hp += 0.05f * (0.0f - st.dj_hp);
-        }
-
-        channel_data[i] = std::clamp(out, -1.2f, 1.2f);
+        channel_data[i] = low_band * st.cur_low + mid_band * st.cur_mid + high_band * st.cur_hi;
     }
 
+    // 2. Traktor S2 Bipoláris DJ Filter + Dedikált Mixer FX (Filter / Delay / Reverb / Flanger)
+    MixerFxProcessor::process(channel_data, num_frames, static_cast<size_t>(sr),
+                             f_val, fx_type, bpm, st.fx, channel_idx);
+
+    // 3. Kimeneti korlátozás (-1.2 .. +1.2)
+    for (size_t i = 0; i < num_frames; ++i) {
+        channel_data[i] = std::clamp(channel_data[i], -1.2f, 1.2f);
+    }
+
+    // 4. Élő zenei vizualizációs energiaszintek
     if (out_envelopes && channel_idx == 0 && num_frames > 0) {
         const float inv = 1.0f / static_cast<float>(num_frames);
         out_envelopes->amp  = std::clamp(std::sqrt(sum_sq_in   * inv) * 2.5f, 0.0f, 1.0f);

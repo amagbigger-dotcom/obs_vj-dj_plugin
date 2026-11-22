@@ -12,6 +12,12 @@ MidiControllerProfile MidiControllerProfile::createTraktorS2MK3()
     p.addBinding({MidiMsgType::NOTE_ON, 1, 33, MidiAction::LOAD_SELECTED_A, 1, MidiJogMode::SPREAD_64, "Load Deck A"});
     p.addBinding({MidiMsgType::NOTE_ON, 1, 34, MidiAction::LOAD_SELECTED_B, 2, MidiJogMode::SPREAD_64, "Load Deck B"});
 
+    // Mixer FX Selector (Traktor Kontrol S2 MK3 4 FX Buttons)
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 44, MidiAction::MIXER_FX_1, 0, MidiJogMode::SPREAD_64, "Mixer FX 1 (Filter - Piros)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 45, MidiAction::MIXER_FX_2, 0, MidiJogMode::SPREAD_64, "Mixer FX 2 (Delay - Kék)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 46, MidiAction::MIXER_FX_3, 0, MidiJogMode::SPREAD_64, "Mixer FX 3 (Reverb - Zöld)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 47, MidiAction::MIXER_FX_4, 0, MidiJogMode::SPREAD_64, "Mixer FX 4 (Flanger - Sárga)"});
+
     // Deck A (Ch 1)
     p.addBinding({MidiMsgType::CC, 1, 16, MidiAction::EQ_HI, 1, MidiJogMode::SPREAD_64, "High EQ"});
     p.addBinding({MidiMsgType::CC, 1, 17, MidiAction::EQ_MID, 1, MidiJogMode::SPREAD_64, "Mid EQ"});
