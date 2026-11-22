@@ -1,26 +1,39 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #351 (GitHub Run #45031304428)
-* **Aktuális Git Commit:** `f6fe2c8`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 366 528 bájt)
-* **Bináris SHA256:** `50B6E954E957B4CAC4E4F9A74FE31ED3AA27C321CEF4B499E07FB01660F58D74`
+* **Legutolsó stabil mérföldkő:** Build #353 (GitHub Run #45042690877)
+* **Aktuális Git Commit:** `d7e5d71`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 380 352 bájt)
+* **Bináris SHA256:** `0EEAC4ACD3F4479455EC86436510C8FEB7D7044ACB6C537D620EF848F35AD8F6`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #351 Nyers Videó Relink Auto-Konvertálás & Deck Tick Deadlock Védelem Ellenőrzése OBS Studio-ban:
-  1. **Nyers Videó Relink & Önjavítás:**
-     - Ellenőrizni, hogy ha egy videónak hiányzik a konvertált `_vj1080.mp4` változata, a rendszer `Konvertálatlan` státusszal jelzi és nem engedi nyersként betölteni a deckbe.
-     - A számon az újrakonvertálás (`[ 🔄 KONVERT ]` gombbal vagy relinkkel) automatikusan elindítja az RTX 3060 NVENC 1080p All-Intra konvertálást.
-  2. **Akadásmentes Lejátszás & Zéró Monitoring Lag:**
-     - A korábbi másodpercenként 60-szor lefutó `obs_source_set_monitoring_type` hívások megszűntek, nincs audió buffer túlcsordulás (`max audio buffering`) és nincs forrás újraindítási ciklus.
-  3. **4 Gyorsgomb & Playlists Működése:**
-     - A 4 lista gomb, a split gombok lenyíló menüi, a jobb klikkes lista hozzáadás és a keresőmező stabilan működik.
+* **Fő cél:** Build #353 Tracklist 3-Állapotú Oszloprendezés & Stabilitási Tesztek OBS Studio-ban:
+  1. **3-Állapotú Oszloprendezés:**
+     - Fejléc oszlopra kattintva: 1. klikk = Növekvő ($\blacktriangle$), 2. klikk = Csökkenő ($\blacktriangledown$), 3. klikk = Visszaállítás a listába illesztés (import) ideje szerinti eredeti sorrendre.
+     - ST (státusz), CÍM (ABC A-Z), BPM (számszerű), KEY (Camelot skála), IDŐ (hossz), FORM (azonos formátumok: audio / 1080p / konvertálatlan).
+     - A rendezés szálbiztos és virtuális (`filtered_track_indices_`), az eredeti gyűjtemény sorrendje és a JSON fájl nem módosul.
+  2. **Nyers Videó Relink & Önjavítás (Build #351):**
+     - Ellenőrizni az auto-konvertálást és az akadásmentes lejátszást az OBS Studio-ban.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #351)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #353)
+* [x] **Tracklist 3-Állapotú Oszloprendezés (Build #353):**
+  - **3-állapotú ciklikus rendezés:**
+    - 1. kattintás: Növekvő rendezés (Ascending Order, $\blacktriangle$).
+    - 2. kattintás: Csökkenő rendezés (Descending Order, $\blacktriangledown$).
+    - 3. kattintás: Visszaállítás az importálás/beillesztés sorrendjére (eredeti sorrend, indikátor eltűnik).
+  - **Oszloponkénti logika:**
+    - `CÍM / NÉV`: ékezetérzékeny magyar ABC sorrend (`QString::localeAwareCompare`).
+    - `ST`: Státuszok csoportosítása (Deck A -> Deck B -> ⚠️ Hiányzó fájlok -> Lejátszott -> Kész -> Várakozik).
+    - `BPM`: Lebegőpontos számszerű sorrend.
+    - `KEY`: Camelot skála (1A..12B).
+    - `IDŐ`: Zeneszámok hossza (ms szerint).
+    - `FORM`: Azonos formátumok egymás mellé (Audio -> VJ 1080p -> Konvertálatlan).
+    - `LOAD`: Fix gombok, a fejléc nem rendezhető.
+  - **Telepített bináris:** 1 380 352 bájt, SHA256 `0EEAC4ACD3F4479455EC86436510C8FEB7D7044ACB6C537D620EF848F35AD8F6`.
 * [x] **Nyers Videó Relink Védelem, Auto-Konvertálás & Tick Monitoring Optimalizálás (Build #351):**
   - **Fagyási ok feltárása:** A `B166ER - Vp32 (Sequence 1)` egy 2 GB-os, 2560×1440 (2K QHD), 31 Mbps Long-GOP videó volt, ami a relinkelés után nem konvertálódott 1080p All-Intrára. A valós idejű dekódolás túlterhelte az OBS audió alrendszerét (741 ms buffer lag), a frame-enkénti monitoring type reset pedig szál-holtpontot és fagyást idézett elő.
   - **Relink Auto-Konvertálás:** Ha a felhasználó egy olyan videót tallóz be újrakereséskor, aminek nincs még kész 1080p változata a VJ könyvtárban, a rendszer automatikusan sorba állítja és elindítja az RTX NVENC 1080p All-Intra konvertálást.
