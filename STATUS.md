@@ -1,15 +1,15 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #358 (GitHub Run #45068789909)
-* **Aktuális Git Commit:** Folyamatban (Build #359)
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 402 368 bájt)
-* **Bináris SHA256:** `2EEDD9BC413C7CFAA902E80E7BC2BED4462155692AD1DEC4867F89FDFEA73777`
+* **Legutolsó stabil mérföldkő:** Build #359 (GitHub Run #45075580859)
+* **Aktuális Git Commit:** `38f4d75`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 403 904 bájt)
+* **Bináris SHA256:** `C4071C4174E0152A15CCB7F865C24D0CF4BBD37F8283E9AD73E66C2EB94511EF`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #359 - Tempo-Szinkronizált Dual Delay, Modulált Selymes Reverb és Akusztikai Görbe Finomhangolás:
+* **Fő cél:** Build #359 - KÉSZ & TELEPÍTVE. Tesztelésre kész a Traktor Kontrol S2 MK3 Mixer FX 4 effektjével:
   1. **Szűrő Görbék Akusztikai Arany Középútja:**
      - **Low-Pass (Balra):** Cutoff 50 Hz-ről lefelé egészen **25 Hz-ig** lemegy, garantálva a mély, sötét szub-basszus dübörgést.
      - **High-Pass (Jobbra):** Cutoff a korábbi 2400 Hz-ről feljebb emelve **~3800 Hz-re**, így a dobtest és alsó közepek teljesen kiürülnek, de a felső sáv (cin, ének fény, effekt lecsengés) kristálytisztán kíséri az effektet (zéró süketség).
@@ -29,7 +29,14 @@
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #358)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #359)
+* [x] **Mixer FX Tempo-Szinkron, Modulált Reverb & Akusztikai Görbék (Build #359):**
+  - HPF cutoff max ~3800 Hz-re finomítva (eltűnik a mély és középsáv, de megmarad az ének és cin levegője, nincs süketség).
+  - LPF cutoff 25 Hz-ig engedve a mély szub-basszus dübörgésért.
+  - Delay: sztereó ütem-osztott pattogás (Bal: 1/2 beat, Jobb: 3/4 beat), 6500 Hz nyitott sávszűrő, 1.85x wet boost.
+  - Reverb: zenei tempo-szinkronizált $RT_{60}$ lecsengés (1.5–8 beat), fésűszűrőnként harmonizált feedback, $\pm 4$ mintás lebegő LFO moduláció (selymes stúdió plate karakter, zéró fémes flutter).
+  - Flanger: 8-beat zenei söprés, 1.85x emelt hangerő, 0.85 telített feedback a recsegésmentes Jet hangzásért.
+  - Telepített bináris: 1 403 904 bájt, SHA256 `C4071C4174E0152A15CCB7F865C24D0CF4BBD37F8283E9AD73E66C2EB94511EF`.
 * [x] **Mixer FX Akusztikai Finomhangolás & Hangosságnövelés (Build #358):**
   - HPF max cutoff 2400 Hz-re optimalizálva (nincs többé 100%-os süketség a magas irányba, az effektek tisztán és fényesen szólnak).
   - LPF cutoff 50 Hz-re mélyítve (200 Hz helyett), igazi mély szub-basszus vágás balra tekerve.
