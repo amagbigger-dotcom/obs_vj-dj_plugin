@@ -1,25 +1,35 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #340 (GitHub Run #44989567565)
-* **Aktuális Git Commit:** `a658248`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 290 240 bájt)
-* **Bináris SHA256:** `0B1EEEBD96BA73877DCB8099179552D21615337106D07CA4D2E3664DFD484F60`
+* **Legutolsó stabil mérföldkő:** Build #344 (GitHub Run #45013337200)
+* **Aktuális Git Commit:** `b36ccdb`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 309 184 bájt)
+* **Bináris SHA256:** `F88DCEDFCA3F462D35DED6A3196AE3EBDEC65311842B0095ABD8CB29630ABC52`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #340 VJ Shaderek és Crossfade FX ellenőrzése OBS Studio-ban:
-  1. **VJ Shaderek Azonnali Megjelenése:**
-     - Ellenőrizni, hogy mind a 15 beépített VJ visualizer shader és mind a 9 felhasználói egyedi shader (`custom_shaders.json`) hibátlanul, fekete képernyő és fordítási hiba nélkül renderel és animálódik.
-  2. **BPM-Szinkronizált Áttűnések Ellenőrzése:**
-     - Crossfade FX váltáskor (13 effekt) és VJ Shader váltáskor a zenei ütem (1, 2, 4, 8 Beat) szerinti lágy morfolás ellenőrzése.
-  3. **Közvetlen ShaderToy / GLSL / ISF Beágyazó Motor:**
-     - Nyers ShaderToy / ISF kód közvetlen beillesztése és mentése az ISF dialógusban külső AI kerülőút nélkül.
+* **Fő cél:** Build #344 VJ Shaderek, VU Műszerek és Master FX Prioritás ellenőrzése OBS Studio-ban:
+  1. **Üres és Lejárt Deck Fekete Képernyő:**
+     - Ellenőrizni, hogy üres deck esetén, illetve amikor a lejátszott track a végére ér (`isAtEnd()`), a VJ shader azonnal megszűnik renderelődni és a kimenet tiszta fekete lesz (nem ragad bent a master mixben).
+  2. **Valós Idejű DSP VU Kivezérlésjelző:**
+     - Ellenőrizni, hogy üres deckre nyomott Play gomb esetén a fader melletti műszer stabil 0 dB-en marad (megszűnt a korábbi véletlenszerű ugrálás).
+     - Valódi zene lejátszásakor a valós PCM RMS hangszintet mutatja a fader és Gain arányában.
+  3. **Deck-oldalankénti Shader Perzisztencia (`.vdj.json`):**
+     - Ellenőrizni, hogy Deck A és Deck B külön-külön jegyzi meg a trackhez tartozó shader választást és paramétereket (`vj_shader_deck_a`, `vj_shader_deck_b`).
+  4. **Késleltetett Master FX Prioritás (LFO & Crossfade FX):**
+     - Ellenőrizni, hogy a korábban betöltött track Crossfade FX és LFO beállításai maradnak aktívak.
+     - A prioritásos track lejárásakor a beállítások nem rántódnak be azonnal, hanem megvárják a felhasználói shader- vagy Crossfade FX cserét.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #340)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #344)
+* [x] **VJ Shader Láthatóság, Valós DSP VU Műszer, Deck Sidecar & Késleltetett Master FX (Build #344):**
+  - **Üres és Lejárt Deck Tiszta Fekete:** A `deck_source.cpp` és `mixer_source.cpp` renderelőjében szigorítva lett a feltétel: `deck->hasAudioOnlyTrack() && deck->isPlaying() && !deck->isAtEnd()`. Üres decken vagy befejeződött számnál a shader nem renderelődik, a textúra tiszta fekete marad és nem szivárog be a master kimenetre.
+  - **Valós DSP VU Kivezérlésjelző:** A `MixerChannelStrip` korábbi szimulált (`rand() % 10`) logikája törölve lett. A szintjelző kizárólag valós PCM RMS amplitúdót (`currentAmplitude()`) jelenít meg a csatorna hangerő és Gain szorzataként. Üres decken Play gombbal is stabil 0 szinten marad.
+  - **Deck-oldalankénti Shader Perzisztencia:** A `.vdj.json` oldalkocsi fájl kiegészült `vj_shader_deck_a` és `vj_shader_deck_b` objektumokkal. Mindkét deck függetlenül menti és tölti be az adott trackhez tartozó shader indexet és potméter-értékeket, megőrizve a visszafelé kompatibilis `vj_shader` mezőt.
+  - **Késleltetett Master FX Prioritás & Kézrátétel:** A Crossfade FX és Dual LFO beállítások a korábban betöltött trackhez tartoznak prioritásban. Amikor a prioritásos zene véget ér, a rendszer azonnali rántás helyett várakozó állapotba (`pending_fx_handover_ready_`) lép. A bent maradó track mentett master FX beállításai csak akkor lépnek életbe, amikor a felhasználó shader- vagy Crossfade FX váltást kér.
+  - **Telepített bináris:** 1 309 184 bájt, SHA256 `F88DCEDFCA3F462D35DED6A3196AE3EBDEC65311842B0095ABD8CB29630ABC52`.
 * [x] **VJ Shader Fordítási Hiba Elhárítása & Libobs Kompatibilitás (Build #340):**
   - **Hiba elhárítása:** Az OBS `libobs` shader elemzője (`cf-parser.c`) az `#define iFrame ((int)(anim_time * 60.0))` makró zárójelezése miatt szintaktikai hibát dobott (`fluid_flow_effect (25, 17): Expected identifier`), emiatt sem a 15 beépített VJ shader, sem a custom shaderek nem jelentek meg.
   - **Függvény túlterhelés megszüntetése:** A libobs `effect-parser.c` szimbólumtáblája nem engedélyezi a függvények túlterhelését (`'mod' already exists`); a túlterhelt `mod()` függvények helyett visszaálltak a szabványos, egyedi azonosítójú `glsl_mod`, `glsl_mod2`, `glsl_mod2s`, `glsl_mod3`, `glsl_mod3s`, `glsl_mod4`, `glsl_mod4s` segédfüggvények.
