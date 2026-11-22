@@ -1816,10 +1816,6 @@ void DeckPair::setLfo2Config(const LfoConfig &cfg) noexcept
     }
     saveMasterFxToPriorityTrack();
 }
-{
-    std::lock_guard<std::mutex> lock(lfo_mutex_);
-    lfo2_config_ = cfg;
-}
 
 float DeckPair::currentLfo1Value() const noexcept
 {
