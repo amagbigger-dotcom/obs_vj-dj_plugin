@@ -20,3 +20,4 @@ build*/
 build*.zip
 *.zip
 .vscode/
+download_and_install.ps1

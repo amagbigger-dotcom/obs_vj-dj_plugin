@@ -404,27 +404,12 @@ float4 compute_cf_mix(VertData v, float fx_mode)
 
     float4 res;
 
-    // Alakzat-alapú áttűnés (Shape Wipe Blending) ha a faderek alakzat módban vannak
-    if ((vol_fx_mode_a > 3.5 && vol_fx_val_a > 0.001) || (vol_fx_mode_b > 3.5 && vol_fx_val_b > 0.001)) {
-        float m_a = a.a;
-        float m_b = b.a;
-        float3 comp;
-        if (vol_fx_mode_a > 3.5 && vol_fx_mode_b <= 3.5) {
-            comp = lerp(b.rgb, a.rgb, m_a);
-        } else if (vol_fx_mode_b > 3.5 && vol_fx_mode_a <= 3.5) {
-            comp = lerp(a.rgb, b.rgb, m_b);
-        } else {
-            float tot = m_a + m_b;
-            comp = (tot > 0.001) ? (a.rgb * m_a + b.rgb * m_b) / tot : float3(0.0, 0.0, 0.0);
-        }
-        res = float4(comp, 1.0);
-    }
     // Mode 6: Luma Dissolve (Fényerő-alapú áttűnés)
-    else if (fx_mode > 5.5 && fx_mode < 6.5) {
+    if (fx_mode > 5.5 && fx_mode < 6.5) {
         float luma_a = dot(a.rgb, float3(0.2126, 0.7152, 0.0722));
         if (cf_p5 > 0.5) luma_a = 1.0 - luma_a;
-        float thresh = crossfade;
         float width = max(cf_p0 * cf_param_rate, 0.005);
+        float thresh = lerp(-width, 1.0 + width, crossfade);
         float blend = smoothstep(thresh - width, thresh + width, luma_a);
         float glow = saturate(1.0 - abs((luma_a - thresh) / width)) * cf_fx_mid * cf_p1 * cf_param_intensity;
         float3 glow_col = float3(cf_p2, cf_p3, cf_p4);
