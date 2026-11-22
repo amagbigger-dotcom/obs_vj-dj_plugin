@@ -9,27 +9,17 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Ablak-középreugrási hiba végleges megszüntetése, 640×340 Deck méret és referencia-elrendezés helyreállítása (Build #326):
-  1. **Középre ugrási hiba elhárítása (Auto-Centering Bug):**
-     - A `moveEvent` teljes eltávolítása a dialógus osztályokból (`DeckWindow`, `MixerWindow`, `TracklistDock`, `VjFxDialog`). A Qt alapértelmezett szülőhöz-középrehelyezési mechanizmusa (`QDialog::showEvent`) a `moveEvent`-en keresztül korábban azonnal felülírta a beállításokat a középső koordinátákkal (`630, 302`), egymásra pakolva az ablakokat.
-     - `setAttribute(Qt::WA_Moved, true);` beállítása minden ablak konstruktorában és `applyWindowPosition()` hívása közvetlenül `show()` és `showEvent()` előtt, teljesen megakadályozva a Qt belső középre rendezését.
-  2. **Ablakméretek szigorú visszaállítása (AGENTS.md & 2. Kép referencia):**
-     - **DeckWindow A & B:** Szigorúan fix **`640 × 340 px`**.
-     - **Hullámforma (WaveformCanvas):** Fix **`105 px`** (65 px futó részletes sáv + 2 px hézag + 38 px alsó áttekintő spektrum).
-     - **MixerWindow:** Szigorúan fix **`590 × 340 px`**.
-     - **TracklistDock:** Szigorúan fix **`640 × 500 px`**.
-     - **VideoFxDialog:** Szigorúan fix **`540 × 500 px`**.
-  3. **Tiszta referencia koordináták (Image 2 - 1920×1080 elrendezés):**
-     - `Deck A`: `x = 10, y = 654`
-     - `Mixer`: `x = 660, y = 654`
-     - `Deck B`: `x = 1255, y = 654`
-     - `Video FX`: `x = 10, y = 38`
-     - `Tracklist`: `x = 1255, y = 38`
-     - Az alsó 3 ablak pontosan egy vonalban ($y=654$), 38 px-rel a Windows tálca felett ül. A felső panelek 38 px-rel az OBS menüsor alatt indulnak ($y=38$). A felső és alsó ablakok között 116 px tiszta légrés biztosított!
-  4. **Perzisztencia tisztítás & Mentés vezérlés:**
-     - A sérült konfigurációk automatikus korrekciója a `SettingsDialog::loadSettings()` és `applyWindowPosition()` metódusokban.
-     - Közvetlen `obs_vj_settings.json` tisztítás lefutott.
-     - A pozíciók mentése dedikáltan a Beállítások menü `[ 📍 Jelenlegi Ablakpozíciók Mentése ]` gombjával, illetve a plugin szabályos bezárásakor (`free_deck_ui()`) történik.
+* **Fő cél:** BPM-Szinkronizált Áttűnések & Közvetlen Shader Beágyazó Motor (Build #327 - Tervezési fázis):
+  1. **BPM-Szinkronizált Lágy Áttűnések (Crossfade FX & VJ Shader váltáskor):**
+     - Zenei tempóhoz (BPM) igazított, konfigurálható hosszúságú (1 / 2 / 4 ütemes) átmenet az effektek és shaderek közötti durva ugrások megszüntetésére.
+     - `DeckPair` és `DeckPlayer` állapotgép progressz követéssel ($0.0 \rightarrow 1.0$).
+     - Direct3D 11 HLSL `lerp` morfolás a korábbi és az új cél között zéró nyugalmi GPU terheléssel.
+  2. **Közvetlen ShaderToy / GLSL / ISF Beágyazó Motor (CustomShaderManager korszerűsítés):**
+     - A kötelező külső AI prompt kerülőút és címkekényszerítés (`[CODE]`) megszüntetése az `IsfConverterDialog`-ban.
+     - Natív túlterhelt `mod()` függvények beépítése HLSL-ben (törékeny regex string-egyeztetések elhagyása).
+     - GLSL mátrix-vektor szorzás (`mat2 * vec2`, `mat3 * vec3`) automatikus `mul()` konverziója (a 3D raymarching shaderek geometriájának és kamerájának megőrzésére).
+     - ShaderToy futási környezet (`iResolution`, `iTime`, `iMouse`, `iChannel0` procedurális zajtextúra) emulációja.
+     - 1-kattintásos beillesztés és mentés.
 
 ---
 
