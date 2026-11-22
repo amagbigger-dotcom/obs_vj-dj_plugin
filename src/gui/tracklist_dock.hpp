@@ -69,6 +69,7 @@ private slots:
     void onSlotMenuClicked(int slot_offset);
     void onNewPlaylistClicked();
     void onSearchTextChanged(const QString &text);
+    void onHeaderSectionClicked(int logicalIndex);
 
 private:
     void setupUi();
@@ -121,6 +122,9 @@ private:
 
     QTableWidget *table_ = nullptr;
     QTimer *status_timer_ = nullptr;
+
+    int sort_column_ = -1; // -1 = eredeti beillesztési sorrend
+    Qt::SortOrder sort_order_ = Qt::AscendingOrder;
 };
 
 // Global accessor to import & load from anywhere (e.g. Deck window)

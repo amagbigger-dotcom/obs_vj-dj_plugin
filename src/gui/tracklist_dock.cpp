@@ -132,6 +132,7 @@ TracklistDock::TracklistDock(QWidget *parent)
         "QTableWidget { background-color: #151821; alternate-background-color: #191d28; color: #d6dce8; border: 1px solid #242c3c; gridline-color: #1e2432; font-size: 12px; }"
         "QTableWidget::item:selected { background-color: #1e3248; color: #00d2ff; }"
         "QHeaderView::section { background-color: #1c2230; color: #7f8fa4; font-weight: bold; font-size: 11px; border: none; border-bottom: 2px solid #283448; padding: 6px; }"
+        "QHeaderView::section:hover { background-color: #242c3c; color: #00d2ff; }"
         "QProgressBar { background-color: #181d26; border: 1px solid #2e3e54; border-radius: 3px; text-align: center; color: #ffffff; font-weight: bold; font-size: 10px; }"
         "QProgressBar::chunk { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0088cc, stop:1 #00d2ff); border-radius: 2px; }"
     ));
@@ -444,6 +445,9 @@ void TracklistDock::setupUi()
 
     table_->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Fixed);
     table_->setColumnWidth(6, 68);
+
+    table_->horizontalHeader()->setSectionsClickable(true);
+    connect(table_->horizontalHeader(), &QHeaderView::sectionClicked, this, &TracklistDock::onHeaderSectionClicked);
 
     connect(table_, &QTableWidget::cellDoubleClicked, this, &TracklistDock::onTableItemDoubleClicked);
     connect(table_, &QTableWidget::customContextMenuRequested, this, &TracklistDock::onCustomContextMenuRequested);
@@ -1257,6 +1261,103 @@ void TracklistDock::applyFilterAndPopulate()
         filtered_track_indices_.push_back(i);
     }
 
+    // 3. Opcionális rendezés az oszlopfejlécre kattintás szerint (3-állapotú ciklus)
+    if (sort_column_ >= 0) {
+        std::stable_sort(filtered_track_indices_.begin(), filtered_track_indices_.end(), [this](int a, int b) {
+            const auto &itemA = tracks_[a];
+            const auto &itemB = tracks_[b];
+            int cmp = 0;
+
+            switch (sort_column_) {
+                case 0: { // ST (Státusz / azonos fajták egymás mellé)
+                    auto getStatusScore = [](const TrackItem &it) -> int {
+                        if (vj_deck_a() && vj_deck_a()->filePath() == it.file_path && vj_deck_a()->isPlaying()) return 0;
+                        if (vj_deck_b() && vj_deck_b()->filePath() == it.file_path && vj_deck_b()->isPlaying()) return 1;
+                        if (!QFileInfo::exists(it.file_path)) return 2;
+                        if (it.played) return 3;
+                        if (it.status == QStringLiteral("Ready")) return 4;
+                        if (it.status == QStringLiteral("Várakozik...")) return 5;
+                        return 6;
+                    };
+                    const int sA = getStatusScore(itemA);
+                    const int sB = getStatusScore(itemB);
+                    if (sA != sB) cmp = (sA < sB) ? -1 : 1;
+                    break;
+                }
+                case 1: { // CÍM / NÉV (ABC szerint)
+                    cmp = QString::localeAwareCompare(itemA.title, itemB.title);
+                    break;
+                }
+                case 2: { // BPM (Számszerűen növekvő/csökkenő)
+                    if (std::abs(itemA.bpm - itemB.bpm) > 0.001) {
+                        cmp = (itemA.bpm < itemB.bpm) ? -1 : 1;
+                    }
+                    break;
+                }
+                case 3: { // KEY (Camelot kód / Hangnem)
+                    auto parseCamelot = [](const QString &c) -> int {
+                        if (c.isEmpty() || c == QStringLiteral("--")) return 999;
+                        int num = 0;
+                        int idx = 0;
+                        while (idx < c.length() && c[idx].isDigit()) {
+                            num = num * 10 + c[idx].digitValue();
+                            idx++;
+                        }
+                        const int letterVal = (idx < c.length() && (c[idx] == 'B' || c[idx] == 'b')) ? 1 : 0;
+                        return num * 10 + letterVal;
+                    };
+                    const int cA = parseCamelot(itemA.camelot);
+                    const int cB = parseCamelot(itemB.camelot);
+                    if (cA != cB) {
+                        cmp = (cA < cB) ? -1 : 1;
+                    } else {
+                        cmp = QString::compare(itemA.camelot, itemB.camelot, Qt::CaseInsensitive);
+                    }
+                    break;
+                }
+                case 4: { // IDŐ (Időtartam)
+                    if (itemA.duration_ms != itemB.duration_ms) {
+                        cmp = (itemA.duration_ms < itemB.duration_ms) ? -1 : 1;
+                    }
+                    break;
+                }
+                case 5: { // FORM (Formátum: azonos fajták egymás mellé)
+                    auto getFormScore = [](const TrackItem &it) -> int {
+                        const QString ext = QFileInfo(it.file_path).suffix().toLower();
+                        if (isAudioOnlyFile(ext)) return 0; // Audio
+                        if (it.is_converted) return 1;     // 1080p VJ
+                        return 2;                          // Konvertálatlan / egyéb
+                    };
+                    const int fA = getFormScore(itemA);
+                    const int fB = getFormScore(itemB);
+                    if (fA != fB) {
+                        cmp = (fA < fB) ? -1 : 1;
+                    } else {
+                        cmp = QString::localeAwareCompare(itemA.title, itemB.title);
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+
+            if (cmp == 0) {
+                return a < b; // Stabil fallback az eredeti beillesztési indexre
+            }
+
+            return (sort_order_ == Qt::AscendingOrder) ? (cmp < 0) : (cmp > 0);
+        });
+    }
+
+    if (table_ && table_->horizontalHeader()) {
+        if (sort_column_ >= 0) {
+            table_->horizontalHeader()->setSortIndicatorShown(true);
+            table_->horizontalHeader()->setSortIndicator(sort_column_, sort_order_);
+        } else {
+            table_->horizontalHeader()->setSortIndicatorShown(false);
+        }
+    }
+
     table_->setRowCount(static_cast<int>(filtered_track_indices_.size()));
     for (int r = 0; r < static_cast<int>(filtered_track_indices_.size()); ++r) {
         updateRow(r);
@@ -1452,6 +1553,26 @@ void TracklistDock::onDeletePlaylist(const QString &playlist_id)
 void TracklistDock::onSearchTextChanged(const QString &text)
 {
     Q_UNUSED(text);
+    applyFilterAndPopulate();
+}
+
+void TracklistDock::onHeaderSectionClicked(int logicalIndex)
+{
+    if (logicalIndex == 6) return; // LOAD oszlop nem rendezhető
+
+    if (sort_column_ == logicalIndex) {
+        if (sort_order_ == Qt::AscendingOrder) {
+            sort_order_ = Qt::DescendingOrder;
+        } else {
+            // Harmadik kattintás: visszaállítás az importálás/beillesztés sorrendjére
+            sort_column_ = -1;
+            sort_order_ = Qt::AscendingOrder;
+        }
+    } else {
+        sort_column_ = logicalIndex;
+        sort_order_ = Qt::AscendingOrder;
+    }
+
     applyFilterAndPopulate();
 }
 
