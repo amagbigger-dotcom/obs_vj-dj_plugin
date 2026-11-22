@@ -1,9 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #353 (GitHub Run #45042690877)
-* **Aktuális Git Commit:** `59224b0` (Build #354)
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 380 352 bájt)
-* **Bináris SHA256:** `0EEAC4ACD3F4479455EC86436510C8FEB7D7044ACB6C537D620EF848F35AD8F6`
+* **Legutolsó stabil mérföldkő:** Build #354 (GitHub Run #45050625767)
+* **Aktuális Git Commit:** `803a3eb`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 381 888 bájt)
+* **Bináris SHA256:** `E1F6C8B3B6382A574BE63EF28E2B0C7C5D56E6E4FDAA514C975AF473ECF8F0CB`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
@@ -42,6 +42,7 @@
     - Loop aktiválásakor a deck mostantól azonnal egy tiszta 4-negyedes (1 teljes takt / 4 beat) loopot indít el.
   - **Hardveres MIDI & Engine Clamp Szinkronizálás:**
     - Az `EngineLoop::MAX_LOOP_INDEX = 16`, `setLoopBeatIndex`, `DeckPair::setLoopBeatIndex`, valamint a MIDI vezérlő `LOOP_DOUBLE` és `LOOP_SIZE_CHANGE` clamp értékei szinkronba kerültek a 17-elemű tömbbel.
+  - **Telepített bináris:** 1 381 888 bájt, SHA256 `E1F6C8B3B6382A574BE63EF28E2B0C7C5D56E6E4FDAA514C975AF473ECF8F0CB`.
 * [x] **Tracklist 3-Állapotú Oszloprendezés (Build #353):**
   - **3-állapotú ciklikus rendezés:**
     - 1. kattintás: Növekvő rendezés (Ascending Order, $\blacktriangle$).
