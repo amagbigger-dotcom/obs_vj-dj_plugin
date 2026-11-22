@@ -40,15 +40,6 @@ uniform float anim_time;            // Másodperc alapú futásidő
 #define u_time anim_time
 #define RENDERSIZE float2(1920.0, 1080.0)
 #define iResolution float3(1920.0, 1080.0, 1.0)
-#define iChannel0 dummy_texture
-#define iChannel1 dummy_texture
-#define iChannel2 dummy_texture
-#define iChannel3 dummy_texture
-#define iChannelResolution float3(1920.0, 1080.0, 1.0)
-#define iMouse float4(960.0, 540.0, 0.0, 0.0)
-#define iDate float4(2026.0, 11.0, 22.0, anim_time)
-#define iTimeDelta 0.016666
-#define iFrame ((int)(anim_time * 60.0))
 
 uniform float bpm;                  // Deck BPM sebesség
 uniform float audio_amp;            // RMS pillanatnyi hangerő [0.0 .. 1.0]
@@ -94,36 +85,36 @@ VertData VSDefault(VertData v)
 }
 
 // -----------------------------------------------------------------------------
-// Matematikai segédfüggvények & Túlterhelt mod() (Common Math & ShaderToy Helpers)
+// Matematikai segédfüggvények (Common Math Helpers - No Function Overloading)
 // -----------------------------------------------------------------------------
 float2 to_float2(float v) { return float2(v, v); }
 float3 to_float3(float v) { return float3(v, v, v); }
 float4 to_float4(float v) { return float4(v, v, v, v); }
 
-float  mod(float x, float y)   { return x - y * floor(x / y); }
-float2 mod(float2 x, float2 y) { return x - y * floor(x / y); }
-float2 mod(float2 x, float y)  { return x - y * floor(x / y); }
-float3 mod(float3 x, float3 y) { return x - y * floor(x / y); }
-float3 mod(float3 x, float y)  { return x - y * floor(x / y); }
-float4 mod(float4 x, float4 y) { return x - y * floor(x / y); }
-float4 mod(float4 x, float y)  { return x - y * floor(x / y); }
-
-float glsl_mod(float x, float y) { return mod(x, y); }
-float2 glsl_mod2(float2 x, float2 y) { return mod(x, y); }
-float2 glsl_mod2s(float2 x, float y) { return mod(x, y); }
-float3 glsl_mod3(float3 x, float3 y) { return mod(x, y); }
-float3 glsl_mod3s(float3 x, float y) { return mod(x, y); }
-
-float4 sample_procedural_noise(float2 p)
+float glsl_mod(float x, float y)
 {
-    float n1 = frac(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
-    float n2 = frac(sin(dot(p + float2(0.1, 0.1), float2(39.346, 11.135))) * 23421.631);
-    float n3 = frac(sin(dot(p + float2(0.2, 0.3), float2(73.156, 52.235))) * 54321.123);
-    return float4(n1, n2, n3, 1.0);
+    return x - y * floor(x / y);
 }
-#define texture(ch, uv) sample_procedural_noise(uv)
-#define texture2D(ch, uv) sample_procedural_noise(uv)
-#define textureLod(ch, uv, lod) sample_procedural_noise(uv)
+
+float2 glsl_mod2(float2 x, float2 y)
+{
+    return x - y * floor(x / y);
+}
+
+float2 glsl_mod2s(float2 x, float y)
+{
+    return x - y * floor(x / y);
+}
+
+float3 glsl_mod3(float3 x, float3 y)
+{
+    return x - y * floor(x / y);
+}
+
+float3 glsl_mod3s(float3 x, float y)
+{
+    return x - y * floor(x / y);
+}
 
 float4 glsl_mod4(float4 x, float4 y)
 {
@@ -133,6 +124,14 @@ float4 glsl_mod4(float4 x, float4 y)
 float4 glsl_mod4s(float4 x, float y)
 {
     return x - y * floor(x / y);
+}
+
+float4 sample_procedural_noise(float2 p)
+{
+    float n1 = frac(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
+    float n2 = frac(sin(dot(p + float2(0.1, 0.1), float2(39.346, 11.135))) * 23421.631);
+    float n3 = frac(sin(dot(p + float2(0.2, 0.3), float2(73.156, 52.235))) * 54321.123);
+    return float4(n1, n2, n3, 1.0);
 }
 
 float2 rotate2D(float2 p, float angle)
