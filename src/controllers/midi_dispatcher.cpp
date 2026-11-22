@@ -288,7 +288,7 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
     case MidiAction::LOOP_DOUBLE:
         if (target_deck && (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0))) {
             const int cur = target_deck->loopBeatIndex();
-            if (cur < 11) {
+            if (cur < EngineLoop::MAX_LOOP_INDEX) {
                 const int new_idx = cur + 1;
                 target_deck->setLoopBeatIndex(new_idx);
                 if (auto *dp = vdj_decks()) dp->setLoopBeatIndex(b->deck == 2 ? 1 : 0, new_idx);
@@ -303,7 +303,7 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         const double delta = jog.processDelta(data2);
         if (target_deck && std::abs(delta) > 0.001) {
             const int cur = target_deck->loopBeatIndex();
-            const int new_idx = std::clamp(cur + (delta > 0 ? 1 : -1), 0, 11);
+            const int new_idx = std::clamp(cur + (delta > 0 ? 1 : -1), 0, EngineLoop::MAX_LOOP_INDEX);
             if (new_idx != cur) {
                 target_deck->setLoopBeatIndex(new_idx);
                 if (auto *dp = vdj_decks()) dp->setLoopBeatIndex(b->deck == 2 ? 1 : 0, new_idx);

@@ -9,17 +9,39 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #353 Tracklist 3-Állapotú Oszloprendezés & Stabilitási Tesztek OBS Studio-ban:
-  1. **3-Állapotú Oszloprendezés:**
-     - Fejléc oszlopra kattintva: 1. klikk = Növekvő ($\blacktriangle$), 2. klikk = Csökkenő ($\blacktriangledown$), 3. klikk = Visszaállítás a listába illesztés (import) ideje szerinti eredeti sorrendre.
-     - ST (státusz), CÍM (ABC A-Z), BPM (számszerű), KEY (Camelot skála), IDŐ (hossz), FORM (azonos formátumok: audio / 1080p / konvertálatlan).
-     - A rendezés szálbiztos és virtuális (`filtered_track_indices_`), az eredeti gyűjtemény sorrendje és a JSON fájl nem módosul.
-  2. **Nyers Videó Relink & Önjavítás (Build #351):**
-     - Ellenőrizni az auto-konvertálást és az akadásmentes lejátszást az OBS Studio-ban.
+* **Fő cél:** Build #354 Deck Kezelőfelület & Loop Rendszer Ergonómiai Megújítása:
+  1. **Jog Nudge Gombok Áthelyezése ("Lejjebb hozása"):**
+     - A `◀ NUDGE` és `NUDGE ▶` gombok kivétele a szűkös `LoopBar` sorából.
+     - Áthelyezésük a közvetlenül alatta lévő `TransportBar`-ba, kihasználva a Hot Cue gombok melletti ~198 px üres helyet (kényelmes 34 px magassággal, kézre álló CUE/PLAY közelségben).
+  2. **Harmadolós (Triola / 3-bar) Loop Ciklusok Beépítése (6, 12, 24, 48, 96):**
+     - A meglévő 12 bináris loop érték kibővítése 17 eleműre:
+       `1/16, 1/8, 1/4, 1/2, 1, 2, 4, [6], 8, [12], 16, [24], 32, [48], 64, [96], 128`.
+     - `EngineLoop` szorzótábla és clamp határok frissítése (`0..16`).
+     - Mind a 17 nyomógomb kényelmesen elfér a felszabadult LoopBar sorban (30 px gombok, 2 px hézag = 578 px a 624 px-ből).
+  3. **Alapértelmezett Loop Méret 4 Beat-re (Ütem) Állítása:**
+     - A korábbi téves `loop_beat_index_{3}` (ami a `1/2` volt) javítása az új tömbnek megfelelő indexre (`6`), így a loop azonnal egy teljes 4-negyedes (4 beat) ütemet fog meg.
+  4. **MIDI Dispatcher Frissítés:**
+     - Halve / Double és Size encoder léptetések kiterjesztése a 16-os maximális indexig.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #353)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #354)
+* [x] **Deck Jog Nudge Áthelyezés & 17-Állapotú Harmadolós Loop Rendszer (Build #354):**
+  - **Jog Nudge Gombok Áthelyezése a TransportBar-ba:**
+    - A `◀ NUDGE` és `NUDGE ▶` gombok kikerültek a `LoopBar` sorából, így a loop sor teljesen fellélegzett és tiszta lett.
+    - Új helyük a közvetlenül alatta lévő `TransportBar`-ban kapott helyet a 4 Hot Cue gomb mellett a jobb szélen.
+    - Kényelmes **34 px** magasság (pixelre megegyezik a CUE / PLAY / HOT CUE méretével), 50 px szélesség, gyors `autoRepeat` funkcióval ($\pm 5$ ms mikrolépéses lemezlassítás/tolás).
+  - **17-Állapotú Harmadolós (Triola) Loop Rendszer:**
+    - Beépítésre került az 5 új harmadolós / 3-bar ciklus szigorú zenei és numerikus rendben:  
+      `1/16, 1/8, 1/4, 1/2, 1, 2, 4, [6], 8, [12], 16, [24], 32, [48], 64, [96], 128`.
+    - Az `EngineLoop::beatMultiplier` és szorzótábla kiegészült a `6.0`, `12.0`, `24.0`, `48.0`, `96.0` értékekkel.
+    - Mind a 17 nyomógomb kényelmesen elfér a felszabadult LoopBar sorban (30 px gombok, 2 px hézag = 578 px a 624 px hasznos ablakszélességből).
+    - Vizuális differenciálás: a harmadolós gombok nyugalmi állapotban finom kékes-szürke szövegszínt (`#88b0e8`) és keretet kapnak, aktív állapotban pedig narancssárga (`#ff8800`) fénnyel jelzik az aktív loopot.
+  - **Alapértelmezett Loop Méret 4 Beat-re (Ütem) Állítása:**
+    - Megszűnt a korábbi téves `1/2` ütem megfogás: a `loop_beat_index_`, `loop_beat_idx_a_` és `loop_beat_idx_b_` atomi kezdőértéke az új tömbnek megfelelő `6`-os indexre (`4` beat) állt át.
+    - Loop aktiválásakor a deck mostantól azonnal egy tiszta 4-negyedes (1 teljes takt / 4 beat) loopot indít el.
+  - **Hardveres MIDI & Engine Clamp Szinkronizálás:**
+    - Az `EngineLoop::MAX_LOOP_INDEX = 16`, `setLoopBeatIndex`, `DeckPair::setLoopBeatIndex`, valamint a MIDI vezérlő `LOOP_DOUBLE` és `LOOP_SIZE_CHANGE` clamp értékei szinkronba kerültek a 17-elemű tömbbel.
 * [x] **Tracklist 3-Állapotú Oszloprendezés (Build #353):**
   - **3-állapotú ciklikus rendezés:**
     - 1. kattintás: Növekvő rendezés (Ascending Order, $\blacktriangle$).
@@ -164,12 +186,12 @@
 ---
 
 ## 3. Következő Lépés (Next Action)
-* [x] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #326, Commit `92842a5`).
-* [x] GitHub Actions CI fordítás sikeres lefutása (Run #44961894749), kész DLL letöltése és telepítése (SHA256: `3E775DE6`).
-* [ ] Éles tesztelés az OBS Studio elindításával:
-  - Mind az 5 ablak egyszerre megnyílik a referencia pozíciókban (`x=10, 660, 1255`, `y=654` alul; `x=10, 1255`, `y=38` felül).
-  - DeckWindow magasság szigorúan 340 px, MixerWindow 340 px, Waveform 105 px (65 px futó + 38 px alsó áttekintő).
-  - Beállítások menü pozíció mentés (`[ 📍 Jelenlegi Ablakpozíciók Mentése ]`) és visszaállítás (`[ ↺ Alapértelmezett 5-Ablakos Layout ]`) ellenőrzése.
+* [ ] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #354).
+* [ ] GitHub Actions CI fordítás ellenőrzése, a kész DLL letöltése és telepítése.
+* [ ] Éles tesztelés az OBS Studio-ban:
+  - Loop kapcsolók ellenőrzése a Deck A és Deck B ablakokban (17 gomb, köztük a 6, 12, 24, 48, 96 harmadolós értékek).
+  - Alapértelmezett loop indítás tesztelése (pontosan 4 ütemet kell megfognia az 1/2 helyett).
+  - A TransportBar jobb szélén lévő `[◀ NUDGE]` és `[NUDGE ▶]` gombok lemez-lassító és toló hatásának ellenőrzése (nyomva tartva és kattintva).
 
 ---
 

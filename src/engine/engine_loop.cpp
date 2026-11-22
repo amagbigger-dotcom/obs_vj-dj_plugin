@@ -2,10 +2,10 @@
 
 double EngineLoop::beatMultiplier(int beat_index) noexcept
 {
-    static const double BEAT_MULTIPLIERS[] = {
-        0.0625, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0
+    static const double BEAT_MULTIPLIERS[LOOP_BEAT_COUNT] = {
+        0.0625, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 6.0, 8.0, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, 96.0, 128.0
     };
-    return BEAT_MULTIPLIERS[std::clamp(beat_index, 0, 11)];
+    return BEAT_MULTIPLIERS[std::clamp(beat_index, 0, MAX_LOOP_INDEX)];
 }
 
 int64_t EngineLoop::calculateLoopLengthMs(double beat_duration_ms, int beat_index) noexcept

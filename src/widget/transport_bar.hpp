@@ -25,4 +25,7 @@ private:
     QPushButton *master_btn_ = nullptr;
     QLabel *hc_hdr_ = nullptr;
     QPushButton *hot_cue_btns_[4] = {nullptr, nullptr, nullptr, nullptr};
+    QLabel *jog_hdr_ = nullptr;
+    QPushButton *jog_minus_btn_ = nullptr;
+    QPushButton *jog_plus_btn_ = nullptr;
 };

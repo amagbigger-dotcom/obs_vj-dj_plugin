@@ -16,6 +16,7 @@
 #include "effects/crossfade_fx_config.hpp"
 #include "engine/engine_dsp.hpp"
 #include "engine/lfo_engine.hpp"
+#include "engine/engine_loop.hpp"
 
 class DeckPlayer {
 public:
@@ -222,7 +223,7 @@ private:
     std::atomic<bool> has_video_{false};
     std::atomic<bool> file_changed_{false};
     std::atomic<DeckSide> side_{DeckSide::A};
-    std::atomic<int> loop_beat_index_{3}; // 4 beats default
+    std::atomic<int> loop_beat_index_{EngineLoop::DEFAULT_LOOP_INDEX}; // 4 beats default (index 6 in 17-beat array)
 
     std::atomic<int64_t> loop_start_ms_{0};
     std::atomic<int64_t> loop_end_ms_{0};
@@ -485,8 +486,8 @@ private:
     std::atomic<float> headphone_mix_{0.5f};
     std::atomic<int> master_mode_{0};
     std::atomic<double> master_clock_bpm_{128.0};
-    std::atomic<int> loop_beat_idx_a_{3};
-    std::atomic<int> loop_beat_idx_b_{3};
+    std::atomic<int> loop_beat_idx_a_{EngineLoop::DEFAULT_LOOP_INDEX};
+    std::atomic<int> loop_beat_idx_b_{EngineLoop::DEFAULT_LOOP_INDEX};
 
     struct CuePacket {
         std::vector<float> l;

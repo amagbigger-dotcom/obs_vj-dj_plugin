@@ -3,26 +3,50 @@
 
 #include <QStringList>
 
+namespace {
+static inline bool isTripletLoop(int idx) noexcept
+{
+    // 6, 12, 24, 48, 96 beat harmadolos ciklusok
+    return (idx == 7 || idx == 9 || idx == 11 || idx == 13 || idx == 15);
+}
+
+static inline QString loopButtonStyle(bool is_active, int idx)
+{
+    if (is_active) {
+        return QStringLiteral("background: #ff8800; border: 1px solid #ffaa00; color: #000000; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 8px;");
+    }
+    if (isTripletLoop(idx)) {
+        return QStringLiteral("background: #1c2635; border: 1px solid #3b5375; color: #88b0e8; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 8px;");
+    }
+    return QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 8px;");
+}
+} // namespace
+
 LoopBar::LoopBar(DeckPlayer *deck, QWidget *parent)
     : QWidget(parent), deck_(deck)
 {
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(3);
+    layout->setSpacing(2);
 
     loop_hdr_ = new QLabel(QStringLiteral("LOOP:"), this);
     loop_hdr_->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px;"));
     layout->addWidget(loop_hdr_);
 
     const QStringList loop_labels = {
-        "1/16", "1/8", "1/4", "1/2", "1", "2", "4", "8", "16", "32", "64", "128"
+        "1/16", "1/8", "1/4", "1/2", "1", "2", "4", "6", "8", "12", "16", "24", "32", "48", "64", "96", "128"
     };
     for (int i = 0; i < loop_labels.size(); i++) {
         auto *btn = new QPushButton(loop_labels[i], this);
         btn->setFixedSize(30, 22);
         btn->setAutoDefault(false);
         btn->setDefault(false);
-        btn->setStyleSheet(QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 8px;"));
+        btn->setStyleSheet(loopButtonStyle(false, i));
+        if (isTripletLoop(i)) {
+            btn->setToolTip(QString::asprintf("Harmadolós (Triola) loop: %s ütem", loop_labels[i].toUtf8().constData()));
+        } else {
+            btn->setToolTip(QString::asprintf("Loop méret: %s ütem", loop_labels[i].toUtf8().constData()));
+        }
         connect(btn, &QPushButton::clicked, this, [this, i]() {
             if (!deck_) return;
             if (deck_->isLooping() && deck_->loopBeatIndex() == i) {
@@ -35,48 +59,6 @@ LoopBar::LoopBar(DeckPlayer *deck, QWidget *parent)
         loop_btns_.push_back(btn);
         layout->addWidget(btn);
     }
-
-    layout->addSpacing(4);
-
-    jog_hdr_ = new QLabel(QStringLiteral("JOG:"), this);
-    jog_hdr_->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px;"));
-    layout->addWidget(jog_hdr_);
-
-    jog_minus_btn_ = new QPushButton(QStringLiteral("◀ NUDGE"), this);
-    jog_minus_btn_->setFixedSize(48, 22);
-    jog_minus_btn_->setAutoDefault(false);
-    jog_minus_btn_->setDefault(false);
-    jog_minus_btn_->setAutoRepeat(true);
-    jog_minus_btn_->setAutoRepeatDelay(250);
-    jog_minus_btn_->setAutoRepeatInterval(80);
-    jog_minus_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 8px; font-weight: bold; color: #78a0d0; border-radius: 3px; padding: 0px; } "
-        "QPushButton:hover { background: #26384e; color: #fff; } "
-        "QPushButton:pressed { background: #0088cc; color: #fff; }"));
-    jog_minus_btn_->setToolTip(QStringLiteral("Jog Nudge: lemezt lassítja / visszatartja 5ms-mal"));
-    connect(jog_minus_btn_, &QPushButton::clicked, this, [this]() {
-        if (!deck_) return;
-        deck_->nudgePlayback(-5);
-    });
-    layout->addWidget(jog_minus_btn_);
-
-    jog_plus_btn_ = new QPushButton(QStringLiteral("NUDGE ▶"), this);
-    jog_plus_btn_->setFixedSize(48, 22);
-    jog_plus_btn_->setAutoDefault(false);
-    jog_plus_btn_->setDefault(false);
-    jog_plus_btn_->setAutoRepeat(true);
-    jog_plus_btn_->setAutoRepeatDelay(250);
-    jog_plus_btn_->setAutoRepeatInterval(80);
-    jog_plus_btn_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 8px; font-weight: bold; color: #78a0d0; border-radius: 3px; padding: 0px; } "
-        "QPushButton:hover { background: #26384e; color: #fff; } "
-        "QPushButton:pressed { background: #0088cc; color: #fff; }"));
-    jog_plus_btn_->setToolTip(QStringLiteral("Jog Nudge: lemezt gyorsítja / megtolja 5ms-mal"));
-    connect(jog_plus_btn_, &QPushButton::clicked, this, [this]() {
-        if (!deck_) return;
-        deck_->nudgePlayback(+5);
-    });
-    layout->addWidget(jog_plus_btn_);
 
     layout->addStretch(1);
 }
@@ -98,11 +80,8 @@ void LoopBar::refresh()
         last_looping_ = looping;
         last_loop_idx_ = loop_idx;
         for (size_t i = 0; i < loop_btns_.size(); i++) {
-            if (looping && static_cast<int>(i) == loop_idx) {
-                loop_btns_[i]->setStyleSheet(QStringLiteral("background: #ff8800; border: 1px solid #ffaa00; color: #000000; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 8px;"));
-            } else {
-                loop_btns_[i]->setStyleSheet(QStringLiteral("background: #222834; border: 1px solid #384255; color: #ffffff; font-weight: bold; border-radius: 3px; padding: 0px; font-size: 8px;"));
-            }
+            const bool is_active = (looping && static_cast<int>(i) == loop_idx);
+            loop_btns_[i]->setStyleSheet(loopButtonStyle(is_active, static_cast<int>(i)));
         }
     }
 }

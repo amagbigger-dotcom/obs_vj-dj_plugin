@@ -1119,7 +1119,7 @@ void DeckPlayer::processAudioDsp(float *channel_data, size_t num_frames, size_t 
 
 void DeckPlayer::setLoopBeatIndex(int index) noexcept
 {
-    loop_beat_index_.store(std::clamp(index, 0, 11), std::memory_order_relaxed);
+    loop_beat_index_.store(std::clamp(index, 0, EngineLoop::MAX_LOOP_INDEX), std::memory_order_relaxed);
 }
 
 int DeckPlayer::loopBeatIndex() const noexcept
@@ -2175,7 +2175,7 @@ void DeckPair::syncTempoBtoA()
 
 void DeckPair::setLoopBeatIndex(int deck_index, int beat_index)
 {
-    const int clamped = std::clamp(beat_index, 0, 11);
+    const int clamped = std::clamp(beat_index, 0, EngineLoop::MAX_LOOP_INDEX);
     if (deck_index == 0) {
         loop_beat_idx_a_.store(clamped, std::memory_order_relaxed);
         if (vj_deck_a()) vj_deck_a()->setLoopBeatIndex(clamped);

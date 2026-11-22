@@ -97,6 +97,49 @@ TransportBar::TransportBar(DeckPlayer *deck, QWidget *parent)
     }
 
     updateHotCueButtons();
+
+    layout->addSpacing(6);
+
+    jog_hdr_ = new QLabel(QStringLiteral("JOG:"), this);
+    jog_hdr_->setStyleSheet(QStringLiteral("font-weight: bold; color: #7f8fa4; font-size: 9px; margin-left: 2px;"));
+    layout->addWidget(jog_hdr_);
+
+    jog_minus_btn_ = new QPushButton(QStringLiteral("◀ NUDGE"), this);
+    jog_minus_btn_->setFixedSize(50, 34);
+    jog_minus_btn_->setAutoDefault(false);
+    jog_minus_btn_->setDefault(false);
+    jog_minus_btn_->setAutoRepeat(true);
+    jog_minus_btn_->setAutoRepeatDelay(250);
+    jog_minus_btn_->setAutoRepeatInterval(80);
+    jog_minus_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 9px; font-weight: bold; color: #78a0d0; border-radius: 4px; padding: 0px; } "
+        "QPushButton:hover { background: #26384e; color: #fff; border-color: #00d2ff; } "
+        "QPushButton:pressed { background: #0088cc; color: #fff; }"));
+    jog_minus_btn_->setToolTip(QStringLiteral("Jog Nudge: lemezt lassítja / visszatartja 5ms-mal (nyomva tartva folyamatos)"));
+    connect(jog_minus_btn_, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        deck_->nudgePlayback(-5);
+    });
+    layout->addWidget(jog_minus_btn_);
+
+    jog_plus_btn_ = new QPushButton(QStringLiteral("NUDGE ▶"), this);
+    jog_plus_btn_->setFixedSize(50, 34);
+    jog_plus_btn_->setAutoDefault(false);
+    jog_plus_btn_->setDefault(false);
+    jog_plus_btn_->setAutoRepeat(true);
+    jog_plus_btn_->setAutoRepeatDelay(250);
+    jog_plus_btn_->setAutoRepeatInterval(80);
+    jog_plus_btn_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c2634; border: 1px solid #385070; font-size: 9px; font-weight: bold; color: #78a0d0; border-radius: 4px; padding: 0px; } "
+        "QPushButton:hover { background: #26384e; color: #fff; border-color: #00d2ff; } "
+        "QPushButton:pressed { background: #0088cc; color: #fff; }"));
+    jog_plus_btn_->setToolTip(QStringLiteral("Jog Nudge: lemezt gyorsítja / megtolja 5ms-mal (nyomva tartva folyamatos)"));
+    connect(jog_plus_btn_, &QPushButton::clicked, this, [this]() {
+        if (!deck_) return;
+        deck_->nudgePlayback(+5);
+    });
+    layout->addWidget(jog_plus_btn_);
+
     layout->addStretch(1);
 }
 
