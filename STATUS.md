@@ -1,9 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #355 (Hibajavítás & Stabilitás)
-* **Aktuális Git Commit:** `PENDING_BUILD_355`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (Build #354)
-* **Bináris SHA256:** `E1F6C8B3B6382A574BE63EF28E2B0C7C5D56E6E4FDAA514C975AF473ECF8F0CB`
+* **Legutolsó stabil mérföldkő:** Build #355 (GitHub Run #45053887119)
+* **Aktuális Git Commit:** `aa10b9c`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 382 400 bájt)
+* **Bináris SHA256:** `B0A784F660F909362531CE24F30A05520908555EA4629258C1F7E2D1202A08FC`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
