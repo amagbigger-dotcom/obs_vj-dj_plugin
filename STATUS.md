@@ -1,29 +1,31 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #344 (GitHub Run #45013337200)
-* **Aktuális Git Commit:** `b36ccdb`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 309 184 bájt)
-* **Bináris SHA256:** `F88DCEDFCA3F462D35DED6A3196AE3EBDEC65311842B0095ABD8CB29630ABC52`
+* **Legutolsó stabil mérföldkő:** Build #346 (GitHub Run #45020245856)
+* **Aktuális Git Commit:** `d5193a0`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 308 160 bájt)
+* **Bináris SHA256:** `6A9BFB11596C5EA59E8820B1D595A2C4EECAAE7651CAB03753DBC5CE75027051`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #344 VJ Shaderek, VU Műszerek és Master FX Prioritás ellenőrzése OBS Studio-ban:
-  1. **Üres és Lejárt Deck Fekete Képernyő:**
-     - Ellenőrizni, hogy üres deck esetén, illetve amikor a lejátszott track a végére ér (`isAtEnd()`), a VJ shader azonnal megszűnik renderelődni és a kimenet tiszta fekete lesz (nem ragad bent a master mixben).
-  2. **Valós Idejű DSP VU Kivezérlésjelző:**
-     - Ellenőrizni, hogy üres deckre nyomott Play gomb esetén a fader melletti műszer stabil 0 dB-en marad (megszűnt a korábbi véletlenszerű ugrálás).
-     - Valódi zene lejátszásakor a valós PCM RMS hangszintet mutatja a fader és Gain arányában.
-  3. **Deck-oldalankénti Shader Perzisztencia (`.vdj.json`):**
-     - Ellenőrizni, hogy Deck A és Deck B külön-külön jegyzi meg a trackhez tartozó shader választást és paramétereket (`vj_shader_deck_a`, `vj_shader_deck_b`).
-  4. **Késleltetett Master FX Prioritás (LFO & Crossfade FX):**
-     - Ellenőrizni, hogy a korábban betöltött track Crossfade FX és LFO beállításai maradnak aktívak.
-     - A prioritásos track lejárásakor a beállítások nem rántódnak be azonnal, hanem megvárják a felhasználói shader- vagy Crossfade FX cserét.
+* **Fő cél:** Build #346 Csatorna Fader Alakzat-Áttűnések (Shape Wipe) és Crossfader Integráció ellenőrzése OBS Studio-ban:
+  1. **Alakzat Kivágás Átlátszósága (Transzparencia):**
+     - Ellenőrizni, hogy ha az egyik decken alakzat-áttűnés van (pl. Kör Szűkülés, Lamellák), a másikon pedig nincs (`VOL FX: Ki`), akkor a kivágott rész tiszta fekete (átlátszó) marad, amikor a crossfader az aktív decken áll.
+  2. **Finom Crossfader Keverés a Csíkokban és Alakzatokban:**
+     - Ellenőrizni, hogy amikor a másik oldalról csak egy pici van bekeverve a crossfaderrel, a lamellákban/kivágásban a másik deck nem 100%-os tömörséggel ugrik be, hanem a crossfader arányának megfelelő lágy átfedéssel jelenik meg.
+  3. **Crossfade FX & Luma Dissolve Együttműködés:**
+     - Ellenőrizni, hogy a Crossfade FX effektek és a standard átmenetek (Equal Power, Wipe, Additive, Hard Cut, Luma Dissolve) zavartalanul működnek együtt a csatorna faderek alakzat-effektjeivel.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #344)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #346)
+* [x] **Csatorna Hangerő Fader Alakzat Áttűnések & Crossfader Keverés Javítása (Build #346):**
+  - **Hiba elhárítása (`mixer_source.cpp`):** Eltávolításra került a korábbi hibás `lerp(b.rgb, a.rgb, m_a)` és `lerp(a.rgb, b.rgb, m_b)` shader ág, amely a crossfadert figyelmen kívül hagyva 100%-os tömörséggel kényszerítette rá a másik deck videóját a maszkolt felületekre.
+  - **Valódi Transzparencia:** Ha csak az egyik decken aktív az alakzat-áttűnés (Kör, Lamellák, Téglalap, Négyzet, Rombusz, Zoom), a maszkolt részeken a háttér tiszta fekete (átlátszó), a másik deck csak akkor és olyan mértékben jelenik meg alatta, amennyire a crossfader át van húzva.
+  - **Finom Videókeverés (Lamellák / Csíkozódás):** A vízszintes és függőleges lamelláknál megszűnt a másik deck hirtelen, 100%-os átlátszatlan beugrása: a sávokban a crossfader súlyozásának megfelelő arányos, lágy videókeverés érvényesül.
+  - **Luma Dissolve Küszöb Javítás:** A Luma Dissolve átmenet skálázása fel lett készítve a teljes tartományra (`thresh = lerp(-width, 1.0 + width, crossfade)`), így 0.0-s crossfader állásnál nem szivárog be 50%-os Deck B.
+  - **Telepített bináris:** 1 308 160 bájt, SHA256 `6A9BFB11596C5EA59E8820B1D595A2C4EECAAE7651CAB03753DBC5CE75027051`.
 * [x] **VJ Shader Láthatóság, Valós DSP VU Műszer, Deck Sidecar & Késleltetett Master FX (Build #344):**
   - **Üres és Lejárt Deck Tiszta Fekete:** A `deck_source.cpp` és `mixer_source.cpp` renderelőjében szigorítva lett a feltétel: `deck->hasAudioOnlyTrack() && deck->isPlaying() && !deck->isAtEnd()`. Üres decken vagy befejeződött számnál a shader nem renderelődik, a textúra tiszta fekete marad és nem szivárog be a master kimenetre.
   - **Valós DSP VU Kivezérlésjelző:** A `MixerChannelStrip` korábbi szimulált (`rand() % 10`) logikája törölve lett. A szintjelző kizárólag valós PCM RMS amplitúdót (`currentAmplitude()`) jelenít meg a csatorna hangerő és Gain szorzataként. Üres decken Play gombbal is stabil 0 szinten marad.
