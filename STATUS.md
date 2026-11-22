@@ -1,8 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #327 (BPM-Szinkronizált Áttűnések & Közvetlen Shader Beágyazó Motor)
-* **Aktuális Git Commit:** Folyamatban (Build #327 CI Build)
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
+* **Legutolsó stabil mérföldkő:** Build #339 (GitHub Run #44968269154)
+* **Aktuális Git Commit:** `728d2f4`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 288 704 bájt)
+* **Bináris SHA256:** `9A24022750F60099E097C791C0DCBBFE23CA96958D051F644F2E93C35F2E4FDD`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
