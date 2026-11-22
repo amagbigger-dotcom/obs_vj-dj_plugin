@@ -1,32 +1,31 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #355 (GitHub Run #45053887119)
-* **Aktuális Git Commit:** `aa10b9c`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 382 400 bájt)
+* **Legutolsó stabil mérföldkő:** Build #356 (Transport Bar Ergonómia & Gombméretezés)
+* **Aktuális Git Commit:** `PENDING_BUILD_356`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (Build #355)
 * **Bináris SHA256:** `B0A784F660F909362531CE24F30A05520908555EA4629258C1F7E2D1202A08FC`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #355 - Konvertált videó eltűnési hiba, MIDI/Qt fagyási hiba és render log-áradat felszámolása:
-  1. **Konvertált videó fájleltűnés megszűntetése (`VideoConverter` cancel / destructor bugfix):**
-     - A `VideoConverter::onProcessFinished()` sikeres konvertálás után nem ürítette ki a `current_output_path_` változót.
-     - OBS bezárásakor vagy a dock újranyitásakor a destruktor meghívta a `cancel()`-t, ami a még kitöltött elérési út alapján letörölte a kész videofájlt a lemezről (`vp17`).
-     - Javítás: a sikeres befejezéskor azonnal kiürítjük az útvonalat; a `cancel()` pedig kizárólag akkor törölhet, ha a konvertálás ténylegesen aktív és félbeszakadt.
-  2. **Keresztszálú Qt GUI hívások kivédése (MIDI vezérlő fagyás megelőzése):**
-     - A MIDI szálról érkező `vdj_import_and_load`, `vdj_tracklist_move_selection` és `vdj_tracklist_load_selected` hívások közvetlenül a WinMM szálon hozták létre a `TracklistDock`-ot, ami Qt szálütközést és azonnali fagyást okozott.
-     - Javítás: `QThread::currentThread() != qApp->thread()` vizsgálat és szálbiztos `QMetaObject::invokeMethod(qApp, ...)` átütemezés a GUI főszálra.
-  3. **Táblázat újraépítési vihar (Table widget storm) megszüntetése:**
-     - A konvertálási folyamatjelző korábban másodpercenként 60–100 alkalommal hívta meg a teljes táblázatot leromboló és újraépítő `applyFilterAndPopulate()` függvényt.
-     - Javítás: célzott `updateRow(active_row)` frissítés kizárólag a konvertált sorra.
-  4. **OBS Render szál lock contention & log flood felszámolása:**
-     - A `deck_source.cpp` `deck_video_tick` ciklusa másodpercenként 120-szor hívta a deprecated `obs_source_get_monitoring_type` függvényt, zárakat versenyeztetve és százezer soros figyelmeztetésáradatot generálva.
-     - Javítás: `DeckSourceContext::last_monitoring_mode` gyorsítótárazás.
+* **Fő cél:** Build #356 - TransportBar Gombok Finomhangolása (Összecsúszás Megszüntetése):
+  1. **CUE, PLAY, SYNC, MASTER Gombok Finom Méretcsökkentése:**
+     - `CUE`: 65 px $\to$ 54 px
+     - `PLAY`: 90 px $\to$ 76 px
+     - `SYNC`: 65 px $\to$ 54 px
+     - `MASTER`: 65 px $\to$ 58 px
+  2. **Gombközök (spacing) optimalizálása:**
+     - 8 px $\to$ 6 px
+  3. **Eredmény:**
+     - A teljes TransportBar szélessége 664 px-ről 609 px-re csökkent, így a 624 px hasznos ablakszélességben tökéletesen, szellősen elfér, megszűnt a PLAY és SYNC gombok egymásba csúszása.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #355)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #356)
+* [x] **TransportBar Gombok Finomhangolása (Build #356):**
+  - CUE (54px), PLAY (76px), SYNC (54px), MASTER (58px) arányosított méretezése.
+  - 6 px gombközökkel garantált a 624 px-es belső szélességbe való tökéletes illeszkedés, zéró átfedés.
 * [x] **Konvertált Média Megőrzés, MIDI Szálvédelem & UI Stabilitás (Build #355):**
   - **Fájlmegőrzés:** SOHA többé nem törlődhet kész videófájl OBS bezárásakor vagy leállásakor.
   - **Fagyásmegelőzés:** Minden hardveres és külső szálról indított Tracklist akció szigorúan a Qt GUI főszálon fut le.

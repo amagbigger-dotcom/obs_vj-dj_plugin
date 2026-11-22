@@ -8,10 +8,10 @@ TransportBar::TransportBar(DeckPlayer *deck, QWidget *parent)
 {
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(8);
+    layout->setSpacing(6);
 
     cue_btn_ = new QPushButton(QStringLiteral("CUE"), this);
-    cue_btn_->setFixedSize(65, 34);
+    cue_btn_->setFixedSize(54, 34);
     cue_btn_->setAutoDefault(false);
     cue_btn_->setDefault(false);
     cue_btn_->setStyleSheet(QStringLiteral("background: #2a3444; border: 2px solid #586884; font-size: 12px; font-weight: bold; color: #ffffff; border-radius: 4px; padding: 0px;"));
@@ -21,7 +21,7 @@ TransportBar::TransportBar(DeckPlayer *deck, QWidget *parent)
     layout->addWidget(cue_btn_);
 
     play_btn_ = new QPushButton(QStringLiteral("▶ PLAY"), this);
-    play_btn_->setFixedSize(90, 34);
+    play_btn_->setFixedSize(76, 34);
     play_btn_->setAutoDefault(false);
     play_btn_->setDefault(false);
     play_btn_->setStyleSheet(QStringLiteral("background: #1e3a24; border: 2px solid #00cc44; font-size: 13px; font-weight: bold; color: #ffffff; border-radius: 4px; padding: 0px;"));
@@ -31,7 +31,7 @@ TransportBar::TransportBar(DeckPlayer *deck, QWidget *parent)
     layout->addWidget(play_btn_);
 
     sync_btn_ = new QPushButton(QStringLiteral("SYNC"), this);
-    sync_btn_->setFixedSize(65, 34);
+    sync_btn_->setFixedSize(54, 34);
     sync_btn_->setAutoDefault(false);
     sync_btn_->setDefault(false);
     sync_btn_->setCheckable(true);
@@ -52,7 +52,7 @@ TransportBar::TransportBar(DeckPlayer *deck, QWidget *parent)
     layout->addWidget(sync_btn_);
 
     master_btn_ = new QPushButton(QStringLiteral("MASTER"), this);
-    master_btn_->setFixedSize(65, 34);
+    master_btn_->setFixedSize(58, 34);
     master_btn_->setAutoDefault(false);
     master_btn_->setDefault(false);
     master_btn_->setCheckable(true);
