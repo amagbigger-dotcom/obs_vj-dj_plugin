@@ -1842,23 +1842,25 @@ void DeckPair::setCrossfadeFxMode(int mode) noexcept
         cf_fx_mode_prev_.store(cur_m, std::memory_order_relaxed);
         crossfade_fx_mode_.store(new_m, std::memory_order_relaxed);
 
-        double active_bpm = 120.0;
-        if (deck_a_ && deck_a_->isPlaying() && deck_a_->bpm() > 40.0) {
-            active_bpm = deck_a_->bpm();
-        } else if (deck_b_ && deck_b_->isPlaying() && deck_b_->bpm() > 40.0) {
-            active_bpm = deck_b_->bpm();
-        } else if (deck_a_ && deck_a_->bpm() > 40.0) {
-            active_bpm = deck_a_->bpm();
-        } else if (deck_b_ && deck_b_->bpm() > 40.0) {
-            active_bpm = deck_b_->bpm();
-        }
-
         const int beats = cf_fx_trans_beats_.load(std::memory_order_relaxed);
         if (beats <= 0) {
             cf_fx_trans_progress_.store(1.0f, std::memory_order_relaxed);
         } else {
+            double active_bpm = 120.0;
+            DeckPlayer *da = vj_deck_a();
+            DeckPlayer *db = vj_deck_b();
+            if (da && da->isPlaying() && da->bpm() > 40.0) {
+                active_bpm = da->bpm();
+            } else if (db && db->isPlaying() && db->bpm() > 40.0) {
+                active_bpm = db->bpm();
+            } else if (da && da->bpm() > 40.0) {
+                active_bpm = da->bpm();
+            } else if (db && db->bpm() > 40.0) {
+                active_bpm = db->bpm();
+            }
+
             const float duration = static_cast<float>((60.0 / std::max(active_bpm, 40.0)) * static_cast<double>(beats));
-            cf_trans_duration_.store(std::max(duration, 0.05f), std::memory_order_relaxed);
+            cf_fx_trans_duration_.store(std::max(duration, 0.05f), std::memory_order_relaxed);
             cf_fx_trans_progress_.store(0.0f, std::memory_order_relaxed);
         }
     }
@@ -1868,7 +1870,7 @@ void DeckPair::updateCrossfadeFxTransition(float dt_sec) noexcept
 {
     float p = cf_fx_trans_progress_.load(std::memory_order_relaxed);
     if (p < 1.0f) {
-        const float dur = cf_trans_duration_.load(std::memory_order_relaxed);
+        const float dur = cf_fx_trans_duration_.load(std::memory_order_relaxed);
         p += dt_sec / std::max(dur, 0.05f);
         if (p >= 1.0f) p = 1.0f;
         cf_fx_trans_progress_.store(p, std::memory_order_relaxed);
