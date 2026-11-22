@@ -1,9 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #356 (Transport Bar Ergonómia & Gombméretezés)
-* **Aktuális Git Commit:** `PENDING_BUILD_356`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (Build #355)
-* **Bináris SHA256:** `B0A784F660F909362531CE24F30A05520908555EA4629258C1F7E2D1202A08FC`
+* **Legutolsó stabil mérföldkő:** Build #356 (GitHub Run #45059491942)
+* **Aktuális Git Commit:** `17708cb`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 382 400 bájt)
+* **Bináris SHA256:** `B3C1A2AF11BC2143113B7C99471A63F87C7331CE7FFDC69D07580DB7285757C2`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
