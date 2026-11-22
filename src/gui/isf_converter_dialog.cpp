@@ -536,9 +536,25 @@ void IsfConverterDialog::onTestCompileClicked()
     std::vector<std::string> p_names, p_ids;
 
     if (!CustomShaderManager::instance().parseAiShaderText(text.toStdString(), name, cat, params, p_names, p_ids, code, err)) {
-        status_lbl_->setText(QStringLiteral("❌ Elemzési Hiba: %1").arg(QString::fromStdString(err)));
-        status_lbl_->setStyleSheet(QStringLiteral("color: #ff4d4d; font-weight: bold;"));
-        return;
+        if (text.contains(QStringLiteral("render_custom"), Qt::CaseInsensitive)) {
+            code = text.toStdString();
+            name = name_edit_->text().trimmed().toStdString();
+            if (name.empty()) name = "Egyedi Shader";
+            cat = category_edit_->text().trimmed().toStdString();
+            if (cat.empty()) cat = "Direct3D 11 HLSL";
+            params.resize(8);
+            p_names.resize(8);
+            p_ids.resize(8);
+            for (int i = 0; i < 8; ++i) {
+                p_ids[i] = "p" + std::to_string(i);
+                p_names[i] = "Paraméter " + std::to_string(i + 1);
+                params[i] = { nullptr, nullptr, 0.0f, 2.0f, 1.0f, 0.05f };
+            }
+        } else {
+            status_lbl_->setText(QStringLiteral("❌ Elemzési Hiba: %1").arg(QString::fromStdString(err)));
+            status_lbl_->setStyleSheet(QStringLiteral("color: #ff4d4d; font-weight: bold;"));
+            return;
+        }
     }
 
     // Update UI fields with parsed name, category, and transpiled HLSL code
@@ -578,9 +594,25 @@ void IsfConverterDialog::onSaveShaderClicked()
     std::vector<std::string> p_names, p_ids;
 
     if (!CustomShaderManager::instance().parseAiShaderText(text.toStdString(), name, cat, params, p_names, p_ids, code, err)) {
-        status_lbl_->setText(QStringLiteral("❌ Elemzési Hiba: %1").arg(QString::fromStdString(err)));
-        status_lbl_->setStyleSheet(QStringLiteral("color: #ff4d4d; font-weight: bold;"));
-        return;
+        if (text.contains(QStringLiteral("render_custom"), Qt::CaseInsensitive)) {
+            code = text.toStdString();
+            name = name_edit_->text().trimmed().toStdString();
+            if (name.empty()) name = "Egyedi Shader";
+            cat = category_edit_->text().trimmed().toStdString();
+            if (cat.empty()) cat = "Direct3D 11 HLSL";
+            params.resize(8);
+            p_names.resize(8);
+            p_ids.resize(8);
+            for (int i = 0; i < 8; ++i) {
+                p_ids[i] = "p" + std::to_string(i);
+                p_names[i] = "Paraméter " + std::to_string(i + 1);
+                params[i] = { nullptr, nullptr, 0.0f, 2.0f, 1.0f, 0.05f };
+            }
+        } else {
+            status_lbl_->setText(QStringLiteral("❌ Elemzési Hiba: %1").arg(QString::fromStdString(err)));
+            status_lbl_->setStyleSheet(QStringLiteral("color: #ff4d4d; font-weight: bold;"));
+            return;
+        }
     }
 
     // Allow user override from QLineEdit fields

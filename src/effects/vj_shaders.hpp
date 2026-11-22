@@ -29,6 +29,8 @@ uniform float4x4 ViewProj;
 uniform texture2d dummy_texture;
 
 uniform float visualizer_mode;      // 0..11
+uniform float visualizer_mode_prev; // Előző VJ mód áttűnéshez
+uniform float visualizer_trans_t;   // Áttűnési progressz [0.0 .. 1.0], 1.0 = nyugalmi állapot
 uniform float anim_time;            // Másodperc alapú futásidő
 
 #define TIME anim_time
@@ -38,6 +40,15 @@ uniform float anim_time;            // Másodperc alapú futásidő
 #define u_time anim_time
 #define RENDERSIZE float2(1920.0, 1080.0)
 #define iResolution float3(1920.0, 1080.0, 1.0)
+#define iChannel0 dummy_texture
+#define iChannel1 dummy_texture
+#define iChannel2 dummy_texture
+#define iChannel3 dummy_texture
+#define iChannelResolution float3(1920.0, 1080.0, 1.0)
+#define iMouse float4(960.0, 540.0, 0.0, 0.0)
+#define iDate float4(2026.0, 11.0, 22.0, anim_time)
+#define iTimeDelta 0.016666
+#define iFrame ((int)(anim_time * 60.0))
 
 uniform float bpm;                  // Deck BPM sebesség
 uniform float audio_amp;            // RMS pillanatnyi hangerő [0.0 .. 1.0]
@@ -83,36 +94,36 @@ VertData VSDefault(VertData v)
 }
 
 // -----------------------------------------------------------------------------
-// Matematikai segédfüggvények (Common Math Helpers - No Function Overloading)
+// Matematikai segédfüggvények & Túlterhelt mod() (Common Math & ShaderToy Helpers)
 // -----------------------------------------------------------------------------
 float2 to_float2(float v) { return float2(v, v); }
 float3 to_float3(float v) { return float3(v, v, v); }
 float4 to_float4(float v) { return float4(v, v, v, v); }
 
-float glsl_mod(float x, float y)
-{
-    return x - y * floor(x / y);
-}
+float  mod(float x, float y)   { return x - y * floor(x / y); }
+float2 mod(float2 x, float2 y) { return x - y * floor(x / y); }
+float2 mod(float2 x, float y)  { return x - y * floor(x / y); }
+float3 mod(float3 x, float3 y) { return x - y * floor(x / y); }
+float3 mod(float3 x, float y)  { return x - y * floor(x / y); }
+float4 mod(float4 x, float4 y) { return x - y * floor(x / y); }
+float4 mod(float4 x, float y)  { return x - y * floor(x / y); }
 
-float2 glsl_mod2(float2 x, float2 y)
-{
-    return x - y * floor(x / y);
-}
+float glsl_mod(float x, float y) { return mod(x, y); }
+float2 glsl_mod2(float2 x, float2 y) { return mod(x, y); }
+float2 glsl_mod2s(float2 x, float y) { return mod(x, y); }
+float3 glsl_mod3(float3 x, float3 y) { return mod(x, y); }
+float3 glsl_mod3s(float3 x, float y) { return mod(x, y); }
 
-float2 glsl_mod2s(float2 x, float y)
+float4 sample_procedural_noise(float2 p)
 {
-    return x - y * floor(x / y);
+    float n1 = frac(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
+    float n2 = frac(sin(dot(p + float2(0.1, 0.1), float2(39.346, 11.135))) * 23421.631);
+    float n3 = frac(sin(dot(p + float2(0.2, 0.3), float2(73.156, 52.235))) * 54321.123);
+    return float4(n1, n2, n3, 1.0);
 }
-
-float3 glsl_mod3(float3 x, float3 y)
-{
-    return x - y * floor(x / y);
-}
-
-float3 glsl_mod3s(float3 x, float y)
-{
-    return x - y * floor(x / y);
-}
+#define texture(ch, uv) sample_procedural_noise(uv)
+#define texture2D(ch, uv) sample_procedural_noise(uv)
+#define textureLod(ch, uv, lod) sample_procedural_noise(uv)
 
 float4 glsl_mod4(float4 x, float4 y)
 {
@@ -1221,46 +1232,58 @@ float4 render_hex_truch_warp(float2 uv)
         effect_str += CustomShaderManager::instance().getCustomShadersHlslDeclarations();
 
         // ---------------------------------------------------------------------
-        // Pixel Shader Dispatcher & Technique
+        // Pixel Shader Dispatcher & Technique (BPM-Szinkronizált Áttűnés Támogatással)
         // ---------------------------------------------------------------------
         effect_str += R"(
-float4 PSVisualizer(VertData v) : TARGET
+float4 sample_visualizer_mode(float mode, float2 uv)
 {
-    if (visualizer_mode < 0.5) {
-        return render_fluid_flow(v.uv);
-    } else if (visualizer_mode < 1.5) {
-        return render_truchet(v.uv);
-    } else if (visualizer_mode < 2.5) {
-        return render_hypno_worm(v.uv);
-    } else if (visualizer_mode < 3.5) {
-        return render_triangle_twist(v.uv);
-    } else if (visualizer_mode < 4.5) {
-        return render_string_art(v.uv);
-    } else if (visualizer_mode < 5.5) {
-        return render_dodecahedron(v.uv);
-    } else if (visualizer_mode < 6.5) {
-        return render_kali_circuits(v.uv);
-    } else if (visualizer_mode < 7.5) {
-        return render_diamond_vision(v.uv);
-    } else if (visualizer_mode < 8.5) {
-        return render_pupila(v.uv);
-    } else if (visualizer_mode < 9.5) {
-        return render_mandala_scope(v.uv);
-    } else if (visualizer_mode < 10.5) {
-        return render_searching_light(v.uv);
-    } else if (visualizer_mode < 11.5) {
-        return render_cube_field(v.uv);
-    } else if (visualizer_mode < 12.5) {
-        return render_electro_bands(v.uv);
-    } else if (visualizer_mode < 13.5) {
-        return render_globular_cluster(v.uv);
-    } else if (visualizer_mode < 14.5) {
-        return render_hex_truch_warp(v.uv);
+    if (mode < 0.5) {
+        return render_fluid_flow(uv);
+    } else if (mode < 1.5) {
+        return render_truchet(uv);
+    } else if (mode < 2.5) {
+        return render_hypno_worm(uv);
+    } else if (mode < 3.5) {
+        return render_triangle_twist(uv);
+    } else if (mode < 4.5) {
+        return render_string_art(uv);
+    } else if (mode < 5.5) {
+        return render_dodecahedron(uv);
+    } else if (mode < 6.5) {
+        return render_kali_circuits(uv);
+    } else if (mode < 7.5) {
+        return render_diamond_vision(uv);
+    } else if (mode < 8.5) {
+        return render_pupila(uv);
+    } else if (mode < 9.5) {
+        return render_mandala_scope(uv);
+    } else if (mode < 10.5) {
+        return render_searching_light(uv);
+    } else if (mode < 11.5) {
+        return render_cube_field(uv);
+    } else if (mode < 12.5) {
+        return render_electro_bands(uv);
+    } else if (mode < 13.5) {
+        return render_globular_cluster(uv);
+    } else if (mode < 14.5) {
+        return render_hex_truch_warp(uv);
 )";
         effect_str += CustomShaderManager::instance().getCustomShadersDispatchHlsl();
         effect_str += R"(
     } else {
         return float4(0.0, 0.0, 0.0, 1.0);
+    }
+}
+
+float4 PSVisualizer(VertData v) : TARGET
+{
+    if (visualizer_trans_t >= 0.999) {
+        return sample_visualizer_mode(visualizer_mode, v.uv);
+    } else {
+        float4 col_prev = sample_visualizer_mode(visualizer_mode_prev, v.uv);
+        float4 col_curr = sample_visualizer_mode(visualizer_mode, v.uv);
+        float t = smoothstep(0.0, 1.0, visualizer_trans_t);
+        return lerp(col_prev, col_curr, t);
     }
 }
 

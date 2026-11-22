@@ -846,19 +846,52 @@ void DeckPlayer::setVjParamModDepth(int param_idx, float depth) noexcept
 void DeckPlayer::setVjShaderIdx(int idx) noexcept
 {
     const int new_s = std::clamp(idx, 0, 63);
+    int old_s = 0;
+    bool changed = false;
     {
         std::lock_guard<std::mutex> lock(vj_config_mutex_);
         if (vj_config_.shader_idx != new_s) {
-            const int old_s = std::clamp(vj_config_.shader_idx, 0, 63);
+            old_s = std::clamp(vj_config_.shader_idx, 0, 63);
             // 1. Save current active params into old shader slot
             vj_config_.all_shader_params[old_s] = vj_config_.params;
             // 2. Switch shader index
             vj_config_.shader_idx = new_s;
             // 3. Restore per-shader customized params
             vj_config_.params = vj_config_.all_shader_params[new_s];
+            changed = true;
+        }
+    }
+    if (changed) {
+        vj_shader_idx_prev_.store(old_s, std::memory_order_relaxed);
+        const int beats = vj_shader_trans_beats_.load(std::memory_order_relaxed);
+        if (beats <= 0) {
+            vj_shader_trans_progress_.store(1.0f, std::memory_order_relaxed);
+        } else {
+            const double b = bpm();
+            const double safe_bpm = (b > 40.0) ? b : 120.0;
+            const float duration = static_cast<float>((60.0 / safe_bpm) * static_cast<double>(beats));
+            vj_shader_trans_duration_.store(std::max(duration, 0.05f), std::memory_order_relaxed);
+            vj_shader_trans_progress_.store(0.0f, std::memory_order_relaxed);
         }
     }
     saveVjConfigToCache();
+}
+
+int DeckPlayer::vjShaderIdx() const noexcept
+{
+    std::lock_guard<std::mutex> lock(vj_config_mutex_);
+    return vj_config_.shader_idx;
+}
+
+void DeckPlayer::updateVjShaderTransition(float dt_sec) noexcept
+{
+    float p = vj_shader_trans_progress_.load(std::memory_order_relaxed);
+    if (p < 1.0f) {
+        const float dur = vj_shader_trans_duration_.load(std::memory_order_relaxed);
+        p += dt_sec / std::max(dur, 0.05f);
+        if (p >= 1.0f) p = 1.0f;
+        vj_shader_trans_progress_.store(p, std::memory_order_relaxed);
+    }
 }
 
 void DeckPlayer::setVjCustomColor(float r, float g, float b, int mod_mode) noexcept
@@ -1799,6 +1832,47 @@ void DeckPair::setTransitionMode(int mode) noexcept
 int DeckPair::transitionMode() const noexcept
 {
     return transition_mode_.load(std::memory_order_relaxed);
+}
+
+void DeckPair::setCrossfadeFxMode(int mode) noexcept
+{
+    const int new_m = std::clamp(mode, 0, 15);
+    const int cur_m = crossfade_fx_mode_.load(std::memory_order_relaxed);
+    if (new_m != cur_m) {
+        cf_fx_mode_prev_.store(cur_m, std::memory_order_relaxed);
+        crossfade_fx_mode_.store(new_m, std::memory_order_relaxed);
+
+        double active_bpm = 120.0;
+        if (deck_a_ && deck_a_->isPlaying() && deck_a_->bpm() > 40.0) {
+            active_bpm = deck_a_->bpm();
+        } else if (deck_b_ && deck_b_->isPlaying() && deck_b_->bpm() > 40.0) {
+            active_bpm = deck_b_->bpm();
+        } else if (deck_a_ && deck_a_->bpm() > 40.0) {
+            active_bpm = deck_a_->bpm();
+        } else if (deck_b_ && deck_b_->bpm() > 40.0) {
+            active_bpm = deck_b_->bpm();
+        }
+
+        const int beats = cf_fx_trans_beats_.load(std::memory_order_relaxed);
+        if (beats <= 0) {
+            cf_fx_trans_progress_.store(1.0f, std::memory_order_relaxed);
+        } else {
+            const float duration = static_cast<float>((60.0 / std::max(active_bpm, 40.0)) * static_cast<double>(beats));
+            cf_trans_duration_.store(std::max(duration, 0.05f), std::memory_order_relaxed);
+            cf_fx_trans_progress_.store(0.0f, std::memory_order_relaxed);
+        }
+    }
+}
+
+void DeckPair::updateCrossfadeFxTransition(float dt_sec) noexcept
+{
+    float p = cf_fx_trans_progress_.load(std::memory_order_relaxed);
+    if (p < 1.0f) {
+        const float dur = cf_trans_duration_.load(std::memory_order_relaxed);
+        p += dt_sec / std::max(dur, 0.05f);
+        if (p >= 1.0f) p = 1.0f;
+        cf_fx_trans_progress_.store(p, std::memory_order_relaxed);
+    }
 }
 
 void DeckPair::setObsOutputMode(int mode) noexcept

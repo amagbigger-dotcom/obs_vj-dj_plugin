@@ -47,6 +47,7 @@ private:
     QPushButton *deck_b_btn_ = nullptr;
     QLabel *track_title_lbl_ = nullptr;
     QComboBox *shader_combo_ = nullptr;
+    QComboBox *trans_combo_ = nullptr;
     QPushButton *color_btn_ = nullptr;
     QComboBox *color_mod_combo_ = nullptr;
     QWidget *params_container_ = nullptr;

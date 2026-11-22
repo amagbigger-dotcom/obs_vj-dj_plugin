@@ -234,6 +234,34 @@ QWidget *VjFxDialog::createShaderTabWidget()
     });
     shader_box_layout->addWidget(shader_combo_, 1);
 
+    auto *trans_lbl = new QLabel(QStringLiteral("Áttűnés:"), shader_box);
+    trans_lbl->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #00d2ff;"));
+    shader_box_layout->addWidget(trans_lbl);
+
+    trans_combo_ = new QComboBox(shader_box);
+    trans_combo_->setFixedHeight(22);
+    trans_combo_->setStyleSheet(QStringLiteral(
+        "QComboBox { background: #1c2534; color: #00d2ff; border: 1px solid #0088cc; font-size: 9px; font-weight: bold; padding: 1px 6px; border-radius: 3px; } "
+        "QComboBox::drop-down { border: none; } "
+        "QComboBox QAbstractItemView { background: #141a24; color: #fff; selection-background-color: #0077aa; }"));
+    trans_combo_->addItem(QStringLiteral("Azonnali (Cut)"), 0);
+    trans_combo_->addItem(QStringLiteral("1 Beat"), 1);
+    trans_combo_->addItem(QStringLiteral("2 Beat (Alap)"), 2);
+    trans_combo_->addItem(QStringLiteral("4 Beat"), 4);
+    trans_combo_->addItem(QStringLiteral("8 Beat"), 8);
+
+    DeckPlayer *init_dp = currentDeck();
+    const int cur_b = init_dp ? init_dp->vjShaderTransBeats() : 2;
+    int b_idx = trans_combo_->findData(cur_b);
+    if (b_idx >= 0) trans_combo_->setCurrentIndex(b_idx);
+
+    connect(trans_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+        if (DeckPlayer *dp = currentDeck()) {
+            dp->setVjShaderTransBeats(trans_combo_->itemData(idx).toInt());
+        }
+    });
+    shader_box_layout->addWidget(trans_combo_);
+
     auto *isf_btn = new QPushButton(QStringLiteral("🪄 ISF"), shader_box);
     isf_btn->setFixedHeight(22);
     isf_btn->setStyleSheet(QStringLiteral(
@@ -390,6 +418,12 @@ void VjFxDialog::selectDeck(int deck_idx)
         const auto &defs = getVjShaderDefinitions();
         const int max_idx = defs.empty() ? 0 : static_cast<int>(defs.size()) - 1;
         shader_combo_->setCurrentIndex(std::clamp(cfg.shader_idx, 0, max_idx));
+
+        if (trans_combo_) {
+            const QSignalBlocker t_blocker(trans_combo_);
+            int b_idx = trans_combo_->findData(dp->vjShaderTransBeats());
+            if (b_idx >= 0) trans_combo_->setCurrentIndex(b_idx);
+        }
     }
 
     updateColorUi();

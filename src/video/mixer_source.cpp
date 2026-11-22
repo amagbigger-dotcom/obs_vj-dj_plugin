@@ -66,6 +66,8 @@ uniform float vol_fx_mode_b;
 uniform float vol_fx_val_b;
 
 uniform float cf_fx_mode;
+uniform float cf_fx_mode_prev;
+uniform float cf_trans_t;
 uniform float cf_fx_mid;
 uniform float cf_blend_boost;
 uniform float cf_param_intensity;
@@ -344,16 +346,16 @@ float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx
     return saturate(col);
 }
 
-float4 PS(VertData v) : TARGET
+float4 compute_cf_mix(VertData v, float fx_mode)
 {
-    float2 uv_a = apply_cf_fx(v.uv, cf_fx_mode, cf_fx_mid, 0.0, cf_param_intensity, cf_param_rate);
-    float2 uv_b = apply_cf_fx(v.uv, cf_fx_mode, cf_fx_mid, 1.0, cf_param_intensity, cf_param_rate);
+    float2 uv_a = apply_cf_fx(v.uv, fx_mode, cf_fx_mid, 0.0, cf_param_intensity, cf_param_rate);
+    float2 uv_b = apply_cf_fx(v.uv, fx_mode, cf_fx_mid, 1.0, cf_param_intensity, cf_param_rate);
 
     float4 a = sample_deck_with_vol_fx(image_a, uv_a, vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
     float4 b = sample_deck_with_vol_fx(image_b, uv_b, vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
 
     // Mode 3: RGB Split (Chromatic Aberration)
-    if (cf_fx_mode > 2.5 && cf_fx_mode < 3.5 && cf_fx_mid > 0.005) {
+    if (fx_mode > 2.5 && fx_mode < 3.5 && cf_fx_mid > 0.005) {
         float split = cf_fx_mid * cf_p0 * cf_param_intensity;
         float ang = cf_p1;
         float2 dir = float2(cos(ang), sin(ang)) * split;
@@ -375,7 +377,7 @@ float4 PS(VertData v) : TARGET
         if (cf_p4 > 1.01) b.rgb = lerp(dot(b.rgb, float3(0.3, 0.59, 0.11)).xxx, b.rgb, cf_p4);
     }
     // Mode 4: Radial Zoom Blur (Suhanó nagyítás)
-    else if (cf_fx_mode > 3.5 && cf_fx_mode < 4.5 && cf_fx_mid > 0.005) {
+    else if (fx_mode > 3.5 && fx_mode < 4.5 && cf_fx_mid > 0.005) {
         float2 center = float2(0.5, 0.5);
         float2 to_c_a = center - uv_a;
         float2 to_c_b = center - uv_b;
@@ -418,7 +420,7 @@ float4 PS(VertData v) : TARGET
         res = float4(comp, 1.0);
     }
     // Mode 6: Luma Dissolve (Fényerő-alapú áttűnés)
-    else if (cf_fx_mode > 5.5 && cf_fx_mode < 6.5) {
+    else if (fx_mode > 5.5 && fx_mode < 6.5) {
         float luma_a = dot(a.rgb, float3(0.2126, 0.7152, 0.0722));
         if (cf_p5 > 0.5) luma_a = 1.0 - luma_a;
         float thresh = crossfade;
@@ -459,7 +461,7 @@ float4 PS(VertData v) : TARGET
     }
 
     // Mode 10: CRT / VHS Scanline (Analóg TV & Csík - Fényerővédelemmel)
-    if (cf_fx_mode > 9.5 && cf_fx_mode < 10.5 && cf_fx_mid > 0.01) {
+    if (fx_mode > 9.5 && fx_mode < 10.5 && cf_fx_mid > 0.01) {
         float density = cf_p0 * cf_param_rate;
         float line_int = cf_p1;
         float flash_int = cf_p3;
@@ -478,7 +480,7 @@ float4 PS(VertData v) : TARGET
         }
     }
     // Mode 11: Pop-Art Halftone (Képregény Pontrács - Energiamegőrzéssel)
-    else if (cf_fx_mode > 10.5 && cf_fx_mode < 11.5 && cf_fx_mid > 0.01) {
+    else if (fx_mode > 10.5 && fx_mode < 11.5 && cf_fx_mid > 0.01) {
         float2 grid = frac(v.uv * float2(cf_p0 * cf_param_rate, cf_p1 * cf_param_rate)) - 0.5;
         float dist = length(grid);
         float luma = dot(res.rgb, float3(0.2126, 0.7152, 0.0722));
@@ -491,7 +493,7 @@ float4 PS(VertData v) : TARGET
         res.rgb = lerp(res.rgb, halftone, saturate(cf_fx_mid * 0.85 * cf_param_intensity));
     }
     // Mode 12: Neon Kontúr (Sobel Edge Glow - Alapvideó megtartással)
-    else if (cf_fx_mode > 11.5 && cf_fx_mode < 12.5 && cf_fx_mid > 0.01) {
+    else if (fx_mode > 11.5 && fx_mode < 12.5 && cf_fx_mid > 0.01) {
         float thick = cf_p0;
         float2 d = float2(thick / 1920.0, thick / 1080.0);
         float4 a_u = sample_deck_with_vol_fx(image_a, uv_a + float2(0, -d.y), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
@@ -524,6 +526,17 @@ float4 PS(VertData v) : TARGET
 
     res.a = 1.0;
     return saturate(res);
+}
+
+float4 PS(VertData v) : TARGET
+{
+    if (cf_trans_t >= 0.999 || abs(cf_fx_mode - cf_fx_mode_prev) < 0.1) {
+        return compute_cf_mix(v, cf_fx_mode);
+    }
+    float blend_w = smoothstep(0.0, 1.0, cf_trans_t);
+    float4 col_prev = compute_cf_mix(v, cf_fx_mode_prev);
+    float4 col_curr = compute_cf_mix(v, cf_fx_mode);
+    return lerp(col_prev, col_curr, blend_w);
 }
 
 technique Draw {
@@ -640,8 +653,8 @@ static bool render_to_texture(MixerSource *context,
         }
         obs_source_video_render(source);
         gs_matrix_pop();
-    } else if (deck && deck->hasAudioOnlyTrack()) {
-        // Procedurális Audio-Reaktív VJ Shader Suite szigorúan csak tiszta audio fájlokhoz!
+    } else if (deck && !deck->hasVideo()) {
+        // Procedurális Audio-Reaktív VJ Shader Suite (audió fájlokhoz vagy üres deckhez)
         if (context && context->fluid_effect && context->dummy_tex) {
             const float time_sec = static_cast<float>(os_gettime_ns() / 1000000ULL) * 0.001f;
             const float bpm_val = static_cast<float>(deck->bpm());
@@ -652,7 +665,9 @@ static bool render_to_texture(MixerSource *context,
             const bool is_b = (deck->side() == DeckPlayer::DeckSide::B);
 
             VjDeckConfig v_cfg = deck->vjConfig();
-            const float viz_mode = static_cast<float>(v_cfg.shader_idx);
+            const float viz_mode = static_cast<float>(deck->vjShaderIdx());
+            const float viz_mode_prev = static_cast<float>(deck->vjShaderIdxPrev());
+            const float viz_trans_t = deck->vjShaderTransProgress();
             const float macro_tonus = deck->currentMacroTonus();
 
             const auto &defs = getVjShaderDefinitions();
@@ -678,6 +693,10 @@ static bool render_to_texture(MixerSource *context,
             gs_eparam_t *p = nullptr;
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_mode")))
                 gs_effect_set_float(p, viz_mode);
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_mode_prev")))
+                gs_effect_set_float(p, viz_mode_prev);
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_trans_t")))
+                gs_effect_set_float(p, viz_trans_t);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "anim_time")))
                 gs_effect_set_float(p, audio_time);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bpm")))
@@ -785,13 +804,21 @@ static void set_color_params(MixerSource *context,
     // Crossfader FX (Midpoint peak: 0 at edges, 1 at center)
     const float cf_mid = std::clamp(1.0f - std::abs(crossfade - 0.5f) * 2.0f, 0.0f, 1.0f);
 
+    DeckPair *decks = vdj_decks();
+    const float cf_fx_prev = static_cast<float>(decks ? decks->crossfadeFxModePrev() : cf_fx_mode);
+    const float cf_trans_t = decks ? decks->crossfadeFxTransProgress() : 1.0f;
+
     if ((param = gs_effect_get_param_by_name(context->effect, "cf_fx_mode")))
         gs_effect_set_float(param, static_cast<float>(cf_fx_mode));
 
+    if ((param = gs_effect_get_param_by_name(context->effect, "cf_fx_mode_prev")))
+        gs_effect_set_float(param, cf_fx_prev);
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "cf_trans_t")))
+        gs_effect_set_float(param, cf_trans_t);
+
     if ((param = gs_effect_get_param_by_name(context->effect, "cf_fx_mid")))
         gs_effect_set_float(param, cf_mid);
-
-    DeckPair *decks = vdj_decks();
     const float raw_intensity = decks ? decks->crossfadeFxIntensity() : 1.0f;
     const int intensity_mod = decks ? decks->crossfadeFxIntensityMod() : 0;
     const float raw_rate = decks ? decks->crossfadeFxRate() : 1.0f;
@@ -1054,6 +1081,19 @@ static void draw_mixer(void *data)
 
     DeckPlayer &deck_a = decks->deckA();
     DeckPlayer &deck_b = decks->deckB();
+
+    static uint64_t s_last_mixer_draw_ns = 0;
+    const uint64_t now_draw_ns = os_gettime_ns();
+    if (s_last_mixer_draw_ns > 0) {
+        float dt = static_cast<float>(now_draw_ns - s_last_mixer_draw_ns) * 1e-9f;
+        if (dt > 0.1f) dt = 0.1f;
+        if (dt > 0.0f) {
+            deck_a.updateVjShaderTransition(dt);
+            deck_b.updateVjShaderTransition(dt);
+            decks->updateCrossfadeFxTransition(dt);
+        }
+    }
+    s_last_mixer_draw_ns = now_draw_ns;
 
     deck_a.updateLoop();
     deck_b.updateLoop();

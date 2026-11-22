@@ -59,6 +59,33 @@ void CrossfadeFxTab::setupUi()
     });
     fx_sel_layout->addWidget(fx_combo_, 1);
 
+    auto *trans_lbl = new QLabel(QStringLiteral("Áttűnés:"), fx_sel_frame);
+    trans_lbl->setStyleSheet(QStringLiteral("font-size: 10px; font-weight: bold; color: #00d2ff;"));
+    fx_sel_layout->addWidget(trans_lbl);
+
+    trans_combo_ = new QComboBox(fx_sel_frame);
+    trans_combo_->setFixedHeight(24);
+    trans_combo_->setStyleSheet(QStringLiteral(
+        "QComboBox { background: #1c2534; color: #00d2ff; border: 1px solid #0088cc; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 3px; } "
+        "QComboBox::drop-down { border: none; } "
+        "QComboBox QAbstractItemView { background: #141a24; color: #fff; selection-background-color: #0077aa; }"));
+    trans_combo_->addItem(QStringLiteral("Azonnali (Cut)"), 0);
+    trans_combo_->addItem(QStringLiteral("1 Beat (Alap)"), 1);
+    trans_combo_->addItem(QStringLiteral("2 Beat"), 2);
+    trans_combo_->addItem(QStringLiteral("4 Beat"), 4);
+    trans_combo_->addItem(QStringLiteral("8 Beat"), 8);
+
+    const int cur_beats = decks_ ? decks_->crossfadeFxTransBeats() : 1;
+    int b_idx = trans_combo_->findData(cur_beats);
+    if (b_idx >= 0) trans_combo_->setCurrentIndex(b_idx);
+
+    connect(trans_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+        if (decks_ && trans_combo_) {
+            decks_->setCrossfadeFxTransBeats(trans_combo_->itemData(idx).toInt());
+        }
+    });
+    fx_sel_layout->addWidget(trans_combo_);
+
     main_layout->addWidget(fx_sel_frame);
 
     // Keverési Fényerő Kiemelés (Blend Boost) Sáv
@@ -128,6 +155,14 @@ void CrossfadeFxTab::refresh()
             fx_combo_->setCurrentIndex(std::clamp(cur_mode, 0, fx_combo_->count() - 1));
         }
         rebuildParamControls();
+    }
+    if (trans_combo_) {
+        const int cur_beats = decks_->crossfadeFxTransBeats();
+        const int b_idx = trans_combo_->findData(cur_beats);
+        if (b_idx >= 0 && b_idx != trans_combo_->currentIndex()) {
+            const QSignalBlocker blocker(trans_combo_);
+            trans_combo_->setCurrentIndex(b_idx);
+        }
     }
 }
 

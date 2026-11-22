@@ -1,29 +1,38 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #326 (GitHub Run #44961894749)
-* **Aktuális Git Commit:** `92842a5`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 270 272 bájt)
-* **Bináris SHA256:** `3E775DE68D373D118BA4B0DB3C5422EC5057BDF3E24FFF848BAA78F8D1F0C56A`
+* **Legutolsó stabil mérföldkő:** Build #327 (BPM-Szinkronizált Áttűnések & Közvetlen Shader Beágyazó Motor)
+* **Aktuális Git Commit:** Folyamatban (Build #327 CI Build)
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** BPM-Szinkronizált Áttűnések & Közvetlen Shader Beágyazó Motor (Build #327 - Tervezési fázis):
-  1. **BPM-Szinkronizált Lágy Áttűnések (Crossfade FX & VJ Shader váltáskor):**
-     - Zenei tempóhoz (BPM) igazított, konfigurálható hosszúságú (1 / 2 / 4 ütemes) átmenet az effektek és shaderek közötti durva ugrások megszüntetésére.
-     - `DeckPair` és `DeckPlayer` állapotgép progressz követéssel ($0.0 \rightarrow 1.0$).
-     - Direct3D 11 HLSL `lerp` morfolás a korábbi és az új cél között zéró nyugalmi GPU terheléssel.
-  2. **Közvetlen ShaderToy / GLSL / ISF Beágyazó Motor (CustomShaderManager korszerűsítés):**
-     - A kötelező külső AI prompt kerülőút és címkekényszerítés (`[CODE]`) megszüntetése az `IsfConverterDialog`-ban.
-     - Natív túlterhelt `mod()` függvények beépítése HLSL-ben (törékeny regex string-egyeztetések elhagyása).
-     - GLSL mátrix-vektor szorzás (`mat2 * vec2`, `mat3 * vec3`) automatikus `mul()` konverziója (a 3D raymarching shaderek geometriájának és kamerájának megőrzésére).
-     - ShaderToy futási környezet (`iResolution`, `iTime`, `iMouse`, `iChannel0` procedurális zajtextúra) emulációja.
-     - 1-kattintásos beillesztés és mentés.
+* **Fő cél:** Build #327 tesztelése, validálása és felhasználói ellenőrzése:
+  1. **BPM-Szinkronizált Áttűnés Ellenőrzése:**
+     - Crossfade FX váltáskor (13 effekt) és VJ Shader váltáskor (15 beépített + egyedi shaderek) a zenei ütem (1, 2, 4, 8 Beat) szerinti lágy morfolás ellenőrzése.
+  2. **Közvetlen ShaderToy / GLSL / ISF Beágyazás Tesztelése:**
+     - Nyers ShaderToy / ISF kód közvetlen beillesztése és mentése az ISF dialógusban külső AI kerülőút nélkül.
+  3. **Azonnali Shader Megjelenítés:**
+     - Ellenőrzés: a shaderek zene betöltése nélkül (üres decken is) azonnal animálódnak és tesztelhetők.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #325)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #327)
+* [x] **BPM-Szinkronizált Áttűnések & Közvetlen Shader Beágyazó Motor (Build #327):**
+  - **BPM-Szinkronizált Lágy Áttűnések (Crossfade FX & VJ Shader lista váltáskor):**
+    - Az effektek és shaderek közötti váltáskor a korábbi hard cut helyett a zenei tempóhoz (BPM) igazított, konfigurálható hosszúságú (Azonnali / 1 / 2 / 4 / 8 ütemes) lágy áttűnés valósult meg ($T = \frac{60}{\text{BPM}} \times \text{beats}$).
+    - `DeckPair` és `DeckPlayer` állapotgép valós idejű órajel-vezérelt progressz követéssel ($0.0 \rightarrow 1.0$).
+    - Direct3D 11 HLSL zéró nyugalmi GPU terhelés: nyugalmi állapotban (`t >= 0.999`) kizárólag az aktív effekt fut, az áttűnési blend ág 0% extra GPU-t fogyaszt.
+    - Új Áttűnés (BPM Beat) választó UI vezérlők a Crossfade FX dialógusban és a VJ Shader ablakban.
+  - **Közvetlen ShaderToy / GLSL / ISF Beágyazó Motor (CustomShaderManager & IsfConverterDialog):**
+    - Megszűnt a kötelező külső AI prompt és címkekényszer (`[NAME]`, `[PARAMS]`, `[CODE]`): a vágólapról közvetlenül beilleszthető bármilyen ShaderToy vagy ISF shader.
+    - Automatikus ShaderToy / GLSL felismerés (`mainImage`, `vec4`, `vec3`, `gl_FragColor`, `iResolution`, `fragColor`).
+    - Natív túlterhelt HLSL `mod()` függvények minden vektortípusra (`float2`, `float3`, `float4`), kiküszöbölve a törékeny szöveges típusfelismerést.
+    - ShaderToy futási környezet emuláció (`iResolution`, `iTime`, `iMouse`, `iDate`, `iFrame`, `sample_procedural_noise` procedurális zajtextúra).
+    - 1-kattintásos beillesztés, tesztelés és azonnali bináris beágyazás.
+  - **VJ Shader Láthatóság Javítása (Üres és Audió Decken):**
+    - Megszüntetve a szigorú `hasAudioOnlyTrack()` feltétel: a shader mostantól zene betöltése nélkül is azonnal látható és animálódik, így a felhasználó azonnal tesztelheti a beépített és beágyazott shadereket.
 * [x] **Ablakpozíciók Perzisztenciája & Beállítások Vezérlők (Build #325):**
   - Mind az 5 ablak (`DeckWindow A`, `DeckWindow B`, `MixerWindow`, `TracklistDock`, `VjFxDialog`) mozgatásakor az aktuális koordináták rögzítésre kerülnek a konfigurációban.
   - A Beállítások menü `🌐 Nyelv & Rendszer` fülén a felhasználó a `[ 📍 Jelenlegi Ablakpozíciók Mentése ]` gombbal közvetlenül elmentheti az általa beállított képernyőelrendezést.

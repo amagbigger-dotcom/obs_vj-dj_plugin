@@ -403,6 +403,17 @@ static void deck_video_render(void *data, gs_effect_t *effect)
     if (!media)
         return;
 
+    static uint64_t s_last_deck_time_ns = 0;
+    const uint64_t now_deck_ns = os_gettime_ns();
+    if (s_last_deck_time_ns > 0) {
+        float dt = static_cast<float>(now_deck_ns - s_last_deck_time_ns) * 1e-9f;
+        if (dt > 0.1f) dt = 0.1f;
+        if (dt > 0.0f) {
+            context->deck->updateVjShaderTransition(dt);
+        }
+    }
+    s_last_deck_time_ns = now_deck_ns;
+
     if (context->deck->hasFileChanged()) {
         context->has_frozen_frame = false;
         context->deck->clearFileChanged();
@@ -455,8 +466,8 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                 }
                 obs_source_video_render(media);
                 gs_matrix_pop();
-            } else if (context->deck && context->deck->hasAudioOnlyTrack()) {
-                // Procedurális Audio-Reaktív VJ Shader Suite szigorúan csak tiszta audio fájlokhoz!
+            } else if (context->deck && !context->deck->hasVideo()) {
+                // Procedurális Audio-Reaktív VJ Shader Suite (audió fájlokhoz vagy üres deckhez)
                 const uint32_t cur_vj_ver = CustomShaderManager::instance().version();
                 if (context->fluid_effect && context->loaded_vj_effect_version != cur_vj_ver) {
                     gs_effect_destroy(context->fluid_effect);
@@ -487,7 +498,9 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                     const bool is_b = (context->deck_channel == 1 || (context->deck && context->deck->side() == DeckPlayer::DeckSide::B));
 
                     VjDeckConfig v_cfg = context->deck->vjConfig();
-                    const float viz_mode = static_cast<float>(v_cfg.shader_idx);
+                    const float viz_mode = static_cast<float>(context->deck->vjShaderIdx());
+                    const float viz_mode_prev = static_cast<float>(context->deck->vjShaderIdxPrev());
+                    const float viz_trans_t = context->deck->vjShaderTransProgress();
                     const float macro_tonus = context->deck->currentMacroTonus();
 
                     const auto &defs = getVjShaderDefinitions();
@@ -513,6 +526,10 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                     gs_eparam_t *p = nullptr;
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_mode")))
                         gs_effect_set_float(p, viz_mode);
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_mode_prev")))
+                        gs_effect_set_float(p, viz_mode_prev);
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_trans_t")))
+                        gs_effect_set_float(p, viz_trans_t);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "anim_time")))
                         gs_effect_set_float(p, audio_time);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bpm")))

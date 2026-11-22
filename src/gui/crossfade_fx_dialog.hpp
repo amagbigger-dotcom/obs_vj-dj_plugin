@@ -25,6 +25,7 @@ private:
 
     DeckPair *decks_ = nullptr;
     QComboBox *fx_combo_ = nullptr;
+    QComboBox *trans_combo_ = nullptr;
     QScrollArea *scroll_area_ = nullptr;
     QWidget *params_container_ = nullptr;
     QVBoxLayout *params_layout_ = nullptr;

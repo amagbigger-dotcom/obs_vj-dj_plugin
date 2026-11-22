@@ -407,6 +407,15 @@ uniform float anim_time;
 #define u_time anim_time
 #define RENDERSIZE float2(1920.0, 1080.0)
 #define iResolution float3(1920.0, 1080.0, 1.0)
+#define iChannel0 dummy_texture
+#define iChannel1 dummy_texture
+#define iChannel2 dummy_texture
+#define iChannel3 dummy_texture
+#define iChannelResolution float3(1920.0, 1080.0, 1.0)
+#define iMouse float4(960.0, 540.0, 0.0, 0.0)
+#define iDate float4(2026.0, 11.0, 22.0, anim_time)
+#define iTimeDelta 0.016666
+#define iFrame ((int)(anim_time * 60.0))
 
 uniform float bpm;
 uniform float audio_amp;
@@ -454,13 +463,30 @@ float2 to_float2(float v) { return float2(v, v); }
 float3 to_float3(float v) { return float3(v, v, v); }
 float4 to_float4(float v) { return float4(v, v, v, v); }
 
-float glsl_mod(float x, float y) { return x - y * floor(x / y); }
-float2 glsl_mod2(float2 x, float2 y) { return x - y * floor(x / y); }
-float2 glsl_mod2s(float2 x, float y) { return x - y * floor(x / y); }
-float3 glsl_mod3(float3 x, float3 y) { return x - y * floor(x / y); }
-float3 glsl_mod3s(float3 x, float y) { return x - y * floor(x / y); }
-float4 glsl_mod4(float4 x, float4 y) { return x - y * floor(x / y); }
-float4 glsl_mod4s(float4 x, float y) { return x - y * floor(x / y); }
+float  mod(float x, float y)   { return x - y * floor(x / y); }
+float2 mod(float2 x, float2 y) { return x - y * floor(x / y); }
+float2 mod(float2 x, float y)  { return x - y * floor(x / y); }
+float3 mod(float3 x, float3 y) { return x - y * floor(x / y); }
+float3 mod(float3 x, float y)  { return x - y * floor(x / y); }
+float4 mod(float4 x, float4 y) { return x - y * floor(x / y); }
+float4 mod(float4 x, float y)  { return x - y * floor(x / y); }
+
+float glsl_mod(float x, float y) { return mod(x, y); }
+float2 glsl_mod2(float2 x, float2 y) { return mod(x, y); }
+float2 glsl_mod2s(float2 x, float y) { return mod(x, y); }
+float3 glsl_mod3(float3 x, float3 y) { return mod(x, y); }
+float3 glsl_mod3s(float3 x, float y) { return mod(x, y); }
+
+float4 sample_procedural_noise(float2 p)
+{
+    float n1 = frac(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
+    float n2 = frac(sin(dot(p + float2(0.1, 0.1), float2(39.346, 11.135))) * 23421.631);
+    float n3 = frac(sin(dot(p + float2(0.2, 0.3), float2(73.156, 52.235))) * 54321.123);
+    return float4(n1, n2, n3, 1.0);
+}
+#define texture(ch, uv) sample_procedural_noise(uv)
+#define texture2D(ch, uv) sample_procedural_noise(uv)
+#define textureLod(ch, uv, lod) sample_procedural_noise(uv)
 
 float2 rotate2D(float2 p, float a)
 {
@@ -1082,7 +1108,7 @@ bool CustomShaderManager::transpileIsfToHlsl(const std::string &raw_isf_code,
         // Check for Shadertoy mainImage
         QRegularExpression main_img_re(QStringLiteral("void\\s+mainImage\\s*\\([^\\)]*\\)"));
         if (main_img_re.match(body).hasMatch()) {
-            body.replace(main_img_re, QStringLiteral("void mainImage_internal(out float4 fragColor, in float2 fragCoord)"));
+            body.replace(main_img_re, QStringLiteral("void mainImage_internal(inout float4 fragColor, in float2 fragCoord)"));
             body += QStringLiteral(
                 "\n\nfloat4 render_custom(float2 uv)\n"
                 "{\n"
@@ -1130,8 +1156,34 @@ bool CustomShaderManager::parseAiShaderText(const std::string &text,
         !qtext.contains(QStringLiteral("[CODE]"), Qt::CaseInsensitive) &&
         (qtext.contains(QStringLiteral("void main"), Qt::CaseInsensitive) ||
          qtext.contains(QStringLiteral("mainImage"), Qt::CaseInsensitive) ||
+         qtext.contains(QStringLiteral("iResolution"), Qt::CaseInsensitive) ||
+         qtext.contains(QStringLiteral("fragColor"), Qt::CaseInsensitive) ||
+         qtext.contains(QStringLiteral("vec4"), Qt::CaseInsensitive) ||
+         qtext.contains(QStringLiteral("vec3"), Qt::CaseInsensitive) ||
          qtext.contains(QStringLiteral("isf_FragNormCoord"), Qt::CaseInsensitive))) {
         return transpileIsfToHlsl(text, out_name, out_category, out_params, out_param_names, out_param_ids, out_hlsl_code, out_error);
+    }
+
+    // 0.1 Auto-detect already-transpiled direct HLSL code: float4 render_custom / float4 PS
+    if (!qtext.contains(QStringLiteral("[NAME]"), Qt::CaseInsensitive) &&
+        !qtext.contains(QStringLiteral("[CODE]"), Qt::CaseInsensitive) &&
+        (qtext.contains(QStringLiteral("render_custom"), Qt::CaseInsensitive) ||
+         qtext.contains(QStringLiteral("float4 PS"), Qt::CaseInsensitive))) {
+        out_name = "Egyedi HLSL Shader";
+        out_category = "HLSL / Direct3D 11";
+        out_hlsl_code = text;
+        out_params.clear();
+        out_param_names.clear();
+        out_param_ids.clear();
+        out_params.resize(8);
+        out_param_names.resize(8);
+        out_param_ids.resize(8);
+        for (int p = 0; p < 8; ++p) {
+            out_param_ids[p] = "p" + std::to_string(p);
+            out_param_names[p] = "Paraméter " + std::to_string(p + 1);
+            out_params[p] = { nullptr, nullptr, 0.0f, 2.0f, 1.0f, 0.05f };
+        }
+        return true;
     }
 
     // 1. Try Tag-based parsing: [NAME], [CATEGORY], [PARAMS], [CODE]
@@ -1422,8 +1474,8 @@ std::string CustomShaderManager::getCustomShadersDispatchHlsl() const
         const int mode_id = static_cast<int>(15 + i);
         std::ostringstream ss;
         ss << std::fixed << std::setprecision(1) << (static_cast<float>(mode_id) + 0.5f);
-        dispatch += "    } else if (visualizer_mode < " + ss.str() + ") {\n";
-        dispatch += "        return " + custom_shaders_[i].hlsl_function_name + "(v.uv);\n";
+        dispatch += "    } else if (mode < " + ss.str() + ") {\n";
+        dispatch += "        return " + custom_shaders_[i].hlsl_function_name + "(uv);\n";
     }
     return dispatch;
 }

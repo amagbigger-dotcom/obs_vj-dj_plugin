@@ -171,6 +171,12 @@ public:
     void setVjParamMod(int param_idx, int mod) noexcept;
     void setVjParamModDepth(int param_idx, float depth) noexcept;
     void setVjShaderIdx(int idx) noexcept;
+    int vjShaderIdx() const noexcept;
+    int vjShaderIdxPrev() const noexcept { return vj_shader_idx_prev_.load(std::memory_order_relaxed); }
+    float vjShaderTransProgress() const noexcept { return vj_shader_trans_progress_.load(std::memory_order_relaxed); }
+    void updateVjShaderTransition(float dt_sec) noexcept;
+    int vjShaderTransBeats() const noexcept { return vj_shader_trans_beats_.load(std::memory_order_relaxed); }
+    void setVjShaderTransBeats(int beats) noexcept { vj_shader_trans_beats_.store(std::clamp(beats, 0, 16), std::memory_order_relaxed); }
     void setVjCustomColor(float r, float g, float b, int mod_mode) noexcept;
     void saveVjConfigToCache();
     void loadVjConfigFromCache();
@@ -302,6 +308,10 @@ private:
     // VJ Shader Configuration & Parameter Modulation
     mutable std::mutex vj_config_mutex_;
     VjDeckConfig vj_config_ = getDefaultVjConfig(0);
+    std::atomic<int> vj_shader_idx_prev_{0};
+    std::atomic<float> vj_shader_trans_progress_{1.0f};
+    std::atomic<float> vj_shader_trans_duration_{1.0f};
+    std::atomic<int> vj_shader_trans_beats_{2};
 };
 
 using DeckEngine = DeckPlayer;
@@ -333,8 +343,13 @@ public:
     void setTransitionMode(int mode) noexcept;
     int transitionMode() const noexcept;
 
-    void setCrossfadeFxMode(int mode) noexcept { crossfade_fx_mode_.store(mode, std::memory_order_relaxed); }
+    void setCrossfadeFxMode(int mode) noexcept;
     int crossfadeFxMode() const noexcept { return crossfade_fx_mode_.load(std::memory_order_relaxed); }
+    int crossfadeFxModePrev() const noexcept { return cf_fx_mode_prev_.load(std::memory_order_relaxed); }
+    float crossfadeFxTransProgress() const noexcept { return cf_fx_trans_progress_.load(std::memory_order_relaxed); }
+    void updateCrossfadeFxTransition(float dt_sec) noexcept;
+    int crossfadeFxTransBeats() const noexcept { return cf_fx_trans_beats_.load(std::memory_order_relaxed); }
+    void setCrossfadeFxTransBeats(int beats) noexcept { cf_fx_trans_beats_.store(std::clamp(beats, 0, 16), std::memory_order_relaxed); }
 
     float crossfadeFxIntensity() const noexcept { return cf_fx_intensity_.load(std::memory_order_relaxed); }
     void setCrossfadeFxIntensity(float val) noexcept { cf_fx_intensity_.store(std::clamp(val, 0.0f, 2.0f), std::memory_order_relaxed); }
@@ -430,6 +445,10 @@ private:
     std::atomic<double> crossfader_{0.5};
     std::atomic<int> transition_mode_{0};
     std::atomic<int> crossfade_fx_mode_{0};
+    std::atomic<int> cf_fx_mode_prev_{0};
+    std::atomic<float> cf_fx_trans_progress_{1.0f};
+    std::atomic<float> cf_fx_trans_duration_{1.0f};
+    std::atomic<int> cf_fx_trans_beats_{2};
     std::atomic<float> cf_fx_intensity_{1.0f};
     std::atomic<int> cf_fx_intensity_mod_{0};
     std::atomic<float> cf_fx_rate_{1.0f};
