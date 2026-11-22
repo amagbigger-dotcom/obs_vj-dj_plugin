@@ -1,25 +1,50 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #346 (GitHub Run #45020245856)
-* **Aktuális Git Commit:** `d5193a0`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 308 160 bájt)
-* **Bináris SHA256:** `6A9BFB11596C5EA59E8820B1D595A2C4EECAAE7651CAB03753DBC5CE75027051`
+* **Legutolsó stabil mérföldkő:** Build #349 (GitHub Run #45028789668)
+* **Aktuális Git Commit:** `4bb54dd`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 362 432 bájt)
+* **Bináris SHA256:** `303F2B39406588559A46E3726A1520FBD42A6A8E4DFDF96F98580613A7CF41E8`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #346 Csatorna Fader Alakzat-Áttűnések (Shape Wipe) és Crossfader Integráció ellenőrzése OBS Studio-ban:
-  1. **Alakzat Kivágás Átlátszósága (Transzparencia):**
-     - Ellenőrizni, hogy ha az egyik decken alakzat-áttűnés van (pl. Kör Szűkülés, Lamellák), a másikon pedig nincs (`VOL FX: Ki`), akkor a kivágott rész tiszta fekete (átlátszó) marad, amikor a crossfader az aktív decken áll.
-  2. **Finom Crossfader Keverés a Csíkokban és Alakzatokban:**
-     - Ellenőrizni, hogy amikor a másik oldalról csak egy pici van bekeverve a crossfaderrel, a lamellákban/kivágásban a másik deck nem 100%-os tömörséggel ugrik be, hanem a crossfader arányának megfelelő lágy átfedéssel jelenik meg.
-  3. **Crossfade FX & Luma Dissolve Együttműködés:**
-     - Ellenőrizni, hogy a Crossfade FX effektek és a standard átmenetek (Equal Power, Wipe, Additive, Hard Cut, Luma Dissolve) zavartalanul működnek együtt a csatorna faderek alakzat-effektjeivel.
+* **Fő cél:** Build #349 Tracklist Lejátszási Listák (Playlists), 4 Gyorsgomb & Relink Ellenőrzése OBS Studio-ban:
+  1. **4 Gyorsgomb & Listaválasztás:**
+     - `[ 🎵 MIND ]` (Slot 1) fixen a teljes médiatárat jeleníti meg.
+     - Slot 2, 3, 4 split gombokkal és `[ ▾ ]` lenyíló menüvel tetszőleges lejátszási lista választható ki.
+     - A gombokon kizárólag a tiszta lista név látható (darabszámok nélkül), kattintásra azonnali szűrés.
+  2. **Új Lista Készítése & Számok Hozzárendelése:**
+     - `[ ➕ ]` gombbal új lista készíthető névvel, műfajjal és opcionális okos kulcsszóval.
+     - Táblázat jobb klikkes menüből: `📁 Hozzáadás listához ▶ [Lista neve]`.
+     - Egyedi listában a `[ 🗑 TÖRLÉS ]` vagy `Del` gomb csak az adott listából veszi ki a dalt, a fő médiatárban megmarad.
+  3. **Hiányzó Fájlok (⚠️) Észlelése & Újrakeresése (Relink):**
+     - Ha egy médiafájl elérési útja megváltozik, a `ST` oszlopban sárga `⚠️` figyelmeztetés jelenik meg.
+     - Dupla kattintásra vagy jobb klikkes `📁 Fájl újrakeresése...` menüpontra fájlválasztóval megadható az új útvonal, ami azonnal elmentődik.
+  4. **Ablakméret és Légrés:**
+     - A Tracklist ablak 640 × 560 px méretűre nőtt lefelé: a táblázatban több sor látszik, és 56 px tiszta légrés marad az alatta lévő Deck B ablak felett.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #346)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #349)
+* [x] **Tracklist Lejátszási Listák, 4 Gyorsgomb, Élő Kereső & Fájl Relink (Build #349):**
+  - **4 Gyorsgomb Sáv (Quick Slots):**
+    - Slot 1: `[ 🎵 MIND ]` fixen a teljes könyvtárra vált.
+    - Slot 2, 3, 4: Split gomb elrendezés (bal oldal: tiszta lista név gyorsváltáshoz; jobb oldal: `[ ▾ ]` mini legördülő menü lista kiválasztásához, új lista készítéséhez, szerkesztéshez vagy törléshez).
+    - `[ ➕ ]` gomb: dedikált `PlaylistDialog` lista név, műfaj és okos szűrő kulcsszó megadásához.
+    - `🔍 Keresés...`: azonnali élő szűrés a címre, útvonalra, BPM-re vagy Camelot hangnemre.
+  - **Kettős Törlési Védelem:**
+    - Egyedi lejátszási listában a törlés kizárólag az adott listából veszi ki a dalt, a globális médiatárban megőrzi.
+    - Teljes könyvtárban (`MIND`) történő törléskor a meglévő megerősítő párbeszédablak jelenik meg, és a lemezről is törli a gyorsítótárat.
+  - **Hiányzó Fájlok Észlelése & Újrakeresése (Relink):**
+    - A `ST` oszlopban sárga `⚠️` jelzés mutatja a lemezről hiányzó / áthelyezett fájlokat.
+    - Dupla kattintással vagy jobb klikkes helyi menüvel (`📁 Fájl újrakeresése / elérési útvonal megadása...`) tallózással azonnal javítható az útvonal.
+  - **Moduláris Architektúra & JSON Perzisztencia:**
+    - Új `src/gui/playlist_manager.hpp/.cpp` és `src/gui/playlist_dialog.hpp/.cpp` modulok.
+    - A `vj_tracklist.json` visszafelé kompatibilis módon tárolja a trackeket, a lejátszási listákat és a 4 slot kiosztását.
+  - **Ablakméret & Geometria:**
+    - 640 × 560 px Tracklist méret: 56 px biztonsági légrés a Deck B felett, teljes átfedés-mentesség.
+  - **Telepített bináris:** 1 362 432 bájt, SHA256 `303F2B39406588559A46E3726A1520FBD42A6A8E4DFDF96F98580613A7CF41E8`.
 * [x] **Csatorna Hangerő Fader Alakzat Áttűnések & Crossfader Keverés Javítása (Build #346):**
   - **Hiba elhárítása (`mixer_source.cpp`):** Eltávolításra került a korábbi hibás `lerp(b.rgb, a.rgb, m_a)` és `lerp(a.rgb, b.rgb, m_b)` shader ág, amely a crossfadert figyelmen kívül hagyva 100%-os tömörséggel kényszerítette rá a másik deck videóját a maszkolt felületekre.
   - **Valódi Transzparencia:** Ha csak az egyik decken aktív az alakzat-áttűnés (Kör, Lamellák, Téglalap, Négyzet, Rombusz, Zoom), a maszkolt részeken a háttér tiszta fekete (átlátszó), a másik deck csak akkor és olyan mértékben jelenik meg alatta, amennyire a crossfader át van húzva.
