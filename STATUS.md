@@ -1,26 +1,32 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #339 (GitHub Run #44968269154)
-* **Aktuális Git Commit:** `728d2f4`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 288 704 bájt)
-* **Bináris SHA256:** `9A24022750F60099E097C791C0DCBBFE23CA96958D051F644F2E93C35F2E4FDD`
+* **Legutolsó stabil mérföldkő:** Build #340 (GitHub Run #44989567565)
+* **Aktuális Git Commit:** `a658248`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 290 240 bájt)
+* **Bináris SHA256:** `0B1EEEBD96BA73877DCB8099179552D21615337106D07CA4D2E3664DFD484F60`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #327 tesztelése, validálása és felhasználói ellenőrzése:
-  1. **BPM-Szinkronizált Áttűnés Ellenőrzése:**
-     - Crossfade FX váltáskor (13 effekt) és VJ Shader váltáskor (15 beépített + egyedi shaderek) a zenei ütem (1, 2, 4, 8 Beat) szerinti lágy morfolás ellenőrzése.
-  2. **Közvetlen ShaderToy / GLSL / ISF Beágyazás Tesztelése:**
+* **Fő cél:** Build #340 VJ Shaderek és Crossfade FX ellenőrzése OBS Studio-ban:
+  1. **VJ Shaderek Azonnali Megjelenése:**
+     - Ellenőrizni, hogy mind a 15 beépített VJ visualizer shader és mind a 9 felhasználói egyedi shader (`custom_shaders.json`) hibátlanul, fekete képernyő és fordítási hiba nélkül renderel és animálódik.
+  2. **BPM-Szinkronizált Áttűnések Ellenőrzése:**
+     - Crossfade FX váltáskor (13 effekt) és VJ Shader váltáskor a zenei ütem (1, 2, 4, 8 Beat) szerinti lágy morfolás ellenőrzése.
+  3. **Közvetlen ShaderToy / GLSL / ISF Beágyazó Motor:**
      - Nyers ShaderToy / ISF kód közvetlen beillesztése és mentése az ISF dialógusban külső AI kerülőút nélkül.
-  3. **Azonnali Shader Megjelenítés:**
-     - Ellenőrzés: a shaderek zene betöltése nélkül (üres decken is) azonnal animálódnak és tesztelhetők.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #327)
-* [x] **BPM-Szinkronizált Áttűnések & Közvetlen Shader Beágyazó Motor (Build #327):**
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #340)
+* [x] **VJ Shader Fordítási Hiba Elhárítása & Libobs Kompatibilitás (Build #340):**
+  - **Hiba elhárítása:** Az OBS `libobs` shader elemzője (`cf-parser.c`) az `#define iFrame ((int)(anim_time * 60.0))` makró zárójelezése miatt szintaktikai hibát dobott (`fluid_flow_effect (25, 17): Expected identifier`), emiatt sem a 15 beépített VJ shader, sem a custom shaderek nem jelentek meg.
+  - **Függvény túlterhelés megszüntetése:** A libobs `effect-parser.c` szimbólumtáblája nem engedélyezi a függvények túlterhelését (`'mod' already exists`); a túlterhelt `mod()` függvények helyett visszaálltak a szabványos, egyedi azonosítójú `glsl_mod`, `glsl_mod2`, `glsl_mod2s`, `glsl_mod3`, `glsl_mod3s`, `glsl_mod4`, `glsl_mod4s` segédfüggvények.
+  - **Törölt érvénytelen makrók:** A nem támogatott `#define texture(...)` makrók eltávolításra kerültek; a procedurális zajmintavételezés dedikált `sample_procedural_noise(float2 p)` HLSL függvénnyel működik.
+  - **C++ ShaderToy Transzpiler:** Minden ShaderToy futtatási token (`iFrame`, `iTimeDelta`, `iMouse`, `iDate`, `iChannelResolution`, `texture`, `texture2D`, `textureLod`, `mod`) kezelése közvetlenül a C++ oldali regex transzpilerbe került át.
+  - **Telepített bináris:** 1 290 240 bájt, SHA256 `0B1EEEBD96BA73877DCB8099179552D21615337106D07CA4D2E3664DFD484F60`.
+* [x] **BPM-Szinkronizált Áttűnések & Közvetlen Shader Beágyazó Motor (Build #327 – #339):**
   - **BPM-Szinkronizált Lágy Áttűnések (Crossfade FX & VJ Shader lista váltáskor):**
     - Az effektek és shaderek közötti váltáskor a korábbi hard cut helyett a zenei tempóhoz (BPM) igazított, konfigurálható hosszúságú (Azonnali / 1 / 2 / 4 / 8 ütemes) lágy áttűnés valósult meg ($T = \frac{60}{\text{BPM}} \times \text{beats}$).
     - `DeckPair` és `DeckPlayer` állapotgép valós idejű órajel-vezérelt progressz követéssel ($0.0 \rightarrow 1.0$).
