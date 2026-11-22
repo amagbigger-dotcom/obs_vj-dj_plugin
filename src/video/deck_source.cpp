@@ -376,12 +376,18 @@ static void deck_video_tick(void *data, float seconds)
         if (has_master) {
             // Ha a Master Mixer a jelenetben van, a Deck A/B forrás ne küldjön hangot,
             // megelőzve a hangerő duplázódást és fáziskioltást az 1-2 kimeneten
-            obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_NONE);
-            obs_source_set_audio_mixers(context->source, 0);
+            if (obs_source_get_monitoring_type(context->source) != OBS_MONITORING_TYPE_NONE) {
+                obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_NONE);
+            }
+            if (obs_source_get_audio_mixers(context->source) != 0) {
+                obs_source_set_audio_mixers(context->source, 0);
+            }
         } else {
             const uint32_t mixers = obs_source_get_audio_mixers(context->source);
             if (mixers == 0) {
                 obs_source_set_audio_mixers(context->source, 0x3F);
+            }
+            if (obs_source_get_monitoring_type(context->source) != OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT) {
                 obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
             }
         }

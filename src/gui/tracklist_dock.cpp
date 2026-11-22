@@ -559,7 +559,13 @@ void TracklistDock::relinkTrackFile(int real_track_index)
     auto &item = tracks_[real_track_index];
 
     const QString old_path = item.file_path;
-    const QString start_dir = QFileInfo(old_path).absolutePath();
+    QString start_dir = QFileInfo(old_path).absolutePath();
+    if (!QDir(start_dir).exists()) {
+        start_dir = QFileInfo(item.original_path).absolutePath();
+    }
+    if (!QDir(start_dir).exists()) {
+        start_dir = library_dir_;
+    }
 
     const QString new_file = QFileDialog::getOpenFileName(
         this,
@@ -568,17 +574,53 @@ void TracklistDock::relinkTrackFile(int real_track_index)
         QStringLiteral("Médiafájlok (*.mp4 *.mkv *.mov *.avi *.webm *.mp3 *.wav *.flac *.aac *.ogg *.m4a);;Minden fájl (*.*)")
     );
 
-    if (new_file.isEmpty()) {
+    if (new_file.isEmpty() || !QFile::exists(new_file)) {
         return;
     }
 
-    item.file_path = new_file;
-    if (item.original_path.isEmpty() || item.original_path == old_path || !item.is_converted) {
+    const QFileInfo fi(new_file);
+    const QString ext = fi.suffix().toLower();
+    const bool is_audio = isAudioOnlyFile(ext);
+
+    if (is_audio) {
+        // Tisztán audió fájl: nincs szükség videokonvertálásra
         item.original_path = new_file;
+        item.file_path = new_file;
+        item.is_converted = true;
+        item.status = QStringLiteral("Ready");
+        analyzeTrackAudio(real_track_index, true);
+    } else {
+        // Videófájl
+        item.original_path = new_file;
+        const QString out_file = QDir(library_dir_).filePath(
+            fi.completeBaseName() + QStringLiteral("_vj1080.mp4")
+        );
+
+        if (QFile::exists(out_file) && QFileInfo(out_file).size() > 1024) {
+            // Már létezik a konvertált 1080p fájl a VJ könyvtárban
+            item.file_path = out_file;
+            item.is_converted = true;
+            item.status = QStringLiteral("Ready");
+            analyzeTrackAudio(real_track_index);
+        } else if (new_file.contains(QStringLiteral("_vj")) && new_file.endsWith(QStringLiteral(".mp4"))) {
+            // Közvetlenül a konvertált videót tallózta be a felhasználó
+            item.file_path = new_file;
+            item.is_converted = true;
+            item.status = QStringLiteral("Ready");
+            analyzeTrackAudio(real_track_index);
+        } else {
+            // Nyers, nem konvertált videó (pl. 2K/4K vagy Long-GOP):
+            // KÖTELEZŐ NVENC 1080p All-Intra formátumra konvertálni, nehogy kifagyassza a dekódert!
+            item.file_path = new_file;
+            item.is_converted = false;
+            item.status = QStringLiteral("Várakozik...");
+            conversion_queue_.push_back(real_track_index);
+            processNextConversion();
+        }
     }
 
     if (status_lbl_) {
-        status_lbl_->setText(QStringLiteral("✅ Fájl elérési útja sikeresen frissítve: %1").arg(QFileInfo(new_file).fileName()));
+        status_lbl_->setText(QStringLiteral("✅ Fájl elérési útja sikeresen frissítve: %1").arg(fi.fileName()));
         status_lbl_->setStyleSheet(QStringLiteral("color: #00ff88; font-size: 11px;"));
     }
 
@@ -1577,6 +1619,17 @@ void TracklistDock::loadTrackToDeck(int track_index, int deck_channel)
         return;
     }
 
+    // Konvertáltság ellenőrzése videófájlok esetén: védelem a nehéz 2K/4K/Long-GOP fagyások ellen!
+    const QString ext = QFileInfo(item.file_path).suffix().toLower();
+    if (!isAudioOnlyFile(ext) && !item.is_converted) {
+        if (status_lbl_) {
+            status_lbl_->setText(QStringLiteral("⚠️ Ez a videó még nincs 1080p All-Intra formátumra konvertálva! Konvertálás indítása..."));
+            status_lbl_->setStyleSheet(QStringLiteral("color: #ffaa00; font-size: 11px; font-weight: bold;"));
+        }
+        reconvertTrack(track_index);
+        return;
+    }
+
     DeckPlayer *target_deck = (deck_channel == 1) ? vj_deck_b() : vj_deck_a();
     if (!target_deck) {
         target_deck = vj_active_deck();
@@ -1779,6 +1832,24 @@ void TracklistDock::loadLibraryJson()
                 }
                 if (!c_res.camelot_key.isEmpty() && c_res.camelot_key != QStringLiteral("--")) {
                     item.camelot = c_res.camelot_key;
+                }
+            }
+
+            // Önjavítás: ha egy videó korábban is_converted = true-nak lett beállítva,
+            // de valójában nyers videófájlra mutat és a cél _vj1080.mp4 nem létezik:
+            const QFileInfo fi(item.file_path);
+            const QString ext = fi.suffix().toLower();
+            if (!isAudioOnlyFile(ext)) {
+                const QString target_conv = QDir(library_dir_).filePath(
+                    fi.completeBaseName() + QStringLiteral("_vj1080.mp4")
+                );
+                if (QFile::exists(target_conv) && QFileInfo(target_conv).size() > 1024) {
+                    item.file_path = target_conv;
+                    item.is_converted = true;
+                    item.status = QStringLiteral("Ready");
+                } else if (!item.file_path.contains(QStringLiteral("_vj")) || !QFile::exists(item.file_path)) {
+                    item.is_converted = false;
+                    item.status = QStringLiteral("Konvertálatlan");
                 }
             }
 
