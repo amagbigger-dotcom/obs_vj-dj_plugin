@@ -1,7 +1,7 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
 * **Legutolsó stabil mérföldkő:** Build #358 (GitHub Run #45068789909)
-* **Aktuális Git Commit:** `9dacee4`
+* **Aktuális Git Commit:** Folyamatban (Build #359)
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 402 368 bájt)
 * **Bináris SHA256:** `2EEDD9BC413C7CFAA902E80E7BC2BED4462155692AD1DEC4867F89FDFEA73777`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
@@ -9,18 +9,23 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #358 - Mixer FX Akusztikai Finomhangolás & Gerjedésmentes Erősítés:
-  1. **High-Pass Szűrő (Jobbra tekerés) Lágyítása:**
-     - Korábbi hiba: 8000 Hz-ig vágott fel, ami 100%-nál teljes süketséget okozott, így az effekt sem hallatszott.
-     - Javítás: A maximális vágási frekvencia max ~2400 Hz-re korlátozva (~70%-os zenei energiavágás). A lábdob és basszus teljesen eltűnik, de az ének, pergő, cin és a visszhangok/zengések kristálytisztán szólnak 100%-nál is, nincs süketség.
-  2. **Low-Pass Szűrő (Balra tekerés) Mélyítése:**
-     - Korábbi hiba: Csak 200 Hz-ig ment le, ami jóval 100 Hz felett megállt és túl sok hangot hagyott bent.
-     - Javítás: A cutoff 18 000 Hz-ről lefelé egészen **50 Hz-ig** lemegy, valódi klubos mély szub-basszust és sötét búgást adva.
-  3. **Effektek Jelenlétének és Hangerejének Növelése (Boost):**
-     - **Delay:** `send_gain` 0.70 $\to$ 0.90, `wet_gain` 1.20 $\to$ 1.50, `feedback` max 0.78 lágy szalagos telítéssel (gerjedés kizárva).
-     - **Reverb:** `send_gain` 0.75 $\to$ 0.85, `wet_gain` 0.75 $\to$ 1.50, `room_size` max 0.88 buja térzengéssel.
-     - **Flanger:** `wet_gain` 0.70 $\to$ 1.30, `feedback` max 0.80 erőteljes, vastag sztereó Jet áthúzással.
-     - Száraz jel enyhe kompenzálása (`dry_gain = 1.0 - amount * 0.20`), így az effekt kiemelkedik és magával ragadóvá válik.
+* **Fő cél:** Build #359 - Tempo-Szinkronizált Dual Delay, Modulált Selymes Reverb és Akusztikai Görbe Finomhangolás:
+  1. **Szűrő Görbék Akusztikai Arany Középútja:**
+     - **Low-Pass (Balra):** Cutoff 50 Hz-ről lefelé egészen **25 Hz-ig** lemegy, garantálva a mély, sötét szub-basszus dübörgést.
+     - **High-Pass (Jobbra):** Cutoff a korábbi 2400 Hz-ről feljebb emelve **~3800 Hz-re**, így a dobtest és alsó közepek teljesen kiürülnek, de a felső sáv (cin, ének fény, effekt lecsengés) kristálytisztán kíséri az effektet (zéró süketség).
+  2. **🔵 Kék: Dual Rhythmic Stereo Delay (Sztereó Ütem-Megosztás):**
+     - A mono késleltetés helyett ritmikai sztereó megosztás: **Bal fül = 1/2 beat, Jobb fül = 3/4 beat (pontozott nyolcad)**.
+     - Oda-vissza pattogó sztereó térhatás tempo-szinkronban.
+     - Send gain 1.25x, wet gain 1.85x, feedback max 0.80 köbös lágy analóg szaturációval.
+     - Nyitottabb analóg szalag sávszűrő (110 Hz HPF, 6500 Hz LPF) a fényes, tiszta ismétlésekért.
+  3. **🟢 Zöld: Modulált Selymes Plate Reverb (Tempo-Synced RT60 & Antimetallic LFO):**
+     - **Tempo-szinkronizált lecsengés ($RT_{60}$):** $(1.5 + \text{amount} \times 6.5) \times T_{\text{beat}}$ (1.5 ütemtől 8 ütemig / 2 takt).
+     - Dinamikusan újraszámított comb visszacsatolás ($g_c = 10^{-3 \cdot D_c / (RT_{60} \cdot f_s)}$), minden comb fésűszűrő pontosan azonos zenei ütemre cseng le.
+     - **Lebegő LFO késleltetés-moduláció ($\pm 4.0$ minta):** Megszünteti a fémes, csöves, rugós rezonanciát; gazdag stúdió-plate hangzást nyújt.
+     - Wet gain jelentős emelése (2.20x), send gain 1.20x, sűrített allpass diffúzió (0.55x).
+  4. **🟡 Sárga: Tempo-Synced Stereo 90° Jet Flanger Boost:**
+     - 8-beat (2 ütem) zenei söprési periódus ($f_{\text{LFO}} = \text{BPM} / (60 \times 8)$).
+     - Wet gain 1.30 $\to$ 1.85, dry gain 0.85, feedback max 0.85 köbös telítéssel a recsegésmentes, vastag sugárhajtóműves Jet hangzásért.
 
 ---
 

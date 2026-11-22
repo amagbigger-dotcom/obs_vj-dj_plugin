@@ -35,6 +35,7 @@ struct MixerFxState {
 
     std::array<std::vector<float>, 2> allpass_buf;
     std::array<size_t, 2> allpass_pos = {0, 0};
+    float reverb_lfo_phase = 0.0f; // Modulációs fázis a fésűs fémes csengés kiküszöbölésére
 
     // Flanger állapot (1024 minta késleltető buffer + LFO fázis)
     std::vector<float> flanger_buf;
