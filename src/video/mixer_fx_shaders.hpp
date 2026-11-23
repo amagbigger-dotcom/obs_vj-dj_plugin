@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 // =============================================================================
 // TRAKTOR MIXER FX 9-TAGÚ KÉPTORZÍTÓ VIZUÁLIS SHADER CSOMAG (HLSL)
 // Mind a 9 audio effekt közvetlen képi torzítási algoritmusa Direct3D 11 / HLSL
@@ -69,18 +71,28 @@ float4 fx_reverb(texture2d img, float2 uv, float v, float amt)
     float4 base_col = img.Sample(def_sampler, uv);
     float thresh = max(0.20, 0.65 - amt * 0.40);
     float rad = amt * 0.030;
+    float inv_range = 1.0 / max(1.0 - thresh, 0.01);
+
     float4 bloom = float4(0.0, 0.0, 0.0, 0.0);
-    float2 offsets[8] = {
-        float2( rad, 0.0), float2(-rad, 0.0), float2(0.0,  rad), float2(0.0, -rad),
-        float2( rad * 0.7, rad * 0.7), float2(-rad * 0.7, rad * 0.7),
-        float2( rad * 0.7,-rad * 0.7), float2(-rad * 0.7,-rad * 0.7)
-    };
-    for (int i = 0; i < 8; ++i) {
-        float4 s = img.Sample(def_sampler, uv + offsets[i]);
-        float l = dot(s.rgb, float3(0.299, 0.587, 0.114));
-        bloom += s * saturate((l - thresh) / max(1.0 - thresh, 0.01));
-    }
-    bloom /= 8.0;
+    float4 s1 = img.Sample(def_sampler, uv + float2( rad,  0.0));
+    float4 s2 = img.Sample(def_sampler, uv + float2(-rad,  0.0));
+    float4 s3 = img.Sample(def_sampler, uv + float2( 0.0,  rad));
+    float4 s4 = img.Sample(def_sampler, uv + float2( 0.0, -rad));
+    float4 s5 = img.Sample(def_sampler, uv + float2( rad * 0.7,  rad * 0.7));
+    float4 s6 = img.Sample(def_sampler, uv + float2(-rad * 0.7,  rad * 0.7));
+    float4 s7 = img.Sample(def_sampler, uv + float2( rad * 0.7, -rad * 0.7));
+    float4 s8 = img.Sample(def_sampler, uv + float2(-rad * 0.7, -rad * 0.7));
+
+    bloom += s1 * saturate((dot(s1.rgb, float3(0.299, 0.587, 0.114)) - thresh) * inv_range);
+    bloom += s2 * saturate((dot(s2.rgb, float3(0.299, 0.587, 0.114)) - thresh) * inv_range);
+    bloom += s3 * saturate((dot(s3.rgb, float3(0.299, 0.587, 0.114)) - thresh) * inv_range);
+    bloom += s4 * saturate((dot(s4.rgb, float3(0.299, 0.587, 0.114)) - thresh) * inv_range);
+    bloom += s5 * saturate((dot(s5.rgb, float3(0.299, 0.587, 0.114)) - thresh) * inv_range);
+    bloom += s6 * saturate((dot(s6.rgb, float3(0.299, 0.587, 0.114)) - thresh) * inv_range);
+    bloom += s7 * saturate((dot(s7.rgb, float3(0.299, 0.587, 0.114)) - thresh) * inv_range);
+    bloom += s8 * saturate((dot(s8.rgb, float3(0.299, 0.587, 0.114)) - thresh) * inv_range);
+    bloom *= 0.125;
+
     // Meleg/arany fényudvar fúzió
     float3 aura = bloom.rgb * float3(1.15, 1.05, 0.95);
     base_col.rgb += aura * (amt * 1.85);
@@ -290,3 +302,76 @@ float4 apply_deck_mixer_fx(texture2d img, float2 uv, float fx_type, float fx_val
     return saturate(col);
 }
 )";
+
+static const char *DECK_COLOR_EFFECT_PREFIX = R"(
+uniform float4x4 ViewProj;
+uniform texture2d image;
+uniform float4 gains;
+uniform float saturation;
+uniform float alpha;
+uniform float wipe_cutoff;
+uniform float is_deck_b;
+uniform float mixer_fx_type;
+uniform float mixer_fx_val;
+uniform float bpm;
+uniform float anim_time;
+uniform float visual_eq_enabled;
+
+sampler_state def_sampler {
+    Filter = Linear;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
+struct VertData {
+    float4 pos : POSITION;
+    float2 uv : TEXCOORD0;
+};
+
+VertData VSDefault(VertData v)
+{
+    VertData v_out;
+    v_out.pos = mul(float4(v.pos.xyz, 1.0), ViewProj);
+    v_out.uv  = v.uv;
+    return v_out;
+}
+)";
+
+static const char *DECK_COLOR_EFFECT_SUFFIX = R"(
+float4 PSColorize(VertData v) : TARGET
+{
+    float4 col = apply_deck_mixer_fx(image, v.uv, mixer_fx_type, mixer_fx_val, bpm, anim_time, gains, saturation, visual_eq_enabled > 0.5);
+    
+    float final_a = alpha;
+    if (wipe_cutoff >= 0.0) {
+        if (is_deck_b > 0.5) {
+            final_a *= smoothstep(wipe_cutoff - 0.005, wipe_cutoff + 0.005, v.uv.x);
+        } else {
+            final_a *= smoothstep(wipe_cutoff + 0.005, wipe_cutoff - 0.005, v.uv.x);
+        }
+    }
+    col.a = saturate(final_a * col.a);
+    col.rgb *= col.a;
+    return col;
+}
+
+technique Draw
+{
+    pass
+    {
+        vertex_shader = VSDefault(v);
+        pixel_shader  = PSColorize(v);
+    }
+}
+)";
+
+inline const char *getDeckColorEffectCode()
+{
+    static std::string s_code;
+    if (s_code.empty()) {
+        s_code = DECK_COLOR_EFFECT_PREFIX;
+        s_code += MIXER_FX_HLSL;
+        s_code += DECK_COLOR_EFFECT_SUFFIX;
+    }
+    return s_code.c_str();
+}

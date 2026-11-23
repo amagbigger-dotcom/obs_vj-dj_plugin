@@ -39,10 +39,13 @@ struct MixerSource {
 
     gs_effect_t *effect = nullptr;
     gs_effect_t *fluid_effect = nullptr;
+    gs_effect_t *deck_color_effect = nullptr;
     uint32_t loaded_vj_effect_version = 0;
     gs_texture_t *dummy_tex = nullptr;
     gs_texrender_t *deck_a = nullptr;
     gs_texrender_t *deck_b = nullptr;
+    gs_texrender_t *raw_deck_a = nullptr;
+    gs_texrender_t *raw_deck_b = nullptr;
 
     uint64_t next_audio_ts = 0;
     std::thread audio_thread;
@@ -54,10 +57,6 @@ static const char *MIXER_EFFECT_PART1 = R"(
 uniform float4x4 ViewProj;
 uniform texture2d image_a;
 uniform texture2d image_b;
-uniform float4 gains_a;
-uniform float4 gains_b;
-uniform float saturation_a;
-uniform float saturation_b;
 uniform float crossfade;
 uniform float transition_mode;
 
@@ -65,16 +64,6 @@ uniform float vol_fx_mode_a;
 uniform float vol_fx_val_a;
 uniform float vol_fx_mode_b;
 uniform float vol_fx_val_b;
-
-uniform float mixer_fx_type_a;
-uniform float mixer_fx_val_a;
-uniform float bpm_a;
-uniform float visual_eq_a;
-
-uniform float mixer_fx_type_b;
-uniform float mixer_fx_val_b;
-uniform float bpm_b;
-uniform float visual_eq_b;
 
 uniform float cf_fx_mode;
 uniform float cf_fx_mode_prev;
@@ -312,7 +301,7 @@ float get_shape_wipe_mask(float fx_mode, float fx_val, float2 uv)
     return 1.0;
 }
 
-float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx_val, float mix_type, float mix_val, float bpm, float anim_time, float4 gains, float sat, bool vis_eq)
+float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx_val)
 {
     float2 sample_uv = uv;
     if (fx_mode > 9.5 && fx_mode < 10.5 && fx_val > 0.001) {
@@ -324,18 +313,18 @@ float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx
     if (fx_mode > 2.5 && fx_mode < 3.5 && fx_val > 0.01) {
         // Mode 3: Soft Focus / Homályosítás (Multi-tap Box/Gaussian Blur)
         float2 off = float2(fx_val * 0.012, fx_val * 0.012);
-        float4 sum = apply_deck_mixer_fx(img, sample_uv, mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
-        sum += apply_deck_mixer_fx(img, sample_uv + float2(off.x, 0.0), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
-        sum += apply_deck_mixer_fx(img, sample_uv - float2(off.x, 0.0), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
-        sum += apply_deck_mixer_fx(img, sample_uv + float2(0.0, off.y), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
-        sum += apply_deck_mixer_fx(img, sample_uv - float2(0.0, off.y), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
-        sum += apply_deck_mixer_fx(img, sample_uv + float2(off.x * 0.7, off.y * 0.7), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
-        sum += apply_deck_mixer_fx(img, sample_uv - float2(off.x * 0.7, off.y * 0.7), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
-        sum += apply_deck_mixer_fx(img, sample_uv + float2(-off.x * 0.7, off.y * 0.7), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
-        sum += apply_deck_mixer_fx(img, sample_uv + float2(off.x * 0.7, -off.y * 0.7), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
+        float4 sum = img.Sample(def_sampler, sample_uv);
+        sum += img.Sample(def_sampler, sample_uv + float2(off.x, 0.0));
+        sum += img.Sample(def_sampler, sample_uv - float2(off.x, 0.0));
+        sum += img.Sample(def_sampler, sample_uv + float2(0.0, off.y));
+        sum += img.Sample(def_sampler, sample_uv - float2(0.0, off.y));
+        sum += img.Sample(def_sampler, sample_uv + float2(off.x * 0.7, off.y * 0.7));
+        sum += img.Sample(def_sampler, sample_uv - float2(off.x * 0.7, off.y * 0.7));
+        sum += img.Sample(def_sampler, sample_uv + float2(-off.x * 0.7, off.y * 0.7));
+        sum += img.Sample(def_sampler, sample_uv + float2(off.x * 0.7, -off.y * 0.7));
         col = sum / 9.0;
     } else {
-        col = apply_deck_mixer_fx(img, sample_uv, mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
+        col = img.Sample(def_sampler, sample_uv);
     }
 
     // Fade to Black vagy Fade to White
@@ -356,12 +345,12 @@ float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx
 
 float4 sample_deck_a(float2 uv)
 {
-    return sample_deck_with_vol_fx(image_a, uv, vol_fx_mode_a, vol_fx_val_a, mixer_fx_type_a, mixer_fx_val_a, bpm_a, anim_time, gains_a, saturation_a, visual_eq_a > 0.5);
+    return sample_deck_with_vol_fx(image_a, uv, vol_fx_mode_a, vol_fx_val_a);
 }
 
 float4 sample_deck_b(float2 uv)
 {
-    return sample_deck_with_vol_fx(image_b, uv, vol_fx_mode_b, vol_fx_val_b, mixer_fx_type_b, mixer_fx_val_b, bpm_b, anim_time, gains_b, saturation_b, visual_eq_b > 0.5);
+    return sample_deck_with_vol_fx(image_b, uv, vol_fx_mode_b, vol_fx_val_b);
 }
 
 float4 compute_cf_mix(VertData v, float fx_mode)
@@ -555,7 +544,6 @@ static const char *getMixerEffectCode()
     static std::string s_code;
     if (s_code.empty()) {
         s_code = MIXER_EFFECT_PART1;
-        s_code += MIXER_FX_HLSL;
         s_code += MIXER_EFFECT_PART2;
     }
     return s_code.c_str();
@@ -568,6 +556,15 @@ static void ensure_resources(MixerSource *context)
         context->effect = gs_effect_create(getMixerEffectCode(), "mixer_effect", &errors);
         if (!context->effect) {
             blog(LOG_ERROR, "[obs-vj-mixer] Failed to compile MIXER_EFFECT: %s", errors ? errors : "unknown error");
+            bfree(errors);
+        }
+    }
+
+    if (!context->deck_color_effect) {
+        char *errors = nullptr;
+        context->deck_color_effect = gs_effect_create(getDeckColorEffectCode(), "deck_color_effect", &errors);
+        if (!context->deck_color_effect) {
+            blog(LOG_ERROR, "[obs-vj-mixer] Failed to compile deck_color_effect: %s", errors ? errors : "unknown error");
             bfree(errors);
         }
     }
@@ -593,6 +590,12 @@ static void ensure_resources(MixerSource *context)
         const uint8_t *data_ptr = reinterpret_cast<const uint8_t *>(&white_px);
         context->dummy_tex = gs_texture_create(1, 1, GS_RGBA, 1, &data_ptr, 0);
     }
+
+    if (!context->raw_deck_a)
+        context->raw_deck_a = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
+
+    if (!context->raw_deck_b)
+        context->raw_deck_b = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
 
     if (!context->deck_a)
         context->deck_a = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
@@ -744,44 +747,82 @@ static bool render_to_texture(MixerSource *context,
     return true;
 }
 
+static void apply_deck_post_fx(MixerSource *context,
+                               gs_texrender_t *dst_render,
+                               gs_texture_t *src_texture,
+                               const DeckPlayer &deck,
+                               bool is_deck_b,
+                               uint32_t width,
+                               uint32_t height)
+{
+    if (!context || !dst_render || !src_texture || !context->deck_color_effect)
+        return;
+
+    gs_texrender_reset(dst_render);
+    if (!gs_texrender_begin(dst_render, width, height))
+        return;
+
+    vec4 clear = {0.0f, 0.0f, 0.0f, 0.0f};
+    gs_clear(GS_CLEAR_COLOR, &clear, 0.0f, 0);
+
+    gs_eparam_t *param = nullptr;
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "image")))
+        gs_effect_set_texture(param, src_texture);
+
+    const bool vis_eq = deck.isVisualEqEnabled();
+    vec4 gains;
+    if (vis_eq) {
+        vec4_set(&gains, deck.red(), deck.green(), deck.blue(), 1.0f);
+    } else {
+        vec4_set(&gains, 1.0f, 1.0f, 1.0f, 1.0f);
+    }
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "gains")))
+        gs_effect_set_vec4(param, &gains);
+
+    const float sat = vis_eq ? deck.saturation() : 1.0f;
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "saturation")))
+        gs_effect_set_float(param, sat);
+
+    const float fx_val = vis_eq ? deck.filterVal() : 0.0f;
+    const float fx_type = static_cast<float>(deck.mixerFxType());
+    const float bpm_val = static_cast<float>(deck.bpm());
+    const float anim_time = static_cast<float>(os_gettime_ns() / 1000000ULL) * 0.001f;
+
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "mixer_fx_type")))
+        gs_effect_set_float(param, fx_type);
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "mixer_fx_val")))
+        gs_effect_set_float(param, fx_val);
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "bpm")))
+        gs_effect_set_float(param, bpm_val);
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "anim_time")))
+        gs_effect_set_float(param, anim_time);
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "visual_eq_enabled")))
+        gs_effect_set_float(param, vis_eq ? 1.0f : 0.0f);
+
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "alpha")))
+        gs_effect_set_float(param, 1.0f);
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "wipe_cutoff")))
+        gs_effect_set_float(param, -1.0f);
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "is_deck_b")))
+        gs_effect_set_float(param, is_deck_b ? 1.0f : 0.0f);
+
+    gs_blend_state_push();
+    gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+
+    while (gs_effect_loop(context->deck_color_effect, "Draw")) {
+        gs_draw_sprite(src_texture, 0, width, height);
+    }
+
+    gs_blend_state_pop();
+    gs_texrender_end(dst_render);
+}
+
 static void set_color_params(MixerSource *context,
-                             const DeckPlayer &deck_a,
-                             const DeckPlayer &deck_b,
                              float crossfade,
                              int transition_mode,
                              int cf_fx_mode)
 {
     gs_eparam_t *param = nullptr;
-
-    vec4 gains_a;
-    vec4 gains_b;
-
-    if (deck_a.isVisualEqEnabled()) {
-        vec4_set(&gains_a, deck_a.red(), deck_a.green(), deck_a.blue(), 1.0f);
-    } else {
-        vec4_set(&gains_a, 1.0f, 1.0f, 1.0f, 1.0f);
-    }
-
-    if (deck_b.isVisualEqEnabled()) {
-        vec4_set(&gains_b, deck_b.red(), deck_b.green(), deck_b.blue(), 1.0f);
-    } else {
-        vec4_set(&gains_b, 1.0f, 1.0f, 1.0f, 1.0f);
-    }
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "gains_a")))
-        gs_effect_set_vec4(param, &gains_a);
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "gains_b")))
-        gs_effect_set_vec4(param, &gains_b);
-
-    const float sat_a = deck_a.isVisualEqEnabled() ? deck_a.saturation() : 1.0f;
-    const float sat_b = deck_b.isVisualEqEnabled() ? deck_b.saturation() : 1.0f;
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "saturation_a")))
-        gs_effect_set_float(param, sat_a);
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "saturation_b")))
-        gs_effect_set_float(param, sat_b);
 
     if ((param = gs_effect_get_param_by_name(context->effect, "crossfade")))
         gs_effect_set_float(param, crossfade);
@@ -790,49 +831,21 @@ static void set_color_params(MixerSource *context,
         gs_effect_set_float(param, static_cast<float>(transition_mode));
 
     // Volume FX (Deck A & Deck B)
-    const float vol_val_a = std::clamp(1.0f - deck_a.volume(), 0.0f, 1.0f);
-    const float vol_val_b = std::clamp(1.0f - deck_b.volume(), 0.0f, 1.0f);
+    DeckPair *decks = vdj_decks();
+    const float vol_val_a = decks ? std::clamp(1.0f - decks->deckA().volume(), 0.0f, 1.0f) : 0.0f;
+    const float vol_val_b = decks ? std::clamp(1.0f - decks->deckB().volume(), 0.0f, 1.0f) : 0.0f;
 
     if ((param = gs_effect_get_param_by_name(context->effect, "vol_fx_mode_a")))
-        gs_effect_set_float(param, static_cast<float>(deck_a.volumeFxMode()));
+        gs_effect_set_float(param, static_cast<float>(decks ? decks->deckA().volumeFxMode() : 0));
 
     if ((param = gs_effect_get_param_by_name(context->effect, "vol_fx_val_a")))
         gs_effect_set_float(param, vol_val_a);
 
     if ((param = gs_effect_get_param_by_name(context->effect, "vol_fx_mode_b")))
-        gs_effect_set_float(param, static_cast<float>(deck_b.volumeFxMode()));
+        gs_effect_set_float(param, static_cast<float>(decks ? decks->deckB().volumeFxMode() : 0));
 
     if ((param = gs_effect_get_param_by_name(context->effect, "vol_fx_val_b")))
         gs_effect_set_float(param, vol_val_b);
-
-    // Mixer FX (Deck A & Deck B)
-    const float fx_val_a = (deck_a.isVisualEqEnabled()) ? deck_a.filterVal() : 0.0f;
-    const float fx_type_a = static_cast<float>(deck_a.mixerFxType());
-    const float bpm_val_a = static_cast<float>(deck_a.bpm());
-    const float vis_eq_a = deck_a.isVisualEqEnabled() ? 1.0f : 0.0f;
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "mixer_fx_type_a")))
-        gs_effect_set_float(param, fx_type_a);
-    if ((param = gs_effect_get_param_by_name(context->effect, "mixer_fx_val_a")))
-        gs_effect_set_float(param, fx_val_a);
-    if ((param = gs_effect_get_param_by_name(context->effect, "bpm_a")))
-        gs_effect_set_float(param, bpm_val_a);
-    if ((param = gs_effect_get_param_by_name(context->effect, "visual_eq_a")))
-        gs_effect_set_float(param, vis_eq_a);
-
-    const float fx_val_b = (deck_b.isVisualEqEnabled()) ? deck_b.filterVal() : 0.0f;
-    const float fx_type_b = static_cast<float>(deck_b.mixerFxType());
-    const float bpm_val_b = static_cast<float>(deck_b.bpm());
-    const float vis_eq_b = deck_b.isVisualEqEnabled() ? 1.0f : 0.0f;
-
-    if ((param = gs_effect_get_param_by_name(context->effect, "mixer_fx_type_b")))
-        gs_effect_set_float(param, fx_type_b);
-    if ((param = gs_effect_get_param_by_name(context->effect, "mixer_fx_val_b")))
-        gs_effect_set_float(param, fx_val_b);
-    if ((param = gs_effect_get_param_by_name(context->effect, "bpm_b")))
-        gs_effect_set_float(param, bpm_val_b);
-    if ((param = gs_effect_get_param_by_name(context->effect, "visual_eq_b")))
-        gs_effect_set_float(param, vis_eq_b);
 
     // Crossfader FX (Midpoint peak: 0 at edges, 1 at center)
     const float cf_mid = std::clamp(1.0f - std::abs(crossfade - 0.5f) * 2.0f, 0.0f, 1.0f);
@@ -1077,6 +1090,12 @@ static void mixer_destroy(void *data)
 
     obs_enter_graphics();
 
+    if (context->raw_deck_a)
+        gs_texrender_destroy(context->raw_deck_a);
+
+    if (context->raw_deck_b)
+        gs_texrender_destroy(context->raw_deck_b);
+
     if (context->deck_a)
         gs_texrender_destroy(context->deck_a);
 
@@ -1085,6 +1104,9 @@ static void mixer_destroy(void *data)
 
     if (context->effect)
         gs_effect_destroy(context->effect);
+
+    if (context->deck_color_effect)
+        gs_effect_destroy(context->deck_color_effect);
 
     if (context->fluid_effect)
         gs_effect_destroy(context->fluid_effect);
@@ -1137,19 +1159,26 @@ static void draw_mixer(void *data)
     obs_source_t *src_a = deck_a.source();
     obs_source_t *src_b = deck_b.source();
 
-    const bool rendered_a =
-        render_to_texture(context, context->deck_a, src_a, &deck_a, width, height);
-    const bool rendered_b =
-        render_to_texture(context, context->deck_b, src_b, &deck_b, width, height);
+    const bool rendered_raw_a =
+        render_to_texture(context, context->raw_deck_a, src_a, &deck_a, width, height);
+    const bool rendered_raw_b =
+        render_to_texture(context, context->raw_deck_b, src_b, &deck_b, width, height);
+
+    if (rendered_raw_a) {
+        apply_deck_post_fx(context, context->deck_a, gs_texrender_get_texture(context->raw_deck_a),
+                           deck_a, false, width, height);
+    }
+    if (rendered_raw_b) {
+        apply_deck_post_fx(context, context->deck_b, gs_texrender_get_texture(context->raw_deck_b),
+                           deck_b, true, width, height);
+    }
 
     gs_texture_t *texture_a =
-        rendered_a ? gs_texrender_get_texture(context->deck_a) : nullptr;
+        rendered_raw_a ? gs_texrender_get_texture(context->deck_a) : nullptr;
     gs_texture_t *texture_b =
-        rendered_b ? gs_texrender_get_texture(context->deck_b) : nullptr;
+        rendered_raw_b ? gs_texrender_get_texture(context->deck_b) : nullptr;
 
     const int output_mode = decks->obsOutputMode();
-    const DeckPlayer *color_a = &deck_a;
-    const DeckPlayer *color_b = &deck_b;
     float xfade = static_cast<float>(decks->crossfader());
     if (output_mode == 1) {
         xfade = 0.0f;
@@ -1162,10 +1191,8 @@ static void draw_mixer(void *data)
 
     if (!texture_a) {
         texture_a = texture_b;
-        color_a = &deck_b;
     } else if (!texture_b) {
         texture_b = texture_a;
-        color_b = &deck_a;
     }
 
     gs_eparam_t *param = nullptr;
@@ -1176,7 +1203,7 @@ static void draw_mixer(void *data)
     if ((param = gs_effect_get_param_by_name(context->effect, "image_b")))
         gs_effect_set_texture(param, texture_b);
 
-    set_color_params(context, *color_a, *color_b, xfade,
+    set_color_params(context, xfade,
                      decks->transitionMode(),
                      decks->crossfadeFxMode());
 
