@@ -70,6 +70,10 @@ struct MixerFxState {
     size_t turntable_write_pos = 0;
     float turntable_read_pos = 0.0f;
     float turntable_speed = 1.0f;
+    float turntable_decay = 1.0f;
+    bool turntable_braking = false;
+    bool turntable_spinning = false;
+    size_t turntable_spin_anchor = 0;
 
     // Ramp Delay állapot
     float ramp_phase = 0.0f;

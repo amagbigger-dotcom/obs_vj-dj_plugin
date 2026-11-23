@@ -114,6 +114,10 @@ void MixerFxState::init(size_t sample_rate, size_t channel_idx)
     turntable_write_pos = 0;
     turntable_read_pos = 0.0f;
     turntable_speed = 1.0f;
+    turntable_decay = 1.0f;
+    turntable_braking = false;
+    turntable_spinning = false;
+    turntable_spin_anchor = 0;
 
     // 6. Ramp Delay & Mulholland állapot
     ramp_phase = 0.0f;
@@ -171,6 +175,10 @@ void MixerFxState::reset()
     turntable_write_pos = 0;
     turntable_read_pos = 0.0f;
     turntable_speed = 1.0f;
+    turntable_decay = 1.0f;
+    turntable_braking = false;
+    turntable_spinning = false;
+    turntable_spin_anchor = 0;
 
     ramp_phase = 0.0f;
     mulholland_bp_p0 = 0.0f;
@@ -213,23 +221,37 @@ void MixerFxProcessor::process(float *channel_data,
     // Megszünteti a hirtelen kézmozdulatok által okozott sebességtöréseket (C1 folytonosság)
     const float alpha_flt = 0.0035f;
 
+    // A Beatmasher, Turntable és Transpose Stretch effektek a tiszta, teljes sávszélességű
+    // zenei jelet kapják (kick/snare punch megőrzése, zéró némulás!).
+    // A Filter, Delay, Reverb, Flanger, Ramp Delay és Mulholland effekteknél
+    // a bipoláris TPT szűrő formálja a frekvenciatartományt.
+    const bool apply_bipolar_filter = (type == MixerFxType::FILTER ||
+                                       type == MixerFxType::DELAY ||
+                                       type == MixerFxType::REVERB ||
+                                       type == MixerFxType::FLANGER ||
+                                       type == MixerFxType::RAMP_DELAY ||
+                                       type == MixerFxType::MULHOLLAND);
+
     for (size_t i = 0; i < num_frames; ++i) {
         st.cur_flt += alpha_flt * (target_flt - st.cur_flt);
         st.cur_flt_s2 += alpha_flt * (st.cur_flt - st.cur_flt_s2);
         const float flt_val = st.cur_flt_s2;
 
+        if (!apply_bipolar_filter)
+            continue;
+
         float x = channel_data[i];
 
         // 1. TPT High-Pass Szűrő (Bilineáris Trapézintegrátor)
         // Ha flt_val <= 0 (balra tekerve vagy középállásban), a vágás 20 Hz (teljes átengedés felül)
-        // Ha flt_val > 0 (jobbra tekerve), logaritmikus görbe 20 Hz-ről 3400 Hz-ig ("csak cicergés maradjon")
+        // Ha flt_val > 0 (jobbra tekerve), logaritmikus görbe 20 Hz-ről 7200 Hz-ig ("csak tiszta cicergés maradjon")
         float fc_hp = 20.0f;
         float sizzle_boost = 1.0f;
         if (flt_val > 0.0005f) {
             const float norm_hp = std::min(flt_val, 1.0f);
-            const float exp_norm_hp = std::pow(norm_hp, 1.15f);
-            fc_hp = 20.0f * std::pow(170.0f, exp_norm_hp);
-            sizzle_boost = 1.0f + std::max(0.0f, (norm_hp - 0.75f) * 1.2f);
+            const float exp_norm_hp = std::pow(norm_hp, 1.25f);
+            fc_hp = 20.0f * std::pow(360.0f, exp_norm_hp); // 20 * 360 = 7200 Hz
+            sizzle_boost = 1.0f + std::max(0.0f, (norm_hp - 0.70f) * 1.6f); // +3.5 dB sheen
         }
         const float w_hp = PI * std::clamp(fc_hp, 10.0f, sr * 0.45f) / sr;
         const float g_hp = std::tan(w_hp);
@@ -353,22 +375,23 @@ void MixerFxProcessor::process(float *channel_data,
     // 2. 🟢 REVERB (Tempo-Synced Plate Reverb with 280Hz Send Low-Cut & Controlled Gain)
     // =========================================================================
     if (type == MixerFxType::REVERB) {
-        // Tempo-szinkronizált RT60 lecsengési idő: 1.5 beattől 5.0 beatig
-        const float rt60_sec = std::clamp((1.5f + amount * 3.5f) * beat_sec, 0.4f, 4.5f);
+        // Tempo-szinkronizált RT60 lecsengési idő: 2.0 beattől 12.0 beatig (akár 6.5s lecsengés!)
+        const float rt60_sec = std::clamp((2.0f + amount * 10.0f) * beat_sec, 0.6f, 7.0f);
 
-        // Bemeneti Low-Cut (280 Hz HPF) az NI referencia alapján: "reduce bass before reverb"
-        const float alpha_send_hp = std::clamp(2.0f * PI * 280.0f / sr, 0.01f, 0.95f);
+        // Bemeneti Low-Cut (240 Hz HPF)
+        const float alpha_send_hp = std::clamp(2.0f * PI * 240.0f / sr, 0.01f, 0.95f);
 
-        const float send_gain = std::min(amount * 1.20f, 1.0f);
-        const float target_dry = 1.0f - amount * 0.15f;
-        const float target_wet = amount * 0.90f; // Megfékezett wet szint: nincs hangerőrobbanás
+        const float send_gain = std::min(amount * 1.25f, 1.0f);
+        const float target_dry = 1.0f - amount * 0.22f;
+        const float target_wet = amount * 1.15f; // Tágas, határozott wet szint
         const float inv_frames = 1.0f / static_cast<float>(num_frames);
         const float dry_step = (target_dry - st.prev_dry_gain) * inv_frames;
         const float wet_step = (target_wet - st.prev_wet_gain) * inv_frames;
         float cur_dry = st.prev_dry_gain;
         float cur_wet = st.prev_wet_gain;
 
-        const float damp = 0.28f + amount * 0.12f;
+        // Alacsonyabb csillapítás: a fényes lemez (plate) csillogás hosszan, zeneien lebeg
+        const float damp = 0.12f + amount * 0.07f;
 
         const float lfo_freq = (bpm > 30.0 && bpm < 250.0) ? static_cast<float>(bpm / (60.0 * 4.0)) : 0.5f;
         const float lfo_phase_inc = 2.0f * PI * lfo_freq / sr;
@@ -378,7 +401,7 @@ void MixerFxProcessor::process(float *channel_data,
         std::array<float, 4> comb_feedback;
         for (size_t c = 0; c < 4; ++c) {
             const float nom_len = static_cast<float>((comb_lens[c] * static_cast<size_t>(sr)) / 48000);
-            comb_feedback[c] = std::clamp(std::pow(10.0f, -3.0f * nom_len / (rt60_sec * sr)), 0.60f, 0.92f);
+            comb_feedback[c] = std::clamp(std::pow(10.0f, -3.0f * nom_len / (rt60_sec * sr)), 0.65f, 0.978f);
         }
 
         for (size_t i = 0; i < num_frames; ++i) {
@@ -509,7 +532,7 @@ void MixerFxProcessor::process(float *channel_data,
     if (type == MixerFxType::BEATMASHER) {
         const size_t buf_size = st.beatmash_buf.size();
 
-        if (amount < 0.05f) {
+        if (amount < 0.04f) {
             // Effekt inaktív: folyamatos puffer feltöltés, tiszta átengedés
             st.beatmash_active = false;
             for (size_t i = 0; i < num_frames; ++i) {
@@ -521,20 +544,26 @@ void MixerFxProcessor::process(float *channel_data,
             return;
         }
 
-        const float target_dry = 1.0f - amount;
-        const float target_wet = amount;
+        const float target_dry = 1.0f - amount * 0.90f;
+        const float target_wet = amount * 1.05f;
         const float inv_frames = 1.0f / static_cast<float>(num_frames);
         const float dry_step = (target_dry - st.prev_dry_gain) * inv_frames;
         const float wet_step = (target_wet - st.prev_wet_gain) * inv_frames;
         float cur_dry = st.prev_dry_gain;
         float cur_wet = st.prev_wet_gain;
 
-        // Slice hossza az amount függvényében: 1/2 beat (<0.25) -> 1/4 -> 1/8 -> 1/16 -> 1/32 (>=0.90)
+        // 8-fokozatú progresszív ritmikai leosztás holtsávok nélkül:
+        // 1/2 -> 3/8 -> 1/4 -> 3/16 -> 1/8 -> 1/12 (triola) -> 1/16 -> 1/24 (triola) -> 1/32
         float beat_mult = 0.50f;
-        if (amount >= 0.90f)      beat_mult = 0.03125f; // 1/32
-        else if (amount >= 0.75f) beat_mult = 0.0625f;  // 1/16
+        if (amount >= 0.92f)      beat_mult = 0.03125f; // 1/32
+        else if (amount >= 0.84f) beat_mult = 0.04167f; // 1/24 (triplet)
+        else if (amount >= 0.74f) beat_mult = 0.0625f;  // 1/16
+        else if (amount >= 0.62f) beat_mult = 0.08333f; // 1/12 (triplet)
         else if (amount >= 0.50f) beat_mult = 0.125f;   // 1/8
+        else if (amount >= 0.38f) beat_mult = 0.1875f;  // 3/16 (dotted 8th)
         else if (amount >= 0.25f) beat_mult = 0.25f;    // 1/4
+        else if (amount >= 0.14f) beat_mult = 0.375f;   // 3/8 (dotted quarter)
+        else                      beat_mult = 0.50f;    // 1/2
 
         const float slice_samples = std::max(64.0f, beat_mult * beat_sec * sr);
 
@@ -548,7 +577,7 @@ void MixerFxProcessor::process(float *channel_data,
         for (size_t i = 0; i < num_frames; ++i) {
             cur_dry += dry_step;
             cur_wet += wet_step;
-            const float in_sample = channel_data[i];
+            const float in_sample = channel_data[i]; // Tiszta, teljes sávszélességű audió
 
             // Folyamatos háttér-pufferelés
             st.beatmash_buf[st.beatmash_write_pos] = in_sample;
@@ -559,12 +588,15 @@ void MixerFxProcessor::process(float *channel_data,
                 st.beatmash_playback_pos -= slice_samples;
             }
 
-            // Kattanásmentesítő 32-mintás lineáris crossfade a szelet peremeinél
+            // Kattanásmentesítő 48-mintás Hann-ablakozott mikro-crossfade a szelet peremeinél
             float window = 1.0f;
-            if (st.beatmash_playback_pos < 32.0f) {
-                window = st.beatmash_playback_pos / 32.0f;
-            } else if (st.beatmash_playback_pos > (slice_samples - 32.0f)) {
-                window = (slice_samples - st.beatmash_playback_pos) / 32.0f;
+            const float fade_len = std::min(48.0f, slice_samples * 0.25f);
+            if (st.beatmash_playback_pos < fade_len) {
+                const float phase = (st.beatmash_playback_pos / fade_len) * 0.5f * PI;
+                window = std::sin(phase);
+            } else if (st.beatmash_playback_pos > (slice_samples - fade_len)) {
+                const float phase = ((slice_samples - st.beatmash_playback_pos) / fade_len) * 0.5f * PI;
+                window = std::sin(phase);
             }
 
             const size_t r_idx = (st.beatmash_freeze_anchor + static_cast<size_t>(st.beatmash_playback_pos)) % buf_size;
@@ -578,13 +610,16 @@ void MixerFxProcessor::process(float *channel_data,
     }
 
     // =========================================================================
-    // 5. 🟠 TURNTABLE FX (Vinyl Brake on Left / Spinback on Right)
+    // 5. 🟠 TURNTABLE FX (Physical Vinyl Motor Simulation: Brake on Left / Spinback on Right)
     // =========================================================================
     if (type == MixerFxType::TURNTABLE) {
         const size_t buf_size = st.turntable_buf.size();
 
-        if (amount < 0.05f) {
+        if (amount < 0.04f) {
             st.turntable_speed = 1.0f;
+            st.turntable_decay = 1.0f;
+            st.turntable_braking = false;
+            st.turntable_spinning = false;
             st.turntable_read_pos = static_cast<float>(st.turntable_write_pos);
             for (size_t i = 0; i < num_frames; ++i) {
                 st.turntable_buf[st.turntable_write_pos] = channel_data[i];
@@ -595,41 +630,86 @@ void MixerFxProcessor::process(float *channel_data,
             return;
         }
 
-        const float target_dry = 1.0f - amount;
-        const float target_wet = amount;
+        // Amikor a Turntable FX aktív, a tiszta futó zene (Dry) teljesen elhalkul,
+        // kizárólag a fizikai lemez lelassulása vagy visszapörgése hallható!
+        const float target_dry = 0.0f;
+        const float target_wet = 1.0f;
         const float inv_frames = 1.0f / static_cast<float>(num_frames);
         const float dry_step = (target_dry - st.prev_dry_gain) * inv_frames;
         const float wet_step = (target_wet - st.prev_wet_gain) * inv_frames;
         float cur_dry = st.prev_dry_gain;
         float cur_wet = st.prev_wet_gain;
 
-        const bool is_brake = (st.cur_flt_s2 < 0.0f); // Balra tekerve = Vinyl Brake, Jobbra = Spinback
+        const bool is_brake = (st.cur_flt_s2 < 0.0f); // Balra = Vinyl Brake, Jobbra = Spinback
+
+        if (is_brake) {
+            st.turntable_spinning = false;
+            if (!st.turntable_braking) {
+                st.turntable_braking = true;
+                st.turntable_speed = 1.0f;
+                st.turntable_read_pos = static_cast<float>(st.turntable_write_pos);
+            }
+        } else {
+            st.turntable_braking = false;
+            if (!st.turntable_spinning) {
+                st.turntable_spinning = true;
+                st.turntable_speed = -(2.5f + amount * 3.0f);
+                st.turntable_decay = 1.0f;
+                st.turntable_spin_anchor = st.turntable_write_pos;
+                st.turntable_read_pos = static_cast<float>(st.turntable_write_pos);
+            }
+        }
+
+        // Fékezési ráta mintánként a potméter szögének függvényében
+        const float brake_rate = (0.00006f + amount * 0.00028f) * (48000.0f / sr);
 
         for (size_t i = 0; i < num_frames; ++i) {
             cur_dry += dry_step;
             cur_wet += wet_step;
             const float in_sample = channel_data[i];
+
             st.turntable_buf[st.turntable_write_pos] = in_sample;
             st.turntable_write_pos = (st.turntable_write_pos + 1) % buf_size;
 
+            float vinyl_sample = 0.0f;
+
             if (is_brake) {
-                // Vinyl fékezés: sebesség fokozatosan lassul 0-ra
-                const float target_spd = std::max(0.0f, 1.0f - amount * 1.05f);
-                st.turntable_speed += (target_spd - st.turntable_speed) * 0.003f;
+                // Vinyl lassulás 0.0-ig
+                st.turntable_speed = std::max(0.0f, st.turntable_speed - brake_rate);
                 st.turntable_read_pos += st.turntable_speed;
+
+                while (st.turntable_read_pos >= static_cast<float>(buf_size))
+                    st.turntable_read_pos -= static_cast<float>(buf_size);
+
+                const size_t idx0 = static_cast<size_t>(st.turntable_read_pos) % buf_size;
+                const size_t idx1 = (idx0 + 1) % buf_size;
+                const float frac = st.turntable_read_pos - static_cast<float>(idx0);
+                const float raw_sample = st.turntable_buf[idx0] * (1.0f - frac) + st.turntable_buf[idx1] * frac;
+
+                // Ha a lemez megállt (< 0.03x sebesség), lágy koszinuszos némítás lép életbe (zéró DC zúgás)
+                float stop_fade = 1.0f;
+                if (st.turntable_speed < 0.03f) {
+                    stop_fade = st.turntable_speed / 0.03f;
+                }
+                vinyl_sample = raw_sample * stop_fade;
             } else {
-                // Vinyl visszapörgetés (Spinback): hátrafelé gyorsulva olvas
-                const float spin_spd = -(1.0f + amount * 3.5f);
-                st.turntable_read_pos += spin_spd;
+                // Spinback lecsengés
+                st.turntable_speed *= 0.99993f;
+                st.turntable_decay *= 0.99994f;
+
+                st.turntable_read_pos += st.turntable_speed;
+                while (st.turntable_read_pos < 0.0f)
+                    st.turntable_read_pos += static_cast<float>(buf_size);
+                while (st.turntable_read_pos >= static_cast<float>(buf_size))
+                    st.turntable_read_pos -= static_cast<float>(buf_size);
+
+                const size_t idx0 = static_cast<size_t>(st.turntable_read_pos) % buf_size;
+                const size_t idx1 = (idx0 + 1) % buf_size;
+                const float frac = st.turntable_read_pos - static_cast<float>(idx0);
+                const float raw_sample = st.turntable_buf[idx0] * (1.0f - frac) + st.turntable_buf[idx1] * frac;
+
+                vinyl_sample = raw_sample * st.turntable_decay;
             }
-
-            while (st.turntable_read_pos < 0.0f) st.turntable_read_pos += static_cast<float>(buf_size);
-            while (st.turntable_read_pos >= static_cast<float>(buf_size)) st.turntable_read_pos -= static_cast<float>(buf_size);
-
-            const size_t idx0 = static_cast<size_t>(st.turntable_read_pos) % buf_size;
-            const size_t idx1 = (idx0 + 1) % buf_size;
-            const float frac = st.turntable_read_pos - static_cast<float>(idx0);
-            const float vinyl_sample = st.turntable_buf[idx0] * (1.0f - frac) + st.turntable_buf[idx1] * frac;
 
             channel_data[i] = in_sample * cur_dry + vinyl_sample * cur_wet;
         }
@@ -639,20 +719,20 @@ void MixerFxProcessor::process(float *channel_data,
     }
 
     // =========================================================================
-    // 6. 🚀 RAMP DELAY (Accelerating Doppler Pitch-Rising Siren Riser)
+    // 6. 🚀 RAMP DELAY (Barber-Pole Dual-Tap Doppler Siren Riser - Zero Pops)
     // =========================================================================
     if (type == MixerFxType::RAMP_DELAY) {
         const size_t buf_size = st.delay_buf.size();
 
-        // Ütemhez szinkronizált 4-beat gyorsuló rámpa
+        // 4-beat gyorsuló rámpa ütem-frekvencia
         const float ramp_freq = (bpm > 30.0 && bpm < 250.0) ? static_cast<float>(bpm / (60.0 * 4.0)) : 0.5f;
         const float ramp_inc = 2.0f * PI * ramp_freq / sr;
 
         const float send_gain = std::min(amount * 1.30f, 1.0f);
-        const float feedback = 0.55f + amount * 0.32f; // 0.55 .. 0.87
+        const float feedback = 0.55f + amount * 0.30f;
 
         const float target_dry = 1.0f - amount * 0.20f;
-        const float target_wet = amount * 1.35f;
+        const float target_wet = amount * 1.40f;
         const float inv_frames = 1.0f / static_cast<float>(num_frames);
         const float dry_step = (target_dry - st.prev_dry_gain) * inv_frames;
         const float wet_step = (target_wet - st.prev_wet_gain) * inv_frames;
@@ -669,23 +749,50 @@ void MixerFxProcessor::process(float *channel_data,
             const float in_sample = channel_data[i];
 
             st.ramp_phase += ramp_inc;
-            if (st.ramp_phase > 2.0f * PI)
+            if (st.ramp_phase >= 2.0f * PI)
                 st.ramp_phase -= 2.0f * PI;
 
-            // Rámpa: a delay idő ütemesen összenyomódik -> Doppler frekvencia-emelkedés (UFO sziréna effekt)
-            const float ramp_norm = st.ramp_phase / (2.0f * PI);
-            const float sweep_factor = (1.0f - 0.75f * amount * ramp_norm);
-            const float dly_time_sec = std::clamp(0.50f * beat_sec * sweep_factor, 0.02f, 1.5f);
-            const float dly_samples = dly_time_sec * sr;
+            // Két egymást 180°-kal eltolt fázisú tap (Barber-Pole elv)
+            const float phase_a = st.ramp_phase;
+            float phase_b = st.ramp_phase + PI;
+            if (phase_b >= 2.0f * PI)
+                phase_b -= 2.0f * PI;
 
-            float r_pos = static_cast<float>(st.delay_write_pos) - dly_samples;
-            while (r_pos < 0.0f) r_pos += static_cast<float>(buf_size);
-            const size_t idx0 = static_cast<size_t>(r_pos) % buf_size;
-            const size_t idx1 = (idx0 + 1) % buf_size;
-            const float frac = r_pos - static_cast<float>(idx0);
-            const float delayed = st.delay_buf[idx0] * (1.0f - frac) + st.delay_buf[idx1] * frac;
+            // Hann súlyozó ablakok: amikor a fázis 0-nál átugrik, a tap súlya 0.0000! Zéró kattanás!
+            const float win_a = 0.5f * (1.0f - std::cos(phase_a));
+            const float win_b = 0.5f * (1.0f - std::cos(phase_b));
 
-            // Sziréna sávszűrés és szaturáció
+            // Delay idők mindkét taphez (összenyomódó idők -> Doppler emelkedés)
+            const float norm_a = phase_a / (2.0f * PI);
+            const float sweep_a = 1.0f - 0.75f * amount * norm_a;
+            const float dly_time_a = std::clamp(0.50f * beat_sec * sweep_a, 0.02f, 1.5f);
+            const float dly_samples_a = dly_time_a * sr;
+
+            const float norm_b = phase_b / (2.0f * PI);
+            const float sweep_b = 1.0f - 0.75f * amount * norm_b;
+            const float dly_time_b = std::clamp(0.50f * beat_sec * sweep_b, 0.02f, 1.5f);
+            const float dly_samples_b = dly_time_b * sr;
+
+            // Tap A olvasás
+            float r_pos_a = static_cast<float>(st.delay_write_pos) - dly_samples_a;
+            while (r_pos_a < 0.0f) r_pos_a += static_cast<float>(buf_size);
+            const size_t idx0_a = static_cast<size_t>(r_pos_a) % buf_size;
+            const size_t idx1_a = (idx0_a + 1) % buf_size;
+            const float frac_a = r_pos_a - static_cast<float>(idx0_a);
+            const float delayed_a = st.delay_buf[idx0_a] * (1.0f - frac_a) + st.delay_buf[idx1_a] * frac_a;
+
+            // Tap B olvasás
+            float r_pos_b = static_cast<float>(st.delay_write_pos) - dly_samples_b;
+            while (r_pos_b < 0.0f) r_pos_b += static_cast<float>(buf_size);
+            const size_t idx0_b = static_cast<size_t>(r_pos_b) % buf_size;
+            const size_t idx1_b = (idx0_b + 1) % buf_size;
+            const float frac_b = r_pos_b - static_cast<float>(idx0_b);
+            const float delayed_b = st.delay_buf[idx0_b] * (1.0f - frac_b) + st.delay_buf[idx1_b] * frac_b;
+
+            // Folytonos összegzés a két ablakozott tapből (win_a + win_b = 1.0)
+            const float delayed = delayed_a * win_a + delayed_b * win_b;
+
+            // Sziréna sávszűrés és szaturáció a visszacsatoló ágban
             st.mulholland_bp_p0 += alpha_bp * (delayed - st.mulholland_bp_p0);
             float siren_sig = st.mulholland_bp_p0 * feedback;
             siren_sig = std::clamp(siren_sig, -1.2f, 1.2f);
@@ -705,24 +812,26 @@ void MixerFxProcessor::process(float *channel_data,
     // 7. 🔥 MULHOLLAND DRIVE (Asymmetric Tube Overdrive + Resonant Feedback Growl)
     // =========================================================================
     if (type == MixerFxType::MULHOLLAND) {
-        // Zenei analóg előerősítés: 1.0x .. 2.2x (zéró hard-clipping túlhajtás)
-        const float pre_gain = 1.0f + amount * 1.20f;
-        const float feedback = amount * 0.40f;
+        // Analóg csöves előerősítés: 1.0x .. 4.5x (erőteljes, zenei overdrive karakter)
+        const float pre_gain = 1.0f + amount * 3.5f;
+        const float feedback = amount * 0.70f;
 
-        // Valódi Wet/Dry crossfade: ahogy nő az overdrive, úgy halkul a tiszta jel
-        const float target_dry = 1.0f - amount * 0.65f;
-        const float target_wet = amount * 0.78f;
+        // RMS Auto-Gain normalizáló a hangerőrobbanás és a master betorzulás megelőzésére
+        const float auto_gain_norm = 1.0f / std::sqrt(1.0f + amount * 2.2f);
+
+        const float target_dry = 1.0f - amount * 0.60f;
+        const float target_wet = amount * auto_gain_norm;
         const float inv_frames = 1.0f / static_cast<float>(num_frames);
         const float dry_step = (target_dry - st.prev_dry_gain) * inv_frames;
         const float wet_step = (target_wet - st.prev_wet_gain) * inv_frames;
         float cur_dry = st.prev_dry_gain;
         float cur_wet = st.prev_wet_gain;
 
-        // 80 Hz Low-Cut a torzító érzékelőjén: megvédi a szub-basszust a négyszögesedéstől és intermodulációtól
+        // 80 Hz Low-Cut a drive bemeneten (megvédi a szub-basszust a sárosodástól)
         const float alpha_hp = std::clamp(2.0f * PI * 80.0f / sr, 0.005f, 0.90f);
 
-        // Rezonáns sávszűrő frekvencia (300 Hz .. 1400 Hz zenei felharmonikus süvítés)
-        const float bp_freq = 300.0f + amount * 1100.0f;
+        // Rezonáns sávszűrő frekvencia (350 Hz .. 1800 Hz süvítés)
+        const float bp_freq = 350.0f + amount * 1450.0f;
         const float alpha_bp = std::clamp(2.0f * PI * bp_freq / sr, 0.01f, 0.90f);
 
         for (size_t i = 0; i < num_frames; ++i) {
@@ -737,20 +846,18 @@ void MixerFxProcessor::process(float *channel_data,
             // Rezonáns visszacsatolt felharmonikus szűrés
             st.mulholland_bp_p0 += alpha_bp * (drive_input - st.mulholland_bp_p0);
             st.mulholland_bp_p1 += alpha_bp * (st.mulholland_bp_p0 - st.mulholland_bp_p1);
-            const float resonant_sig = (st.mulholland_bp_p0 - st.mulholland_bp_p1) * 1.5f;
+            const float resonant_sig = (st.mulholland_bp_p0 - st.mulholland_bp_p1) * 2.0f;
 
-            // Aszimmetrikus analóg csöves telítés (Tube saturation)
-            float driven = (drive_input * pre_gain) + resonant_sig * feedback;
-            driven = std::tanh(driven);
-            if (driven > 0.0f) {
+            // Aszimmetrikus analóg csöves telítés (Tube Overdrive)
+            const float sat_in = (drive_input * pre_gain) + resonant_sig * feedback;
+            float tube_sig = sat_in / (1.0f + std::abs(sat_in) * 0.40f);
+            if (tube_sig > 0.0f) {
                 // Csöves páros felharmonikus aszimmetria
-                driven = driven / (1.0f + 0.30f * driven);
+                tube_sig = tube_sig + 0.22f * tube_sig * tube_sig;
             }
+            tube_sig = std::tanh(tube_sig);
 
-            // Normált kimeneti szint a hangerőugrás és recsegés megelőzésére
-            const float out_wet = driven * 0.90f;
-
-            channel_data[i] = in_sample * cur_dry + out_wet * cur_wet;
+            channel_data[i] = in_sample * cur_dry + tube_sig * cur_wet;
         }
         st.prev_dry_gain = target_dry;
         st.prev_wet_gain = target_wet;
@@ -758,12 +865,12 @@ void MixerFxProcessor::process(float *channel_data,
     }
 
     // =========================================================================
-    // 8. 🎚️ TRANSPOSE STRETCH (Dual-Grain Real-Time Octave Pitch Riser / Dropper)
+    // 8. 🎚️ TRANSPOSE STRETCH (Full-Bandwidth Granular Octave Pitch Riser / Dropper)
     // =========================================================================
     if (type == MixerFxType::TRANSPOSE) {
         const size_t buf_size = st.grain_buf.size();
 
-        if (amount < 0.05f) {
+        if (amount < 0.04f) {
             st.grain_phase_a = 0.0f;
             st.grain_phase_b = 0.5f;
             for (size_t i = 0; i < num_frames; ++i) {
@@ -775,8 +882,9 @@ void MixerFxProcessor::process(float *channel_data,
             return;
         }
 
-        const float target_dry = 1.0f - amount;
-        const float target_wet = amount;
+        // Constant-power crossfade száraz és transzponált jel között (zéró hangerő-esés!)
+        const float target_dry = std::cos(amount * 0.5f * PI);
+        const float target_wet = std::sin(amount * 0.5f * PI);
         const float inv_frames = 1.0f / static_cast<float>(num_frames);
         const float dry_step = (target_dry - st.prev_dry_gain) * inv_frames;
         const float wet_step = (target_wet - st.prev_wet_gain) * inv_frames;
@@ -788,13 +896,12 @@ void MixerFxProcessor::process(float *channel_data,
         const float semitones = (st.cur_flt_s2 >= 0.0f) ? (amount * 12.0f) : (-amount * 12.0f);
         const float pitch_ratio = std::pow(2.0f, semitones / 12.0f);
 
-        // Két átlapolt háromszög ablakozású grain (Phase A és Phase B 180° eltolással)
         const float phase_rate = (pitch_ratio - 1.0f) / static_cast<float>(GRAIN_SIZE_SAMPLES);
 
         for (size_t i = 0; i < num_frames; ++i) {
             cur_dry += dry_step;
             cur_wet += wet_step;
-            const float in_sample = channel_data[i];
+            const float in_sample = channel_data[i]; // Tiszta, teljes sávszélességű audió bemenet!
 
             st.grain_buf[st.grain_write_pos] = in_sample;
             const size_t cur_write = st.grain_write_pos;
@@ -808,21 +915,27 @@ void MixerFxProcessor::process(float *channel_data,
             while (st.grain_phase_b >= 1.0f) st.grain_phase_b -= 1.0f;
             while (st.grain_phase_b < 0.0f)  st.grain_phase_b += 1.0f;
 
-            // Grain A olvasás és háromszög ablakozás
+            // Hann-ablakozott Grain A olvasás
             const float delay_a = st.grain_phase_a * static_cast<float>(GRAIN_SIZE_SAMPLES);
             float r_pos_a = static_cast<float>(cur_write) - delay_a;
             while (r_pos_a < 0.0f) r_pos_a += static_cast<float>(buf_size);
-            const size_t idx_a = static_cast<size_t>(r_pos_a) % buf_size;
-            const float win_a = 1.0f - std::abs(2.0f * st.grain_phase_a - 1.0f);
+            const size_t idx0_a = static_cast<size_t>(r_pos_a) % buf_size;
+            const size_t idx1_a = (idx0_a + 1) % buf_size;
+            const float frac_a = r_pos_a - static_cast<float>(idx0_a);
+            const float sample_a = st.grain_buf[idx0_a] * (1.0f - frac_a) + st.grain_buf[idx1_a] * frac_a;
+            const float win_a = 0.5f * (1.0f - std::cos(2.0f * PI * st.grain_phase_a));
 
-            // Grain B olvasás és háromszög ablakozás
+            // Hann-ablakozott Grain B olvasás
             const float delay_b = st.grain_phase_b * static_cast<float>(GRAIN_SIZE_SAMPLES);
             float r_pos_b = static_cast<float>(cur_write) - delay_b;
             while (r_pos_b < 0.0f) r_pos_b += static_cast<float>(buf_size);
-            const size_t idx_b = static_cast<size_t>(r_pos_b) % buf_size;
-            const float win_b = 1.0f - std::abs(2.0f * st.grain_phase_b - 1.0f);
+            const size_t idx0_b = static_cast<size_t>(r_pos_b) % buf_size;
+            const size_t idx1_b = (idx0_b + 1) % buf_size;
+            const float frac_b = r_pos_b - static_cast<float>(idx0_b);
+            const float sample_b = st.grain_buf[idx0_b] * (1.0f - frac_b) + st.grain_buf[idx1_b] * frac_b;
+            const float win_b = 0.5f * (1.0f - std::cos(2.0f * PI * st.grain_phase_b));
 
-            const float pitched = st.grain_buf[idx_a] * win_a + st.grain_buf[idx_b] * win_b;
+            const float pitched = sample_a * win_a + sample_b * win_b;
 
             channel_data[i] = in_sample * cur_dry + pitched * cur_wet;
         }
