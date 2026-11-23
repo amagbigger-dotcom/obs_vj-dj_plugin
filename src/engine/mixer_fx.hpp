@@ -77,6 +77,8 @@ struct MixerFxState {
 
     // Ramp Delay állapot
     float ramp_phase = 0.0f;
+    float ramp_send_hp = 0.0f;
+    float ramp_fb_hp = 0.0f;
 
     // Mulholland Drive állapot (rezonáns sáváteresztő feedback állapot)
     float mulholland_bp_p0 = 0.0f;
