@@ -14,26 +14,12 @@ KaossFxManager::KaossFxManager()
 {
 }
 
-bool KaossFxManager::isCurrentSlotBipolar() const
-{
-    DeckPlayer *dp = (active_deck_ == 2) ? vj_deck_b() : vj_deck_a();
-    if (!dp) return true;
-    const int fx_type = dp->slotFxType(active_slot_);
-    return (fx_type == static_cast<int>(MixerFxType::FILTER));
-}
-
 void KaossFxManager::onTouch(bool pressed, uint8_t velocity)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (pressed && velocity > 0) {
-        touch_down_ = true;
-        touch_pending_ = true;
-        touch_triggered_lock_ = false;
-        touch_down_time_ = std::chrono::steady_clock::now();
-    } else {
-        touch_down_ = false;
-        touch_pending_ = false;
-        touch_triggered_lock_ = false;
+    touch_down_ = (pressed && velocity > 0);
+    if (touch_down_) {
+        applyTouchCoordinates();
     }
 }
 
@@ -41,60 +27,43 @@ void KaossFxManager::onTouchX(uint8_t x_val)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     last_x_ = x_val;
-    if (touch_pending_ && !touch_triggered_lock_) {
-        evaluateTouchZone();
-    }
+    has_x_ = true;
+    applyTouchCoordinates();
 }
 
 void KaossFxManager::onTouchY(uint8_t y_val)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     last_y_ = y_val;
-    if (touch_pending_ && !touch_triggered_lock_) {
-        evaluateTouchZone();
-    }
+    has_y_ = true;
+    applyTouchCoordinates();
 }
 
-void KaossFxManager::evaluateTouchZone()
+void KaossFxManager::applyTouchCoordinates()
 {
-    // Race condition guard: evaluate strictly once per physical touch down
-    touch_triggered_lock_ = true;
-    touch_pending_ = false;
-
-    // 2 Columns x 4 Rows:
-    // Left column: X < 64 -> Deck A (target_deck = 1)
-    // Right column: X >= 64 -> Deck B (target_deck = 2)
+    // 2 Columns:
+    // Left column: X < 64 -> Deck A (target = 1)
+    // Right column: X >= 64 -> Deck B (target = 2)
     const int target_deck = (last_x_ >= 64) ? 2 : 1;
 
-    // Y is 0..127. Top row is Slot 0, Bottom row is Slot 3
-    // Row 0 (Top): Y 96..127 -> Slot 0
-    // Row 1: Y 64..95 -> Slot 1
-    // Row 2: Y 32..63 -> Slot 2
-    // Row 3 (Bottom): Y 0..31 -> Slot 3
+    // 4 Rows vertically (fentről lefelé 4 slot):
+    // Row 0 (Fent): Y in [96..127] -> Slot 0
+    // Row 1: Y in [64..95] -> Slot 1
+    // Row 2: Y in [32..63] -> Slot 2
+    // Row 3 (Lent): Y in [0..31] -> Slot 3
     const int target_slot = 3 - std::clamp(static_cast<int>(last_y_) / 32, 0, 3);
 
-    DeckPlayer *dp = (target_deck == 2) ? vj_deck_b() : vj_deck_a();
-    if (!dp) return;
-
-    // Kill switch / Toggle OFF: Re-tapping the currently active zone bypasses/clears effect
-    if (is_effect_engaged_ && target_deck == active_deck_ && target_slot == active_slot_) {
-        killActiveEffect();
-        return;
-    }
-
-    // Activate new zone
     active_deck_ = target_deck;
     active_slot_ = target_slot;
     is_effect_engaged_ = true;
 
-    // Select the slot on the hardware deck
-    dp->selectSlot(target_slot);
-
-    // Initialize current parameter value to neutral based on slot type
-    const bool bipolar = isCurrentSlotBipolar();
-    current_val_ = bipolar ? 0.50f : 0.0f;
-    dp->setFilterVal(0.0f);
-
+    DeckPlayer *dp = (active_deck_ == 2) ? vj_deck_b() : vj_deck_a();
+    if (dp) {
+        dp->selectSlot(active_slot_);
+        // Read current deck filter value and sync encoder position:
+        // dp->filterVal() is in [-1.0, +1.0]. Map to [0.0, 1.0] where 0.50 is center.
+        current_val_ = std::clamp((dp->filterVal() + 1.0f) * 0.50f, 0.0f, 1.0f);
+    }
     idle_timer_ms_ = 0.0f;
 }
 
@@ -104,8 +73,7 @@ void KaossFxManager::killActiveEffect()
     if (dp) {
         dp->setFilterVal(0.0f);
     }
-    const bool bipolar = isCurrentSlotBipolar();
-    current_val_ = bipolar ? 0.50f : 0.0f;
+    current_val_ = 0.50f;
     is_effect_engaged_ = false;
     is_hold_active_.store(false, std::memory_order_relaxed);
     idle_timer_ms_ = 0.0f;
@@ -116,8 +84,8 @@ void KaossFxManager::onEncoderRotate(uint8_t data2)
     std::lock_guard<std::mutex> lock(mutex_);
 
     // Relative delta decoding:
-    // CCW: 127 (-1), 126 (-2), 125 (-3)...
-    // CW: 1 (+1), 2 (+2), 3 (+3)...
+    // CW (right): 1, 2, 3...
+    // CCW (left): 127 (-1), 126 (-2), 125 (-3)...
     const int delta = (data2 < 64) ? static_cast<int>(data2) : (static_cast<int>(data2) - 128);
     if (delta == 0) return;
 
@@ -130,26 +98,20 @@ void KaossFxManager::onEncoderRotate(uint8_t data2)
     const float accel = (abs_delta > 1.0f) ? (1.0f + 0.35f * (abs_delta - 1.0f)) : 1.0f;
     const float step = static_cast<float>(delta) * 0.025f * accel;
 
-    const bool bipolar = isCurrentSlotBipolar();
+    // Universal Bipolar Control for all 4 slots [-1.0 .. +1.0]:
+    // Left (0.50 -> 0.00): Low-pass filter / dark tone / negative value [-1.0, 0.0]
+    // Right (0.50 -> 1.00): High-pass filter / bright tone / positive value [0.0, +1.0]
+    current_val_ = std::clamp(current_val_ + step, 0.0f, 1.0f);
+
+    // Magnetic snap-to-center in [0.48, 0.52] -> snaps cleanly to 0.50 (neutral bypass)
+    if (current_val_ >= 0.48f && current_val_ <= 0.52f) {
+        current_val_ = 0.50f;
+    }
+
     DeckPlayer *dp = (active_deck_ == 2) ? vj_deck_b() : vj_deck_a();
-    if (!dp) return;
-
-    if (bipolar) {
-        // Bipolar Combo Filter [0.0 .. 1.0], center = 0.50
-        current_val_ = std::clamp(current_val_ + step, 0.0f, 1.0f);
-
-        // Magnetic snap-to-center in [0.48, 0.52]
-        if (current_val_ >= 0.48f && current_val_ <= 0.52f) {
-            current_val_ = 0.50f;
-        }
-
-        // Apply bipolar filter to deck (-1.0 to +1.0)
+    if (dp) {
         const float bipolar_val = (current_val_ - 0.50f) * 2.0f;
         dp->setFilterVal(bipolar_val);
-    } else {
-        // Unipolar FX [0.0 .. 1.0], neutral = 0.0
-        current_val_ = std::clamp(current_val_ + step, 0.0f, 1.0f);
-        dp->setFilterVal(current_val_);
     }
 }
 
@@ -172,6 +134,15 @@ void KaossFxManager::toggleHold()
     }
 }
 
+void KaossFxManager::setHold(bool active)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    is_hold_active_.store(active, std::memory_order_relaxed);
+    if (!active) {
+        killActiveEffect();
+    }
+}
+
 bool KaossFxManager::isHoldActive() const
 {
     return is_hold_active_.load(std::memory_order_relaxed);
@@ -181,7 +152,7 @@ void KaossFxManager::tick(float delta_sec)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // If HOLD is active, watchdog is suspended
+    // If HOLD is active, watchdog is suspended: keep parameter strictly locked!
     if (is_hold_active_.load(std::memory_order_relaxed)) {
         return;
     }
@@ -189,23 +160,18 @@ void KaossFxManager::tick(float delta_sec)
     // Accumulate idle time
     idle_timer_ms_ += delta_sec * 1000.0f;
 
-    // If idle time exceeds 200 ms, auto-reset parameter to neutral with smooth exponential lerp
-    if (idle_timer_ms_ >= 200.0f) {
-        const bool bipolar = isCurrentSlotBipolar();
-        const float neutral = bipolar ? 0.50f : 0.0f;
+    // 500 ms idle window gives comfortable musical pause before auto-resetting
+    if (idle_timer_ms_ >= 500.0f) {
+        const float neutral = 0.50f;
 
         if (std::abs(current_val_ - neutral) > 0.005f) {
-            // Smooth lerp decay towards neutral (~8.0 decay coefficient)
-            const float factor = 1.0f - std::exp(-8.0f * delta_sec);
+            // Smooth lerp decay towards neutral (~6.0 decay coefficient)
+            const float factor = 1.0f - std::exp(-6.0f * delta_sec);
             current_val_ += (neutral - current_val_) * factor;
 
             DeckPlayer *dp = (active_deck_ == 2) ? vj_deck_b() : vj_deck_a();
             if (dp) {
-                if (bipolar) {
-                    dp->setFilterVal((current_val_ - 0.50f) * 2.0f);
-                } else {
-                    dp->setFilterVal(current_val_);
-                }
+                dp->setFilterVal((current_val_ - 0.50f) * 2.0f);
             }
         } else if (current_val_ != neutral) {
             current_val_ = neutral;

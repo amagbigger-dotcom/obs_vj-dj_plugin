@@ -9,20 +9,21 @@ class KaossFxManager {
 public:
     static KaossFxManager &instance();
 
-    // Touchpad inputs
+    // Touchpad inputs (CC 12, CC 13, Note 32)
     void onTouch(bool pressed, uint8_t velocity);
     void onTouchX(uint8_t x_val);
     void onTouchY(uint8_t y_val);
 
-    // Rotary Encoder input
+    // Rotary Encoder input (CC 31)
     void onEncoderRotate(uint8_t data2);
 
     // HOLD button
     void onHoldButton(bool pressed);
     void toggleHold();
+    void setHold(bool active);
     bool isHoldActive() const;
 
-    // Periodic watchdog timer & parameter smoothing (e.g. called from 25 Hz / 40 ms loop)
+    // Periodic watchdog timer & parameter smoothing (called at 25 Hz / 40 ms)
     void tick(float delta_sec);
 
     // Status queries
@@ -36,26 +37,27 @@ public:
 private:
     KaossFxManager();
 
-    void evaluateTouchZone();
-    bool isCurrentSlotBipolar() const;
+    void applyTouchCoordinates();
 
     mutable std::mutex mutex_;
 
-    // Touch state & race condition guard
+    // Touch state
     bool touch_down_ = false;
-    bool touch_pending_ = false;
-    bool touch_triggered_lock_ = false;
     uint8_t last_x_ = 0;
     uint8_t last_y_ = 0;
-    std::chrono::steady_clock::time_point touch_down_time_{};
+    bool has_x_ = false;
+    bool has_y_ = false;
 
     // Active effect & deck selection
-    int active_deck_ = 1; // Default Deck A
-    int active_slot_ = 0; // Default Slot 0 (Filter)
+    int active_deck_ = 1; // 1 = Deck A, 2 = Deck B
+    int active_slot_ = 0; // 0..3
     bool is_effect_engaged_ = false;
 
     // Parameter & Encoder state
-    float current_val_ = 0.5f; // [0.0, 1.0], 0.5 is neutral for bipolar filter
+    // current_val_ is in [0.0, 1.0], where 0.50 is neutral (0.0 filter).
+    // < 0.50 is Low-Pass Filter (negative / bass / dark tone).
+    // > 0.50 is High-Pass Filter (positive / treble / bright tone).
+    float current_val_ = 0.50f;
     float idle_timer_ms_ = 0.0f;
 
     // HOLD state

@@ -103,7 +103,37 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         }
     }
 
-    // 2. Normal Dispatch
+    // 2. Korg Kaoss Middle Section Fast-Path (Guaranteed Touchpad, Encoder & Hold Catch)
+    if (profile_.name().contains(QStringLiteral("Kaoss"), Qt::CaseInsensitive)) {
+        if (msg_type == MidiMsgType::CC && data1 == 12) {
+            KaossFxManager::instance().onTouchX(data2);
+            return;
+        }
+        if (msg_type == MidiMsgType::CC && data1 == 13) {
+            KaossFxManager::instance().onTouchY(data2);
+            return;
+        }
+        if ((msg_type == MidiMsgType::NOTE_ON || msg_type == MidiMsgType::NOTE_OFF) && data1 == 32) {
+            KaossFxManager::instance().onTouch(msg_type == MidiMsgType::NOTE_ON && data2 > 0, data2);
+            return;
+        }
+        if (msg_type == MidiMsgType::CC && data1 == 31) {
+            KaossFxManager::instance().onEncoderRotate(data2);
+            return;
+        }
+        // HOLD Button candidates: Notes 7..13, 33, 34 or CC 9
+        if (msg_type == MidiMsgType::NOTE_ON && data2 > 0) {
+            if (data1 == 7 || data1 == 8 || data1 == 9 || data1 == 10 || data1 == 12 || data1 == 13 || data1 == 33 || data1 == 34) {
+                KaossFxManager::instance().toggleHold();
+                return;
+            }
+        } else if (msg_type == MidiMsgType::CC && data1 == 9 && data2 > 63) {
+            KaossFxManager::instance().toggleHold();
+            return;
+        }
+    }
+
+    // 3. Normal Dispatch
     const MidiControlBinding *b = profile_.findBinding(msg_type, channel, data1);
     if (!b) return;
 
@@ -635,9 +665,9 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
     // Specific Korg Kaoss DJ direct fallback sends to guarantee feedback on all hardware modes:
     const uint8_t kaoss_hold_val = KaossFxManager::instance().isHoldActive() ? 127 : 0;
     for (uint8_t ch_st : {static_cast<uint8_t>(0x96), static_cast<uint8_t>(0x90)}) {
-        sendIfChanged(ch_st, 13, kaoss_hold_val); // Hold Note 13
-        sendIfChanged(ch_st, 33, kaoss_hold_val); // Hold Note 33
-        sendIfChanged(ch_st, 9, kaoss_hold_val);  // Hold Note 9
+        for (uint8_t n : {7, 8, 9, 10, 12, 13, 33, 34}) {
+            sendIfChanged(ch_st, n, kaoss_hold_val);
+        }
     }
     // Deck A: Ch 8 (0x97) & Ch 1 (0x90)
     for (uint8_t ch_st : {static_cast<uint8_t>(0x97), static_cast<uint8_t>(0x90)}) {
