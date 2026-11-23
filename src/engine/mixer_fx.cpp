@@ -122,7 +122,9 @@ void MixerFxState::init(size_t sample_rate, size_t channel_idx)
     // 6. Ramp Delay & Mulholland állapot
     ramp_phase = 0.0f;
     ramp_send_hp = 0.0f;
+    ramp_send_hp2 = 0.0f;
     ramp_fb_hp = 0.0f;
+    ramp_fb_hp2 = 0.0f;
     mulholland_bp_p0 = 0.0f;
     mulholland_bp_p1 = 0.0f;
 
@@ -184,7 +186,9 @@ void MixerFxState::reset()
 
     ramp_phase = 0.0f;
     ramp_send_hp = 0.0f;
+    ramp_send_hp2 = 0.0f;
     ramp_fb_hp = 0.0f;
+    ramp_fb_hp2 = 0.0f;
     mulholland_bp_p0 = 0.0f;
     mulholland_bp_p1 = 0.0f;
 
@@ -225,36 +229,25 @@ void MixerFxProcessor::process(float *channel_data,
     // Megszünteti a hirtelen kézmozdulatok által okozott sebességtöréseket (C1 folytonosság)
     const float alpha_flt = 0.0035f;
 
-    // A Beatmasher és Turntable effektek a tiszta, teljes sávszélességű zenei jelet
-    // kapják (kick/snare punch megőrzése, lábdob megtartása).
-    // A Filter, Delay, Reverb, Flanger, Ramp Delay, Mulholland és Transpose Stretch
-    // effekteknél a bipoláris TPT szűrő formálja a frekvenciatartományt.
-    const bool apply_bipolar_filter = (type == MixerFxType::FILTER ||
-                                       type == MixerFxType::DELAY ||
-                                       type == MixerFxType::REVERB ||
-                                       type == MixerFxType::FLANGER ||
-                                       type == MixerFxType::RAMP_DELAY ||
-                                       type == MixerFxType::MULHOLLAND ||
-                                       type == MixerFxType::TRANSPOSE);
-
+    // Mind a 9 effekt (Filter, Delay, Reverb, Flanger, Beatmasher, Turntable,
+    // Ramp Delay, Mulholland Drive, Transpose Stretch) átmegy a bipoláris TPT szűrőn!
+    // A szűrő már a legkisebb kitérésnél (5-10%) azonnal hallható és zenei formát ad.
     for (size_t i = 0; i < num_frames; ++i) {
         st.cur_flt += alpha_flt * (target_flt - st.cur_flt);
         st.cur_flt_s2 += alpha_flt * (st.cur_flt - st.cur_flt_s2);
         const float flt_val = st.cur_flt_s2;
 
-        if (!apply_bipolar_filter)
-            continue;
-
         float x = channel_data[i];
 
         // 1. TPT High-Pass Szűrő (Bilineáris Trapézintegrátor)
         // Ha flt_val <= 0 (balra tekerve vagy középállásban), a vágás 20 Hz (teljes átengedés felül)
-        // Ha flt_val > 0 (jobbra tekerve), logaritmikus görbe 20 Hz-ről 7200 Hz-ig ("csak tiszta cicergés maradjon")
+        // Ha flt_val > 0 (jobbra tekerve), perceptuális logaritmikus görbe 20 Hz-ről 7200 Hz-ig:
+        // 5%-nál ~65 Hz, 10%-nál ~135 Hz (azonnali basszusvágás!), 100%-nál 7200 Hz (+3.5 dB Sizzle Sheen)
         float fc_hp = 20.0f;
         float sizzle_boost = 1.0f;
         if (flt_val > 0.0005f) {
             const float norm_hp = std::min(flt_val, 1.0f);
-            const float exp_norm_hp = std::pow(norm_hp, 1.25f);
+            const float exp_norm_hp = std::pow(norm_hp, 0.50f);
             fc_hp = 20.0f * std::pow(360.0f, exp_norm_hp); // 20 * 360 = 7200 Hz
             sizzle_boost = 1.0f + std::max(0.0f, (norm_hp - 0.70f) * 1.6f); // +3.5 dB sheen
         }
@@ -270,12 +263,13 @@ void MixerFxProcessor::process(float *channel_data,
 
         // 2. TPT Low-Pass Szűrő (Bilineáris Trapézintegrátor)
         // Ha flt_val >= 0 (jobbra tekerve vagy középállásban), a vágás 20000 Hz (teljes átengedés alul)
-        // Ha flt_val < 0 (balra tekerve), logaritmikus görbe 20000 Hz-ről 30 Hz-ig (mély szub-basszus)
+        // Ha flt_val < 0 (balra tekerve), perceptuális logaritmikus görbe 20000 Hz-ről 30 Hz-ig:
+        // 5%-nál ~6300 Hz, 10%-nál ~3580 Hz (azonnal tompulnak a magasak!), 100%-nál 30 Hz (mély szub)
         float fc_lp = 20000.0f;
         if (flt_val < -0.0005f) {
-            const float norm_lp = std::max(1.0f + flt_val, 0.0f);
-            const float exp_norm_lp = std::pow(norm_lp, 1.15f);
-            fc_lp = 30.0f * std::pow(666.67f, exp_norm_lp);
+            const float depth_lp = std::min(-flt_val, 1.0f);
+            const float exp_depth_lp = std::pow(depth_lp, 0.58f);
+            fc_lp = 20000.0f * std::pow(0.0015f, exp_depth_lp); // 20000 * 0.0015 = 30 Hz
         }
         const float w_lp = PI * std::clamp(fc_lp, 10.0f, sr * 0.45f) / sr;
         const float g_lp = std::tan(w_lp);
@@ -292,9 +286,9 @@ void MixerFxProcessor::process(float *channel_data,
     const float raw_amount = std::clamp(std::abs(st.cur_flt_s2), 0.0f, 1.0f);
 
     // Agresszívabb kezdeti felfutási görbe (felhasználói direktíva):
-    // Az első 10% elmozdulás ~20% effekt mélységet hoz, ami a maradék szakaszon visszakompenzálódik:
-    // f(x) = x^0.70  ->  f(0.10) = 0.200 (20%), f(0.50) = 0.615 (61.5%), f(1.0) = 1.000 (100%)
-    const float amount = (raw_amount > 0.0001f) ? std::pow(raw_amount, 0.70f) : 0.0f;
+    // Az első 10% elmozdulás ~24% effekt mélységet hoz, ami a maradék szakaszon visszakompenzálódik:
+    // f(x) = x^0.62  ->  f(0.05) = 0.155 (15.5%), f(0.10) = 0.240 (24.0%), f(0.50) = 0.651 (65.1%), f(1.0) = 1.000 (100%)
+    const float amount = (raw_amount > 0.0005f) ? std::pow(raw_amount, 0.62f) : 0.0f;
 
     // Alap ütemidő (negyedhang másodpercben)
     float beat_sec = 0.46875f; // 128 BPM (468.75 ms)
@@ -542,7 +536,7 @@ void MixerFxProcessor::process(float *channel_data,
     if (type == MixerFxType::BEATMASHER) {
         const size_t buf_size = st.beatmash_buf.size();
 
-        if (amount < 0.04f) {
+        if (amount < 0.02f) {
             // Effekt inaktív: folyamatos puffer feltöltés, tiszta átengedés
             st.beatmash_active = false;
             for (size_t i = 0; i < num_frames; ++i) {
@@ -554,26 +548,31 @@ void MixerFxProcessor::process(float *channel_data,
             return;
         }
 
-        const float target_dry = 1.0f - amount * 0.90f;
-        const float target_wet = amount * 1.05f;
+        // Dinamikus crossfade: a száraz zene gyorsabban lehalkul, a loop stutter azonnal átszól
+        const float target_dry = std::max(0.0f, 1.0f - amount * 1.15f);
+        const float target_wet = std::min(1.0f, 0.40f + amount * 0.60f);
         const float inv_frames = 1.0f / static_cast<float>(num_frames);
         const float dry_step = (target_dry - st.prev_dry_gain) * inv_frames;
         const float wet_step = (target_wet - st.prev_wet_gain) * inv_frames;
         float cur_dry = st.prev_dry_gain;
         float cur_wet = st.prev_wet_gain;
 
-        // 8-fokozatú progresszív ritmikai leosztás holtsávok nélkül:
-        // 1/2 -> 3/8 -> 1/4 -> 3/16 -> 1/8 -> 1/12 (triola) -> 1/16 -> 1/24 (triola) -> 1/32
-        float beat_mult = 0.50f;
-        if (amount >= 0.92f)      beat_mult = 0.03125f; // 1/32
-        else if (amount >= 0.84f) beat_mult = 0.04167f; // 1/24 (triplet)
-        else if (amount >= 0.74f) beat_mult = 0.0625f;  // 1/16
-        else if (amount >= 0.62f) beat_mult = 0.08333f; // 1/12 (triplet)
-        else if (amount >= 0.50f) beat_mult = 0.125f;   // 1/8
-        else if (amount >= 0.38f) beat_mult = 0.1875f;  // 3/16 (dotted 8th)
-        else if (amount >= 0.25f) beat_mult = 0.25f;    // 1/4
-        else if (amount >= 0.14f) beat_mult = 0.375f;   // 3/8 (dotted quarter)
-        else                      beat_mult = 0.50f;    // 1/2
+        // 7-fokozatú progresszív ritmikai leosztás:
+        // 2% - 18%: 1/4 beat (azonnal felismerhető, lendületes 4-to-the-floor stutter!)
+        // 18% - 32%: 3/16 beat (pontozott nyolcad)
+        // 32% - 48%: 1/8 beat
+        // 48% - 62%: 1/12 beat (triola)
+        // 62% - 76%: 1/16 beat
+        // 76% - 88%: 1/24 beat (triola)
+        // 88% - 100%: 1/32 beat (gépfegyver-szerű riser buzz)
+        float beat_mult = 0.25f;
+        if (amount >= 0.88f)      beat_mult = 0.03125f; // 1/32
+        else if (amount >= 0.76f) beat_mult = 0.04167f; // 1/24 (triplet)
+        else if (amount >= 0.62f) beat_mult = 0.0625f;  // 1/16
+        else if (amount >= 0.48f) beat_mult = 0.08333f; // 1/12 (triplet)
+        else if (amount >= 0.32f) beat_mult = 0.125f;   // 1/8
+        else if (amount >= 0.18f) beat_mult = 0.1875f;  // 3/16 (dotted 8th)
+        else                      beat_mult = 0.25f;    // 1/4 (2% - 18%)
 
         const float slice_samples = std::max(64.0f, beat_mult * beat_sec * sr);
 
@@ -650,9 +649,11 @@ void MixerFxProcessor::process(float *channel_data,
             target_speed = 1.0f - amount * 4.5f; // 0%-nál 1.0x, 22%-nál 0.0x, 100%-nál -3.5x
         }
 
-        // Folyamatos Wet/Dry keverés
-        const float target_dry = std::max(0.0f, 1.0f - amount * 1.35f);
-        const float target_wet = std::min(1.0f, amount * 1.35f);
+        // Gyors átúszás a lemezre: nem fut alatta a száraz normál sebességű zene!
+        // Már 5-10%-os poti kitérésnél a lemez lassulását/visszapörgését halljuk tiszta formában (zéró szellemhang)
+        const float engage = std::min(1.0f, amount * 3.5f);
+        const float target_dry = 1.0f - engage;
+        const float target_wet = engage;
         const float inv_frames = 1.0f / static_cast<float>(num_frames);
         const float dry_step = (target_dry - st.prev_dry_gain) * inv_frames;
         const float wet_step = (target_wet - st.prev_wet_gain) * inv_frames;
@@ -717,9 +718,9 @@ void MixerFxProcessor::process(float *channel_data,
         float cur_dry = st.prev_dry_gain;
         float cur_wet = st.prev_wet_gain;
 
-        // 180 Hz Low-Cut HPF a bemeneten és a visszacsatolásban:
-        // Megakadályozza a mélyvágáskor (<100 Hz) a szub-basszus gerjedését és a recsegő torzítást!
-        const float alpha_hp = std::clamp(2.0f * PI * 180.0f / sr, 0.01f, 0.90f);
+        // 2-pólusú 300 Hz Low-Cut HPF a Doppler delay send bemeneten és a visszacsatolásban:
+        // Megakadályozza a mélyvágáskor (<100 Hz) a szub-basszus gerjedését és a recsegő Doppler torzítást!
+        const float alpha_hp = std::clamp(2.0f * PI * 300.0f / sr, 0.01f, 0.90f);
 
         // Felfelé pásztázó sávszűrő a sziréna rezonanciájához (400 Hz -> 2600 Hz)
         const float bp_freq = 400.0f + amount * 2200.0f;
@@ -732,9 +733,11 @@ void MixerFxProcessor::process(float *channel_data,
             cur_wet += wet_step;
             const float in_sample = channel_data[i];
 
-            // 180 Hz mélyvágás a bemeneten
+            // 2-pólusú 300 Hz mélyvágás a bemeneten (megvédi a késleltető puffert a szub-basszus recsegéstől)
             st.ramp_send_hp += alpha_hp * (in_sample - st.ramp_send_hp);
-            const float clean_send = (in_sample - st.ramp_send_hp) * send_gain;
+            const float hp1 = in_sample - st.ramp_send_hp;
+            st.ramp_send_hp2 += alpha_hp * (hp1 - st.ramp_send_hp2);
+            const float clean_send = (hp1 - st.ramp_send_hp2) * send_gain;
 
             st.ramp_phase += ramp_inc;
             if (st.ramp_phase >= 2.0f * PI)
@@ -784,9 +787,11 @@ void MixerFxProcessor::process(float *channel_data,
             // Folytonos összegzés a két ablakozott tapből (win_a + win_b = 1.0)
             const float delayed = delayed_a * win_a + delayed_b * win_b;
 
-            // 180 Hz HPF + sávszűrés és szaturáció a visszacsatoló ágban
+            // 2-pólusú 300 Hz HPF + sávszűrés és szaturáció a visszacsatoló ágban
             st.ramp_fb_hp += alpha_hp * (delayed - st.ramp_fb_hp);
-            const float delayed_hp = delayed - st.ramp_fb_hp;
+            const float fb_hp1 = delayed - st.ramp_fb_hp;
+            st.ramp_fb_hp2 += alpha_hp * (fb_hp1 - st.ramp_fb_hp2);
+            const float delayed_hp = fb_hp1 - st.ramp_fb_hp2;
 
             st.mulholland_bp_p0 += alpha_bp * (delayed_hp - st.mulholland_bp_p0);
             float siren_sig = st.mulholland_bp_p0 * feedback;
@@ -807,12 +812,12 @@ void MixerFxProcessor::process(float *channel_data,
     // 7. 🔥 MULHOLLAND DRIVE (Asymmetric Tube Overdrive + Resonant Feedback Growl)
     // =========================================================================
     if (type == MixerFxType::MULHOLLAND) {
-        // Erőteljesebb analóg csöves előerősítés: 1.0x .. 6.5x
-        const float pre_gain = 1.0f + amount * 5.5f;
+        // Erőteljesebb analóg csöves előerősítés: 1.0x .. 7.5x
+        const float pre_gain = 1.0f + amount * 6.5f;
         const float feedback = amount * 0.70f;
 
         // Párhuzamos kimeneti hangerő-csökkentés: a hangosság szigorúan azonos marad a tiszta jellel!
-        const float auto_gain_norm = 1.0f / (1.0f + amount * 2.2f);
+        const float auto_gain_norm = 1.0f / (1.0f + amount * 2.4f);
 
         const float target_dry = 1.0f - amount * 0.75f;
         const float target_wet = amount * auto_gain_norm;
