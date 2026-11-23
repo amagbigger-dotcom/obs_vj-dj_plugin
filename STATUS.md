@@ -1,35 +1,56 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #362 (GitHub Run #45152280126)
-* **Aktuális Git Commit:** `fff6d41`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 415 680 bájt)
-* **Bináris SHA256:** `62EAEB6B0E691FF1DD745A24CE2CBCD59E6ABB7C90D754812C6755BE2724D460`
+* **Legutolsó stabil mérföldkő:** Build #363 (GitHub Run #45158577652)
+* **Aktuális Git Commit:** `59f9964`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 416 704 bájt)
+* **Bináris SHA256:** `4AA0ECA6998F22C6EA60281D076F577FCEF65AF1C799016B319139B71C9A49A8`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #362 - KÉSZ & TELEPÍTVE. Csatornánkénti Független Függőleges 4-Slot Mixer FX & Recsegésmentes TPT Szűrő:
-  1. **Csatornánkénti Független 4-Slot Mixer FX Rendszer:**
-     - Deck A és Deck B teljesen független 4-slot effektválasztóval rendelkezik.
-     - Mindkét oldalon más-más effektek társíthatók a 4 gombhoz a 9 Native Instruments professzionális DJ effektből.
-  2. **Függőleges 4-Gombos Elrendezés ("egymás alatt legyen ne egymás mellett"):**
-     - Mindkét csatornacsíkon (`MixerChannelStrip`) a hangerő fader és kivezérlésjelző mellett, egymás alatt 4 nyomógomb kapott helyet (`🔴 FLT ▾`, `🔵 DLY ▾`, `🟢 REV ▾`, `🟡 FLG ▾` stb.).
-     - Deck A-n a fader a külső bal szélen, a 4 effekt gomb a jobb szélen (közép felé).
-     - Deck B-n a 4 effekt gomb a belső bal szélen (közép felé), a fader a külső jobb szélen.
-     - Bal klikk: aktiválás (ha már aktív: legördülő menü nyitása). Jobb klikk: közvetlen 9-effektes `QMenu` választó.
-     - A Master panelről törölve a felesleges vízszintes gombok, így a Crossfader és a fejhallgató szekció kényelmes helyet kap a fix 590×340 px keverőben.
-  3. **Gyors Potméter-Tekerési Recsegés & Tranziensek Teljes Felszámolása:**
-     - 1-pólusú **TPT (Topology-Preserving Transform / bilineáris trapézintegrátor)** virtuális analóg szűrőmotor ($s$ belső integrátortöltés állapot).
-     - 2-fokozatú, **$C^1$ folytonos kritikus csillapítású trajektória szűrő** a potméter mozgására, megszüntetve a cutoff frekvencia hirtelen sebességtöréseit.
-     - Mind a 8 idő- és térbeli effektben **mintánkénti lineáris Dry/Wet gain interpoláció**, kizárva a pufferhatárokon keletkező lépcsőzajt.
-     - Bármilyen gyors emberi kézmozdulatnál (különösen a mélyvágás / HPF irányába) a hangzás 100%-ban kristálytiszta, zéró kattogás és recsegés.
-  4. **Kétirányú MIDI Hardver Integráció:**
-     - A `MIXER_FX_1..4` és `MIXER_FX_SELECT` akciók és LED visszajelzések automatikusan az adott deckre (vagy az aktív deckre) vonatkoznak.
+* **Fő cél:** Build #363 - KÉSZ & TELEPÍTVE. 7 Mixer FX Akusztikai & Algoritmikus Finomhangolás:
+  1. **Bipoláris DJ Filter (HPF Cutoff 7200 Hz-ig):**
+     - A High-Pass szűrő vágási frekvenciája 20 Hz-től 7200 Hz-ig terjed ($20.0 \cdot 360.0^{\text{norm}^{1.25}}$).
+     - Az énekhang, a dobok teste és a szintetizátorok teljesen eltűnnek a felső sávban; kizárólag a tiszta, fényes cintányér cicergés marad meg ($+3.5\text{ dB}$ Sizzle Sheen kiemeléssel).
+  2. **Turntable FX (Fizikai Bakelit Lemez és Motor Szimuláció):**
+     - Balra tekerve (Brake): Valódi motor-leállítási tehetetlenség ($1.0\times \to 0.0\times$). Megálláskor ($<0.03\times$) lágy koszinuszos némítás lép életbe, megszüntetve a fagyott DC zúgást.
+     - Jobbra tekerve (Spinback): Erőteljes kezdeti visszapörgetés ($-3.0\times .. -5.5\times$) exponenciális súrlódási és amplitúdó-lecsengéssel (autentikus kézi visszarántás).
+     - A futó zene (Dry) teljesen elhalkul az effekt alatt, így a hatás 100%-ban érvényesül.
+  3. **Reverb (Hosszú, Tágas 12-Beat Lecsengés):**
+     - $RT_{60}$ lecsengési idő 2.0 beattől 12.0 beatig terjed (akár 6.5 másodperces lebegés).
+     - Fésűszűrő visszacsatolási korlát felemelve 0.978-ra (lágy köbös telítés garantálja a gerjedésmentességet).
+     - Magas frekvenciás csillapítás csökkentve (0.12 .. 0.19): a fényes lemez (plate) csillogás hosszan, zeneien lebeg a térben.
+     - Wet szint $1.15\times$-re emelve.
+  4. **Beatmasher 2 (8-Fokozatú Progresszív Ritmikai Morphing):**
+     - Folyamatos 8-fokozatú ritmikai leosztás holtsávok nélkül: $1/2 \to 3/8 \to 1/4 \to 3/16 \to 1/8 \to 1/12 \to 1/16 \to 1/24 \to 1/32$.
+     - 48-mintás Hann mikro-crossfade a szelet peremeinél a kattanások kizárására.
+     - Tiszta, teljes sávszélességű bemenet (a lábdob és pergő ereje megmarad a stutterben).
+  5. **Ramp Delay (Barber-Pole Dual-Tap Doppler Motor - Zéró Pattogás):**
+     - Shepard-stílusú kettős delay tap $180^\circ$-os ellentétes fázisban ($\phi_A$ és $\phi_B = \phi_A + \pi$).
+     - Hann súlyozó ablakok ($w_A + w_B = 1.0$): a fázisugrások pillanatában a tap hangereje pontosan $0.0000$, így a fázisváltási ugrás fizikailag zéró kattanást vagy pattogást generál.
+     - Infinit, sima emelkedésű sziréna riser hangzás.
+  6. **Mulholland Drive (Analóg Csöves Overdrive & RMS Auto-Gain):**
+     - Előerősítés megnövelve: $1.0\times \to 4.5\times$ analóg csöves Drive karakter.
+     - Aszimmetrikus páros felharmonikus telítés ($x + 0.22 x^2$) és rezonáns süvítés (350 Hz .. 1800 Hz).
+     - RMS Auto-Gain normalizáló ($1 / \sqrt{1 + 2.2 \cdot \text{amount}}$): a master hangerő nem ugrik fel, nincs digitális hard-clipping.
+  7. **Transpose Stretch (Teljes Sávszélességű Granuláris Pitch Shifter):**
+     - Tiszta, szűretlen bemeneti audió (a HPF szűrő nem vágja le a jelet előtte!).
+     - Constant-power crossfade ($\cos$ dry, $\sin$ wet) és Hann-ablakozott granuláris interpoláció: a teljes dal $+1$ oktávval feljebb (+12 félhang) vagy $-1$ oktávval lejjebb (-12 félhang) transzponálódik.
+     - Megszűnt a felső állásban tapasztalt némulás.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #362)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #363)
+* [x] **7 Mixer FX Akusztikai & Algoritmikus Finomhangolás (Build #363):**
+  - HPF: 7200 Hz cutoff +3.5 dB Sizzle Sheen boosttal (tiszta cicergés).
+  - Turntable: Fizikai bakelit motorlassulás 0-ra és koszinuszos stop némítás (Brake) + exponenciális lecsengésű Spinback, némított futó száraz jel.
+  - Reverb: 12-beat RT60 lecsengés, 0.978 feedback limit, csökkentett damp (fényes lemez karakter).
+  - Beatmasher: 8-fokozatú zenei leosztás (1/2 .. 1/32) holtsávok nélkül, 48-mintás Hann crossfade, full-bandwidth bemenet.
+  - Ramp Delay: Barber-Pole kettős tap Doppler motor (180° eltolással, Hann ablakokkal): zéró kattogás, zéró pattogás.
+  - Mulholland: 4.5x analóg csöves overdrive aszimmetrikus telítéssel és RMS normalizálóval (erős effekt, stabil hangerő).
+  - Transpose: Teljes sávszélességű audió routing, constant-power crossfade, zéró némulás magas állásban.
+  - Telepített bináris: 1 416 704 bájt, SHA256 `4AA0ECA6998F22C6EA60281D076F577FCEF65AF1C799016B319139B71C9A49A8`.
 * [x] **Csatornánkénti Független Függőleges 4-Slot Mixer FX & Recsegésmentes TPT Szűrő (Build #362):**
   - Deck A és Deck B független 4-slot konfiguráció és állapotgép.
   - Függőleges 4-gombos oszlop a csatorna faderek mellett, középre néző szimmetrikus elrendezésben.
