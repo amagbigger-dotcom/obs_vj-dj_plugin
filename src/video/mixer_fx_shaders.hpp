@@ -16,62 +16,107 @@ static const char *MIXER_FX_HLSL = R"(
 float4 fx_filter(float2 uv, float v, float amt)
 {
     if (v < 0.0) {
-        // LPF: Multi-tap Blur + Vignette + Dimming
-        float r = amt * 0.016;
+        // LPF: Multi-tap Blur + Vignette + Underwater Dimming
+        float r = amt * 0.022;
         float4 sum = image.Sample(def_sampler, uv) * 0.24;
         sum += image.Sample(def_sampler, uv + float2( r,  0.0)) * 0.14;
         sum += image.Sample(def_sampler, uv + float2(-r,  0.0)) * 0.14;
         sum += image.Sample(def_sampler, uv + float2( 0.0,  r)) * 0.14;
         sum += image.Sample(def_sampler, uv + float2( 0.0, -r)) * 0.14;
-        sum += image.Sample(def_sampler, uv + float2( r * 0.7,  r * 0.7)) * 0.05;
-        sum += image.Sample(def_sampler, uv + float2(-r * 0.7,  r * 0.7)) * 0.05;
-        sum += image.Sample(def_sampler, uv + float2( r * 0.7, -r * 0.7)) * 0.05;
-        sum += image.Sample(def_sampler, uv + float2(-r * 0.7, -r * 0.7)) * 0.05;
+        sum += image.Sample(def_sampler, uv + float2( r * 0.707,  r * 0.707)) * 0.05;
+        sum += image.Sample(def_sampler, uv + float2(-r * 0.707,  r * 0.707)) * 0.05;
+        sum += image.Sample(def_sampler, uv + float2( r * 0.707, -r * 0.707)) * 0.05;
+        sum += image.Sample(def_sampler, uv + float2(-r * 0.707, -r * 0.707)) * 0.05;
 
         float2 p = (uv - 0.5) * float2(1.7777778, 1.0);
-        float d = length(p);
-        float vig = 1.0 - smoothstep(0.35, 1.15, d) * amt * 0.85;
+        float vig = 1.0 - smoothstep(0.30, 1.15, length(p)) * (amt * 0.85);
         sum.rgb *= saturate(vig);
         return saturate(sum);
     } else {
         // HPF: Laplacian Sharpening + Edge Sizzle Contrast
-        float sh = amt * 0.003;
+        float sh = amt * 0.0035;
         float4 c  = image.Sample(def_sampler, uv);
         float4 up = image.Sample(def_sampler, uv + float2(0.0, -sh));
         float4 dn = image.Sample(def_sampler, uv + float2(0.0,  sh));
         float4 lf = image.Sample(def_sampler, uv + float2(-sh, 0.0));
         float4 rt = image.Sample(def_sampler, uv + float2( sh, 0.0));
-        float4 sharp = c * (1.0 + 4.0 * amt) - (up + dn + lf + rt) * amt;
-        sharp.rgb = (sharp.rgb - 0.5) * (1.0 + amt * 0.55) + 0.5;
+        float4 sharp = c * (1.0 + 4.5 * amt) - (up + dn + lf + rt) * (1.125 * amt);
+        sharp.rgb = (sharp.rgb - 0.5) * (1.0 + amt * 0.65) + 0.5;
         return saturate(sharp);
     }
 }
 
-// Type 1: DELAY (Dub Echo / Motion Trails / Multi-tap Feedback Ghosting)
+// Type 1: DELAY (Rhythmic Multi-Tap Beat Echo / Discrete Ghost Stamping)
+// Eltér a reverbtől: nagy kiterjedésű, ritmikus szellemképek és diszkrét bélyegzés
 float4 fx_delay(float2 uv, float v, float amt, float bpm, float anim_time)
 {
     float beat_sec = 60.0 / max(bpm, 60.0);
-    float echo_time = beat_sec * 0.75; // 3/4 beat
+    float echo_time = beat_sec * 0.75; // 3/4 beat echo
     float phase = frac(anim_time / echo_time);
-    
-    // Többrétegű irányított mozgási szellemképek (Directional Spatial Ghosting)
-    float2 dir = float2(cos(anim_time * 1.5), sin(anim_time * 1.5)) * (amt * 0.035);
-    float4 col = image.Sample(def_sampler, uv);
-    float4 e1 = image.Sample(def_sampler, uv - dir * (0.5 + phase * 0.5));
-    float4 e2 = image.Sample(def_sampler, uv - dir * (1.2 + phase * 0.8));
-    float4 e3 = image.Sample(def_sampler, uv - dir * (2.0 + phase * 1.0));
 
-    float decay = amt * 0.75;
-    col.rgb = col.rgb + e1.rgb * (decay * 0.50) + e2.rgb * (decay * 0.30) + e3.rgb * (decay * 0.18);
-    return saturate(col);
+    float4 base_col = image.Sample(def_sampler, uv);
+
+    if (v < 0.0) {
+        // DUB DELAY / DARK ECHO:
+        // Nagy távolságú, fokozatosan sötétbe vesző késleltetett sziluettek
+        float2 dir = float2(-0.09, 0.05) * amt;
+        float2 uv1 = uv + dir * (1.0 + phase * 0.35);
+        float2 uv2 = uv + dir * (2.2 + phase * 0.35);
+        float2 uv3 = uv + dir * (3.5 + phase * 0.35);
+
+        float m1 = step(0.0, uv1.x) * step(uv1.x, 1.0) * step(0.0, uv1.y) * step(uv1.y, 1.0);
+        float m2 = step(0.0, uv2.x) * step(uv2.x, 1.0) * step(0.0, uv2.y) * step(uv2.y, 1.0);
+        float m3 = step(0.0, uv3.x) * step(uv3.x, 1.0) * step(0.0, uv3.y) * step(uv3.y, 1.0);
+
+        float4 e1 = image.Sample(def_sampler, saturate(uv1)) * m1;
+        float4 e2 = image.Sample(def_sampler, saturate(uv2)) * m2;
+        float4 e3 = image.Sample(def_sampler, saturate(uv3)) * m3;
+
+        // Sötét analóg szalag lecsengés (Dark tape decay)
+        e1.rgb *= float3(0.55, 0.60, 0.65);
+        e2.rgb *= float3(0.35, 0.38, 0.42);
+        e3.rgb *= float3(0.18, 0.20, 0.22);
+
+        float4 res = base_col + (e1 * 0.50 + e2 * 0.35 + e3 * 0.22) * amt;
+        return saturate(res);
+    } else {
+        // PING-PONG BRIGHT ECHO:
+        // Balra-jobbra ugráló, éles sztereó szellemképek prizmatikus RGB split-tel
+        float ping = (frac(anim_time / (beat_sec * 0.5)) > 0.5) ? 1.0 : -1.0;
+        float2 dir1 = float2(0.11 * ping, 0.03) * amt;
+        float2 dir2 = float2(-0.20 * ping, -0.05) * amt;
+
+        float2 uv1 = uv + dir1;
+        float2 uv2 = uv + dir2;
+
+        float m1 = step(0.0, uv1.x) * step(uv1.x, 1.0) * step(0.0, uv1.y) * step(uv1.y, 1.0);
+        float m2 = step(0.0, uv2.x) * step(uv2.x, 1.0) * step(0.0, uv2.y) * step(uv2.y, 1.0);
+
+        // Prizmatikus RGB elcsúszás a szellemképen
+        float split = amt * 0.018;
+        float4 e1;
+        e1.r = image.Sample(def_sampler, saturate(uv1 + float2( split, 0.0))).r * m1;
+        e1.g = image.Sample(def_sampler, saturate(uv1)).g * m1;
+        e1.b = image.Sample(def_sampler, saturate(uv1 - float2( split, 0.0))).b * m1;
+        e1.a = m1;
+
+        float4 e2 = image.Sample(def_sampler, saturate(uv2)) * m2;
+
+        // Fényes, szikrázó visszhang hozzáadás (Additive shine)
+        float3 echo_sum = e1.rgb * 0.65 + e2.rgb * 0.40;
+        float4 res = base_col;
+        res.rgb += echo_sum * (amt * 1.25);
+        return saturate(res);
+    }
 }
 
-// Type 2: REVERB (Bloom / Ethereal Glow / Light Leak)
+// Type 2: REVERB (Expansive Ethereal Spatial Bloom & Cathedral Light Wash)
+// Eltér a delaytől: lágy, szétfolyó diffúz fényköd és térmélység (nincsenek éles szellemképek)
 float4 fx_reverb(float2 uv, float v, float amt)
 {
     float4 base_col = image.Sample(def_sampler, uv);
-    float thresh = max(0.20, 0.65 - amt * 0.40);
-    float rad = amt * 0.030;
+    float thresh = max(0.18, 0.65 - amt * 0.45);
+    float rad = amt * 0.045; // Nagy kiterjedésű, lágy diffúziós sugár
     float inv_range = 1.0 / max(1.0 - thresh, 0.01);
 
     float4 bloom = float4(0.0, 0.0, 0.0, 0.0);
@@ -79,10 +124,10 @@ float4 fx_reverb(float2 uv, float v, float amt)
     float4 s2 = image.Sample(def_sampler, uv + float2(-rad,  0.0));
     float4 s3 = image.Sample(def_sampler, uv + float2( 0.0,  rad));
     float4 s4 = image.Sample(def_sampler, uv + float2( 0.0, -rad));
-    float4 s5 = image.Sample(def_sampler, uv + float2( rad * 0.7,  rad * 0.7));
-    float4 s6 = image.Sample(def_sampler, uv + float2(-rad * 0.7,  rad * 0.7));
-    float4 s7 = image.Sample(def_sampler, uv + float2( rad * 0.7, -rad * 0.7));
-    float4 s8 = image.Sample(def_sampler, uv + float2(-rad * 0.7, -rad * 0.7));
+    float4 s5 = image.Sample(def_sampler, uv + float2( rad * 0.707,  rad * 0.707));
+    float4 s6 = image.Sample(def_sampler, uv + float2(-rad * 0.707,  rad * 0.707));
+    float4 s7 = image.Sample(def_sampler, uv + float2( rad * 0.707, -rad * 0.707));
+    float4 s8 = image.Sample(def_sampler, uv + float2(-rad * 0.707, -rad * 0.707));
 
     bloom += s1 * saturate((dot(s1.rgb, float3(0.299, 0.587, 0.114)) - thresh) * inv_range);
     bloom += s2 * saturate((dot(s2.rgb, float3(0.299, 0.587, 0.114)) - thresh) * inv_range);
@@ -94,97 +139,127 @@ float4 fx_reverb(float2 uv, float v, float amt)
     bloom += s8 * saturate((dot(s8.rgb, float3(0.299, 0.587, 0.114)) - thresh) * inv_range);
     bloom *= 0.125;
 
-    // Meleg/arany fényudvar fúzió
-    float3 aura = bloom.rgb * float3(1.15, 1.05, 0.95);
-    base_col.rgb += aura * (amt * 1.85);
+    if (v < 0.0) {
+        // ABYSS / DARK CAVERN: Sötét, misztikus köd, a háttér és a fények tompulnak
+        base_col.rgb = lerp(base_col.rgb, bloom.rgb * float3(0.65, 0.75, 0.95), amt * 0.65);
+        base_col.rgb *= (1.0 - amt * 0.28);
+    } else {
+        // CATHEDRAL SOLAR BLOOM: Hatalmas, szétterülő vakító fehér-arany fényszivárgás
+        float3 aura = bloom.rgb * float3(1.30, 1.20, 1.05);
+        base_col.rgb += aura * (amt * 2.4);
+    }
     return saturate(base_col);
 }
 
 // Type 3: FLANGER (Jet Sweep Wave Warp & Chromatic Aberration RGB Shift)
 float4 fx_flanger(float2 uv, float v, float amt, float anim_time)
 {
-    float wave_phase = uv.y * 18.0 + anim_time * 5.0;
-    float2 wave = float2(sin(wave_phase), cos(wave_phase * 0.75)) * (amt * 0.022);
+    float wave_phase = uv.y * 18.0 + anim_time * (v < 0.0 ? 3.0 : 6.5);
+    float2 wave = float2(sin(wave_phase), cos(wave_phase * 0.75)) * (amt * 0.025);
     float2 center_uv = uv + wave;
 
-    float split = amt * 0.015;
+    float split = amt * 0.020;
     float r = image.Sample(def_sampler, center_uv + float2( split, 0.0)).r;
     float g = image.Sample(def_sampler, center_uv).g;
     float b = image.Sample(def_sampler, center_uv - float2( split, 0.0)).b;
     float a = image.Sample(def_sampler, center_uv).a;
 
-    // Sugárhajtómű-szerű fémes interferencia (Jet sweep sheen)
-    float sweep = sin(anim_time * 4.0 + uv.x * 3.14159) * 0.5 + 0.5;
-    float3 res = float3(r, g, b) + float3(0.12, 0.18, 0.25) * (sweep * amt * 0.35);
-    return saturate(float4(res, a));
+    if (v < 0.0) {
+        // Mély folyékony hullámzás (Deep Liquid Sub-Wave) sötétebb tónussal
+        float3 res = float3(r, g, b) * (1.0 - amt * 0.25);
+        return saturate(float4(res, a));
+    } else {
+        // Sugárhajtómű-szerű fémes interferencia (Jet sweep sheen) + kifehéredő csillogás
+        float sweep = sin(anim_time * 4.5 + uv.x * 3.14159) * 0.5 + 0.5;
+        float3 res = float3(r, g, b) + float3(0.20, 0.28, 0.35) * (sweep * amt * 0.65);
+        return saturate(float4(res, a));
+    }
 }
 
-// Type 4: BEATMASHER 2 (Rhythmic Beat-Synced Glitch / Slices / Invert Strobe)
+// Type 4: BEATMASHER 2 (Rhythmic Beat-Synced Glitch / Heavy Slices / Machine-Gun Strobe)
 float4 fx_beatmasher(float2 uv, float v, float amt, float bpm, float anim_time)
 {
     float beat_sec = 60.0 / max(bpm, 60.0);
-    // 7-fokozatú ritmikai felosztás mint az audióban (1/4 .. 1/32)
+
+    // 8-fokozatú zenei leosztás (1/4 -> 1/8 -> 1/16 -> 1/24 -> 1/32)
     float div = 0.25;
-    if (amt >= 0.88) div = 0.03125;
-    else if (amt >= 0.76) div = 0.04167;
-    else if (amt >= 0.62) div = 0.0625;
-    else if (amt >= 0.48) div = 0.08333;
-    else if (amt >= 0.32) div = 0.125;
-    else if (amt >= 0.18) div = 0.1875;
-    else div = 0.25;
+    if (amt >= 0.85)      div = 0.03125; // 1/32 beat (gépfegyver darálás)
+    else if (amt >= 0.70) div = 0.04167; // 1/24 beat
+    else if (amt >= 0.50) div = 0.0625;  // 1/16 beat
+    else if (amt >= 0.30) div = 0.125;   // 1/8 beat
+    else                  div = 0.25;    // 1/4 beat
 
     float slice_sec = beat_sec * div;
     float step_idx = floor(anim_time / slice_sec);
     float step_phase = frac(anim_time / slice_sec);
 
-    // Vízszintes sávos szeletelés (Slices)
-    float num_bands = lerp(8.0, 32.0, amt);
+    // Sávok száma: kis potinál 8 sáv, maximumon 36 sáv
+    float num_bands = floor(lerp(8.0, 36.0, amt));
     float band = floor(uv.y * num_bands);
     float band_rnd = frac(sin(band * 127.1 + step_idx * 311.7) * 43758.5453);
 
     float2 slice_uv = uv;
-    if (band_rnd > 0.40) {
-        float shift = (band_rnd - 0.5) * amt * 0.15;
+
+    // Drasztikus horizontális elcsúszás (akár a képernyő 45%-a!)
+    if (band_rnd > 0.32) {
+        float shift = (band_rnd - 0.5) * amt * 0.90;
         slice_uv.x = frac(slice_uv.x + shift);
     }
 
-    // Stutter Freeze UV ugrálás
-    if (amt > 0.35 && step_phase < 0.40) {
+    // Kvantált blokk-ugrálás és Stutter Loop
+    if (amt > 0.30 && step_phase < 0.45) {
         float block_rnd = frac(sin(step_idx * 987.65) * 43758.5453);
-        if (block_rnd > 0.50) {
-            slice_uv.y = frac(slice_uv.y + (block_rnd - 0.5) * amt * 0.12);
+        if (block_rnd > 0.40) {
+            slice_uv.y = frac(slice_uv.y + (block_rnd - 0.5) * amt * 0.35);
         }
     }
 
-    float4 col = image.Sample(def_sampler, slice_uv);
+    // Szeletenkénti RGB Chromatic Aberration
+    float split = amt * 0.025 * (band_rnd > 0.5 ? 1.0 : -1.0);
+    float4 col;
+    col.r = image.Sample(def_sampler, frac(slice_uv + float2( split, 0.0))).r;
+    col.g = image.Sample(def_sampler, frac(slice_uv)).g;
+    col.b = image.Sample(def_sampler, frac(slice_uv - float2( split, 0.0))).b;
+    col.a = 1.0;
 
-    // Invert Strobe az ütések elején magas intenzitásnál
-    if (amt > 0.65 && step_phase < 0.15 && frac(step_idx * 0.25) < 0.26) {
-        col.rgb = 1.0 - col.rgb;
+    if (v < 0.0) {
+        // DARK CYBER SLICER: Fekete scanline kiesések és digitális signal drop-out
+        if (band_rnd > 0.72) {
+            col.rgb *= 0.15; // Kiesett fekete sáv
+        }
+        if (amt > 0.45 && step_phase < 0.20 && frac(step_idx * 0.25) < 0.26) {
+            col.rgb *= 0.10;
+        }
+    } else {
+        // NEON STROBE SLICER: Ragyogó fehér csíkok és stroboszkóp inverzió
+        if (band_rnd > 0.80) {
+            col.rgb = 1.0 - col.rgb;
+        }
+        if (amt > 0.40 && step_phase < 0.22) {
+            col.rgb += float3(0.55, 0.55, 0.55) * amt;
+        }
     }
 
     return saturate(col);
 }
 
 // Type 5: TURNTABLE FX (Bipolar: Vinyl Brake vs. Spinback Twirl)
-// v < 0: Brake (lassulás, kimerevedés, vertikális nyúlás)
-// v > 0: Spinback (örvénylő Twirl, forgási elmosódás)
+// v < 0: Brake (lassulás, kimerevedés, vertikális nyúlás, elhalványuló sötétedés)
+// v > 0: Spinback (örvénylő Twirl, centrifugális forgási elmosódás, villanások)
 float4 fx_turntable(float2 uv, float v, float amt, float anim_time)
 {
     float2 center = float2(0.5, 0.5);
     float2 p = uv - center;
 
     if (v < 0.0) {
-        // BRAKE: Anamorphic Vertical Stretch + Drag Scanline
-        float stretch = 1.0 + amt * 0.45;
+        // BRAKE: Anamorphic Vertical Stretch + Drag Scanline + Dimming
+        float stretch = 1.0 + amt * 0.55;
         float2 brake_uv = float2(p.x / stretch, p.y * stretch) + center;
         float4 col = image.Sample(def_sampler, brake_uv);
-
-        // Enyhe analóg lefékeződés fényerő-csökkenés
-        col.rgb *= (1.0 - amt * 0.35);
+        col.rgb *= (1.0 - amt * 0.45);
         return saturate(col);
     } else {
-        // SPINBACK: Polar Twirl / Swirl + Radial Spin Blur
+        // SPINBACK: Polar Twirl / Swirl + Radial Spin Blur + Bright Flashes
         float r = length(p * float2(1.7777778, 1.0));
         float angle = atan2(p.y, p.x);
         float twirl = (1.0 - saturate(r * 1.35)) * amt * 4.5;
@@ -193,31 +268,43 @@ float4 fx_turntable(float2 uv, float v, float amt, float anim_time)
         float2 twirl_uv = float2(cos(angle), sin(angle)) * length(p) + center;
         float4 col = image.Sample(def_sampler, twirl_uv);
 
-        // Radial spin blur taps
         float4 b1 = image.Sample(def_sampler, float2(cos(angle + amt * 0.08), sin(angle + amt * 0.08)) * length(p) + center);
         float4 b2 = image.Sample(def_sampler, float2(cos(angle - amt * 0.08), sin(angle - amt * 0.08)) * length(p) + center);
         col = (col * 0.5) + (b1 * 0.25) + (b2 * 0.25);
+        col.rgb += float3(0.20, 0.20, 0.25) * (amt * 0.50);
         return saturate(col);
     }
 }
 
-// Type 6: RAMP DELAY (Infinite Inward Tunnel Zoom & Swirl Vortex)
+// Type 6: RAMP DELAY (Infinite Inward Tunnel Zoom vs. Outward Warp Speed)
 float4 fx_ramp_delay(float2 uv, float v, float amt, float anim_time)
 {
     float2 p = (uv - 0.5) * float2(1.7777778, 1.0);
     float r = max(length(p), 0.001);
     float angle = atan2(p.y, p.x);
 
-    // Befelé gyorsuló logaritmikus zuhanás (Infinite Tunnel)
-    float speed = 2.0 + amt * 6.5;
-    float log_r = frac(log(r) * 0.65 - anim_time * speed);
-    float swirl = angle + log_r * 3.14159 * (1.0 + amt * 2.5);
+    if (v < 0.0) {
+        // INWARD DARK VORTEX (Befelé zuhanó sötét alagút)
+        float speed = 2.0 + amt * 6.5;
+        float log_r = frac(log(r) * 0.65 - anim_time * speed);
+        float swirl = angle + log_r * 3.14159 * (1.0 + amt * 2.5);
 
-    float2 tunnel_uv = float2(cos(swirl), sin(swirl)) * log_r * 0.5 + 0.5;
-    float4 col_tunnel = image.Sample(def_sampler, tunnel_uv);
-    float4 col_orig   = image.Sample(def_sampler, uv);
+        float2 tunnel_uv = float2(cos(swirl), sin(swirl)) * log_r * 0.5 + 0.5;
+        float4 col_tunnel = image.Sample(def_sampler, tunnel_uv) * (1.0 - amt * 0.40);
+        float4 col_orig   = image.Sample(def_sampler, uv);
+        return saturate(lerp(col_orig, col_tunnel, saturate(amt * 1.25)));
+    } else {
+        // OUTWARD WARP SPEED (Kifelé táguló gyorsuló fehér fényalagút)
+        float speed = 2.5 + amt * 7.5;
+        float log_r = frac(1.0 - (log(r) * 0.65 + anim_time * speed));
+        float swirl = angle - log_r * 3.14159 * (1.0 + amt * 2.5);
 
-    return saturate(lerp(col_orig, col_tunnel, saturate(amt * 1.15)));
+        float2 tunnel_uv = float2(cos(swirl), sin(swirl)) * log_r * 0.5 + 0.5;
+        float4 col_tunnel = image.Sample(def_sampler, tunnel_uv);
+        col_tunnel.rgb += float3(0.35, 0.35, 0.40) * amt;
+        float4 col_orig   = image.Sample(def_sampler, uv);
+        return saturate(lerp(col_orig, col_tunnel, saturate(amt * 1.25)));
+    }
 }
 
 // Type 7: MULHOLLAND DRIVE (Analog Overdrive / Solarize Foldback / Film Grain)
@@ -225,20 +312,27 @@ float4 fx_mulholland(float2 uv, float v, float amt, float anim_time)
 {
     float4 col = image.Sample(def_sampler, uv);
 
-    // 1. Analóg túlhajtás (Overdrive gain)
-    col.rgb *= (1.0 + amt * 5.0);
+    if (v < 0.0) {
+        // DARK ANALOG TAPE CRUNCH: Meleg szalagtelítés, sötét kontraszt, CRT zaj
+        col.rgb *= (1.0 + amt * 2.5);
+        col.rgb = saturate((col.rgb - 0.5) * (1.0 + amt * 0.8) + 0.5);
+        col.rgb *= (1.0 - amt * 0.35);
 
-    // 2. Szinuszos szolárizáció (Solarize Foldback): a túlvezérelt csúcsfények negatívba fordulnak
-    if (amt > 0.15) {
-        float3 fold = abs(sin(col.rgb * 1.5707963));
-        col.rgb = lerp(col.rgb, fold, saturate((amt - 0.15) / 0.85));
+        float grain = frac(sin(dot(uv * (anim_time + 1.23), float2(12.9898, 78.233))) * 43758.5453);
+        col.rgb += (grain - 0.5) * (amt * 0.30);
+        return saturate(col);
+    } else {
+        // SOLAR FLARE OVERDRIVE: Vakító fehérbe égő csöves túlhajtás és szolárizáció
+        col.rgb *= (1.0 + amt * 5.5);
+        if (amt > 0.15) {
+            float3 fold = abs(sin(col.rgb * 1.5707963));
+            col.rgb = lerp(col.rgb, fold, saturate((amt - 0.15) / 0.85));
+        }
+        col.rgb += float3(0.30, 0.30, 0.30) * amt;
+        float grain = frac(sin(dot(uv * (anim_time + 1.23), float2(12.9898, 78.233))) * 43758.5453);
+        col.rgb += (grain - 0.5) * (amt * 0.20);
+        return saturate(col);
     }
-
-    // 3. CRT Filmzaj (Dynamic Grain)
-    float grain = frac(sin(dot(uv * (anim_time + 1.23), float2(12.9898, 78.233))) * 43758.5453);
-    col.rgb += (grain - 0.5) * (amt * 0.24);
-
-    return saturate(col);
 }
 
 // Type 8: TRANSPOSE STRETCH (Bipolar: Barrel Bulge vs. Pincushion Pinch)
@@ -252,11 +346,11 @@ float4 fx_transpose(float2 uv, float v, float amt)
     float2 dist_p;
     if (v < 0.0) {
         // BULGE (Halszemoptika / Domborodás)
-        float factor = 1.0 + amt * 1.25 * r * r;
+        float factor = 1.0 + amt * 1.35 * r * r;
         dist_p = p / factor;
     } else {
         // PINCH (Párnatorzítás / Behorpadás)
-        float factor = 1.0 + amt * 1.35 * (1.0 - saturate(r * 1.2));
+        float factor = 1.0 + amt * 1.45 * (1.0 - saturate(r * 1.2));
         dist_p = p * factor;
     }
 
@@ -275,7 +369,7 @@ float4 apply_deck_mixer_fx(float2 uv, float fx_type, float fx_val, float bpm, fl
     float4 col;
     float amt = abs(fx_val);
     if (amt <= 0.005) {
-        // ZÉRÓ GPU TERHELÉS: Középállásban közvetlen minta, minden torzítás átugrása!
+        // ZÉRÓ GPU TERHELÉS: Középállásban közvetlen minta, minden torzítás és módosítás átugrása!
         col = image.Sample(def_sampler, uv);
     } else {
         // Agresszív kezdeti görbe (|v|^0.62) mint az audióban
@@ -292,13 +386,39 @@ float4 apply_deck_mixer_fx(float2 uv, float fx_type, float fx_val, float bpm, fl
         else if (t == 7) col = fx_mulholland(uv, fx_val, curve_amt, anim_time);
         else if (t == 8) col = fx_transpose(uv, fx_val, curve_amt);
         else             col = image.Sample(def_sampler, uv);
+
+        // =====================================================================
+        // UNIVERZÁLIS BIPOLÁRIS TÓNUSLÁNC MIND A 9 EFFEKTRE
+        // Balra (v < 0, LPF / Mély irány): Sötétedés, deszaturáció, peremsötétedés
+        // Jobbra (v > 0, HPF / Magas irány): Kifehéredés, ragyogás, expozíció emelés
+        // =====================================================================
+        if (fx_val < 0.0) {
+            // Sötétedés & Feketék mélyülése
+            col.rgb *= (1.0 - curve_amt * 0.42);
+
+            // Deszaturáció (monokróm / fakuló mélység)
+            float luma = dot(col.rgb, float3(0.2126, 0.7152, 0.0722));
+            col.rgb = lerp(luma.xxx, col.rgb, saturate(1.0 - curve_amt * 0.75));
+
+            // Finom mélyszűrő vinnyetta
+            float2 vp = (uv - 0.5) * float2(1.7777778, 1.0);
+            float vig = 1.0 - smoothstep(0.35, 1.15, length(vp)) * (curve_amt * 0.55);
+            col.rgb *= saturate(vig);
+        } else {
+            // Kifehéredés & Világosodó csúcsfények (Exposure Wash & Shine)
+            col.rgb = col.rgb * (1.0 + curve_amt * 0.35) + float3(0.30, 0.30, 0.33) * pow(curve_amt, 1.3);
+
+            // Szaturáció megőrzés / enyhe élénkítés
+            float luma = dot(col.rgb, float3(0.2126, 0.7152, 0.0722));
+            col.rgb = lerp(luma.xxx, col.rgb, 1.0 + curve_amt * 0.30);
+        }
     }
 
     // Színkorrekció és Visual EQ (Basszus vezérelt szaturáció + 3-sávos gain)
     if (vis_eq) {
         col.rgb *= gains.rgb;
-        float luma = dot(col.rgb, float3(0.2126, 0.7152, 0.0722));
-        col.rgb = lerp(luma.xxx, col.rgb, sat);
+        float eq_luma = dot(col.rgb, float3(0.2126, 0.7152, 0.0722));
+        col.rgb = lerp(eq_luma.xxx, col.rgb, sat);
     }
 
     return saturate(col);

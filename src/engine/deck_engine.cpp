@@ -958,20 +958,27 @@ void DeckPlayer::updateVisualEqMapping() noexcept
     const float flt = filter_val_.load(std::memory_order_relaxed);
     const bool inv = rgb_inverted_.load(std::memory_order_relaxed);
 
+    // Filter potméter szaturációs hatása (balra = fakulás, jobbra = élénkülés)
+    float flt_sat_factor = 1.0f;
+    if (flt < 0.0f) {
+        flt_sat_factor = std::max(0.0f, 1.0f + flt * 0.85f);
+    } else {
+        flt_sat_factor = 1.0f + flt * 0.65f;
+    }
+    const float final_sat = std::clamp(low * flt_sat_factor, 0.0f, 2.0f);
+
     if (inv) {
         // Megfordított sorrend: HI = Kék (Blue), MID = Zöld (Green), LOW = Vörös (Red)
         setRed(low);
         setGreen(mid);
         setBlue(hi);
-        // Basszus vezérelt szaturáció: mélyvágásnál monokróm, basszusnál telített
-        setSaturation(std::clamp(low, 0.0f, 2.0f));
+        setSaturation(final_sat);
     } else {
         // Normál sorrend: HI = Vörös (Red), MID = Zöld (Green), LOW = Kék (Blue)
         setRed(hi);
         setGreen(mid);
         setBlue(low);
-        // Basszus vezérelt szaturáció: mélyvágásnál monokróm, basszusnál telített
-        setSaturation(std::clamp(low, 0.0f, 2.0f));
+        setSaturation(final_sat);
     }
 }
 
