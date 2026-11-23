@@ -1,32 +1,41 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #369 (GitHub Run #45273393654 / Run #388)
-* **Aktuális Git Commit:** `1c5c5db`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 437 696 bájt)
-* **Bináris SHA256:** `9238A91092DE1CEBBD0EFB8A988414FD6655314D774E87AE65357880C763733C`
+* **Legutolsó stabil mérföldkő:** Build #370 (GitHub Run #45283848670 / Run #390)
+* **Aktuális Git Commit:** `a8402b9`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 443 328 bájt)
+* **Bináris SHA256:** `86653BFDA91FD27A019C2CEDBA672BFD65F035468D80237321E3ACEEEDC59ED7`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #369 - KÉSZ & TELEPÍTVE. Univerzális Bipoláris Tónuslánc, Delay vs. Reverb Szétválasztás, Agresszív Beatmasher Glitch & C2026 Védelem:
-  1. **Univerzális Bipoláris Tónuslánc (Minden effektre):**
-     - **Balra (v < 0, Mély / LPF):** Sötétedés (`col.rgb *= 1.0 - 0.42 * curve`), mélyülő feketék, peremsötétedő vinnyetta és fokozatos deszaturáció (monokróm/szürkeárnyalat).
-     - **Jobbra (v > 0, Magas / HPF):** Kifehéredés / ragyogás (`col.rgb` expozíció-emelés és fényes wash), szikrázó kontraszt és telített színek.
-     - A FLT potméter a Low EQ mellett a `DeckPlayer::updateVisualEqMapping()`-ben is közvetlenül modulálja a szaturációt (balra fakul, jobbra élénkül).
-  2. **Delay vs. Reverb Radikális Szétválasztása:**
-     - **Delay (`fx_delay`):** Valódi diszkrét, ritmikus szellemkép másolatok (Multi-tap Echo). Nagy térbeli eltolás (0.09 - 0.20 UV), 3/4 beat fázisú ugrások. Balra sötétedő analóg dub tape echo; jobbra bal-jobb alternáló Ping-Pong echo prizmatikus RGB split-tel és fényes additív éllel.
-     - **Reverb (`fx_reverb`):** Kiterjedt, lágy, szétfolyó diffúz fényköd és tér-tágulás nagy sugárral (0.045). Nincsenek szellemképek! Balra mély sötétkék kanyon (Abyss); jobbra ragyogó arany-fehér katedrális fényáradat (Cathedral Solar Bloom).
-  3. **Agresszív, Ritmikus Beatmasher 2 Glitch:**
-     - 8-fokozatú ritmikai leosztás (1/4 -> 1/8 -> 1/16 -> 1/24 -> 1/32).
-     - Hatalmas horizontális szelet-széttolás (akár a képernyő 45%-a!), RGB kromatikus szétszakadás a szeletek peremén.
-     - Balra fekete scanline kiesések és digitális signal drop-out; jobbra villámgyors stroboszkóp és invertáló neon villanások, 100%-ban követve a gépfegyver-szerű audio darálást.
-  4. **MSVC C2026 Védelem:**
-     - A shader forráskód két részre bontva (`MIXER_FX_HLSL_PART1` és `PART2`), megszüntetve a MSVC 16 KB raw string literal limit hibát.
+* **Fő cél:** Build #370 - KÉSZ & TELEPÍTVE. Korg KAOSS DJ 2×4 Touchpad FX Mátrix, Program/Value Enkóder & HOLD Watchdog Modul:
+  1. **2 Oszlop × 4 Soros Touchpad Mátrix (Race-Condition Védett):**
+     - **Bal oszlop (X < 64):** Deck A 4 függőleges slotja egymás alatt (Slot 0..3: FLT, DLY, REV, FLG).
+     - **Jobb oszlop (X >= 64):** Deck B 4 függőleges slotja egymás alatt (Slot 0..3: FLT, DLY, REV, FLG).
+     - **Race Condition Guard:** Touch Note On (Note 32) után pufferelt zónaszámítás az első X/Y CC beérkezésekor, `touch_triggered_lock_` egyetlen zónaváltást enged érintésenként.
+     - **Kill Switch Toggle:** Az éppen aktív zóna újraérintése azonnal némítja az effektet (bypass) és nullázza a paramétert.
+  2. **Program/Value Enkóder (Relatív CC 31):**
+     - Relatív elmozdulás dekódolás dinamikus gyorsulással.
+     - **Bipoláris Combo Filter (Slot 0):** Alapállapot 0.5 (MIDI 64), balra LPF (mélyhangok + képi sötétedés), jobbra HPF (magashangok + képi ragyogás), mágneses snap-to-center `[0.48, 0.52]`.
+     - **Egyirányú Effektek (Slot 1..3):** Alapállapot 0.0, tekerés növeli a dry/wet arányt és a VJ torzítást 0.0 és 1.0 között.
+  3. **HOLD Gomb & 200 ms Watchdog Auto-Reset:**
+     - **HOLD kikapcsolva:** 200 ms inaktivitás után a watchdog automatikusan, finom lecsengéssel (`lerp`) visszahúzza az effektparamétert alaphelyzetbe (0.5 vagy 0.0).
+     - **HOLD bekapcsolva:** A watchdog felfüggesztve, az effekt rögzítve marad; HOLD kikapcsoláskor azonnali visszaállás és a hardveres HOLD LED kialvása.
+     - Kétirányú MIDI LED visszajelzés Ch 7-re (Note 13, 33, 9).
+  4. **Moduláris Architektúra:**
+     - Új `src/controllers/kaoss_fx_manager.hpp/.cpp` modul (205 sor, SOLID).
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #369)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #370)
+* [x] **Korg KAOSS DJ 2×4 Touchpad FX Mátrix, Enkóder & HOLD Watchdog (Build #370):**
+  - 2 oszlop × 4 soros Touchpad mátrix (Deck A bal oszlop, Deck B jobb oszlop, Slot 0..3 vertikális sorok).
+  - Érintés-szinkronizáció és race-condition védelem (`touch_pending_` / `touch_triggered_lock_`).
+  - Program/Value relatív enkóder bipoláris snap-to-center és egyirányú FX vezérléssel.
+  - 200 ms watchdog timer exponenciális lerp visszahúzással.
+  - HOLD gomb állapotgép és kétirányú MIDI OUT LED visszajelzés.
+  - Telepített bináris: 1 443 328 bájt, SHA256 `86653BFDA91FD27A019C2CEDBA672BFD65F035468D80237321E3ACEEEDC59ED7`.
 * [x] **Univerzális Bipoláris Tónus, Delay vs. Reverb & Intenzív Beatmasher (Build #369):**
   - Bipoláris tónuslánc minden effektre (balra: sötétedés + fakulás, jobbra: kifehéredés + szaturáció).
   - Delay (ritmikus multi-tap echo másolatok) és Reverb (diffúz fényköd és spatial bloom) radikális szétválasztása.
