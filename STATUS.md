@@ -1,29 +1,33 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #367 (GitHub Run #45263046755 / Run #383)
-* **Aktuális Git Commit:** `86a82d8`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 431 552 bájt)
-* **Bináris SHA256:** `2FB5957020656BE86892575B21532048F18C6FDD856BA2D370C0CB4F5A2A1C8B`
+* **Legutolsó stabil mérföldkő:** Build #368 (GitHub Run #45265725741 / Run #385)
+* **Aktuális Git Commit:** `15a8fe8`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 431 040 bájt)
+* **Bináris SHA256:** `581B19A1E65A4B7A6A295B5FC4154E6D54DBEAFB647A34EE0A48AF8DAE442947`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #367 - KÉSZ & TELEPÍTVE. OBS Indításkori Kifagyás (Fehér Ablak) Megszüntetése & 2-Lépcsős Post-FX Architektúra:
-  1. **Hiba feltárása & Javítása:**
-     - A Build #366-ban a 9 Mixer FX shader a főkeverő pixel shaderébe (`MIXER_EFFECT`) lett beágyazva. A Crossfader átúsztatások (Radial Zoom Blur 8-as ciklus, Neon Kontúr 8 tap, Soft Focus 9 tap) miatt a D3D11 HLSL fordító kombinatorikus robbanásba (több tízezer inlined utasításba) ütközött az első frame fordításakor, ami blokkolta a grafikai szálat és a Qt üzenetkezelést (fehér nem válaszoló ablak).
-  2. **2-Lépcsős Modularizált Renderelési Pipeline:**
-     - **1. lépés (`apply_deck_post_fx`):** Független, szálbiztos 1-pass passzban hajtja végre Deck A és Deck B képkockáján a Visual EQ (basszus szaturáció + 3-sávos gain) és az aktív Mixer FX képtorzítás (Filter, Delay, Reverb, Flanger, Beatmasher, Turntable, Ramp Delay, Mulholland, Transpose) kiszámítását `deck_color_effect` segítségével egy közbenső 1080p textúrába.
-     - **2. lépés (`MIXER_EFFECT`):** Már közvetlenül az elkészült, előfeldolgozott deck textúrákból mintavételez a Volume FX és Crossfader FX átúsztatásokhoz, mentesítve a képtorzító shaderek kódjától, így mindkét shader compilation ideje ezredmásodpercekre csökkent.
-  3. **Reverb HLSL Unroll:**
-     - A tömbös/ciklusos mintavételezés feloldva statikus unrolled változókkal, kiküszöbölve minden lehetséges D3D11 regiszter-hazardot.
-  4. **Azonnali OBS Indulás:**
-     - Zéró késleltetés a jelenetgyűjtemény betöltése után, azonnal megjelenő stabil OBS ablak és tökéletesen működő VJ effektek.
+* **Fő cél:** Build #368 - KÉSZ & TELEPÍTVE. libobs HLSL Paraméter Inkompatibilitás & Végtelen Újrafordítási Ciklus Megszüntetése (OBS Fehér Ablak Kifagyás Végleges Elhárítása):
+  1. **Gyökérok Feltárása & Megoldása:**
+     - **libobs HLSL szintaktika korlát:** A `libobs` beépített effect-parsere (`effect-parser.c`) a `texture2d` típust kizárólag uniform változó deklarációként értelmezi (`uniform texture2d image;`). Függvények formális paraméterlistájában (`float4 fx_filter(texture2d img, ...)`) nem engedélyezett, emiatt a `deck_color_effect` fordítása szintaktikai hibával meghiúsult.
+     - **Végtelen 60 FPS újrafordítási hurok:** A sikertelen fordítás miatt a `deck_color_effect` és `color_effect` mutató `nullptr` maradt, ami miatt a renderelő szál minden egyes képkockánál (forrásonként 60 alkalommal másodpercenként) újra megkísérelte a D3D11 HLSL fordítást. Ez a masszív CPU terhelés kiéheztette a Windows Qt GUI üzenethurkot, ami az OBS indításkori azonnali kifagyását és fehér nem válaszoló ablakát eredményezte.
+  2. **Globális Uniform Mintavételezés:**
+     - A `src/video/mixer_fx_shaders.hpp` fájlban mind a 9 Mixer FX shaderből eltávolításra került a `texture2d img` paraméter; a függvények közvetlenül a globálisan deklarált `image.Sample(def_sampler, ...)` segítségével mintavételeznek.
+  3. **Fordítási Hibaőrszemek (Fail Guards):**
+     - A `mixer_source.cpp` és `deck_source.cpp` forrásokban `deck_color_effect_failed` és `color_effect_failed` védőkapuk lettek bevezetve, így ha bármilyen shader fordítás sikertelen lenne, pontosan 1 hibabejegyzést naplóz a konzolra, és soha többé nem indít végtelen per-frame fordítási hurkot.
+  4. **Stabilitás és Végeredmény:**
+     - Az OBS azonnal, fagyásmentesen elindul; mind a 9 Mixer FX vizuális effekt és a Basszus-vezérelt Visual EQ azonnal, fluid módon és hibamentesen fut.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #367)
-* [x] **Indításkori Kifagyás Javítása & 2-Lépcsős Post-FX Renderelés (Build #367):**
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #368)
+* [x] **libobs HLSL Paraméter Hiba & Végtelen Újrafordítási Hurok Javítása (Build #368):**
+  - Eltávolítva a `texture2d` paraméter a 9 shaderből, közvetlen `image.Sample` mintavételezés.
+  - Fail-safe guard a 60 FPS D3D fordítási ciklus ellen.
+  - Telepített bináris: 1 431 040 bájt, SHA256 `581B19A1E65A4B7A6A295B5FC4154E6D54DBEAFB647A34EE0A48AF8DAE442947`.
+* [x] **2-Lépcsős Post-FX Renderelési Architektúra & Reverb Unroll (Build #367):**
   - Dekomponált 2-lépcsős renderelés: Deck Color/Mixer FX független passzban fut, a Master Mixer nem duplikálja a 9 effekt shadereit.
   - Reverb unroll, azonnali D3D11 HLSL fordítás, 0 ms indulási akadás.
   - Telepített bináris: 1 431 552 bájt, SHA256 `2FB5957020656BE86892575B21532048F18C6FDD856BA2D370C0CB4F5A2A1C8B`.
