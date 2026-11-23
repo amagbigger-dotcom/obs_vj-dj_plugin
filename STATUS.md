@@ -1,48 +1,54 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #363 (GitHub Run #45158577652)
-* **Aktuális Git Commit:** `59f9964`
+* **Legutolsó stabil mérföldkő:** Build #364 (GitHub Run #45164790738)
+* **Aktuális Git Commit:** `81db8e6`
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 416 704 bájt)
-* **Bináris SHA256:** `4AA0ECA6998F22C6EA60281D076F577FCEF65AF1C799016B319139B71C9A49A8`
+* **Bináris SHA256:** `AD095240DD17E9E1B63A4C4A658567B810425974A744C37E9F5F8AA568276BB2`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #363 - KÉSZ & TELEPÍTVE. 7 Mixer FX Akusztikai & Algoritmikus Finomhangolás:
-  1. **Bipoláris DJ Filter (HPF Cutoff 7200 Hz-ig):**
-     - A High-Pass szűrő vágási frekvenciája 20 Hz-től 7200 Hz-ig terjed ($20.0 \cdot 360.0^{\text{norm}^{1.25}}$).
-     - Az énekhang, a dobok teste és a szintetizátorok teljesen eltűnnek a felső sávban; kizárólag a tiszta, fényes cintányér cicergés marad meg ($+3.5\text{ dB}$ Sizzle Sheen kiemeléssel).
-  2. **Turntable FX (Fizikai Bakelit Lemez és Motor Szimuláció):**
-     - Balra tekerve (Brake): Valódi motor-leállítási tehetetlenség ($1.0\times \to 0.0\times$). Megálláskor ($<0.03\times$) lágy koszinuszos némítás lép életbe, megszüntetve a fagyott DC zúgást.
-     - Jobbra tekerve (Spinback): Erőteljes kezdeti visszapörgetés ($-3.0\times .. -5.5\times$) exponenciális súrlódási és amplitúdó-lecsengéssel (autentikus kézi visszarántás).
-     - A futó zene (Dry) teljesen elhalkul az effekt alatt, így a hatás 100%-ban érvényesül.
-  3. **Reverb (Hosszú, Tágas 12-Beat Lecsengés):**
-     - $RT_{60}$ lecsengési idő 2.0 beattől 12.0 beatig terjed (akár 6.5 másodperces lebegés).
-     - Fésűszűrő visszacsatolási korlát felemelve 0.978-ra (lágy köbös telítés garantálja a gerjedésmentességet).
-     - Magas frekvenciás csillapítás csökkentve (0.12 .. 0.19): a fényes lemez (plate) csillogás hosszan, zeneien lebeg a térben.
-     - Wet szint $1.15\times$-re emelve.
-  4. **Beatmasher 2 (8-Fokozatú Progresszív Ritmikai Morphing):**
-     - Folyamatos 8-fokozatú ritmikai leosztás holtsávok nélkül: $1/2 \to 3/8 \to 1/4 \to 3/16 \to 1/8 \to 1/12 \to 1/16 \to 1/24 \to 1/32$.
-     - 48-mintás Hann mikro-crossfade a szelet peremeinél a kattanások kizárására.
-     - Tiszta, teljes sávszélességű bemenet (a lábdob és pergő ereje megmarad a stutterben).
-  5. **Ramp Delay (Barber-Pole Dual-Tap Doppler Motor - Zéró Pattogás):**
-     - Shepard-stílusú kettős delay tap $180^\circ$-os ellentétes fázisban ($\phi_A$ és $\phi_B = \phi_A + \pi$).
-     - Hann súlyozó ablakok ($w_A + w_B = 1.0$): a fázisugrások pillanatában a tap hangereje pontosan $0.0000$, így a fázisváltási ugrás fizikailag zéró kattanást vagy pattogást generál.
-     - Infinit, sima emelkedésű sziréna riser hangzás.
-  6. **Mulholland Drive (Analóg Csöves Overdrive & RMS Auto-Gain):**
-     - Előerősítés megnövelve: $1.0\times \to 4.5\times$ analóg csöves Drive karakter.
-     - Aszimmetrikus páros felharmonikus telítés ($x + 0.22 x^2$) és rezonáns süvítés (350 Hz .. 1800 Hz).
-     - RMS Auto-Gain normalizáló ($1 / \sqrt{1 + 2.2 \cdot \text{amount}}$): a master hangerő nem ugrik fel, nincs digitális hard-clipping.
-  7. **Transpose Stretch (Teljes Sávszélességű Granuláris Pitch Shifter):**
-     - Tiszta, szűretlen bemeneti audió (a HPF szűrő nem vágja le a jelet előtte!).
-     - Constant-power crossfade ($\cos$ dry, $\sin$ wet) és Hann-ablakozott granuláris interpoláció: a teljes dal $+1$ oktávval feljebb (+12 félhang) vagy $-1$ oktávval lejjebb (-12 félhang) transzponálódik.
-     - Megszűnt a felső állásban tapasztalt némulás.
+* **Fő cél:** Build #364 - KÉSZ & TELEPÍTVE. Folytonos Turntable Tehetetlenség, Ramp Delay Recsegésmentesítés, Mulholland Drive Boost, Transpose Iránykorrekció & Agresszív Kezdeti Görbe:
+  1. **Turntable FX (Folytonos Sebességszabályozás & Zéró Kapcsoló-Effektus):**
+     - Megszűnt a digitális kapcsoló jelleg és a holtsáv: a potméter szögállása folytonosan határozza meg a célsebességet.
+     - Balra tekerve (Brake): a sebesség $1.0\times$-ről fokozatosan lassul $0.0\times$-ig a tekerés mértékében ($5\%$-nál $0.88\times$, $50\%$-nál $0.39\times$, $100\%$-nál $0.0\times$ teljes leállás). A lemez fizikai tehetetlensége simán követi a kézmozdulatot, leálláskor lágy némítással (zéró DC zúgás).
+     - Jobbra tekerve (Spinback): folytonos visszapörgetési sebesség $1.0\times \to -3.5\times$ között.
+     - A visszatekeréskor a motor lágyan felpörög normál tempóra.
+  2. **Ramp Delay (180 Hz HPF Mély Recsegésmentesítés & Kétirányú Doppler):**
+     - 180 Hz Low-Cut HPF beépítve a delay send bemenetre és a visszacsatoló recirculation ágba.
+     - Mélyvágáskor (LPF állásban) a szub-basszus gerjedése, a négyszögesedő telítés és a recsegő tranziensek 100%-ban megszűntek!
+     - Kétirányú Doppler: UP (magas) állásban összenyomódó delay (gyorsuló sziréna riser); DOWN (mély) állásban táguló delay (lassuló, lefelé eső Doppler drop), zéró kattanással a Hann-ablakozott Barber-pole motornak köszönhetően.
+  3. **Mulholland Drive (6.5x Analóg Csöves Overdrive & Szigorú Hangerő-Tartás):**
+     - Az analóg csöves Drive előerősítését megemeltük: $1.0\times \to 6.5\times$ vastag, meleg páros felharmonikus telítéssel és rezonáns süvítéssel.
+     - A kimeneti wet szintet párhuzamosan arányosan lecsökkentettük ($1 / (1 + 2.2 \cdot \text{amount})$): az effekt hangossága szigorúan azonos marad a tiszta zene szintjével (zéró hangerőugrás, zéró master clipping).
+  4. **Transpose Stretch (Matematikailag Helyes Irány & Bipoláris Szűrő Aktiválás):**
+     - Fázissebesség előjelének javítása: $\text{phase\_rate} = (1.0 - \text{ratio}) / \text{size}$.
+     - UP állásba tekerve a hangmagasság tisztán emelkedik fel $+1$ oktávig (+12 félhang); DOWN állásba tekerve tisztán mélyül le $-1$ oktávig (-12 félhang), pontosan a feliratoknak és a fizikai elvárásnak megfelelően.
+     - A bipoláris DJ szűrő mostantól aktív a Transpose processzoron is: UP állásban HPF vágja a mélyeket (fényes riser), DOWN állásban LPF vágja a magasakat (sötét sub drop).
+  5. **Agresszívebb Kezdeti Potméter Felfutás ($f(x) = x^{0.70}$):**
+     - Minden effekt megkapta az új kezdeti perceptuális görbét: a potméter első $10\%$-os elmozdítása már $\sim 20\%$-os effektmélységet hoz létre ($0.10^{0.70} \approx 0.200$).
+     - Az effektek azonnal élnek és hallhatók már minimális rátekerésnél is, miközben a maradék szakaszon ($10\% \to 100\%$) teljesen egyenletesen és simán kompenzálódik a maximális értékig.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #363)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #364)
+* [x] **Folytonos Turntable Tehetetlenség, Ramp Delay Recsegésmentesítés, Mulholland Drive Boost, Transpose Iránykorrekció & Agresszív Kezdeti Görbe (Build #364):**
+  - Turntable: Folytonos sebességkövetés és tehetetlenség (Brake: $1.0\times \to 0.0\times$, Spinback: $1.0\times \to -3.5\times$), zéró kapcsoló jelleg, zéró DC zúgás.
+  - Ramp Delay: 180 Hz send/feedback HPF (megszűnt a mély recsegés), UP = gyorsuló sziréna, DOWN = lassuló Doppler drop.
+  - Mulholland: 6.5x csöves overdrive, kompenzált kimeneti szint a stabil RMS hangosságért.
+  - Transpose: Előjelhiba javítva (UP = pitch up + HPF, DOWN = pitch down + LPF), feliratokkal egyező működés.
+  - Felfutás: $x^{0.70}$ görbe mind a 8 effektre (10% poti = 20% effekt).
+  - Telepített bináris: 1 416 704 bájt, SHA256 `AD095240DD17E9E1B63A4C4A658567B810425974A744C37E9F5F8AA568276BB2`.
 * [x] **7 Mixer FX Akusztikai & Algoritmikus Finomhangolás (Build #363):**
+  - HPF: 7200 Hz cutoff +3.5 dB Sizzle Sheen boosttal (tiszta cicergés).
+  - Turntable: Fizikai bakelit motorlassulás 0-ra és koszinuszos stop némítás (Brake) + exponenciális lecsengésű Spinback, némított futó száraz jel.
+  - Reverb: 12-beat RT60 lecsengés, 0.978 feedback limit, csökkentett damp (fényes lemez karakter).
+  - Beatmasher: 8-fokozatú zenei leosztás (1/2 .. 1/32) holtsávok nélkül, 48-mintás Hann crossfade, full-bandwidth bemenet.
+  - Ramp Delay: Barber-Pole kettős tap Doppler motor (180° eltolással, Hann ablakokkal): zéró kattogás, zéró pattogás.
+  - Mulholland: 4.5x analóg csöves overdrive aszimmetrikus telítéssel és RMS normalizálóval (erős effekt, stabil hangerő).
+  - Transpose: Teljes sávszélességű audió routing, constant-power crossfade, zéró némulás magas állásban.
+  - Telepített bináris: 1 416 704 bájt, SHA256 `4AA0ECA6998F22C6EA60281D076F577FCEF65AF1C799016B319139B71C9A49A8`.
   - HPF: 7200 Hz cutoff +3.5 dB Sizzle Sheen boosttal (tiszta cicergés).
   - Turntable: Fizikai bakelit motorlassulás 0-ra és koszinuszos stop némítás (Brake) + exponenciális lecsengésű Spinback, némított futó száraz jel.
   - Reverb: 12-beat RT60 lecsengés, 0.978 feedback limit, csökkentett damp (fényes lemez karakter).
