@@ -850,7 +850,6 @@ static void set_color_params(MixerSource *context,
     // Crossfader FX (Midpoint peak: 0 at edges, 1 at center)
     const float cf_mid = std::clamp(1.0f - std::abs(crossfade - 0.5f) * 2.0f, 0.0f, 1.0f);
 
-    DeckPair *decks = vdj_decks();
     const float cf_fx_prev = static_cast<float>(decks ? decks->crossfadeFxModePrev() : cf_fx_mode);
     const float cf_trans_t = decks ? decks->crossfadeFxTransProgress() : 1.0f;
 
@@ -870,10 +869,10 @@ static void set_color_params(MixerSource *context,
     const float raw_rate = decks ? decks->crossfadeFxRate() : 1.0f;
     const int rate_mod = decks ? decks->crossfadeFxRateMod() : 0;
 
-    const float bass_energy = (1.0f - crossfade) * deck_a.currentBassEnergy() + crossfade * deck_b.currentBassEnergy();
-    const float mid_energy = (1.0f - crossfade) * deck_a.currentMidEnergy() + crossfade * deck_b.currentMidEnergy();
-    const float high_energy = (1.0f - crossfade) * deck_a.currentHighEnergy() + crossfade * deck_b.currentHighEnergy();
-    const float macro_tonus = (1.0f - crossfade) * deck_a.currentMacroTonus() + crossfade * deck_b.currentMacroTonus();
+    const float bass_energy = decks ? ((1.0f - crossfade) * decks->deckA().currentBassEnergy() + crossfade * decks->deckB().currentBassEnergy()) : 0.0f;
+    const float mid_energy = decks ? ((1.0f - crossfade) * decks->deckA().currentMidEnergy() + crossfade * decks->deckB().currentMidEnergy()) : 0.0f;
+    const float high_energy = decks ? ((1.0f - crossfade) * decks->deckA().currentHighEnergy() + crossfade * decks->deckB().currentHighEnergy()) : 0.0f;
+    const float macro_tonus = decks ? ((1.0f - crossfade) * decks->deckA().currentMacroTonus() + crossfade * decks->deckB().currentMacroTonus()) : 0.0f;
     const float lfo1 = decks ? decks->currentLfo1Value() : 0.0f;
     const float lfo2 = decks ? decks->currentLfo2Value() : 0.0f;
 
