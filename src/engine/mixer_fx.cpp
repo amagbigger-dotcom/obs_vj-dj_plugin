@@ -210,22 +210,27 @@ void MixerFxProcessor::process(float *channel_data,
         float out = channel_data[i];
 
         if (st.cur_flt < -0.001f) {
-            // Low Pass: cutoff 18 000 Hz-ről le egészen 35 Hz-ig (szub-basszus tartományig)
+            // Low Pass: logaritmikus görbe 20 000 Hz-ről le egészen 30 Hz-ig (mély szub-basszusig)
             const float norm = 1.0f + st.cur_flt;
-            const float cutoff = 35.0f + norm * norm * 17965.0f;
+            const float exp_norm = std::pow(norm, 1.15f);
+            const float cutoff = 30.0f * std::pow(666.67f, exp_norm);
             const float a_lp = std::clamp(2.0f * PI * cutoff / sr, 0.001f, 0.95f);
             st.dj_lp += a_lp * (out - st.dj_lp);
             st.dj_hp += 0.05f * (0.0f - st.dj_hp);
             out = st.dj_lp;
         } else if (st.cur_flt > 0.001f) {
-            // High Pass: cutoff 20 Hz-ről fel max 1400 Hz-re
-            // A lábdob és basszus teljesen eltűnik, de az ének és zenei tartalom kristálytiszta marad
+            // High Pass: logaritmikus görbe 20 Hz-ről fel 3400 Hz-ig ("éppen csak cicergés maradjon")
             const float norm = st.cur_flt;
-            const float cutoff = 20.0f + norm * norm * 1380.0f;
+            const float exp_norm = std::pow(norm, 1.15f);
+            const float cutoff = 20.0f * std::pow(170.0f, exp_norm);
             const float a_hp = std::clamp(2.0f * PI * cutoff / sr, 0.001f, 0.95f);
             st.dj_hp += a_hp * (out - st.dj_hp);
             st.dj_lp += 0.05f * (out - st.dj_lp);
-            out = out - st.dj_hp;
+
+            // High-Frequency Sizzle Sheen kiemelés a tartomány végén (75%..100%),
+            // hogy a lábcin / tányér cicergés kristálytiszta és fényes maradjon, zéró némulás
+            const float sizzle_boost = 1.0f + std::max(0.0f, (norm - 0.75f) * 1.2f);
+            out = (out - st.dj_hp) * sizzle_boost;
         } else {
             // Bypassed / flat átmenet DC offset csillapítással
             st.dj_lp += 0.05f * (out - st.dj_lp);
@@ -244,9 +249,11 @@ void MixerFxProcessor::process(float *channel_data,
     }
 
     // =========================================================================
-    // 0. 🔴 FILTER (Sima Bipoláris DJ Filter)
+    // 0. 🔴 FILTER (Sima Bipoláris DJ Filter) vagy KÖZÉPÁLLÁS (Bypass)
     // =========================================================================
-    if (type == MixerFxType::FILTER) {
+    // Ha az alap Sima Filter aktív, vagy a potméter középállásban van (< 0.3%),
+    // azonnali transzparens átengedés (1.0x Unity Gain, zéró szintváltozás a listából választáskor!)
+    if (type == MixerFxType::FILTER || amount < 0.003f) {
         return;
     }
 
@@ -392,9 +399,9 @@ void MixerFxProcessor::process(float *channel_data,
     // 3. 🟡 FLANGER (Constant-Power Stereo Jet Flanger with 120Hz Feedback Low-Cut)
     // =========================================================================
     if (type == MixerFxType::FLANGER) {
-        // Constant-power gain staging: száraz és nedves energiaszint állandó
-        const float dry_gain = 0.707f * (1.0f - amount * 0.15f);
-        const float wet_gain = 0.707f * amount;
+        // Zenei szintezés: 0%-nál pontosan 1.0x (0 dB), tekeréskor dinamikus sweep hangerővesztés nélkül
+        const float dry_gain = 1.0f - amount * 0.20f;
+        const float wet_gain = amount * 1.05f;
         const float feedback = 0.45f + amount * 0.35f;
 
         float lfo_freq = 0.25f;
@@ -606,33 +613,43 @@ void MixerFxProcessor::process(float *channel_data,
     // 7. 🔥 MULHOLLAND DRIVE (Asymmetric Tube Overdrive + Resonant Feedback Growl)
     // =========================================================================
     if (type == MixerFxType::MULHOLLAND) {
-        const float pre_gain = 1.0f + amount * 3.5f; // 1.0x .. 4.5x analóg meghajtás
-        const float feedback = amount * 0.65f;
-        const float dry_gain = 1.0f - amount * 0.25f;
-        const float wet_gain = amount * 1.10f;
+        // Zenei analóg előerősítés: 1.0x .. 2.2x (zéró hard-clipping túlhajtás)
+        const float pre_gain = 1.0f + amount * 1.20f;
+        const float feedback = amount * 0.40f;
 
-        // Rezonáns sávszűrő frekvencia (250 Hz .. 1100 Hz mély morgás / süvítés)
-        const float bp_freq = 250.0f + amount * 850.0f;
+        // Valódi Wet/Dry crossfade: ahogy nő az overdrive, úgy halkul a tiszta jel
+        const float dry_gain = 1.0f - amount * 0.65f;
+        const float wet_gain = amount * 0.78f;
+
+        // 80 Hz Low-Cut a torzító érzékelőjén: megvédi a szub-basszust a négyszögesedéstől és intermodulációtól
+        const float alpha_hp = std::clamp(2.0f * PI * 80.0f / sr, 0.005f, 0.90f);
+
+        // Rezonáns sávszűrő frekvencia (300 Hz .. 1400 Hz zenei felharmonikus süvítés)
+        const float bp_freq = 300.0f + amount * 1100.0f;
         const float alpha_bp = std::clamp(2.0f * PI * bp_freq / sr, 0.01f, 0.90f);
 
         for (size_t i = 0; i < num_frames; ++i) {
             const float in_sample = channel_data[i];
 
-            // Rezonáns visszacsatolt jel beolvasása és szűrése
-            st.mulholland_bp_p0 += alpha_bp * (in_sample - st.mulholland_bp_p0);
+            // 80 Hz mélyvágás az overdrive áramkör előtt
+            st.delay_damp_hp += alpha_hp * (in_sample - st.delay_damp_hp);
+            const float drive_input = in_sample - st.delay_damp_hp;
+
+            // Rezonáns visszacsatolt felharmonikus szűrés
+            st.mulholland_bp_p0 += alpha_bp * (drive_input - st.mulholland_bp_p0);
             st.mulholland_bp_p1 += alpha_bp * (st.mulholland_bp_p0 - st.mulholland_bp_p1);
-            const float resonant_sig = (st.mulholland_bp_p0 - st.mulholland_bp_p1) * 3.0f;
+            const float resonant_sig = (st.mulholland_bp_p0 - st.mulholland_bp_p1) * 1.5f;
 
             // Aszimmetrikus analóg csöves telítés (Tube saturation)
-            float driven = (in_sample * pre_gain) + resonant_sig * feedback;
+            float driven = (drive_input * pre_gain) + resonant_sig * feedback;
             driven = std::tanh(driven);
             if (driven > 0.0f) {
                 // Csöves páros felharmonikus aszimmetria
-                driven = driven / (1.0f + 0.35f * driven);
+                driven = driven / (1.0f + 0.30f * driven);
             }
 
-            // Normált kimeneti szint a hangerő-ugrás megelőzésére
-            const float out_wet = driven * (1.0f / (1.0f + amount * 0.6f));
+            // Normált kimeneti szint a hangerőugrás és recsegés megelőzésére
+            const float out_wet = driven * 0.90f;
 
             channel_data[i] = in_sample * dry_gain + out_wet * wet_gain;
         }
