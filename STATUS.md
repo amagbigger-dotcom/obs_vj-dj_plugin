@@ -1,33 +1,42 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #361 (GitHub Run #45140031823)
-* **Aktuális Git Commit:** `f1a3a98`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 414 144 bájt)
-* **Bináris SHA256:** `0CF11E699D5717F2A34F3867C5AC3C95529ED87CFBF21F01D301DBAD10697EF2`
+* **Legutolsó stabil mérföldkő:** Build #362 (GitHub Run #45152280126)
+* **Aktuális Git Commit:** `fff6d41`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 415 680 bájt)
+* **Bináris SHA256:** `62EAEB6B0E691FF1DD745A24CE2CBCD59E6ABB7C90D754812C6755BE2724D460`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #361 - KÉSZ & TELEPÍTVE. Mixer FX Akusztikai Finomhangolás & Zéró Szintváltozás:
-  1. **Egységes Bipoláris DJ Filter Finomhangolása (Minden Effektre Láncban Érvényes):**
-     - **High-Pass (Jobbra):** Logaritmikus potméter-görbével $3400\text{ Hz}$-ig vág fel ($20 \cdot 170^{\text{norm}^{1.15}}$).
-     - A lábdob, basszus, pergődob teste és az ének teljesen eltűnik, **éppen csak a lábcin és cintányérok tiszta, levegős fémes zizegése (sizzle / "cicergés") marad meg**.
-     - A tartomány végén ($75\%..100\%$) $+2.5\text{ dB}$-es High-Frequency Sizzle Sheen kiemelés gondoskodik a fényes, kristálytiszta cicergésről, kizárva a némulást.
-     - **Low-Pass (Balra):** Logaritmikus görbe $20\text{ kHz}$-ről egészen $30\text{ Hz}$-ig (igazi mély szub-basszus dübörgés).
-  2. **Flanger Hangerő-esés Megszüntetése:**
-     - A téves $0.707\times$ helyett középállásban a száraz jel szigorúan **$1.0\times$ (0 dB)**.
-     - A Flanger kiválasztásakor $0\text{ dB}$ szintváltozás, tekeréskor dinamikus jet-sweep jelszintezés hangerővesztés nélkül.
-  3. **Mulholland Drive Hangerőugrás & Mély Tartományi Torzulás Elhárítása:**
-     - Valódi Wet/Dry crossfade: $\text{dry} = 1.0 - \text{amount} \times 0.65$, $\text{wet} = \text{amount} \times 0.78$.
-     - **80 Hz Low-Cut szűrő** a torzító érzékelőjén: megvédi a szub-basszust az intermodulációs recsegéstől balra tekert állapotban is.
-     - $1.0\times..2.2\times$ zenei analóg előerősítés, $1.5\times$ rezonáns felharmonikus süvítés, normált $0.90\times$ RMS kimeneti szinttel (zéró hard-clipping).
-  4. **Középponti Transzparens Bypass Garancia:**
-     - Ha $\text{amount} < 0.003f$, a rendszer azonnali módosítatlan átengedést (Unity Gain 1.0x bit-exact bypass) végez mind a 9 effektnél. A listából vagy gombbal történő választáskor a zene 100%-os tisztasággal és változatlan hangerővel szól tovább.
+* **Fő cél:** Build #362 - KÉSZ & TELEPÍTVE. Csatornánkénti Független Függőleges 4-Slot Mixer FX & Recsegésmentes TPT Szűrő:
+  1. **Csatornánkénti Független 4-Slot Mixer FX Rendszer:**
+     - Deck A és Deck B teljesen független 4-slot effektválasztóval rendelkezik.
+     - Mindkét oldalon más-más effektek társíthatók a 4 gombhoz a 9 Native Instruments professzionális DJ effektből.
+  2. **Függőleges 4-Gombos Elrendezés ("egymás alatt legyen ne egymás mellett"):**
+     - Mindkét csatornacsíkon (`MixerChannelStrip`) a hangerő fader és kivezérlésjelző mellett, egymás alatt 4 nyomógomb kapott helyet (`🔴 FLT ▾`, `🔵 DLY ▾`, `🟢 REV ▾`, `🟡 FLG ▾` stb.).
+     - Deck A-n a fader a külső bal szélen, a 4 effekt gomb a jobb szélen (közép felé).
+     - Deck B-n a 4 effekt gomb a belső bal szélen (közép felé), a fader a külső jobb szélen.
+     - Bal klikk: aktiválás (ha már aktív: legördülő menü nyitása). Jobb klikk: közvetlen 9-effektes `QMenu` választó.
+     - A Master panelről törölve a felesleges vízszintes gombok, így a Crossfader és a fejhallgató szekció kényelmes helyet kap a fix 590×340 px keverőben.
+  3. **Gyors Potméter-Tekerési Recsegés & Tranziensek Teljes Felszámolása:**
+     - 1-pólusú **TPT (Topology-Preserving Transform / bilineáris trapézintegrátor)** virtuális analóg szűrőmotor ($s$ belső integrátortöltés állapot).
+     - 2-fokozatú, **$C^1$ folytonos kritikus csillapítású trajektória szűrő** a potméter mozgására, megszüntetve a cutoff frekvencia hirtelen sebességtöréseit.
+     - Mind a 8 idő- és térbeli effektben **mintánkénti lineáris Dry/Wet gain interpoláció**, kizárva a pufferhatárokon keletkező lépcsőzajt.
+     - Bármilyen gyors emberi kézmozdulatnál (különösen a mélyvágás / HPF irányába) a hangzás 100%-ban kristálytiszta, zéró kattogás és recsegés.
+  4. **Kétirányú MIDI Hardver Integráció:**
+     - A `MIXER_FX_1..4` és `MIXER_FX_SELECT` akciók és LED visszajelzések automatikusan az adott deckre (vagy az aktív deckre) vonatkoznak.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #361)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #362)
+* [x] **Csatornánkénti Független Függőleges 4-Slot Mixer FX & Recsegésmentes TPT Szűrő (Build #362):**
+  - Deck A és Deck B független 4-slot konfiguráció és állapotgép.
+  - Függőleges 4-gombos oszlop a csatorna faderek mellett, középre néző szimmetrikus elrendezésben.
+  - TPT bilineáris trapézintegrátor szűrő + C1 simító trajektória: zéró recsegés villámgyors tekeréskor is.
+  - Mintánkénti lineáris Dry/Wet simítás mind a 8 effektprocesszorban.
+  - Master panel megtisztítása, optimális belső elrendezés a fix 590×340 px keverőben.
+  - Telepített bináris: 1 415 680 bájt, SHA256 `62EAEB6B0E691FF1DD745A24CE2CBCD59E6ABB7C90D754812C6755BE2724D460`.
 * [x] **Mixer FX Akusztikai Finomhangolás & Zéró Szintváltozás (Build #361):**
   - HPF: $3400\text{ Hz}$ logaritmikus vágás cicergés-kiemeléssel (eltűnik a középsáv, éppen csak a fényes cicergés marad).
   - Flanger: 0%-nál pontosan $1.0\times$ száraz jel (zéró hangerő-esés lista választásakor).
