@@ -1,5 +1,6 @@
 #include "controllers/midi_handler.hpp"
 #include "controllers/midi_dispatcher.hpp"
+#include "controllers/kaoss_fx_manager.hpp"
 #include "gui/settings_dialog.hpp"
 #include "engine/deck_engine.hpp"
 #include "audio/wasapi_output.hpp"
@@ -161,6 +162,9 @@ void feedback_sender_loop()
     int keepalive_counter = 0;
     while (g_feedback_thread_running.load(std::memory_order_relaxed)) {
         std::this_thread::sleep_for(std::chrono::milliseconds(40));
+
+        // Tick Kaoss FX manager for watchdog auto-reset and smooth parameter decay (25 Hz)
+        KaossFxManager::instance().tick(0.040f);
 
         // Automatic audio keep-alive for Korg KAOSS DJ hardware to prevent standby / sleep
         if (g_is_kaoss_hardware.load(std::memory_order_relaxed)) {

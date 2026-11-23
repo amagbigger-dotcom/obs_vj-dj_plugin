@@ -94,6 +94,8 @@ set(SOURCES
     src/controllers/midi_dispatcher.hpp
     src/controllers/midi_handler.cpp
     src/controllers/midi_handler.hpp
+    src/controllers/kaoss_fx_manager.cpp
+    src/controllers/kaoss_fx_manager.hpp
 
     # Waveform (Canvas & Spectral Rendering)
     src/waveform/waveform_widget.cpp

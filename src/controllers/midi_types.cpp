@@ -52,7 +52,12 @@ static const std::unordered_map<MidiAction, const char*> g_action_names = {
     {MidiAction::VJ_PARAM_Y, "VJ_PARAM_Y"},
     {MidiAction::VJ_EFFECT_NEXT, "VJ_EFFECT_NEXT"},
     {MidiAction::VJ_EFFECT_PREV, "VJ_EFFECT_PREV"},
-    {MidiAction::CROSSFADE_EFFECT_NEXT, "CROSSFADE_EFFECT_NEXT"}
+    {MidiAction::CROSSFADE_EFFECT_NEXT, "CROSSFADE_EFFECT_NEXT"},
+    {MidiAction::KAOSS_TOUCHPAD_TOUCH, "KAOSS_TOUCHPAD_TOUCH"},
+    {MidiAction::KAOSS_TOUCHPAD_X, "KAOSS_TOUCHPAD_X"},
+    {MidiAction::KAOSS_TOUCHPAD_Y, "KAOSS_TOUCHPAD_Y"},
+    {MidiAction::KAOSS_ENCODER, "KAOSS_ENCODER"},
+    {MidiAction::KAOSS_HOLD, "KAOSS_HOLD"}
 };
 
 const char *midi_action_to_name(MidiAction action)

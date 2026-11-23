@@ -68,7 +68,14 @@ enum class MidiAction : uint16_t {
     VJ_PARAM_Y,      // Touchpad Y -> Shader p1
     VJ_EFFECT_NEXT,
     VJ_EFFECT_PREV,
-    CROSSFADE_EFFECT_NEXT
+    CROSSFADE_EFFECT_NEXT,
+
+    // Korg Kaoss DJ Section
+    KAOSS_TOUCHPAD_TOUCH,
+    KAOSS_TOUCHPAD_X,
+    KAOSS_TOUCHPAD_Y,
+    KAOSS_ENCODER,
+    KAOSS_HOLD
 };
 
 enum class MidiMsgType : uint8_t {

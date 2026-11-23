@@ -13,13 +13,17 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
 
     // --- Global Controls (Ch 7) ---
     p.addBinding({MidiMsgType::CC, 7, 23, MidiAction::CROSSFADER, 0, MidiJogMode::SPREAD_64, "Crossfader"});
-    p.addBinding({MidiMsgType::CC, 7, 12, MidiAction::VJ_PARAM_X, 0, MidiJogMode::ABSOLUTE, "Kaoss Touchpad X -> VJ P0"});
-    p.addBinding({MidiMsgType::CC, 7, 13, MidiAction::VJ_PARAM_Y, 0, MidiJogMode::ABSOLUTE, "Kaoss Touchpad Y -> VJ P1"});
+    p.addBinding({MidiMsgType::CC, 7, 12, MidiAction::KAOSS_TOUCHPAD_X, 0, MidiJogMode::ABSOLUTE, "Kaoss Touchpad X"});
+    p.addBinding({MidiMsgType::CC, 7, 13, MidiAction::KAOSS_TOUCHPAD_Y, 0, MidiJogMode::ABSOLUTE, "Kaoss Touchpad Y"});
+    p.addBinding({MidiMsgType::NOTE_ON, 7, 32, MidiAction::KAOSS_TOUCHPAD_TOUCH, 0, MidiJogMode::SPREAD_64, "Kaoss Touchpad Touch"});
+    p.addBinding({MidiMsgType::CC, 7, 31, MidiAction::KAOSS_ENCODER, 0, MidiJogMode::BIN_OFFSET, "Program/Value Encoder (FX Param)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 7, 13, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 13)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 7, 33, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 33)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 7, 9, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 9)"});
+    p.addBinding({MidiMsgType::CC, 7, 9, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (CC 9)"});
     p.addBinding({MidiMsgType::CC, 7, 30, MidiAction::BROWSE_SCROLL, 0, MidiJogMode::SPREAD_64, "Browse Rotary Encoder"});
-    p.addBinding({MidiMsgType::CC, 7, 31, MidiAction::BROWSE_SCROLL, 0, MidiJogMode::SPREAD_64, "Program/Value Encoder"});
     p.addBinding({MidiMsgType::CC, 7, 29, MidiAction::BROWSE_SCROLL, 0, MidiJogMode::SPREAD_64, "Browse Rotary (Alt CC 29)"});
     p.addBinding({MidiMsgType::NOTE_ON, 7, 14, MidiAction::LOAD_SELECTED, 0, MidiJogMode::SPREAD_64, "Browse Push (Load)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 7, 32, MidiAction::LOAD_SELECTED, 0, MidiJogMode::SPREAD_64, "Touchpad Mode / Load"});
     p.addBinding({MidiMsgType::NOTE_ON, 7, 11, MidiAction::SYNC, 0, MidiJogMode::SPREAD_64, "Tap BPM"});
 
     // --- Deck A (Ch 8) ---
@@ -121,13 +125,16 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
     // =========================================================================
     p.addBinding({MidiMsgType::CC, 1, 8, MidiAction::CROSSFADER, 0, MidiJogMode::SPREAD_64, "Crossfader (Ch 1 CC 8)"});
     p.addBinding({MidiMsgType::CC, 1, 23, MidiAction::CROSSFADER, 0, MidiJogMode::SPREAD_64, "Crossfader (Ch 1 CC 23)"});
-    p.addBinding({MidiMsgType::CC, 1, 12, MidiAction::VJ_PARAM_X, 0, MidiJogMode::ABSOLUTE, "Touchpad X (Ch 1)"});
-    p.addBinding({MidiMsgType::CC, 1, 13, MidiAction::VJ_PARAM_Y, 0, MidiJogMode::ABSOLUTE, "Touchpad Y (Ch 1)"});
+    p.addBinding({MidiMsgType::CC, 1, 12, MidiAction::KAOSS_TOUCHPAD_X, 0, MidiJogMode::ABSOLUTE, "Touchpad X (Ch 1)"});
+    p.addBinding({MidiMsgType::CC, 1, 13, MidiAction::KAOSS_TOUCHPAD_Y, 0, MidiJogMode::ABSOLUTE, "Touchpad Y (Ch 1)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 32, MidiAction::KAOSS_TOUCHPAD_TOUCH, 0, MidiJogMode::SPREAD_64, "Touchpad Touch (Ch 1)"});
+    p.addBinding({MidiMsgType::CC, 1, 31, MidiAction::KAOSS_ENCODER, 0, MidiJogMode::BIN_OFFSET, "Program/Value Encoder (Ch 1)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 13, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Ch 1 Note 13)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 33, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Ch 1 Note 33)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 9, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Ch 1 Note 9)"});
     p.addBinding({MidiMsgType::CC, 1, 30, MidiAction::BROWSE_SCROLL, 0, MidiJogMode::SPREAD_64, "Browse Rotary (Ch 1 CC 30)"});
-    p.addBinding({MidiMsgType::CC, 1, 31, MidiAction::BROWSE_SCROLL, 0, MidiJogMode::SPREAD_64, "Browse Value (Ch 1 CC 31)"});
     p.addBinding({MidiMsgType::CC, 1, 29, MidiAction::BROWSE_SCROLL, 0, MidiJogMode::SPREAD_64, "Browse Rotary (Ch 1 CC 29)"});
     p.addBinding({MidiMsgType::NOTE_ON, 1, 14, MidiAction::LOAD_SELECTED, 0, MidiJogMode::SPREAD_64, "Browse Push (Ch 1)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 1, 32, MidiAction::LOAD_SELECTED, 0, MidiJogMode::SPREAD_64, "Touchpad Push (Ch 1)"});
 
     // Deck A (Ch 1)
     p.addBinding({MidiMsgType::NOTE_ON, 1, 27, MidiAction::PLAY_PAUSE, 1, MidiJogMode::SPREAD_64, "Play/Pause (Ch 1)"});

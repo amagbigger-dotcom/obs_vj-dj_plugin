@@ -1,5 +1,6 @@
 #include "controllers/midi_dispatcher.hpp"
 #include "controllers/midi_handler.hpp"
+#include "controllers/kaoss_fx_manager.hpp"
 #include "engine/deck_engine.hpp"
 #include "gui/tracklist_dock.hpp"
 #include <algorithm>
@@ -485,6 +486,28 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         }
         break;
 
+    case MidiAction::KAOSS_TOUCHPAD_TOUCH:
+        KaossFxManager::instance().onTouch(msg_type == MidiMsgType::NOTE_ON && data2 > 0, data2);
+        break;
+
+    case MidiAction::KAOSS_TOUCHPAD_X:
+        KaossFxManager::instance().onTouchX(data2);
+        break;
+
+    case MidiAction::KAOSS_TOUCHPAD_Y:
+        KaossFxManager::instance().onTouchY(data2);
+        break;
+
+    case MidiAction::KAOSS_ENCODER:
+        KaossFxManager::instance().onEncoderRotate(data2);
+        break;
+
+    case MidiAction::KAOSS_HOLD:
+        if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 63)) {
+            KaossFxManager::instance().toggleHold();
+        }
+        break;
+
     default:
         break;
     }
@@ -599,6 +622,9 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
         case MidiAction::SHIFT:
             val = (b.deck == 2 ? shift_b_.load() : shift_a_.load()) ? 127 : 0;
             break;
+        case MidiAction::KAOSS_HOLD:
+            val = KaossFxManager::instance().isHoldActive() ? 127 : 0;
+            break;
         default:
             continue;
         }
@@ -607,6 +633,12 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
     }
 
     // Specific Korg Kaoss DJ direct fallback sends to guarantee feedback on all hardware modes:
+    const uint8_t kaoss_hold_val = KaossFxManager::instance().isHoldActive() ? 127 : 0;
+    for (uint8_t ch_st : {static_cast<uint8_t>(0x96), static_cast<uint8_t>(0x90)}) {
+        sendIfChanged(ch_st, 13, kaoss_hold_val); // Hold Note 13
+        sendIfChanged(ch_st, 33, kaoss_hold_val); // Hold Note 33
+        sendIfChanged(ch_st, 9, kaoss_hold_val);  // Hold Note 9
+    }
     // Deck A: Ch 8 (0x97) & Ch 1 (0x90)
     for (uint8_t ch_st : {static_cast<uint8_t>(0x97), static_cast<uint8_t>(0x90)}) {
         sendIfChanged(ch_st, 27, play_a ? 127 : (cue_a && blink_state ? 127 : 0)); // Play
