@@ -1,38 +1,50 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #364 (GitHub Run #45164790738)
-* **Aktuális Git Commit:** `81db8e6`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 416 704 bájt)
-* **Bináris SHA256:** `AD095240DD17E9E1B63A4C4A658567B810425974A744C37E9F5F8AA568276BB2`
+* **Legutolsó stabil mérföldkő:** Build #365 (GitHub Run #45169095341)
+* **Aktuális Git Commit:** `5dc3a80`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 416 192 bájt)
+* **Bináris SHA256:** `ECE4F2C41A7FA5DF7EEC818D83851551117899BAFF89B4F3FD131334111035A3`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #364 - KÉSZ & TELEPÍTVE. Folytonos Turntable Tehetetlenség, Ramp Delay Recsegésmentesítés, Mulholland Drive Boost, Transpose Iránykorrekció & Agresszív Kezdeti Görbe:
-  1. **Turntable FX (Folytonos Sebességszabályozás & Zéró Kapcsoló-Effektus):**
-     - Megszűnt a digitális kapcsoló jelleg és a holtsáv: a potméter szögállása folytonosan határozza meg a célsebességet.
-     - Balra tekerve (Brake): a sebesség $1.0\times$-ről fokozatosan lassul $0.0\times$-ig a tekerés mértékében ($5\%$-nál $0.88\times$, $50\%$-nál $0.39\times$, $100\%$-nál $0.0\times$ teljes leállás). A lemez fizikai tehetetlensége simán követi a kézmozdulatot, leálláskor lágy némítással (zéró DC zúgás).
-     - Jobbra tekerve (Spinback): folytonos visszapörgetési sebesség $1.0\times \to -3.5\times$ között.
-     - A visszatekeréskor a motor lágyan felpörög normál tempóra.
-  2. **Ramp Delay (180 Hz HPF Mély Recsegésmentesítés & Kétirányú Doppler):**
-     - 180 Hz Low-Cut HPF beépítve a delay send bemenetre és a visszacsatoló recirculation ágba.
-     - Mélyvágáskor (LPF állásban) a szub-basszus gerjedése, a négyszögesedő telítés és a recsegő tranziensek 100%-ban megszűntek!
-     - Kétirányú Doppler: UP (magas) állásban összenyomódó delay (gyorsuló sziréna riser); DOWN (mély) állásban táguló delay (lassuló, lefelé eső Doppler drop), zéró kattanással a Hann-ablakozott Barber-pole motornak köszönhetően.
-  3. **Mulholland Drive (6.5x Analóg Csöves Overdrive & Szigorú Hangerő-Tartás):**
-     - Az analóg csöves Drive előerősítését megemeltük: $1.0\times \to 6.5\times$ vastag, meleg páros felharmonikus telítéssel és rezonáns süvítéssel.
-     - A kimeneti wet szintet párhuzamosan arányosan lecsökkentettük ($1 / (1 + 2.2 \cdot \text{amount})$): az effekt hangossága szigorúan azonos marad a tiszta zene szintjével (zéró hangerőugrás, zéró master clipping).
-  4. **Transpose Stretch (Matematikailag Helyes Irány & Bipoláris Szűrő Aktiválás):**
-     - Fázissebesség előjelének javítása: $\text{phase\_rate} = (1.0 - \text{ratio}) / \text{size}$.
-     - UP állásba tekerve a hangmagasság tisztán emelkedik fel $+1$ oktávig (+12 félhang); DOWN állásba tekerve tisztán mélyül le $-1$ oktávig (-12 félhang), pontosan a feliratoknak és a fizikai elvárásnak megfelelően.
-     - A bipoláris DJ szűrő mostantól aktív a Transpose processzoron is: UP állásban HPF vágja a mélyeket (fényes riser), DOWN állásban LPF vágja a magasakat (sötét sub drop).
-  5. **Agresszívebb Kezdeti Potméter Felfutás ($f(x) = x^{0.70}$):**
-     - Minden effekt megkapta az új kezdeti perceptuális görbét: a potméter első $10\%$-os elmozdítása már $\sim 20\%$-os effektmélységet hoz létre ($0.10^{0.70} \approx 0.200$).
-     - Az effektek azonnal élnek és hallhatók már minimális rátekerésnél is, miközben a maradék szakaszon ($10\% \to 100\%$) teljesen egyenletesen és simán kompenzálódik a maximális értékig.
+* **Fő cél:** Build #365 - KÉSZ & TELEPÍTVE. Zéró Holtsáv, Mind a 9 Effekt Bipoláris Szűrése (Beatmasher + Turntable is!), 2-Pólusú 300 Hz Ramp Delay HPF & Agresszív Kezdeti Felfutás ($x^{0.62}$):
+  1. **Zéró Holtsáv & Perceptuális Szűrőgörbe (Azonnali Zenei Reakció 5–10%-nál):**
+     - Korábbi hiba: a korábbi $1.25$-ös hatvány miatt 10%-os potméter állásnál a HPF cutoff csupán $27.8\text{ Hz}$ volt (szubszonikus, hallhatatlan), LPF-nél pedig $9460\text{ Hz}$.
+     - Új HPF görbe ($\gamma = 0.50$): $5\%$-nál már $65\text{ Hz}$, $10\%$-nál $135\text{ Hz}$ (a mély basszusfutam és lábdob azonnal és tisztán kivágódik — a DJ azonnal hallja az effektet!), $100\%$-nál $7200\text{ Hz}$ (+3.5 dB Sizzle Sheen).
+     - Új LPF görbe ($\beta = 0.58$ a mélységre): $5\%$-nál $6300\text{ Hz}$, $10\%$-nál $3580\text{ Hz}$ (a cinek azonnal tompulnak, meleg klub-karakter!), $100\%$-nál $30\text{ Hz}$ (tiszta szub-basszus dübörgés).
+  2. **Mind a 9 Effekt Bipoláris Szűrése (Beatmasher & Turntable is!):**
+     - Megszüntettük az `apply_bipolar_filter` kivételezést: mind a 9 effekt (Filter, Delay, Reverb, Flanger, Beatmasher, Turntable, Ramp Delay, Mulholland Drive, Transpose Stretch) mostantól a szűrt audiojelet kapja és formálja.
+     - Beatmasher: HPF állásban magas stutter riser, LPF állásban tompa mély stutter build.
+     - Turntable: Brake állásban LPF-fel tompulva lassul a lemez, Spinback állásban HPF-fel süvítve pörög vissza.
+  3. **Agresszívebb Kezdeti Effekt Görbe ($f(x) = x^{0.62}$):**
+     - $10\%$ poti kitérés már $24\%$-os effektmélységet hoz létre ($0.10^{0.62} \approx 0.240$).
+     - Zéró holtsáv: 2%-tól induló folyamatos, zenei és hallható jelenlét minden effekt esetén.
+  4. **Beatmasher 2 Azonnali Zenei Ütemosztás (1/4 Beat 2%-tól):**
+     - 2%-os kitéréstől azonnal bekapcsol, és $2\% \to 18\%$ között azonnal $1/4$ beat szeletelést végez (azonnal felismerhető, lendületes 4-to-the-floor stutter).
+     - Progresszív skála: $1/4 \to 3/16 \to 1/8 \to 1/12 \to 1/16 \to 1/24 \to 1/32$.
+     - Dinamikus dry/wet: a dry jel gyorsabban lehalkul ($1.0 - 1.15 \cdot \text{amount}$), a wet jel pedig azonnal $0.40$-től indul, így a stutter azonnal átszól a mixen.
+  5. **Turntable FX Közvetlen Átúszás a Lemezre (Zéró Párhuzamos Szellemhang):**
+     - A poti kimozdulásakor a száraz zene azonnal átúszik a lemezjátszóra (`engage = min(1.0, amount * 3.5)`).
+     - Megszűnt a párhuzamos 1.0x normál sebességű zene, ami elfedte a lemezlassulást: a felhasználó már $5-10\%$-nál közvetlenül a lemez fizikai lassulását/visszapörgését hallja.
+  6. **Ramp Delay 2-Pólusú 300 Hz HPF (Zéró Doppler Recsegés LPF Állásban):**
+     - 2-pólusú (12 dB/oct) 300 Hz Low-Cut HPF beépítve a Doppler delay send bemenetre és a visszacsatoló ágba.
+     - Mély felé (LPF állásba) tekerve a szub-basszus nem jut be a Doppler modulációs gyűrűbe: 100%-ban megszűnt a négyszögesedő telítés és a recsegés!
+  7. **Mulholland Drive 7.5x Boost & Hangosságtartás:**
+     - Analóg csöves Drive $1.0\times \to 7.5\times$-re emelve, kimeneti kompenzációval ($1 / (1 + 2.4 \cdot \text{amount})$).
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #364)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #365)
+* [x] **Zéró Holtsáv, Mind a 9 Effekt Bipoláris Szűrése, 2-Pólusú 300 Hz Ramp Delay HPF & Agresszív Kezdeti Felfutás (Build #365):**
+  - Perceptuális HPF/LPF görbék: 10%-nál 135 Hz / 3580 Hz azonnali zenei vágás.
+  - Bipoláris filter bevezetve Beatmasher és Turntable effektekre is (mind a 9 effekt szűrt).
+  - $x^{0.62}$ görbe: 10% poti = 24% effektmélység, zéró holtsáv.
+  - Beatmasher azonnali 1/4 beat indítás és átszóló mix.
+  - Turntable közvetlen átúszás a lemezre (nincs szellemzene a lassulás alatt).
+  - Ramp Delay 2-pólusú 300 Hz HPF: megszüntette a mély Doppler recsegést.
+  - Telepített bináris: 1 416 192 bájt, SHA256 `ECE4F2C41A7FA5DF7EEC818D83851551117899BAFF89B4F3FD131334111035A3`.
 * [x] **Folytonos Turntable Tehetetlenség, Ramp Delay Recsegésmentesítés, Mulholland Drive Boost, Transpose Iránykorrekció & Agresszív Kezdeti Görbe (Build #364):**
   - Turntable: Folytonos sebességkövetés és tehetetlenség (Brake: $1.0\times \to 0.0\times$, Spinback: $1.0\times \to -3.5\times$), zéró kapcsoló jelleg, zéró DC zúgás.
   - Ramp Delay: 180 Hz send/feedback HPF (megszűnt a mély recsegés), UP = gyorsuló sziréna, DOWN = lassuló Doppler drop.
