@@ -21,6 +21,8 @@ public:
 private:
     void setupUi();
     void updateSliderStyles(bool inverted);
+    void showSlotMenu(int slot, const QPoint &pos);
+    void updateSlotBtn(int slot);
 
     bool is_deck_a_ = true;
     DeckPlayer *deck_ = nullptr;
@@ -42,6 +44,8 @@ private:
     QLabel *hi_title_lbl_ = nullptr;
     QLabel *low_title_lbl_ = nullptr;
     QLabel *flt_title_lbl_ = nullptr;
+
+    QPushButton *slot_btn_[4] = {nullptr, nullptr, nullptr, nullptr};
 
     QProgressBar *meter_ = nullptr;
     QPushButton *hp_cue_btn_ = nullptr;

@@ -10,6 +10,7 @@
 #include <QProgressBar>
 #include <QComboBox>
 #include <QSignalBlocker>
+#include <QMenu>
 #include <algorithm>
 #include <cmath>
 
@@ -155,9 +156,9 @@ void MixerChannelStrip::setupUi()
             }
         };
         flt_title_lbl_->installEventFilter(new FxClickFilter(flt_title_lbl_, [this]() {
-            if (auto *decks = vdj_decks()) {
-                const int next_slot = (decks->activeSlot() + 1) % 4;
-                decks->selectSlot(next_slot);
+            if (deck_) {
+                const int next_slot = (deck_->activeSlot() + 1) % 4;
+                deck_->selectSlot(next_slot);
                 refresh();
             }
         }));
@@ -214,7 +215,7 @@ void MixerChannelStrip::setupUi()
 
     layout->addLayout(btn_row);
 
-    // 3. Vertical Volume Fader and Peak Meter Row
+    // 3. Vertical Volume Fader and Peak Meter Row + 4-Slot Vertical FX Column
     auto *fader_meter_row = new QHBoxLayout();
     fader_meter_row->setContentsMargins(0, 3, 0, 0);
     fader_meter_row->setSpacing(6);
@@ -222,7 +223,7 @@ void MixerChannelStrip::setupUi()
     vol_slider_ = new DJSlider(Qt::Vertical, 80, this);
     vol_slider_->setRange(0, 100);
     vol_slider_->setValue(80);
-    vol_slider_->setFixedHeight(62);
+    vol_slider_->setFixedHeight(66);
     vol_slider_->setToolTip(QStringLiteral("Channel Volume Fader (Default: 80% Unity Line Level)"));
     if (is_deck_a_) {
         vol_slider_->setStyleSheet(QStringLiteral(
@@ -241,7 +242,7 @@ void MixerChannelStrip::setupUi()
     meter_->setRange(0, 100);
     meter_->setValue(0);
     meter_->setFixedWidth(7);
-    meter_->setFixedHeight(62);
+    meter_->setFixedHeight(66);
     meter_->setTextVisible(false);
     if (is_deck_a_) {
         meter_->setStyleSheet(QStringLiteral(
@@ -254,9 +255,9 @@ void MixerChannelStrip::setupUi()
     }
 
     vol_val_lbl_ = new QLabel(QStringLiteral("80%"), this);
-    vol_val_lbl_->setFixedWidth(34);
+    vol_val_lbl_->setFixedWidth(30);
     vol_val_lbl_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    vol_val_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-family: monospace; color: %1;")
+    vol_val_lbl_->setStyleSheet(QStringLiteral("font-size: 8px; font-family: monospace; color: %1;")
         .arg(is_deck_a_ ? QStringLiteral("#7eb5e6") : QStringLiteral("#e6a87e")));
 
     connect(vol_slider_, &QSlider::valueChanged, this, [this](int val) {
@@ -264,11 +265,56 @@ void MixerChannelStrip::setupUi()
         if (vol_val_lbl_) vol_val_lbl_->setText(QString::asprintf("%d%%", val));
     });
 
-    fader_meter_row->addStretch(1);
-    fader_meter_row->addWidget(vol_slider_);
-    fader_meter_row->addWidget(meter_);
-    fader_meter_row->addWidget(vol_val_lbl_);
-    fader_meter_row->addStretch(1);
+    auto *fader_box = new QHBoxLayout();
+    fader_box->setContentsMargins(0, 0, 0, 0);
+    fader_box->setSpacing(4);
+    fader_box->addWidget(vol_slider_);
+    fader_box->addWidget(meter_);
+    fader_box->addWidget(vol_val_lbl_);
+
+    // Függőleges 4-slot FX gombok sávja (egymás alatt, a fader mellett, közép felé tájolva)
+    auto *slots_box = new QVBoxLayout();
+    slots_box->setContentsMargins(0, 0, 0, 0);
+    slots_box->setSpacing(2);
+
+    for (int s = 0; s < 4; ++s) {
+        auto *btn = new QPushButton(this);
+        btn->setCheckable(true);
+        btn->setFixedHeight(15);
+        btn->setContextMenuPolicy(Qt::CustomContextMenu);
+
+        connect(btn, &QPushButton::customContextMenuRequested, this, [this, s](const QPoint &pos) {
+            if (slot_btn_[s]) {
+                showSlotMenu(s, slot_btn_[s]->mapToGlobal(pos));
+            }
+        });
+
+        connect(btn, &QPushButton::clicked, this, [this, s]() {
+            if (!deck_) return;
+            if (deck_->activeSlot() == s) {
+                if (slot_btn_[s]) {
+                    showSlotMenu(s, slot_btn_[s]->mapToGlobal(QPoint(0, slot_btn_[s]->height())));
+                }
+            } else {
+                deck_->selectSlot(s);
+                refresh();
+            }
+        });
+
+        slot_btn_[s] = btn;
+        slots_box->addWidget(btn);
+        updateSlotBtn(s);
+    }
+
+    if (is_deck_a_) {
+        // Deck A: Fader balra, 4 gomb jobbra (közép felé)
+        fader_meter_row->addLayout(fader_box);
+        fader_meter_row->addLayout(slots_box, 1);
+    } else {
+        // Deck B: 4 gomb balra (közép felé), Fader jobbra
+        fader_meter_row->addLayout(slots_box, 1);
+        fader_meter_row->addLayout(fader_box);
+    }
 
     layout->addLayout(fader_meter_row);
 
@@ -333,6 +379,9 @@ void MixerChannelStrip::bindDeck(DeckPlayer *deck)
     }
     if (vol_fx_combo_ && deck_) {
         vol_fx_combo_->setCurrentIndex(deck_->volumeFxMode());
+    }
+    for (int s = 0; s < 4; ++s) {
+        updateSlotBtn(s);
     }
     refresh();
 }
@@ -408,4 +457,103 @@ void MixerChannelStrip::refresh()
         const int level = static_cast<int>(std::clamp(amp * vol * 100.0f, 0.0f, 100.0f));
         meter_->setValue(level);
     }
+
+    for (int s = 0; s < 4; ++s) {
+        updateSlotBtn(s);
+    }
+}
+
+void MixerChannelStrip::updateSlotBtn(int slot)
+{
+    if (slot < 0 || slot >= 4 || !slot_btn_[slot] || !deck_) return;
+
+    QPushButton *btn = slot_btn_[slot];
+    const int fx_type_idx = deck_->slotFxType(slot);
+    const auto fx_type = static_cast<MixerFxType>(fx_type_idx);
+    const bool is_active = (deck_->activeSlot() == slot);
+
+    const QString short_name = QString::fromUtf8(MixerFxProcessor::shortName(fx_type));
+    const QString full_name = QString::fromUtf8(MixerFxProcessor::name(fx_type));
+    const QString hex_col = QString::fromUtf8(MixerFxProcessor::colorHex(fx_type));
+
+    QString icon = QStringLiteral("🔴");
+    switch (fx_type) {
+    case MixerFxType::FILTER:     icon = QStringLiteral("🔴"); break;
+    case MixerFxType::DELAY:      icon = QStringLiteral("🔵"); break;
+    case MixerFxType::REVERB:     icon = QStringLiteral("🟢"); break;
+    case MixerFxType::FLANGER:    icon = QStringLiteral("🟡"); break;
+    case MixerFxType::BEATMASHER: icon = QStringLiteral("🟣"); break;
+    case MixerFxType::TURNTABLE:  icon = QStringLiteral("🟠"); break;
+    case MixerFxType::RAMP_DELAY: icon = QStringLiteral("🚀"); break;
+    case MixerFxType::MULHOLLAND: icon = QStringLiteral("🔥"); break;
+    case MixerFxType::TRANSPOSE:  icon = QStringLiteral("🎚️"); break;
+    default: break;
+    }
+
+    btn->setText(QStringLiteral("%1 %2 ▾").arg(icon, short_name));
+    btn->setToolTip(QStringLiteral(
+        "Mixer FX %1 Slot %2: %3\n"
+        "• Bal klikk: Kiválasztás / Menü megnyitása\n"
+        "• Jobb klikk: Effekt csere (9 NI effekt)")
+        .arg(is_deck_a_ ? QStringLiteral("Deck A") : QStringLiteral("Deck B"))
+        .arg(slot + 1)
+        .arg(full_name));
+
+    btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #161c24; border: 1px solid #2b3545; color: #8da0b8; font-weight: bold; font-size: 8px; border-radius: 2px; padding: 0px 2px; } "
+        "QPushButton:hover { background: #222b38; color: #ffffff; border: 1px solid #4a5568; } "
+        "QPushButton:checked { background: %1; color: #ffffff; border: 1px solid %1; font-weight: bold; }")
+        .arg(hex_col));
+
+    if (btn->isChecked() != is_active) {
+        QSignalBlocker blocker(btn);
+        btn->setChecked(is_active);
+    }
+}
+
+void MixerChannelStrip::showSlotMenu(int slot, const QPoint &pos)
+{
+    if (slot < 0 || slot >= 4 || !deck_) return;
+
+    QMenu menu(this);
+    menu.setStyleSheet(QStringLiteral(
+        "QMenu { background: #161c24; border: 1px solid #2b3545; color: #e2e8f0; font-size: 11px; padding: 4px; } "
+        "QMenu::item { padding: 4px 20px 4px 10px; border-radius: 2px; } "
+        "QMenu::item:selected { background: #2563eb; color: #ffffff; } "
+        "QMenu::item:checked { font-weight: bold; } "
+        "QMenu::separator { height: 1px; background: #2b3545; margin: 4px 0; }"));
+
+    struct FxOption {
+        MixerFxType type;
+        const char *label;
+    };
+    const std::array<FxOption, 9> options = {{
+        {MixerFxType::FILTER,     "🔴 Filter (Classic HPF/LPF Sweep)"},
+        {MixerFxType::DELAY,      "🔵 Delay (3/4 Beat Echo + Haas Stereo)"},
+        {MixerFxType::REVERB,     "🟢 Reverb (3D Hall Plate + Modulated Tail)"},
+        {MixerFxType::FLANGER,    "🟡 Flanger (Stereo Jet Sweep)"},
+        {MixerFxType::BEATMASHER, "🟣 Beatmasher 2 (1/2..1/32 Rhythmic Stutter)"},
+        {MixerFxType::TURNTABLE,  "🟠 Turntable FX (Vinyl Brake & Spinback)"},
+        {MixerFxType::RAMP_DELAY, "🚀 Ramp Delay (Accelerating Siren Riser)"},
+        {MixerFxType::MULHOLLAND, "🔥 Mulholland Drive (Overdrive & Feedback Growl)"},
+        {MixerFxType::TRANSPOSE,  "🎚️ Transpose Stretch (Octave Pitch Shift)"}
+    }};
+
+    const int cur_assigned = deck_->slotFxType(slot);
+
+    for (const auto &opt : options) {
+        const int fx_val = static_cast<int>(opt.type);
+        auto *action = menu.addAction(QString::fromUtf8(opt.label));
+        action->setCheckable(true);
+        action->setChecked(cur_assigned == fx_val);
+        connect(action, &QAction::triggered, this, [this, slot, fx_val]() {
+            if (deck_) {
+                deck_->setSlotFxType(slot, fx_val);
+                deck_->selectSlot(slot);
+                refresh();
+            }
+        });
+    }
+
+    menu.exec(pos);
 }

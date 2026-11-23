@@ -1009,12 +1009,43 @@ float DeckPlayer::filterVal() const noexcept { return filter_val_.load(std::memo
 
 void DeckPlayer::setMixerFxType(int type) noexcept
 {
-    mixer_fx_type_.store(std::clamp(type, 0, 8), std::memory_order_relaxed);
+    const int clamped = std::clamp(type, 0, 8);
+    mixer_fx_type_.store(clamped, std::memory_order_relaxed);
+    for (int i = 0; i < 4; ++i) {
+        if (slot_fx_types_[i].load(std::memory_order_relaxed) == clamped) {
+            active_slot_.store(i, std::memory_order_relaxed);
+            break;
+        }
+    }
 }
 
 int DeckPlayer::mixerFxType() const noexcept
 {
     return mixer_fx_type_.load(std::memory_order_relaxed);
+}
+
+void DeckPlayer::selectSlot(int slot) noexcept
+{
+    const int clamped_slot = std::clamp(slot, 0, 3);
+    active_slot_.store(clamped_slot, std::memory_order_relaxed);
+    const int fx = slot_fx_types_[clamped_slot].load(std::memory_order_relaxed);
+    mixer_fx_type_.store(fx, std::memory_order_relaxed);
+}
+
+int DeckPlayer::slotFxType(int slot) const noexcept
+{
+    const int clamped_slot = std::clamp(slot, 0, 3);
+    return slot_fx_types_[clamped_slot].load(std::memory_order_relaxed);
+}
+
+void DeckPlayer::setSlotFxType(int slot, int fx_type) noexcept
+{
+    const int clamped_slot = std::clamp(slot, 0, 3);
+    const int clamped_fx = std::clamp(fx_type, 0, 8);
+    slot_fx_types_[clamped_slot].store(clamped_fx, std::memory_order_relaxed);
+    if (active_slot_.load(std::memory_order_relaxed) == clamped_slot) {
+        mixer_fx_type_.store(clamped_fx, std::memory_order_relaxed);
+    }
 }
 
 void DeckPlayer::setRed(float value) noexcept { red_.store(std::clamp(value, 0.0f, 2.0f), std::memory_order_relaxed); }
@@ -2249,8 +2280,12 @@ void DeckPair::setMixerFxType(int type) noexcept
 {
     const int clamped = std::clamp(type, 0, 8);
     master_mixer_fx_type_.store(clamped, std::memory_order_relaxed);
-    if (auto *da = vj_deck_a()) da->setMixerFxType(clamped);
-    if (auto *db = vj_deck_b()) db->setMixerFxType(clamped);
+    if (auto *deck = vj_active_deck()) {
+        deck->setMixerFxType(clamped);
+    } else {
+        if (auto *da = vj_deck_a()) da->setMixerFxType(clamped);
+        if (auto *db = vj_deck_b()) db->setMixerFxType(clamped);
+    }
 
     for (int i = 0; i < 4; ++i) {
         if (slot_fx_types_[i].load(std::memory_order_relaxed) == clamped) {
@@ -2260,16 +2295,31 @@ void DeckPair::setMixerFxType(int type) noexcept
     }
 }
 
+int DeckPair::activeSlot() const noexcept
+{
+    if (auto *deck = vj_active_deck()) {
+        return deck->activeSlot();
+    }
+    return active_slot_.load(std::memory_order_relaxed);
+}
+
 void DeckPair::selectSlot(int slot) noexcept
 {
     const int clamped_slot = std::clamp(slot, 0, 3);
     active_slot_.store(clamped_slot, std::memory_order_relaxed);
-    const int fx = slot_fx_types_[clamped_slot].load(std::memory_order_relaxed);
-    setMixerFxType(fx);
+    if (auto *deck = vj_active_deck()) {
+        deck->selectSlot(clamped_slot);
+    } else {
+        if (auto *da = vj_deck_a()) da->selectSlot(clamped_slot);
+        if (auto *db = vj_deck_b()) db->selectSlot(clamped_slot);
+    }
 }
 
 int DeckPair::slotFxType(int slot) const noexcept
 {
+    if (auto *deck = vj_active_deck()) {
+        return deck->slotFxType(slot);
+    }
     const int clamped_slot = std::clamp(slot, 0, 3);
     return slot_fx_types_[clamped_slot].load(std::memory_order_relaxed);
 }
@@ -2279,8 +2329,11 @@ void DeckPair::setSlotFxType(int slot, int fx_type) noexcept
     const int clamped_slot = std::clamp(slot, 0, 3);
     const int clamped_fx = std::clamp(fx_type, 0, 8);
     slot_fx_types_[clamped_slot].store(clamped_fx, std::memory_order_relaxed);
-    if (active_slot_.load(std::memory_order_relaxed) == clamped_slot) {
-        setMixerFxType(clamped_fx);
+    if (auto *deck = vj_active_deck()) {
+        deck->setSlotFxType(clamped_slot, clamped_fx);
+    } else {
+        if (auto *da = vj_deck_a()) da->setSlotFxType(clamped_slot, clamped_fx);
+        if (auto *db = vj_deck_b()) db->setSlotFxType(clamped_slot, clamped_fx);
     }
 }
 

@@ -152,31 +152,43 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
 
     case MidiAction::MIXER_FX_1:
         if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
-            if (auto *decks = vdj_decks()) decks->selectSlot(0);
+            DeckPlayer *dp = target_deck ? target_deck : vj_active_deck();
+            if (dp) dp->selectSlot(0);
+            else if (auto *decks = vdj_decks()) decks->selectSlot(0);
         }
         break;
 
     case MidiAction::MIXER_FX_2:
         if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
-            if (auto *decks = vdj_decks()) decks->selectSlot(1);
+            DeckPlayer *dp = target_deck ? target_deck : vj_active_deck();
+            if (dp) dp->selectSlot(1);
+            else if (auto *decks = vdj_decks()) decks->selectSlot(1);
         }
         break;
 
     case MidiAction::MIXER_FX_3:
         if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
-            if (auto *decks = vdj_decks()) decks->selectSlot(2);
+            DeckPlayer *dp = target_deck ? target_deck : vj_active_deck();
+            if (dp) dp->selectSlot(2);
+            else if (auto *decks = vdj_decks()) decks->selectSlot(2);
         }
         break;
 
     case MidiAction::MIXER_FX_4:
         if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
-            if (auto *decks = vdj_decks()) decks->selectSlot(3);
+            DeckPlayer *dp = target_deck ? target_deck : vj_active_deck();
+            if (dp) dp->selectSlot(3);
+            else if (auto *decks = vdj_decks()) decks->selectSlot(3);
         }
         break;
 
     case MidiAction::MIXER_FX_SELECT:
         if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 0)) {
-            if (auto *decks = vdj_decks()) {
+            DeckPlayer *dp = target_deck ? target_deck : vj_active_deck();
+            if (dp) {
+                const int next_slot = (dp->activeSlot() + 1) % 4;
+                dp->selectSlot(next_slot);
+            } else if (auto *decks = vdj_decks()) {
                 const int next_slot = (decks->activeSlot() + 1) % 4;
                 decks->selectSlot(next_slot);
             }
@@ -564,18 +576,26 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
         case MidiAction::HOTCUE_4:
             val = ((b.deck == 2 ? db : da) && (b.deck == 2 ? db : da)->hotCueMs(3) >= 0) ? 127 : 0;
             break;
-        case MidiAction::MIXER_FX_1:
-            val = (vdj_decks() && vdj_decks()->activeSlot() == 0) ? 127 : 0;
+        case MidiAction::MIXER_FX_1: {
+            DeckPlayer *dp = (b.deck == 2 ? db : (b.deck == 1 ? da : vj_active_deck()));
+            val = (dp ? (dp->activeSlot() == 0) : (vdj_decks() && vdj_decks()->activeSlot() == 0)) ? 127 : 0;
             break;
-        case MidiAction::MIXER_FX_2:
-            val = (vdj_decks() && vdj_decks()->activeSlot() == 1) ? 127 : 0;
+        }
+        case MidiAction::MIXER_FX_2: {
+            DeckPlayer *dp = (b.deck == 2 ? db : (b.deck == 1 ? da : vj_active_deck()));
+            val = (dp ? (dp->activeSlot() == 1) : (vdj_decks() && vdj_decks()->activeSlot() == 1)) ? 127 : 0;
             break;
-        case MidiAction::MIXER_FX_3:
-            val = (vdj_decks() && vdj_decks()->activeSlot() == 2) ? 127 : 0;
+        }
+        case MidiAction::MIXER_FX_3: {
+            DeckPlayer *dp = (b.deck == 2 ? db : (b.deck == 1 ? da : vj_active_deck()));
+            val = (dp ? (dp->activeSlot() == 2) : (vdj_decks() && vdj_decks()->activeSlot() == 2)) ? 127 : 0;
             break;
-        case MidiAction::MIXER_FX_4:
-            val = (vdj_decks() && vdj_decks()->activeSlot() == 3) ? 127 : 0;
+        }
+        case MidiAction::MIXER_FX_4: {
+            DeckPlayer *dp = (b.deck == 2 ? db : (b.deck == 1 ? da : vj_active_deck()));
+            val = (dp ? (dp->activeSlot() == 3) : (vdj_decks() && vdj_decks()->activeSlot() == 3)) ? 127 : 0;
             break;
+        }
         case MidiAction::SHIFT:
             val = (b.deck == 2 ? shift_b_.load() : shift_a_.load()) ? 127 : 0;
             break;

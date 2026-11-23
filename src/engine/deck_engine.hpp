@@ -117,6 +117,12 @@ public:
     float filterVal() const noexcept;
     int mixerFxType() const noexcept;
 
+    // Per-deck 4-slot FX konfiguráció (Build #362)
+    int activeSlot() const noexcept { return active_slot_.load(std::memory_order_relaxed); }
+    void selectSlot(int slot) noexcept;
+    int slotFxType(int slot) const noexcept;
+    void setSlotFxType(int slot, int fx_type) noexcept;
+
     void processAudioDsp(float *channel_data, size_t num_frames, size_t channel_idx, size_t sample_rate);
 
     void setGain(float gain) noexcept;
@@ -254,6 +260,8 @@ private:
     std::atomic<float> eq_low_{1.0f};
     std::atomic<float> filter_val_{0.0f};
     std::atomic<int> mixer_fx_type_{0};
+    std::atomic<int> active_slot_{0};
+    std::atomic<int> slot_fx_types_[4]{0, 1, 2, 3};
 
     std::atomic<bool> is_master_{false};
     std::atomic<bool> is_sync_{false};
@@ -449,7 +457,7 @@ public:
     void setMixerFxType(int type) noexcept;
     int mixerFxType() const noexcept { return master_mixer_fx_type_.load(std::memory_order_relaxed); }
 
-    int activeSlot() const noexcept { return active_slot_.load(std::memory_order_relaxed); }
+    int activeSlot() const noexcept;
     void selectSlot(int slot) noexcept;
     int slotFxType(int slot) const noexcept;
     void setSlotFxType(int slot, int fx_type) noexcept;

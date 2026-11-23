@@ -47,9 +47,4 @@ private:
     QLabel *hp_vol_val_lbl_ = nullptr;
     DJSlider *hp_mix_slider_ = nullptr;
     QLabel *hp_mix_val_lbl_ = nullptr;
-
-    void showSlotMenu(int slot, const QPoint &pos);
-    void updateSlotBtn(int slot);
-
-    QPushButton *slot_btn_[4] = {nullptr, nullptr, nullptr, nullptr};
 };

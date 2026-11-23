@@ -24,10 +24,13 @@ enum class MixerFxType : int {
 struct MixerFxState {
     bool initialized = false;
 
-    // Filter állapot (DJ Low-Pass és High-Pass IIR)
-    float dj_lp = 0.0f;
-    float dj_hp = 0.0f;
-    float cur_flt = 0.0f;
+    // Filter állapot (Bipoláris DJ TPT integrátor és 2-fokozatú C1 simító)
+    float tpt_s_lp = 0.0f;       // TPT Low-Pass belső integrátor állapot
+    float tpt_s_hp = 0.0f;       // TPT High-Pass belső integrátor állapot
+    float cur_flt = 0.0f;        // 1. simítási fokozat (simított poti érték)
+    float cur_flt_s2 = 0.0f;     // 2. simítási fokozat (C1 folytonos, zéró sebesség-ugrás)
+    float prev_dry_gain = 1.0f;  // Mintánkénti lineáris dry gain simítás
+    float prev_wet_gain = 0.0f;  // Mintánkénti lineáris wet gain simítás
 
     // Bemeneti mélyvágó szűrők (Low-Cut az effekt bemeneteken a lábdob bedörgés ellen)
     float delay_send_hp = 0.0f;
