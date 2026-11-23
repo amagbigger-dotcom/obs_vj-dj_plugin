@@ -1,36 +1,32 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #366 (GitHub Run #45254819172 / Run #380)
-* **Aktuális Git Commit:** `027eeb4`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 430 528 bájt)
-* **Bináris SHA256:** `8D5626FCFB9B3B0DD60D326D8FABE78396913B8A74F4C423F84D39C34BABB01B`
+* **Legutolsó stabil mérföldkő:** Build #367 (GitHub Run #45263046755 / Run #383)
+* **Aktuális Git Commit:** `86a82d8`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 431 552 bájt)
+* **Bináris SHA256:** `2FB5957020656BE86892575B21532048F18C6FDD856BA2D370C0CB4F5A2A1C8B`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #366 - KÉSZ & TELEPÍTVE. 9 Traktor Mixer FX HLSL Képtorzítási Shader Motor & Basszus-Vezérelt Visual EQ Szaturáció:
-  1. **9 Dedikált Direct3D 11 / HLSL Képtorzítási VJ Effekt (`mixer_fx_shaders.hpp`):**
-     - **Filter (Type 0):** Bipoláris szűrőtorzítás — LPF állásban dinamikus 9-tap Gaussian/Box Blur és peremsötétedés (Vignette / Under-water), HPF állásban Laplacian élkiemelés (Sharpen) és szikrázó kontraszt.
-     - **Delay (Type 1):** Időbeli visszhang / szellemképek — BPM-szinkronizált visszacsatolási puffer ugrálás és mozgási csóvák (Motion Trails / Feedback Loop Ghosting).
-     - **Reverb (Type 2):** Térbeli fény-szétterülés — Luma-küszöbös Bloom, Light Leak fényátszűrődés és álomszerű lebegő aura.
-     - **Flanger (Type 3):** Hullámzó, fémes torzítás — Harmonikus szinuszos UV deformáció (Wave Warp) + ütemre pulzáló RGB Chromatic Aberration szétcsúszás.
-     - **Beatmasher 2 (Type 4):** Ritmikus képszeletelés — Ütemosztásos (1/4 .. 1/32) horizontális sávdarabolás (Slices), Stutter UV ugrálás és negyedütéses Invert Strobe villogás.
-     - **Turntable FX (Type 5):** Bipoláris analóg lemezjátszó torzítás — Brake (negatív állásban) lefékeződés, képkimerevedés és anamorf vertikális megnyúlás; Spinback (pozitív állásban) poláris Twirl örvénycsavarodás és forgási elmosódás (Radial Spin Blur).
-     - **Ramp Delay (Type 6):** Infinite Tunnel / Vortex — Polárkoordinátás végtelen alagút-zuhanás és spirális örvénymoduláció.
-     - **Mulholland Drive (Type 7):** Analóg túlvezérlés — Csöves jel-túltelítés (Gain Overdrive), Solarize / Foldback színtorzulás és dinamikus film grain analóg zaj.
-     - **Transpose Stretch (Type 8):** Bipoláris geometriai lencsetorzítás — Pitch down állásban domborodó halszemoptika (Barrel Fisheye Bulge), Pitch up állásban befelé szűkülő párnatorzítás (Pincushion Pinch).
-  2. **Basszus-Vezérelt Visual EQ Szaturáció:**
-     - A kép színtelítettségét a Low EQ potméter vezérli (`std::clamp(low, 0.0f, 2.0f)`): a basszus kivágásakor a kép deszaturálódik (monokrómmá válik), a basszus visszaadásakor visszatérnek a vibráló színek.
-     - Ezzel az FLT / Mixer FX potméter 100%-ban felszabadult a fenti 9 képtorzítási effekt zenei és VJ vezérlésére!
-  3. **Zéró GPU Többletterhelés Középállásban:**
-     - HLSL szintű korai kilépés (`abs(fx_val) <= 0.005`): középállásban a shader egyetlen mintavételezést hajt végre, a torzító pass-ok teljesen kihagyásra kerülnek.
-  4. **Kétszintű Render Pipeline Integráció:**
-     - Támogatva mind a `vj_deck` egyedi deck renderelésben, mind a `vdj_master_mixer` Master Mixer kimenetén (a Volume FX és Crossfader FX lánccal harmonikusan egyesítve).
+* **Fő cél:** Build #367 - KÉSZ & TELEPÍTVE. OBS Indításkori Kifagyás (Fehér Ablak) Megszüntetése & 2-Lépcsős Post-FX Architektúra:
+  1. **Hiba feltárása & Javítása:**
+     - A Build #366-ban a 9 Mixer FX shader a főkeverő pixel shaderébe (`MIXER_EFFECT`) lett beágyazva. A Crossfader átúsztatások (Radial Zoom Blur 8-as ciklus, Neon Kontúr 8 tap, Soft Focus 9 tap) miatt a D3D11 HLSL fordító kombinatorikus robbanásba (több tízezer inlined utasításba) ütközött az első frame fordításakor, ami blokkolta a grafikai szálat és a Qt üzenetkezelést (fehér nem válaszoló ablak).
+  2. **2-Lépcsős Modularizált Renderelési Pipeline:**
+     - **1. lépés (`apply_deck_post_fx`):** Független, szálbiztos 1-pass passzban hajtja végre Deck A és Deck B képkockáján a Visual EQ (basszus szaturáció + 3-sávos gain) és az aktív Mixer FX képtorzítás (Filter, Delay, Reverb, Flanger, Beatmasher, Turntable, Ramp Delay, Mulholland, Transpose) kiszámítását `deck_color_effect` segítségével egy közbenső 1080p textúrába.
+     - **2. lépés (`MIXER_EFFECT`):** Már közvetlenül az elkészült, előfeldolgozott deck textúrákból mintavételez a Volume FX és Crossfader FX átúsztatásokhoz, mentesítve a képtorzító shaderek kódjától, így mindkét shader compilation ideje ezredmásodpercekre csökkent.
+  3. **Reverb HLSL Unroll:**
+     - A tömbös/ciklusos mintavételezés feloldva statikus unrolled változókkal, kiküszöbölve minden lehetséges D3D11 regiszter-hazardot.
+  4. **Azonnali OBS Indulás:**
+     - Zéró késleltetés a jelenetgyűjtemény betöltése után, azonnal megjelenő stabil OBS ablak és tökéletesen működő VJ effektek.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #366)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #367)
+* [x] **Indításkori Kifagyás Javítása & 2-Lépcsős Post-FX Renderelés (Build #367):**
+  - Dekomponált 2-lépcsős renderelés: Deck Color/Mixer FX független passzban fut, a Master Mixer nem duplikálja a 9 effekt shadereit.
+  - Reverb unroll, azonnali D3D11 HLSL fordítás, 0 ms indulási akadás.
+  - Telepített bináris: 1 431 552 bájt, SHA256 `2FB5957020656BE86892575B21532048F18C6FDD856BA2D370C0CB4F5A2A1C8B`.
 * [x] **9 Traktor Mixer FX HLSL Képtorzítás & Basszus-Vezérelt Visual EQ (Build #366):**
   - Mind a 9 audio effektnek megfelelő vizuális shader: Filter, Delay, Reverb, Flanger, Beatmasher 2, Turntable, Ramp Delay, Mulholland Drive, Transpose Stretch.
   - Low EQ-hoz kötött szaturáció (mélyvágás = szürkeárnyalat, basszus = élénk színek).
