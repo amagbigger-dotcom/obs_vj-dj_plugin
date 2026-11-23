@@ -40,6 +40,8 @@ struct MixerSource {
     gs_effect_t *effect = nullptr;
     gs_effect_t *fluid_effect = nullptr;
     gs_effect_t *deck_color_effect = nullptr;
+    bool effect_failed = false;
+    bool deck_color_effect_failed = false;
     uint32_t loaded_vj_effect_version = 0;
     gs_texture_t *dummy_tex = nullptr;
     gs_texrender_t *deck_a = nullptr;
@@ -551,21 +553,23 @@ static const char *getMixerEffectCode()
 
 static void ensure_resources(MixerSource *context)
 {
-    if (!context->effect) {
+    if (!context->effect && !context->effect_failed) {
         char *errors = nullptr;
         context->effect = gs_effect_create(getMixerEffectCode(), "mixer_effect", &errors);
         if (!context->effect) {
             blog(LOG_ERROR, "[obs-vj-mixer] Failed to compile MIXER_EFFECT: %s", errors ? errors : "unknown error");
             bfree(errors);
+            context->effect_failed = true;
         }
     }
 
-    if (!context->deck_color_effect) {
+    if (!context->deck_color_effect && !context->deck_color_effect_failed) {
         char *errors = nullptr;
         context->deck_color_effect = gs_effect_create(getDeckColorEffectCode(), "deck_color_effect", &errors);
         if (!context->deck_color_effect) {
             blog(LOG_ERROR, "[obs-vj-mixer] Failed to compile deck_color_effect: %s", errors ? errors : "unknown error");
             bfree(errors);
+            context->deck_color_effect_failed = true;
         }
     }
 

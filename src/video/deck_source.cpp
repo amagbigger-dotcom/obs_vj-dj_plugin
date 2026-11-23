@@ -33,6 +33,7 @@ struct DeckSourceContext {
     bool has_frozen_frame = false;
     int deck_channel = 0;
     gs_effect_t *color_effect = nullptr;
+    bool color_effect_failed = false;
     gs_effect_t *fluid_effect = nullptr;
     uint32_t loaded_vj_effect_version = 0;
     gs_texture_t *dummy_tex = nullptr;
@@ -518,8 +519,14 @@ static void deck_video_render(void *data, gs_effect_t *effect)
     if (context->freeze_tex && context->has_frozen_frame) {
         gs_texture_t *tex = gs_texrender_get_texture(context->freeze_tex);
         if (tex) {
-            if (!context->color_effect) {
-                context->color_effect = gs_effect_create(getDeckColorEffectCode(), "deck_color_effect", nullptr);
+            if (!context->color_effect && !context->color_effect_failed) {
+                char *errors = nullptr;
+                context->color_effect = gs_effect_create(getDeckColorEffectCode(), "deck_color_effect", &errors);
+                if (!context->color_effect) {
+                    blog(LOG_ERROR, "[vj_deck] Failed to compile deck_color_effect: %s", errors ? errors : "unknown error");
+                    bfree(errors);
+                    context->color_effect_failed = true;
+                }
             }
             if (context->color_effect) {
                 gs_eparam_t *param = nullptr;
