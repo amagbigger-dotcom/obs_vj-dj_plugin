@@ -1,38 +1,49 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #365 (GitHub Run #45169095341)
-* **Aktuális Git Commit:** `5dc3a80`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 416 192 bájt)
-* **Bináris SHA256:** `ECE4F2C41A7FA5DF7EEC818D83851551117899BAFF89B4F3FD131334111035A3`
+* **Legutolsó stabil mérföldkő:** Build #366 (GitHub Run #45254819172 / Run #380)
+* **Aktuális Git Commit:** `027eeb4`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 430 528 bájt)
+* **Bináris SHA256:** `8D5626FCFB9B3B0DD60D326D8FABE78396913B8A74F4C423F84D39C34BABB01B`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #365 - KÉSZ & TELEPÍTVE. Zéró Holtsáv, Mind a 9 Effekt Bipoláris Szűrése (Beatmasher + Turntable is!), 2-Pólusú 300 Hz Ramp Delay HPF & Agresszív Kezdeti Felfutás ($x^{0.62}$):
-  1. **Zéró Holtsáv & Perceptuális Szűrőgörbe (Azonnali Zenei Reakció 5–10%-nál):**
-     - Korábbi hiba: a korábbi $1.25$-ös hatvány miatt 10%-os potméter állásnál a HPF cutoff csupán $27.8\text{ Hz}$ volt (szubszonikus, hallhatatlan), LPF-nél pedig $9460\text{ Hz}$.
-     - Új HPF görbe ($\gamma = 0.50$): $5\%$-nál már $65\text{ Hz}$, $10\%$-nál $135\text{ Hz}$ (a mély basszusfutam és lábdob azonnal és tisztán kivágódik — a DJ azonnal hallja az effektet!), $100\%$-nál $7200\text{ Hz}$ (+3.5 dB Sizzle Sheen).
-     - Új LPF görbe ($\beta = 0.58$ a mélységre): $5\%$-nál $6300\text{ Hz}$, $10\%$-nál $3580\text{ Hz}$ (a cinek azonnal tompulnak, meleg klub-karakter!), $100\%$-nál $30\text{ Hz}$ (tiszta szub-basszus dübörgés).
-  2. **Mind a 9 Effekt Bipoláris Szűrése (Beatmasher & Turntable is!):**
-     - Megszüntettük az `apply_bipolar_filter` kivételezést: mind a 9 effekt (Filter, Delay, Reverb, Flanger, Beatmasher, Turntable, Ramp Delay, Mulholland Drive, Transpose Stretch) mostantól a szűrt audiojelet kapja és formálja.
-     - Beatmasher: HPF állásban magas stutter riser, LPF állásban tompa mély stutter build.
-     - Turntable: Brake állásban LPF-fel tompulva lassul a lemez, Spinback állásban HPF-fel süvítve pörög vissza.
-  3. **Agresszívebb Kezdeti Effekt Görbe ($f(x) = x^{0.62}$):**
-     - $10\%$ poti kitérés már $24\%$-os effektmélységet hoz létre ($0.10^{0.62} \approx 0.240$).
-     - Zéró holtsáv: 2%-tól induló folyamatos, zenei és hallható jelenlét minden effekt esetén.
-  4. **Beatmasher 2 Azonnali Zenei Ütemosztás (1/4 Beat 2%-tól):**
-     - 2%-os kitéréstől azonnal bekapcsol, és $2\% \to 18\%$ között azonnal $1/4$ beat szeletelést végez (azonnal felismerhető, lendületes 4-to-the-floor stutter).
-     - Progresszív skála: $1/4 \to 3/16 \to 1/8 \to 1/12 \to 1/16 \to 1/24 \to 1/32$.
-     - Dinamikus dry/wet: a dry jel gyorsabban lehalkul ($1.0 - 1.15 \cdot \text{amount}$), a wet jel pedig azonnal $0.40$-től indul, így a stutter azonnal átszól a mixen.
-  5. **Turntable FX Közvetlen Átúszás a Lemezre (Zéró Párhuzamos Szellemhang):**
-     - A poti kimozdulásakor a száraz zene azonnal átúszik a lemezjátszóra (`engage = min(1.0, amount * 3.5)`).
-     - Megszűnt a párhuzamos 1.0x normál sebességű zene, ami elfedte a lemezlassulást: a felhasználó már $5-10\%$-nál közvetlenül a lemez fizikai lassulását/visszapörgését hallja.
-  6. **Ramp Delay 2-Pólusú 300 Hz HPF (Zéró Doppler Recsegés LPF Állásban):**
-     - 2-pólusú (12 dB/oct) 300 Hz Low-Cut HPF beépítve a Doppler delay send bemenetre és a visszacsatoló ágba.
-     - Mély felé (LPF állásba) tekerve a szub-basszus nem jut be a Doppler modulációs gyűrűbe: 100%-ban megszűnt a négyszögesedő telítés és a recsegés!
-  7. **Mulholland Drive 7.5x Boost & Hangosságtartás:**
-     - Analóg csöves Drive $1.0\times \to 7.5\times$-re emelve, kimeneti kompenzációval ($1 / (1 + 2.4 \cdot \text{amount})$).
+* **Fő cél:** Build #366 - KÉSZ & TELEPÍTVE. 9 Traktor Mixer FX HLSL Képtorzítási Shader Motor & Basszus-Vezérelt Visual EQ Szaturáció:
+  1. **9 Dedikált Direct3D 11 / HLSL Képtorzítási VJ Effekt (`mixer_fx_shaders.hpp`):**
+     - **Filter (Type 0):** Bipoláris szűrőtorzítás — LPF állásban dinamikus 9-tap Gaussian/Box Blur és peremsötétedés (Vignette / Under-water), HPF állásban Laplacian élkiemelés (Sharpen) és szikrázó kontraszt.
+     - **Delay (Type 1):** Időbeli visszhang / szellemképek — BPM-szinkronizált visszacsatolási puffer ugrálás és mozgási csóvák (Motion Trails / Feedback Loop Ghosting).
+     - **Reverb (Type 2):** Térbeli fény-szétterülés — Luma-küszöbös Bloom, Light Leak fényátszűrődés és álomszerű lebegő aura.
+     - **Flanger (Type 3):** Hullámzó, fémes torzítás — Harmonikus szinuszos UV deformáció (Wave Warp) + ütemre pulzáló RGB Chromatic Aberration szétcsúszás.
+     - **Beatmasher 2 (Type 4):** Ritmikus képszeletelés — Ütemosztásos (1/4 .. 1/32) horizontális sávdarabolás (Slices), Stutter UV ugrálás és negyedütéses Invert Strobe villogás.
+     - **Turntable FX (Type 5):** Bipoláris analóg lemezjátszó torzítás — Brake (negatív állásban) lefékeződés, képkimerevedés és anamorf vertikális megnyúlás; Spinback (pozitív állásban) poláris Twirl örvénycsavarodás és forgási elmosódás (Radial Spin Blur).
+     - **Ramp Delay (Type 6):** Infinite Tunnel / Vortex — Polárkoordinátás végtelen alagút-zuhanás és spirális örvénymoduláció.
+     - **Mulholland Drive (Type 7):** Analóg túlvezérlés — Csöves jel-túltelítés (Gain Overdrive), Solarize / Foldback színtorzulás és dinamikus film grain analóg zaj.
+     - **Transpose Stretch (Type 8):** Bipoláris geometriai lencsetorzítás — Pitch down állásban domborodó halszemoptika (Barrel Fisheye Bulge), Pitch up állásban befelé szűkülő párnatorzítás (Pincushion Pinch).
+  2. **Basszus-Vezérelt Visual EQ Szaturáció:**
+     - A kép színtelítettségét a Low EQ potméter vezérli (`std::clamp(low, 0.0f, 2.0f)`): a basszus kivágásakor a kép deszaturálódik (monokrómmá válik), a basszus visszaadásakor visszatérnek a vibráló színek.
+     - Ezzel az FLT / Mixer FX potméter 100%-ban felszabadult a fenti 9 képtorzítási effekt zenei és VJ vezérlésére!
+  3. **Zéró GPU Többletterhelés Középállásban:**
+     - HLSL szintű korai kilépés (`abs(fx_val) <= 0.005`): középállásban a shader egyetlen mintavételezést hajt végre, a torzító pass-ok teljesen kihagyásra kerülnek.
+  4. **Kétszintű Render Pipeline Integráció:**
+     - Támogatva mind a `vj_deck` egyedi deck renderelésben, mind a `vdj_master_mixer` Master Mixer kimenetén (a Volume FX és Crossfader FX lánccal harmonikusan egyesítve).
+
+---
+
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #366)
+* [x] **9 Traktor Mixer FX HLSL Képtorzítás & Basszus-Vezérelt Visual EQ (Build #366):**
+  - Mind a 9 audio effektnek megfelelő vizuális shader: Filter, Delay, Reverb, Flanger, Beatmasher 2, Turntable, Ramp Delay, Mulholland Drive, Transpose Stretch.
+  - Low EQ-hoz kötött szaturáció (mélyvágás = szürkeárnyalat, basszus = élénk színek).
+  - Korai kilépés középállásban (0% GPU felár).
+  - Telepített bináris: 1 430 528 bájt, SHA256 `8D5626FCFB9B3B0DD60D326D8FABE78396913B8A74F4C423F84D39C34BABB01B`.
+* [x] **Zéró Holtsáv, Mind a 9 Effekt Bipoláris Szűrése, 2-Pólusú 300 Hz Ramp Delay HPF & Agresszív Kezdeti Felfutás (Build #365):**
+  - Perceptuális HPF/LPF görbék: 10%-nál 135 Hz / 3580 Hz azonnali zenei vágás.
+  - Bipoláris filter bevezetve Beatmasher és Turntable effektekre is (mind a 9 effekt szűrt).
+  - $x^{0.62}$ görbe: 10% poti = 24% effektmélység, zéró holtsáv.
+  - Beatmasher azonnali 1/4 beat indítás és átszóló mix.
+  - Turntable közvetlen átúszás a lemezre (nincs szellemzene a lassulás alatt).
+  - Ramp Delay 2-pólusú 300 Hz HPF: megszüntette a mély Doppler recsegést.
+  - Telepített bináris: 1 416 192 bájt, SHA256 `ECE4F2C41A7FA5DF7EEC818D83851551117899BAFF89B4F3FD131334111035A3`.
 
 ---
 
