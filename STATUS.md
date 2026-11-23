@@ -1,34 +1,40 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #370 (GitHub Run #45283848670 / Run #390)
-* **Aktuális Git Commit:** `a8402b9`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 443 328 bájt)
-* **Bináris SHA256:** `86653BFDA91FD27A019C2CEDBA672BFD65F035468D80237321E3ACEEEDC59ED7`
+* **Legutolsó stabil mérföldkő:** Build #371 (GitHub Run #45289492121 / Run #392)
+* **Aktuális Git Commit:** `a466a62`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 444 864 bájt)
+* **Bináris SHA256:** `31837C23E0F330BDAE5BA69C122E04A49DA89918ABD4C29F7E501E0AF582F3DE`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #370 - KÉSZ & TELEPÍTVE. Korg KAOSS DJ 2×4 Touchpad FX Mátrix, Program/Value Enkóder & HOLD Watchdog Modul:
-  1. **2 Oszlop × 4 Soros Touchpad Mátrix (Race-Condition Védett):**
-     - **Bal oszlop (X < 64):** Deck A 4 függőleges slotja egymás alatt (Slot 0..3: FLT, DLY, REV, FLG).
-     - **Jobb oszlop (X >= 64):** Deck B 4 függőleges slotja egymás alatt (Slot 0..3: FLT, DLY, REV, FLG).
-     - **Race Condition Guard:** Touch Note On (Note 32) után pufferelt zónaszámítás az első X/Y CC beérkezésekor, `touch_triggered_lock_` egyetlen zónaváltást enged érintésenként.
-     - **Kill Switch Toggle:** Az éppen aktív zóna újraérintése azonnal némítja az effektet (bypass) és nullázza a paramétert.
-  2. **Program/Value Enkóder (Relatív CC 31):**
-     - Relatív elmozdulás dekódolás dinamikus gyorsulással.
-     - **Bipoláris Combo Filter (Slot 0):** Alapállapot 0.5 (MIDI 64), balra LPF (mélyhangok + képi sötétedés), jobbra HPF (magashangok + képi ragyogás), mágneses snap-to-center `[0.48, 0.52]`.
-     - **Egyirányú Effektek (Slot 1..3):** Alapállapot 0.0, tekerés növeli a dry/wet arányt és a VJ torzítást 0.0 és 1.0 között.
-  3. **HOLD Gomb & 200 ms Watchdog Auto-Reset:**
-     - **HOLD kikapcsolva:** 200 ms inaktivitás után a watchdog automatikusan, finom lecsengéssel (`lerp`) visszahúzza az effektparamétert alaphelyzetbe (0.5 vagy 0.0).
-     - **HOLD bekapcsolva:** A watchdog felfüggesztve, az effekt rögzítve marad; HOLD kikapcsoláskor azonnali visszaállás és a hardveres HOLD LED kialvása.
-     - Kétirányú MIDI LED visszajelzés Ch 7-re (Note 13, 33, 9).
-  4. **Moduláris Architektúra:**
-     - Új `src/controllers/kaoss_fx_manager.hpp/.cpp` modul (205 sor, SOLID).
+* **Fő cél:** Build #371 - KÉSZ & TELEPÍTVE. Korg KAOSS DJ Touchpad Fast-Path, Univerzális Bipoláris FX & Robusztus HOLD Gomb Javítások:
+  1. **Touchpad Dinamikus Zóna & Oldalválasztás (Zéró Race Condition & Drop):**
+     - Fast-Path intercept a `midi_dispatcher.cpp`-ben CC 12 (X) és CC 13 (Y) beérkezésekor közvetlenül a `KaossFxManager`-be továbbít, megkerülve a MIDI csatornaeltéréseket.
+     - Eltávolítva a korai `touch_triggered_lock_` és a hibás kill switch: minden érintés az aktuális koordináták alapján azonnal kijelöli az aktív oldalt (bal = Deck A, jobb = Deck B) és a 4 slot egyikét (Slot 0..3: FLT, DLY, REV, FLG).
+     - Az enkóder belső értéke azonnal szinkronizálódik a kiválasztott slot aktuális filter értékével.
+  2. **Univerzális Kétirányú (Bipoláris) Enkóder Vezérlés Mind a 4 Sloton:**
+     - Korábban a Slot 1..3 unipolárisként [0..1] volt korlátozva, így nem lehetett balra / mélyvágás irányba tekerni őket.
+     - Mostantól **mind a 4 slot teljesen bipoláris** `[-1.0, +1.0]` tartományban dolgozik:
+       - Balra tekerés (0.50 -> 0.00): Low-Pass Filter / mélyhangok / sötét tónus (`[-1.0, 0.0]`).
+       - Jobbra tekerés (0.50 -> 1.00): High-Pass Filter / magashangok / világos tónus (`[0.0, +1.0]`).
+       - Mágneses snap-to-center: `[0.48, 0.52]` között pontosan 0.50-re (0.0 neutrális bypass) pattan.
+  3. **Megbízható HOLD Gomb & 500 ms Watchdog Auto-Reset:**
+     - HOLD gomb detektálás kiterjesztve az összes Kaoss DJ jelölt hangra (Note 7..13, 33, 34 és CC 9).
+     - Kétirányú LED feedback kiküldés Note 7..13, 33, 34-re Ch 7 és Ch 1-en.
+     - Az auto-reset türelmi idő 500 ms-ra növelve a kényelmes tekeréshez.
+     - **HOLD bekapcsolva:** a watchdog teljesen fel van függesztve, a poti szigorúan a beállított pozícióban marad.
+     - **HOLD kikapcsolva:** az érték finom exponenciális lerp simítással tér vissza 0.50 neutrális középállásba.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #370)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #371)
+* [x] **Korg KAOSS DJ Touchpad Fast-Path, Univerzális Bipoláris FX & HOLD Vezérlés (Build #371):**
+  - Közvetlen fast-path intercept CC 12/13/31/32 és Hold gombokra.
+  - Mind a 4 slot bipoláris kétirányú vezérlése (LPF/HPF).
+  - 500 ms auto-reset watchdog és szigorú HOLD pozíciózár.
+  - Telepített bináris: 1 444 864 bájt, SHA256 `31837C23E0F330BDAE5BA69C122E04A49DA89918ABD4C29F7E501E0AF582F3DE`.
 * [x] **Korg KAOSS DJ 2×4 Touchpad FX Mátrix, Enkóder & HOLD Watchdog (Build #370):**
   - 2 oszlop × 4 soros Touchpad mátrix (Deck A bal oszlop, Deck B jobb oszlop, Slot 0..3 vertikális sorok).
   - Érintés-szinkronizáció és race-condition védelem (`touch_pending_` / `touch_triggered_lock_`).
