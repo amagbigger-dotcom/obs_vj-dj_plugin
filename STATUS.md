@@ -1,28 +1,37 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #368 (GitHub Run #45265725741 / Run #385)
-* **Aktuális Git Commit:** `15a8fe8`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 431 040 bájt)
-* **Bináris SHA256:** `581B19A1E65A4B7A6A295B5FC4154E6D54DBEAFB647A34EE0A48AF8DAE442947`
+* **Legutolsó stabil mérföldkő:** Build #369 (GitHub Run #45273393654 / Run #388)
+* **Aktuális Git Commit:** `1c5c5db`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 437 696 bájt)
+* **Bináris SHA256:** `9238A91092DE1CEBBD0EFB8A988414FD6655314D774E87AE65357880C763733C`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #368 - KÉSZ & TELEPÍTVE. libobs HLSL Paraméter Inkompatibilitás & Végtelen Újrafordítási Ciklus Megszüntetése (OBS Fehér Ablak Kifagyás Végleges Elhárítása):
-  1. **Gyökérok Feltárása & Megoldása:**
-     - **libobs HLSL szintaktika korlát:** A `libobs` beépített effect-parsere (`effect-parser.c`) a `texture2d` típust kizárólag uniform változó deklarációként értelmezi (`uniform texture2d image;`). Függvények formális paraméterlistájában (`float4 fx_filter(texture2d img, ...)`) nem engedélyezett, emiatt a `deck_color_effect` fordítása szintaktikai hibával meghiúsult.
-     - **Végtelen 60 FPS újrafordítási hurok:** A sikertelen fordítás miatt a `deck_color_effect` és `color_effect` mutató `nullptr` maradt, ami miatt a renderelő szál minden egyes képkockánál (forrásonként 60 alkalommal másodpercenként) újra megkísérelte a D3D11 HLSL fordítást. Ez a masszív CPU terhelés kiéheztette a Windows Qt GUI üzenethurkot, ami az OBS indításkori azonnali kifagyását és fehér nem válaszoló ablakát eredményezte.
-  2. **Globális Uniform Mintavételezés:**
-     - A `src/video/mixer_fx_shaders.hpp` fájlban mind a 9 Mixer FX shaderből eltávolításra került a `texture2d img` paraméter; a függvények közvetlenül a globálisan deklarált `image.Sample(def_sampler, ...)` segítségével mintavételeznek.
-  3. **Fordítási Hibaőrszemek (Fail Guards):**
-     - A `mixer_source.cpp` és `deck_source.cpp` forrásokban `deck_color_effect_failed` és `color_effect_failed` védőkapuk lettek bevezetve, így ha bármilyen shader fordítás sikertelen lenne, pontosan 1 hibabejegyzést naplóz a konzolra, és soha többé nem indít végtelen per-frame fordítási hurkot.
-  4. **Stabilitás és Végeredmény:**
-     - Az OBS azonnal, fagyásmentesen elindul; mind a 9 Mixer FX vizuális effekt és a Basszus-vezérelt Visual EQ azonnal, fluid módon és hibamentesen fut.
+* **Fő cél:** Build #369 - KÉSZ & TELEPÍTVE. Univerzális Bipoláris Tónuslánc, Delay vs. Reverb Szétválasztás, Agresszív Beatmasher Glitch & C2026 Védelem:
+  1. **Univerzális Bipoláris Tónuslánc (Minden effektre):**
+     - **Balra (v < 0, Mély / LPF):** Sötétedés (`col.rgb *= 1.0 - 0.42 * curve`), mélyülő feketék, peremsötétedő vinnyetta és fokozatos deszaturáció (monokróm/szürkeárnyalat).
+     - **Jobbra (v > 0, Magas / HPF):** Kifehéredés / ragyogás (`col.rgb` expozíció-emelés és fényes wash), szikrázó kontraszt és telített színek.
+     - A FLT potméter a Low EQ mellett a `DeckPlayer::updateVisualEqMapping()`-ben is közvetlenül modulálja a szaturációt (balra fakul, jobbra élénkül).
+  2. **Delay vs. Reverb Radikális Szétválasztása:**
+     - **Delay (`fx_delay`):** Valódi diszkrét, ritmikus szellemkép másolatok (Multi-tap Echo). Nagy térbeli eltolás (0.09 - 0.20 UV), 3/4 beat fázisú ugrások. Balra sötétedő analóg dub tape echo; jobbra bal-jobb alternáló Ping-Pong echo prizmatikus RGB split-tel és fényes additív éllel.
+     - **Reverb (`fx_reverb`):** Kiterjedt, lágy, szétfolyó diffúz fényköd és tér-tágulás nagy sugárral (0.045). Nincsenek szellemképek! Balra mély sötétkék kanyon (Abyss); jobbra ragyogó arany-fehér katedrális fényáradat (Cathedral Solar Bloom).
+  3. **Agresszív, Ritmikus Beatmasher 2 Glitch:**
+     - 8-fokozatú ritmikai leosztás (1/4 -> 1/8 -> 1/16 -> 1/24 -> 1/32).
+     - Hatalmas horizontális szelet-széttolás (akár a képernyő 45%-a!), RGB kromatikus szétszakadás a szeletek peremén.
+     - Balra fekete scanline kiesések és digitális signal drop-out; jobbra villámgyors stroboszkóp és invertáló neon villanások, 100%-ban követve a gépfegyver-szerű audio darálást.
+  4. **MSVC C2026 Védelem:**
+     - A shader forráskód két részre bontva (`MIXER_FX_HLSL_PART1` és `PART2`), megszüntetve a MSVC 16 KB raw string literal limit hibát.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #368)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #369)
+* [x] **Univerzális Bipoláris Tónus, Delay vs. Reverb & Intenzív Beatmasher (Build #369):**
+  - Bipoláris tónuslánc minden effektre (balra: sötétedés + fakulás, jobbra: kifehéredés + szaturáció).
+  - Delay (ritmikus multi-tap echo másolatok) és Reverb (diffúz fényköd és spatial bloom) radikális szétválasztása.
+  - Beatmasher 2 intenzitás követés (1/4 .. 1/32 darálás, brutális sáv-eltolás, stroboszkóp).
+  - Telepített bináris: 1 437 696 bájt, SHA256 `9238A91092DE1CEBBD0EFB8A988414FD6655314D774E87AE65357880C763733C`.
 * [x] **libobs HLSL Paraméter Hiba & Végtelen Újrafordítási Hurok Javítása (Build #368):**
   - Eltávolítva a `texture2d` paraméter a 9 shaderből, közvetlen `image.Sample` mintavételezés.
   - Fail-safe guard a 60 FPS D3D fordítási ciklus ellen.
