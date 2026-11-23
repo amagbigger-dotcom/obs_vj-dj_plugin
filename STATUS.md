@@ -1,43 +1,39 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #360 (GitHub Run #45135171674)
-* **Aktuális Git Commit:** `366f662`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 415 168 bájt)
-* **Bináris SHA256:** `80DEBAD9A4279A2E5818F794D5D5B43E62CD1441D74859EF6E145EC8FBF78F51`
+* **Legutolsó stabil mérföldkő:** Build #361 (GitHub Run #45140031823)
+* **Aktuális Git Commit:** `f1a3a98`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 414 144 bájt)
+* **Bináris SHA256:** `0CF11E699D5717F2A34F3867C5AC3C95529ED87CFBF21F01D301DBAD10697EF2`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #360 - KÉSZ & TELEPÍTVE. 9-Effektes Native Instruments Pro DJ Effekt Suite & 4 Konfigurálható Slot Rendszer:
-  1. **Akusztikailag Kiegyensúlyozott Szűrő Görbék:**
-     - **High-Pass (Jobbra):** Cutoff max 1400 Hz (a korábbi 3800 Hz helyett). A lábdob és mélyhangok teljesen eltűnnek, de az ének és zenei tartalom kristálytiszta marad (-7 dB), így a ráültetett effektek (Reverb, Delay, Flanger) folyamatosan hallhatók maradnak, megszűnt a 100%-os süketség.
-     - **Low-Pass (Balra):** Cutoff 35 Hz-ig lemegy (igazi mély szub-basszus tartomány).
-  2. **Hivatalos Native Instruments Referenciákkal Hitelesített DSP Algoritmusok:**
-     - 🔴 **Filter (FLT):** Sima bipoláris analóg DJ vágás.
-     - 🔵 **Delay (DLY):** Egységes 3/4 ütem (pontozott nyolcad) +12 ms Haas sztereó eltolással a jobb csatornán. +0.81-es fáziskorreláció, 160 Hz-es bemeneti Low-Cut a kick bedörgés ellen, szalagos köbös feedback szaturáció.
-     - 🟢 **Reverb (REV):** 280 Hz-es bemeneti Low-Cut ("reduce bass before reverb"), 0.18x fésű összegző skálázás (a korábbi 0.45x helyett, megszűnt a +9 dB-es hangerőrobbanás!), selymes, modulált plate karakter.
-     - 🟡 **Flanger (FLG):** Constant-power jelszintezés ($0.707 \times$), 120 Hz HPF a visszacsatolásban a szub-basszus rezonancia ellen, 8-beat söprés 90°-os kvadratúrával.
-     - 🟣 **Beatmasher 2 (BTM):** 2 másodperces előrefoglalt puffer, potméter állás szerint 1/2, 1/4, 1/8, 1/16, 1/32 beat loop capture és ritmikus dadogás (stutter), 32-mintás kattanásmentesítő ablakozással.
-     - 🟠 **Turntable FX (TTF):** Balra tekerve Vinyl Brake (motor leállás, lassuló és tompuló lemezhang), jobbra tekerve Vinyl Spinback (hátrafelé pörgő lemez).
-     - 🚀 **Ramp Delay (RMP):** 4-beat gyorsuló rámpa Doppler-effektussal felpörgő sziréna/UFO riser építkezésekhez.
-     - 🔥 **Mulholland Drive (MUL):** Aszimmetrikus analóg csöves meghajtás (Tube Overdrive) + 250..1100 Hz rezonáns sávszűrős gerjedés/morgás.
-     - 🎚️ **Transpose Stretch (TRS):** 40 ms-os valós idejű duplagrain pitch shifter: jobbra +12 félhang (+1 oktáv fel), balra -12 félhang (-1 oktáv le) állandó zenei tempó mellett.
-  3. **4 Konfigurálható Slot & Legördülő Menürendszer (`MixerMasterPanel`):**
-     - A 4 fizikai gombhoz (Traktor S2 Note 44..47) 4 dinamikus slot tartozik.
-     - Bal klikk a gombon: aktiválja a slotot (ha már aktív volt, megnyitja a választó menüt).
-     - Jobb klikk a gombon: előugró `QMenu` legördülő lista nyílik, ahol mind a 9 effekt közül azonnal választhat a DJ.
-     - Dinamikus ikonok, rövidítések és színek: `🔴 FLT ▾`, `🔵 DLY ▾`, `🟢 REV ▾`, `🟡 FLG ▾`, `🟣 BTM ▾`, `🟠 TTF ▾`, `🚀 RMP ▾`, `🔥 MUL ▾`, `🎚️ TRS ▾`.
-  4. **Szélesített Csatorna Címkék (`MixerChannelStrip`):**
-     - Értékjelző mező szélessége 42 px-ről 58 px-re növelve, így a leghosszabb feliratok is (`LP+DLY 100%`, `HP+BTM 100%`, `BRAKE 100%`) levágásmentesen elférnek.
-  5. **Kétirányú MIDI Hardver Visszajelzés:**
-     - A Traktor S2 MK3 és más vezérlők fizikai LED-jei pontosan az aktív slotot világítják meg.
-  6. **Perzisztens Beállításmentés:**
-     - A slotok kiosztása mind az OBS forrásbeállításokba (`mixer_source`), mind a DJ zenetár JSON-ba (`vj_tracklist.json`) automatikusan elmentődik és visszatöltődik.
+* **Fő cél:** Build #361 - KÉSZ & TELEPÍTVE. Mixer FX Akusztikai Finomhangolás & Zéró Szintváltozás:
+  1. **Egységes Bipoláris DJ Filter Finomhangolása (Minden Effektre Láncban Érvényes):**
+     - **High-Pass (Jobbra):** Logaritmikus potméter-görbével $3400\text{ Hz}$-ig vág fel ($20 \cdot 170^{\text{norm}^{1.15}}$).
+     - A lábdob, basszus, pergődob teste és az ének teljesen eltűnik, **éppen csak a lábcin és cintányérok tiszta, levegős fémes zizegése (sizzle / "cicergés") marad meg**.
+     - A tartomány végén ($75\%..100\%$) $+2.5\text{ dB}$-es High-Frequency Sizzle Sheen kiemelés gondoskodik a fényes, kristálytiszta cicergésről, kizárva a némulást.
+     - **Low-Pass (Balra):** Logaritmikus görbe $20\text{ kHz}$-ről egészen $30\text{ Hz}$-ig (igazi mély szub-basszus dübörgés).
+  2. **Flanger Hangerő-esés Megszüntetése:**
+     - A téves $0.707\times$ helyett középállásban a száraz jel szigorúan **$1.0\times$ (0 dB)**.
+     - A Flanger kiválasztásakor $0\text{ dB}$ szintváltozás, tekeréskor dinamikus jet-sweep jelszintezés hangerővesztés nélkül.
+  3. **Mulholland Drive Hangerőugrás & Mély Tartományi Torzulás Elhárítása:**
+     - Valódi Wet/Dry crossfade: $\text{dry} = 1.0 - \text{amount} \times 0.65$, $\text{wet} = \text{amount} \times 0.78$.
+     - **80 Hz Low-Cut szűrő** a torzító érzékelőjén: megvédi a szub-basszust az intermodulációs recsegéstől balra tekert állapotban is.
+     - $1.0\times..2.2\times$ zenei analóg előerősítés, $1.5\times$ rezonáns felharmonikus süvítés, normált $0.90\times$ RMS kimeneti szinttel (zéró hard-clipping).
+  4. **Középponti Transzparens Bypass Garancia:**
+     - Ha $\text{amount} < 0.003f$, a rendszer azonnali módosítatlan átengedést (Unity Gain 1.0x bit-exact bypass) végez mind a 9 effektnél. A listából vagy gombbal történő választáskor a zene 100%-os tisztasággal és változatlan hangerővel szól tovább.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #360)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #361)
+* [x] **Mixer FX Akusztikai Finomhangolás & Zéró Szintváltozás (Build #361):**
+  - HPF: $3400\text{ Hz}$ logaritmikus vágás cicergés-kiemeléssel (eltűnik a középsáv, éppen csak a fényes cicergés marad).
+  - Flanger: 0%-nál pontosan $1.0\times$ száraz jel (zéró hangerő-esés lista választásakor).
+  - Mulholland Drive: 80 Hz Low-Cut, valódi crossfade, megszűnt a hangerőrobbanás és a mély recsegés.
+  - Globális középponti bypass garancia mind a 9 effektre.
+  - Telepített bináris: 1 414 144 bájt, SHA256 `0CF11E699D5717F2A34F3867C5AC3C95529ED87CFBF21F01D301DBAD10697EF2`.
 * [x] **9-Effektes Native Instruments Pro DJ Suite & Konfigurálható Slot Rendszer (Build #360):**
   - HPF cutoff 1400 Hz-re korlátozva (nincs többé némulás magas irányba, az effektek tisztán és érthetően hallhatók).
   - Delay: 3/4 beat +12ms Haas spread (+0.81 fáziskorreláció), 160 Hz send HPF.
