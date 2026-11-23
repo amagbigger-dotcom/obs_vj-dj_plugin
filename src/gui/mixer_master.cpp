@@ -2,6 +2,7 @@
 #include "gui/crossfade_fx_dialog.hpp"
 #include "gui/lfo_dialog.hpp"
 #include "engine/deck_engine.hpp"
+#include "engine/mixer_fx.hpp"
 #include "controllers/midi_handler.hpp"
 #include "widget/dj_slider.hpp"
 
@@ -12,6 +13,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QComboBox>
+#include <QMenu>
 #include <QAbstractItemView>
 #include <QSignalBlocker>
 #include <QKeyEvent>
@@ -256,37 +258,34 @@ void MixerMasterPanel::setupUi()
     auto *mxfx_row = new QHBoxLayout();
     mxfx_row->setSpacing(3);
 
-    auto createFxBtn = [this, mxfx_box](const QString &text, int fx_idx, const QString &active_col) {
-        auto *btn = new QPushButton(text, mxfx_box);
+    for (int s = 0; s < 4; ++s) {
+        auto *btn = new QPushButton(mxfx_box);
         btn->setCheckable(true);
         btn->setFixedHeight(20);
-        btn->setStyleSheet(QStringLiteral(
-            "QPushButton { background: #161c24; border: 1px solid #2b3545; color: #8da0b8; font-weight: bold; font-size: 8px; border-radius: 3px; padding: 1px; } "
-            "QPushButton:hover { background: #222b38; color: #ffffff; } "
-            "QPushButton:checked { background: %1; color: #ffffff; border: 1px solid %1; font-weight: bold; }")
-            .arg(active_col));
-        connect(btn, &QPushButton::clicked, this, [this, fx_idx]() {
-            if (decks_) decks_->setMixerFxType(fx_idx);
+        btn->setContextMenuPolicy(Qt::CustomContextMenu);
+
+        connect(btn, &QPushButton::customContextMenuRequested, this, [this, s](const QPoint &pos) {
+            if (slot_btn_[s]) {
+                showSlotMenu(s, slot_btn_[s]->mapToGlobal(pos));
+            }
         });
-        return btn;
-    };
 
-    fx_filter_btn_ = createFxBtn(QStringLiteral("🔴 FLT"), 0, QStringLiteral("#dc2626"));
-    fx_filter_btn_->setToolTip(QStringLiteral("Mixer FX 1: Sima Filter (Piros / Red)"));
+        connect(btn, &QPushButton::clicked, this, [this, s]() {
+            if (!decks_) return;
+            if (decks_->activeSlot() == s) {
+                if (slot_btn_[s]) {
+                    showSlotMenu(s, slot_btn_[s]->mapToGlobal(QPoint(0, slot_btn_[s]->height())));
+                }
+            } else {
+                decks_->selectSlot(s);
+                refresh();
+            }
+        });
 
-    fx_delay_btn_ = createFxBtn(QStringLiteral("🔵 DLY"), 1, QStringLiteral("#0284c7"));
-    fx_delay_btn_->setToolTip(QStringLiteral("Mixer FX 2: Filter + Delay (Kék / Blue, 3/4 ütem)"));
-
-    fx_reverb_btn_ = createFxBtn(QStringLiteral("🟢 REV"), 2, QStringLiteral("#16a34a"));
-    fx_reverb_btn_->setToolTip(QStringLiteral("Mixer FX 3: Filter + Reverb (Zöld / Green, Térzengés)"));
-
-    fx_flanger_btn_ = createFxBtn(QStringLiteral("🟡 FLG"), 3, QStringLiteral("#ca8a04"));
-    fx_flanger_btn_->setToolTip(QStringLiteral("Mixer FX 4: Filter + Flanger (Sárga / Yellow, Jet Sweep)"));
-
-    mxfx_row->addWidget(fx_filter_btn_, 1);
-    mxfx_row->addWidget(fx_delay_btn_, 1);
-    mxfx_row->addWidget(fx_reverb_btn_, 1);
-    mxfx_row->addWidget(fx_flanger_btn_, 1);
+        slot_btn_[s] = btn;
+        mxfx_row->addWidget(btn, 1);
+        updateSlotBtn(s);
+    }
 
     mxfx_vbox->addLayout(mxfx_row);
     layout->addWidget(mxfx_box);
@@ -471,19 +470,103 @@ void MixerMasterPanel::refresh()
         updateCfLabel(cf_val);
     }
 
-    const int cur_fx = decks_->mixerFxType();
-    auto updateFxBtnState = [cur_fx](QPushButton *btn, int idx) {
-        if (!btn) return;
-        const bool active = (cur_fx == idx);
-        if (btn->isChecked() != active) {
-            QSignalBlocker blocker(btn);
-            btn->setChecked(active);
-        }
+    for (int s = 0; s < 4; ++s) {
+        updateSlotBtn(s);
+    }
+}
+
+void MixerMasterPanel::updateSlotBtn(int slot)
+{
+    if (slot < 0 || slot >= 4 || !slot_btn_[slot] || !decks_) return;
+
+    QPushButton *btn = slot_btn_[slot];
+    const int fx_type_idx = decks_->slotFxType(slot);
+    const auto fx_type = static_cast<MixerFxType>(fx_type_idx);
+    const bool is_active = (decks_->activeSlot() == slot);
+
+    const QString short_name = QString::fromUtf8(MixerFxProcessor::shortName(fx_type));
+    const QString full_name = QString::fromUtf8(MixerFxProcessor::name(fx_type));
+    const QString hex_col = QString::fromUtf8(MixerFxProcessor::colorHex(fx_type));
+
+    QString icon = QStringLiteral("🔴");
+    switch (fx_type) {
+    case MixerFxType::FILTER:     icon = QStringLiteral("🔴"); break;
+    case MixerFxType::DELAY:      icon = QStringLiteral("🔵"); break;
+    case MixerFxType::REVERB:     icon = QStringLiteral("🟢"); break;
+    case MixerFxType::FLANGER:    icon = QStringLiteral("🟡"); break;
+    case MixerFxType::BEATMASHER: icon = QStringLiteral("🟣"); break;
+    case MixerFxType::TURNTABLE:  icon = QStringLiteral("🟠"); break;
+    case MixerFxType::RAMP_DELAY: icon = QStringLiteral("🚀"); break;
+    case MixerFxType::MULHOLLAND: icon = QStringLiteral("🔥"); break;
+    case MixerFxType::TRANSPOSE:  icon = QStringLiteral("🎚️"); break;
+    default: break;
+    }
+
+    btn->setText(QStringLiteral("%1 %2 ▾").arg(icon, short_name));
+    btn->setToolTip(QStringLiteral(
+        "Mixer FX Gomb %1: %2\n"
+        "• Bal klikk: Aktiválás / Választó menü megnyitása\n"
+        "• Jobb klikk: Effekt csere (9 professzionális NI effekt)")
+        .arg(slot + 1)
+        .arg(full_name));
+
+    btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #161c24; border: 1px solid #2b3545; color: #8da0b8; font-weight: bold; font-size: 8px; border-radius: 3px; padding: 1px; } "
+        "QPushButton:hover { background: #222b38; color: #ffffff; border: 1px solid #4a5568; } "
+        "QPushButton:checked { background: %1; color: #ffffff; border: 1px solid %1; font-weight: bold; }")
+        .arg(hex_col));
+
+    if (btn->isChecked() != is_active) {
+        QSignalBlocker blocker(btn);
+        btn->setChecked(is_active);
+    }
+}
+
+void MixerMasterPanel::showSlotMenu(int slot, const QPoint &pos)
+{
+    if (slot < 0 || slot >= 4 || !decks_) return;
+
+    QMenu menu(this);
+    menu.setStyleSheet(QStringLiteral(
+        "QMenu { background: #161c24; border: 1px solid #2b3545; color: #e2e8f0; font-size: 11px; padding: 4px; } "
+        "QMenu::item { padding: 4px 20px 4px 10px; border-radius: 2px; } "
+        "QMenu::item:selected { background: #2563eb; color: #ffffff; } "
+        "QMenu::item:checked { font-weight: bold; } "
+        "QMenu::separator { height: 1px; background: #2b3545; margin: 4px 0; }"));
+
+    struct FxOption {
+        MixerFxType type;
+        const char *label;
     };
-    updateFxBtnState(fx_filter_btn_, 0);
-    updateFxBtnState(fx_delay_btn_, 1);
-    updateFxBtnState(fx_reverb_btn_, 2);
-    updateFxBtnState(fx_flanger_btn_, 3);
+    const std::array<FxOption, 9> options = {{
+        {MixerFxType::FILTER,     "🔴 Filter (Classic HPF/LPF Sweep)"},
+        {MixerFxType::DELAY,      "🔵 Delay (3/4 Beat Echo + Haas Stereo)"},
+        {MixerFxType::REVERB,     "🟢 Reverb (3D Hall Plate + Modulated Tail)"},
+        {MixerFxType::FLANGER,    "🟡 Flanger (Stereo Jet Sweep)"},
+        {MixerFxType::BEATMASHER, "🟣 Beatmasher 2 (1/2..1/32 Rhythmic Stutter)"},
+        {MixerFxType::TURNTABLE,  "🟠 Turntable FX (Vinyl Brake & Spinback)"},
+        {MixerFxType::RAMP_DELAY, "🚀 Ramp Delay (Accelerating Siren Riser)"},
+        {MixerFxType::MULHOLLAND, "🔥 Mulholland Drive (Overdrive & Feedback Growl)"},
+        {MixerFxType::TRANSPOSE,  "🎚️ Transpose Stretch (Octave Pitch Shift)"}
+    }};
+
+    const int cur_assigned = decks_->slotFxType(slot);
+
+    for (const auto &opt : options) {
+        const int fx_val = static_cast<int>(opt.type);
+        auto *action = menu.addAction(QString::fromUtf8(opt.label));
+        action->setCheckable(true);
+        action->setChecked(cur_assigned == fx_val);
+        connect(action, &QAction::triggered, this, [this, slot, fx_val]() {
+            if (decks_) {
+                decks_->setSlotFxType(slot, fx_val);
+                decks_->selectSlot(slot);
+                refresh();
+            }
+        });
+    }
+
+    menu.exec(pos);
 }
 
 bool MixerMasterPanel::handleKeyPress(QKeyEvent *event)

@@ -48,8 +48,8 @@ private:
     DJSlider *hp_mix_slider_ = nullptr;
     QLabel *hp_mix_val_lbl_ = nullptr;
 
-    QPushButton *fx_filter_btn_ = nullptr;
-    QPushButton *fx_delay_btn_ = nullptr;
-    QPushButton *fx_reverb_btn_ = nullptr;
-    QPushButton *fx_flanger_btn_ = nullptr;
+    void showSlotMenu(int slot, const QPoint &pos);
+    void updateSlotBtn(int slot);
+
+    QPushButton *slot_btn_[4] = {nullptr, nullptr, nullptr, nullptr};
 };

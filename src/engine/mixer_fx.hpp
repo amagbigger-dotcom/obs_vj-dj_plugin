@@ -7,10 +7,18 @@
 #include <algorithm>
 
 enum class MixerFxType : int {
-    FILTER = 0,         // Sima Filter (Piros / Red LED)
-    FILTER_DELAY = 1,   // Filter + Delay (Kék / Blue LED)
-    FILTER_REVERB = 2,  // Filter + Reverb (Zöld / Green LED)
-    FILTER_FLANGER = 3  // Filter + Flanger (Sárga / Yellow LED)
+    FILTER = 0,         // Sima Filter (Piros / Red)
+    DELAY = 1,          // Filter + Delay (Kék / Blue, 3/4 Beat Dub Echo)
+    FILTER_DELAY = 1,   // Alias
+    REVERB = 2,         // Filter + Reverb (Zöld / Green, 3D Plate/Hall)
+    FILTER_REVERB = 2,  // Alias
+    FLANGER = 3,        // Filter + Flanger (Sárga / Yellow, 8-Beat Jet Sweep)
+    FILTER_FLANGER = 3, // Alias
+    BEATMASHER = 4,     // Filter + Beatmasher 2 (Lila / Purple, 1/2..1/32 Rhythmic Stutter)
+    TURNTABLE = 5,      // Filter + Turntable FX (Narancs / Orange, Vinyl Brake & Spinback)
+    RAMP_DELAY = 6,     // Filter + Ramp Delay (Ciánkék / Cyan, UFO Siren Riser)
+    MULHOLLAND = 7,     // Filter + Mulholland Drive (Vérvörös / Crimson, Overdrive & Feedback Growl)
+    TRANSPOSE = 8       // Filter + Transpose Stretch (Rózsaszín / Pink, Pitch Riser / Dropper)
 };
 
 struct MixerFxState {
@@ -20,6 +28,11 @@ struct MixerFxState {
     float dj_lp = 0.0f;
     float dj_hp = 0.0f;
     float cur_flt = 0.0f;
+
+    // Bemeneti mélyvágó szűrők (Low-Cut az effekt bemeneteken a lábdob bedörgés ellen)
+    float delay_send_hp = 0.0f;
+    float reverb_send_hp = 0.0f;
+    float flanger_fb_hp = 0.0f;
 
     // Delay állapot (96 000 minta = 2.0s @ 48kHz körkörös gyűrűpuffer)
     std::vector<float> delay_buf;
@@ -42,6 +55,32 @@ struct MixerFxState {
     size_t flanger_write_pos = 0;
     float flanger_lfo_phase = 0.0f;
 
+    // Beatmasher 2 állapot (96 000 minta = 2.0s körkörös gyűrűpuffer)
+    std::vector<float> beatmash_buf;
+    size_t beatmash_write_pos = 0;
+    size_t beatmash_freeze_anchor = 0;
+    float beatmash_playback_pos = 0.0f;
+    bool beatmash_active = false;
+
+    // Turntable FX állapot (96 000 minta = 2.0s körkörös gyűrűpuffer)
+    std::vector<float> turntable_buf;
+    size_t turntable_write_pos = 0;
+    float turntable_read_pos = 0.0f;
+    float turntable_speed = 1.0f;
+
+    // Ramp Delay állapot
+    float ramp_phase = 0.0f;
+
+    // Mulholland Drive állapot (rezonáns sáváteresztő feedback állapot)
+    float mulholland_bp_p0 = 0.0f;
+    float mulholland_bp_p1 = 0.0f;
+
+    // Transpose Stretch állapot (4096 minta granular grain buffer)
+    std::vector<float> grain_buf;
+    size_t grain_write_pos = 0;
+    float grain_phase_a = 0.0f;
+    float grain_phase_b = 0.0f;
+
     void init(size_t sample_rate, size_t channel_idx);
     void reset();
 };
@@ -56,4 +95,8 @@ public:
                         double bpm,
                         MixerFxState &st,
                         size_t channel_idx);
+
+    static const char *name(MixerFxType type) noexcept;
+    static const char *shortName(MixerFxType type) noexcept;
+    static const char *colorHex(MixerFxType type) noexcept;
 };

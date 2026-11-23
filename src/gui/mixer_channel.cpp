@@ -1,5 +1,6 @@
 #include "gui/mixer_channel.hpp"
 #include "engine/deck_engine.hpp"
+#include "engine/mixer_fx.hpp"
 #include "widget/dj_slider.hpp"
 
 #include <QHBoxLayout>
@@ -34,11 +35,19 @@ QString formatFilter(int v, int fx_type = 0)
     if (v == 0) {
         return (fx_type == 0) ? QStringLiteral("FLAT") : QStringLiteral("OFF");
     }
-    const char *prefix = "";
-    if (fx_type == 1) prefix = (v < 0) ? "LP+DLY" : "HP+DLY";
-    else if (fx_type == 2) prefix = (v < 0) ? "LP+REV" : "HP+REV";
-    else if (fx_type == 3) prefix = (v < 0) ? "LP+FLG" : "HP+FLG";
-    else prefix = (v < 0) ? "LPF" : "HPF";
+    const char *prefix = "FLT";
+    switch (static_cast<MixerFxType>(fx_type)) {
+    case MixerFxType::FILTER:     prefix = (v < 0) ? "LPF" : "HPF"; break;
+    case MixerFxType::DELAY:      prefix = (v < 0) ? "LP+DLY" : "HP+DLY"; break;
+    case MixerFxType::REVERB:     prefix = (v < 0) ? "LP+REV" : "HP+REV"; break;
+    case MixerFxType::FLANGER:    prefix = (v < 0) ? "LP+FLG" : "HP+FLG"; break;
+    case MixerFxType::BEATMASHER: prefix = (v < 0) ? "LP+BTM" : "HP+BTM"; break;
+    case MixerFxType::TURNTABLE:  prefix = (v < 0) ? "BRAKE"  : "SPIN"; break;
+    case MixerFxType::RAMP_DELAY: prefix = (v < 0) ? "LP+RMP" : "HP+RMP"; break;
+    case MixerFxType::MULHOLLAND: prefix = (v < 0) ? "LP+MUL" : "HP+MUL"; break;
+    case MixerFxType::TRANSPOSE:  prefix = (v < 0) ? "DOWN"   : "UP"; break;
+    default:                      prefix = (v < 0) ? "LPF" : "HPF"; break;
+    }
 
     const int pct = (v < 0) ? -v : v;
     return QString::asprintf("%s %d%%", prefix, pct);
@@ -100,7 +109,7 @@ void MixerChannelStrip::setupUi()
         *out_sl = sl;
 
         auto *val_lbl = new QLabel(formatter(def_val), this);
-        val_lbl->setFixedWidth(42);
+        val_lbl->setFixedWidth(58);
         val_lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
         val_lbl->setStyleSheet(QStringLiteral("font-size: 8px; font-family: monospace; color: %1;")
             .arg(is_deck_a_ ? QStringLiteral("#7eb5e6") : QStringLiteral("#e6a87e")));
@@ -132,7 +141,7 @@ void MixerChannelStrip::setupUi()
 
     if (flt_title_lbl_) {
         flt_title_lbl_->setCursor(Qt::PointingHandCursor);
-        flt_title_lbl_->setToolTip(QStringLiteral("Mixer FX: Kattints az effekt váltásához (Filter / Delay / Reverb / Flanger)"));
+        flt_title_lbl_->setToolTip(QStringLiteral("Mixer FX: Kattints a slot váltásához"));
         class FxClickFilter : public QObject {
         public:
             std::function<void()> on_click;
@@ -146,8 +155,9 @@ void MixerChannelStrip::setupUi()
             }
         };
         flt_title_lbl_->installEventFilter(new FxClickFilter(flt_title_lbl_, [this]() {
-            if (deck_) {
-                deck_->setMixerFxType((deck_->mixerFxType() + 1) % 4);
+            if (auto *decks = vdj_decks()) {
+                const int next_slot = (decks->activeSlot() + 1) % 4;
+                decks->selectSlot(next_slot);
                 refresh();
             }
         }));
@@ -346,28 +356,12 @@ void MixerChannelStrip::refresh()
 
     const int fx_mode = deck_->mixerFxType();
     if (flt_title_lbl_) {
-        switch (fx_mode) {
-        case 0:
-            flt_title_lbl_->setText(QStringLiteral("FLT"));
-            flt_title_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #ef4444;"));
-            flt_title_lbl_->setToolTip(QStringLiteral("Mixer FX 1: Sima Filter (Piros / Red) - Kattints a váltáshoz!"));
-            break;
-        case 1:
-            flt_title_lbl_->setText(QStringLiteral("DLY"));
-            flt_title_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #38bdf8;"));
-            flt_title_lbl_->setToolTip(QStringLiteral("Mixer FX 2: Filter + Delay (Kék / Blue) - Kattints a váltáshoz!"));
-            break;
-        case 2:
-            flt_title_lbl_->setText(QStringLiteral("REV"));
-            flt_title_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #22c55e;"));
-            flt_title_lbl_->setToolTip(QStringLiteral("Mixer FX 3: Filter + Reverb (Zöld / Green) - Kattints a váltáshoz!"));
-            break;
-        case 3:
-            flt_title_lbl_->setText(QStringLiteral("FLG"));
-            flt_title_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #eab308;"));
-            flt_title_lbl_->setToolTip(QStringLiteral("Mixer FX 4: Filter + Flanger (Sárga / Yellow) - Kattints a váltáshoz!"));
-            break;
-        }
+        const auto fx_t = static_cast<MixerFxType>(fx_mode);
+        flt_title_lbl_->setText(QString::fromUtf8(MixerFxProcessor::shortName(fx_t)));
+        flt_title_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: %1;")
+            .arg(QString::fromUtf8(MixerFxProcessor::colorHex(fx_t))));
+        flt_title_lbl_->setToolTip(QStringLiteral("Mixer FX: %1 - Kattints a slot váltásához!")
+            .arg(QString::fromUtf8(MixerFxProcessor::name(fx_t))));
     }
 
     updateSliderFromVal(gain_slider_, gain_val_lbl_, static_cast<int>((deck_->gain() - 1.0f) * 100.0f), formatGain);

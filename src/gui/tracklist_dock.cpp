@@ -1916,6 +1916,15 @@ void TracklistDock::saveLibraryJson()
     root[QStringLiteral("quick_slots")] = pm_obj[QStringLiteral("quick_slots")];
     root[QStringLiteral("active_slot")] = pm_obj[QStringLiteral("active_slot")];
 
+    if (auto *decks = vdj_decks()) {
+        QJsonArray fx_slots;
+        for (int i = 0; i < 4; ++i) {
+            fx_slots.append(decks->slotFxType(i));
+        }
+        root[QStringLiteral("mixer_fx_slots")] = fx_slots;
+        root[QStringLiteral("mixer_fx_active_slot")] = decks->activeSlot();
+    }
+
     QJsonDocument doc(root);
     QFile f(json_path);
     if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
@@ -1940,6 +1949,18 @@ void TracklistDock::loadLibraryJson()
             const QJsonObject root = doc.object();
             arr = root[QStringLiteral("tracks")].toArray();
             playlist_mgr_.fromJson(root);
+
+            if (root.contains(QStringLiteral("mixer_fx_slots"))) {
+                if (auto *decks = vdj_decks()) {
+                    const QJsonArray fx_slots = root[QStringLiteral("mixer_fx_slots")].toArray();
+                    for (int i = 0; i < 4 && i < fx_slots.size(); ++i) {
+                        decks->setSlotFxType(i, fx_slots[i].toInt(i));
+                    }
+                    if (root.contains(QStringLiteral("mixer_fx_active_slot"))) {
+                        decks->selectSlot(root[QStringLiteral("mixer_fx_active_slot")].toInt(0));
+                    }
+                }
+            }
         }
 
         for (const auto &val : arr) {

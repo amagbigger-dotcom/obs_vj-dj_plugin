@@ -449,6 +449,11 @@ public:
     void setMixerFxType(int type) noexcept;
     int mixerFxType() const noexcept { return master_mixer_fx_type_.load(std::memory_order_relaxed); }
 
+    int activeSlot() const noexcept { return active_slot_.load(std::memory_order_relaxed); }
+    void selectSlot(int slot) noexcept;
+    int slotFxType(int slot) const noexcept;
+    void setSlotFxType(int slot, int fx_type) noexcept;
+
 private:
     obs_source_t *master_source_ = nullptr;
     mutable std::mutex cue_source_mutex_;
@@ -491,6 +496,8 @@ private:
     std::atomic<float> headphone_volume_{1.0f};
     std::atomic<float> headphone_mix_{0.5f};
     std::atomic<int> master_mixer_fx_type_{0};
+    std::atomic<int> active_slot_{0};
+    std::atomic<int> slot_fx_types_[4]{0, 1, 2, 3};
     std::atomic<int> master_mode_{0};
     std::atomic<double> master_clock_bpm_{128.0};
     std::atomic<int> loop_beat_idx_a_{EngineLoop::DEFAULT_LOOP_INDEX};

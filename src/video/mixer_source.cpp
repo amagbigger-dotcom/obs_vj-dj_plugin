@@ -1285,6 +1285,14 @@ static void mixer_update(void *data, obs_data_t *settings)
         decks->setVisualizerMode(static_cast<int>(obs_data_get_int(settings, "visualizer_mode")));
         decks->setVisualizerPulse(obs_data_get_bool(settings, "visualizer_pulse"));
         decks->setVisualizerTone(obs_data_get_bool(settings, "visualizer_tone"));
+
+        if (obs_data_has_user_value(settings, "mixer_fx_slot_0")) {
+            decks->setSlotFxType(0, static_cast<int>(obs_data_get_int(settings, "mixer_fx_slot_0")));
+            decks->setSlotFxType(1, static_cast<int>(obs_data_get_int(settings, "mixer_fx_slot_1")));
+            decks->setSlotFxType(2, static_cast<int>(obs_data_get_int(settings, "mixer_fx_slot_2")));
+            decks->setSlotFxType(3, static_cast<int>(obs_data_get_int(settings, "mixer_fx_slot_3")));
+            decks->selectSlot(static_cast<int>(obs_data_get_int(settings, "mixer_fx_active_slot")));
+        }
     }
 
     if (context && context->source) {
@@ -1301,6 +1309,23 @@ static void mixer_defaults(obs_data_t *settings)
     obs_data_set_default_int(settings, "visualizer_mode", 0);
     obs_data_set_default_bool(settings, "visualizer_pulse", true);
     obs_data_set_default_bool(settings, "visualizer_tone", true);
+    obs_data_set_default_int(settings, "mixer_fx_slot_0", 0);
+    obs_data_set_default_int(settings, "mixer_fx_slot_1", 1);
+    obs_data_set_default_int(settings, "mixer_fx_slot_2", 2);
+    obs_data_set_default_int(settings, "mixer_fx_slot_3", 3);
+    obs_data_set_default_int(settings, "mixer_fx_active_slot", 0);
+}
+
+static void mixer_save(void *, obs_data_t *settings)
+{
+    DeckPair *decks = vdj_decks();
+    if (decks && settings) {
+        obs_data_set_int(settings, "mixer_fx_slot_0", decks->slotFxType(0));
+        obs_data_set_int(settings, "mixer_fx_slot_1", decks->slotFxType(1));
+        obs_data_set_int(settings, "mixer_fx_slot_2", decks->slotFxType(2));
+        obs_data_set_int(settings, "mixer_fx_slot_3", decks->slotFxType(3));
+        obs_data_set_int(settings, "mixer_fx_active_slot", decks->activeSlot());
+    }
 }
 
 static const char *cue_get_name(void *)
@@ -1403,6 +1428,7 @@ void vdj_register_sources(void)
     master.get_height = mixer_get_height;
     master.get_properties = mixer_properties;
     master.get_defaults = mixer_defaults;
+    master.save = mixer_save;
     obs_register_source_s(&master, sizeof(master));
 }
 

@@ -1009,7 +1009,7 @@ float DeckPlayer::filterVal() const noexcept { return filter_val_.load(std::memo
 
 void DeckPlayer::setMixerFxType(int type) noexcept
 {
-    mixer_fx_type_.store(std::clamp(type, 0, 3), std::memory_order_relaxed);
+    mixer_fx_type_.store(std::clamp(type, 0, 8), std::memory_order_relaxed);
 }
 
 int DeckPlayer::mixerFxType() const noexcept
@@ -2247,10 +2247,41 @@ void DeckPair::updateAudioMix() noexcept
 
 void DeckPair::setMixerFxType(int type) noexcept
 {
-    const int clamped = std::clamp(type, 0, 3);
+    const int clamped = std::clamp(type, 0, 8);
     master_mixer_fx_type_.store(clamped, std::memory_order_relaxed);
     if (auto *da = vj_deck_a()) da->setMixerFxType(clamped);
     if (auto *db = vj_deck_b()) db->setMixerFxType(clamped);
+
+    for (int i = 0; i < 4; ++i) {
+        if (slot_fx_types_[i].load(std::memory_order_relaxed) == clamped) {
+            active_slot_.store(i, std::memory_order_relaxed);
+            break;
+        }
+    }
+}
+
+void DeckPair::selectSlot(int slot) noexcept
+{
+    const int clamped_slot = std::clamp(slot, 0, 3);
+    active_slot_.store(clamped_slot, std::memory_order_relaxed);
+    const int fx = slot_fx_types_[clamped_slot].load(std::memory_order_relaxed);
+    setMixerFxType(fx);
+}
+
+int DeckPair::slotFxType(int slot) const noexcept
+{
+    const int clamped_slot = std::clamp(slot, 0, 3);
+    return slot_fx_types_[clamped_slot].load(std::memory_order_relaxed);
+}
+
+void DeckPair::setSlotFxType(int slot, int fx_type) noexcept
+{
+    const int clamped_slot = std::clamp(slot, 0, 3);
+    const int clamped_fx = std::clamp(fx_type, 0, 8);
+    slot_fx_types_[clamped_slot].store(clamped_fx, std::memory_order_relaxed);
+    if (active_slot_.load(std::memory_order_relaxed) == clamped_slot) {
+        setMixerFxType(clamped_fx);
+    }
 }
 
 obs_source_t *DeckPair::cueSource() const noexcept
