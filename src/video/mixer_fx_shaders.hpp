@@ -6,9 +6,10 @@
 // TRAKTOR MIXER FX 9-TAGÚ KÉPTORZÍTÓ VIZUÁLIS SHADER CSOMAG (HLSL)
 // Mind a 9 audio effekt közvetlen képi torzítási algoritmusa Direct3D 11 / HLSL
 // libobs HLSL: A textúra mintavételezés a globális 'image' uniformból történik.
+// MSVC C2026 védelem: Két részre bontva a stringkonstans mérethatár miatt.
 // =============================================================================
 
-static const char *MIXER_FX_HLSL = R"(
+static const char *MIXER_FX_HLSL_PART1 = R"(
 
 // Type 0: FILTER (Bipoláris Gaussian/Box Blur + Vignette vs. Sharpen + Contrast)
 // fx_val < 0: Low-pass (mély, víz alatti elmosás és perem-sötétedés)
@@ -175,6 +176,9 @@ float4 fx_flanger(float2 uv, float v, float amt, float anim_time)
         return saturate(float4(res, a));
     }
 }
+)";
+
+static const char *MIXER_FX_HLSL_PART2 = R"(
 
 // Type 4: BEATMASHER 2 (Rhythmic Beat-Synced Glitch / Heavy Slices / Machine-Gun Strobe)
 float4 fx_beatmasher(float2 uv, float v, float amt, float bpm, float anim_time)
@@ -492,7 +496,8 @@ inline const char *getDeckColorEffectCode()
     static std::string s_code;
     if (s_code.empty()) {
         s_code = DECK_COLOR_EFFECT_PREFIX;
-        s_code += MIXER_FX_HLSL;
+        s_code += MIXER_FX_HLSL_PART1;
+        s_code += MIXER_FX_HLSL_PART2;
         s_code += DECK_COLOR_EFFECT_SUFFIX;
     }
     return s_code.c_str();
