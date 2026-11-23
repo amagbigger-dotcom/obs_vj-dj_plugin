@@ -26,6 +26,7 @@
 #include "effects/vj_config.hpp"
 #include "effects/fluid_flow.hpp"
 #include "effects/crossfade_fx_config.hpp"
+#include "mixer_fx_shaders.hpp"
 
 extern "C" {
 
@@ -64,6 +65,16 @@ uniform float vol_fx_mode_a;
 uniform float vol_fx_val_a;
 uniform float vol_fx_mode_b;
 uniform float vol_fx_val_b;
+
+uniform float mixer_fx_type_a;
+uniform float mixer_fx_val_a;
+uniform float bpm_a;
+uniform float visual_eq_a;
+
+uniform float mixer_fx_type_b;
+uniform float mixer_fx_val_b;
+uniform float bpm_b;
+uniform float visual_eq_b;
 
 uniform float cf_fx_mode;
 uniform float cf_fx_mode_prev;
@@ -301,7 +312,7 @@ float get_shape_wipe_mask(float fx_mode, float fx_val, float2 uv)
     return 1.0;
 }
 
-float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx_val, float4 gains, float sat)
+float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx_val, float mix_type, float mix_val, float bpm, float anim_time, float4 gains, float sat, bool vis_eq)
 {
     float2 sample_uv = uv;
     if (fx_mode > 9.5 && fx_mode < 10.5 && fx_val > 0.001) {
@@ -313,22 +324,19 @@ float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx
     if (fx_mode > 2.5 && fx_mode < 3.5 && fx_val > 0.01) {
         // Mode 3: Soft Focus / Homályosítás (Multi-tap Box/Gaussian Blur)
         float2 off = float2(fx_val * 0.012, fx_val * 0.012);
-        float4 sum = img.Sample(def_sampler, sample_uv);
-        sum += img.Sample(def_sampler, sample_uv + float2(off.x, 0));
-        sum += img.Sample(def_sampler, sample_uv - float2(off.x, 0));
-        sum += img.Sample(def_sampler, sample_uv + float2(0, off.y));
-        sum += img.Sample(def_sampler, sample_uv - float2(0, off.y));
-        sum += img.Sample(def_sampler, sample_uv + float2(off.x * 0.7, off.y * 0.7));
-        sum += img.Sample(def_sampler, sample_uv - float2(off.x * 0.7, off.y * 0.7));
-        sum += img.Sample(def_sampler, sample_uv + float2(-off.x * 0.7, off.y * 0.7));
-        sum += img.Sample(def_sampler, sample_uv + float2(off.x * 0.7, -off.y * 0.7));
+        float4 sum = apply_deck_mixer_fx(img, sample_uv, mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
+        sum += apply_deck_mixer_fx(img, sample_uv + float2(off.x, 0.0), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
+        sum += apply_deck_mixer_fx(img, sample_uv - float2(off.x, 0.0), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
+        sum += apply_deck_mixer_fx(img, sample_uv + float2(0.0, off.y), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
+        sum += apply_deck_mixer_fx(img, sample_uv - float2(0.0, off.y), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
+        sum += apply_deck_mixer_fx(img, sample_uv + float2(off.x * 0.7, off.y * 0.7), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
+        sum += apply_deck_mixer_fx(img, sample_uv - float2(off.x * 0.7, off.y * 0.7), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
+        sum += apply_deck_mixer_fx(img, sample_uv + float2(-off.x * 0.7, off.y * 0.7), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
+        sum += apply_deck_mixer_fx(img, sample_uv + float2(off.x * 0.7, -off.y * 0.7), mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
         col = sum / 9.0;
     } else {
-        col = img.Sample(def_sampler, sample_uv);
+        col = apply_deck_mixer_fx(img, sample_uv, mix_type, mix_val, bpm, anim_time, gains, sat, vis_eq);
     }
-
-    // Színkorrekció (RGB Gain & Saturation)
-    col = colorize(col, gains, sat);
 
     // Fade to Black vagy Fade to White
     if (fx_mode > 0.5 && fx_mode < 1.5) {
@@ -346,13 +354,23 @@ float4 sample_deck_with_vol_fx(texture2d img, float2 uv, float fx_mode, float fx
     return saturate(col);
 }
 
+float4 sample_deck_a(float2 uv)
+{
+    return sample_deck_with_vol_fx(image_a, uv, vol_fx_mode_a, vol_fx_val_a, mixer_fx_type_a, mixer_fx_val_a, bpm_a, anim_time, gains_a, saturation_a, visual_eq_a > 0.5);
+}
+
+float4 sample_deck_b(float2 uv)
+{
+    return sample_deck_with_vol_fx(image_b, uv, vol_fx_mode_b, vol_fx_val_b, mixer_fx_type_b, mixer_fx_val_b, bpm_b, anim_time, gains_b, saturation_b, visual_eq_b > 0.5);
+}
+
 float4 compute_cf_mix(VertData v, float fx_mode)
 {
     float2 uv_a = apply_cf_fx(v.uv, fx_mode, cf_fx_mid, 0.0, cf_param_intensity, cf_param_rate);
     float2 uv_b = apply_cf_fx(v.uv, fx_mode, cf_fx_mid, 1.0, cf_param_intensity, cf_param_rate);
 
-    float4 a = sample_deck_with_vol_fx(image_a, uv_a, vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
-    float4 b = sample_deck_with_vol_fx(image_b, uv_b, vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
+    float4 a = sample_deck_a(uv_a);
+    float4 b = sample_deck_b(uv_b);
 
     // Mode 3: RGB Split (Chromatic Aberration)
     if (fx_mode > 2.5 && fx_mode < 3.5 && cf_fx_mid > 0.005) {
@@ -360,17 +378,17 @@ float4 compute_cf_mix(VertData v, float fx_mode)
         float ang = cf_p1;
         float2 dir = float2(cos(ang), sin(ang)) * split;
         float2 g_off = float2(0.0, cf_p2 * cf_fx_mid * cf_param_intensity);
-        float4 a_r = sample_deck_with_vol_fx(image_a, uv_a + dir, vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
-        float4 a_g = sample_deck_with_vol_fx(image_a, uv_a + g_off, vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
-        float4 a_b = sample_deck_with_vol_fx(image_a, uv_a - dir, vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
+        float4 a_r = sample_deck_a(uv_a + dir);
+        float4 a_g = sample_deck_a(uv_a + g_off);
+        float4 a_b = sample_deck_a(uv_a - dir);
         a.r = a_r.r;
         if (abs(cf_p2) > 0.001) a.g = a_g.g;
         a.b = a_b.b;
         if (cf_p4 > 1.01) a.rgb = lerp(dot(a.rgb, float3(0.3, 0.59, 0.11)).xxx, a.rgb, cf_p4);
 
-        float4 b_r = sample_deck_with_vol_fx(image_b, uv_b - dir, vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
-        float4 b_g = sample_deck_with_vol_fx(image_b, uv_b - g_off, vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
-        float4 b_b = sample_deck_with_vol_fx(image_b, uv_b + dir, vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
+        float4 b_r = sample_deck_b(uv_b - dir);
+        float4 b_g = sample_deck_b(uv_b - g_off);
+        float4 b_b = sample_deck_b(uv_b + dir);
         b.r = b_r.r;
         if (abs(cf_p2) > 0.001) b.g = b_g.g;
         b.b = b_b.b;
@@ -389,8 +407,8 @@ float4 compute_cf_mix(VertData v, float fx_mode)
         for (int i = 1; i <= 8; ++i) {
             if (i <= max_s) {
                 float w = max(1.0 - (float)i * 0.12 * cf_p2, 0.05);
-                sum_a += sample_deck_with_vol_fx(image_a, uv_a + to_c_a * ((float)i * z_step), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a) * w;
-                sum_b += sample_deck_with_vol_fx(image_b, uv_b + to_c_b * ((float)i * z_step), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b) * w;
+                sum_a += sample_deck_a(uv_a + to_c_a * ((float)i * z_step)) * w;
+                sum_b += sample_deck_b(uv_b + to_c_b * ((float)i * z_step)) * w;
                 w_total += w;
             }
         }
@@ -481,16 +499,16 @@ float4 compute_cf_mix(VertData v, float fx_mode)
     else if (fx_mode > 11.5 && fx_mode < 12.5 && cf_fx_mid > 0.01) {
         float thick = cf_p0;
         float2 d = float2(thick / 1920.0, thick / 1080.0);
-        float4 a_u = sample_deck_with_vol_fx(image_a, uv_a + float2(0, -d.y), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
-        float4 a_d = sample_deck_with_vol_fx(image_a, uv_a + float2(0, d.y), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
-        float4 a_l = sample_deck_with_vol_fx(image_a, uv_a + float2(-d.x, 0), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
-        float4 a_r = sample_deck_with_vol_fx(image_a, uv_a + float2(d.x, 0), vol_fx_mode_a, vol_fx_val_a, gains_a, saturation_a);
+        float4 a_u = sample_deck_a(uv_a + float2(0, -d.y));
+        float4 a_d = sample_deck_a(uv_a + float2(0, d.y));
+        float4 a_l = sample_deck_a(uv_a + float2(-d.x, 0));
+        float4 a_r = sample_deck_a(uv_a + float2(d.x, 0));
         float edge_a = length(a_u.rgb + a_d.rgb + a_l.rgb + a_r.rgb - 4.0 * a.rgb);
 
-        float4 b_u = sample_deck_with_vol_fx(image_b, uv_b + float2(0, -d.y), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
-        float4 b_d = sample_deck_with_vol_fx(image_b, uv_b + float2(0, d.y), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
-        float4 b_l = sample_deck_with_vol_fx(image_b, uv_b + float2(-d.x, 0), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
-        float4 b_r = sample_deck_with_vol_fx(image_b, uv_b + float2(d.x, 0), vol_fx_mode_b, vol_fx_val_b, gains_b, saturation_b);
+        float4 b_u = sample_deck_b(uv_b + float2(0, -d.y));
+        float4 b_d = sample_deck_b(uv_b + float2(0, d.y));
+        float4 b_l = sample_deck_b(uv_b + float2(-d.x, 0));
+        float4 b_r = sample_deck_b(uv_b + float2(d.x, 0));
         float edge_b = length(b_u.rgb + b_d.rgb + b_l.rgb + b_r.rgb - 4.0 * b.rgb);
 
         float edge_val_a = smoothstep(cf_p3, cf_p3 + 0.1, edge_a);
@@ -537,6 +555,7 @@ static const char *getMixerEffectCode()
     static std::string s_code;
     if (s_code.empty()) {
         s_code = MIXER_EFFECT_PART1;
+        s_code += MIXER_FX_HLSL;
         s_code += MIXER_EFFECT_PART2;
     }
     return s_code.c_str();
@@ -785,6 +804,35 @@ static void set_color_params(MixerSource *context,
 
     if ((param = gs_effect_get_param_by_name(context->effect, "vol_fx_val_b")))
         gs_effect_set_float(param, vol_val_b);
+
+    // Mixer FX (Deck A & Deck B)
+    const float fx_val_a = (deck_a.isVisualEqEnabled()) ? deck_a.filterVal() : 0.0f;
+    const float fx_type_a = static_cast<float>(deck_a.mixerFxType());
+    const float bpm_val_a = static_cast<float>(deck_a.bpm());
+    const float vis_eq_a = deck_a.isVisualEqEnabled() ? 1.0f : 0.0f;
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "mixer_fx_type_a")))
+        gs_effect_set_float(param, fx_type_a);
+    if ((param = gs_effect_get_param_by_name(context->effect, "mixer_fx_val_a")))
+        gs_effect_set_float(param, fx_val_a);
+    if ((param = gs_effect_get_param_by_name(context->effect, "bpm_a")))
+        gs_effect_set_float(param, bpm_val_a);
+    if ((param = gs_effect_get_param_by_name(context->effect, "visual_eq_a")))
+        gs_effect_set_float(param, vis_eq_a);
+
+    const float fx_val_b = (deck_b.isVisualEqEnabled()) ? deck_b.filterVal() : 0.0f;
+    const float fx_type_b = static_cast<float>(deck_b.mixerFxType());
+    const float bpm_val_b = static_cast<float>(deck_b.bpm());
+    const float vis_eq_b = deck_b.isVisualEqEnabled() ? 1.0f : 0.0f;
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "mixer_fx_type_b")))
+        gs_effect_set_float(param, fx_type_b);
+    if ((param = gs_effect_get_param_by_name(context->effect, "mixer_fx_val_b")))
+        gs_effect_set_float(param, fx_val_b);
+    if ((param = gs_effect_get_param_by_name(context->effect, "bpm_b")))
+        gs_effect_set_float(param, bpm_val_b);
+    if ((param = gs_effect_get_param_by_name(context->effect, "visual_eq_b")))
+        gs_effect_set_float(param, vis_eq_b);
 
     // Crossfader FX (Midpoint peak: 0 at edges, 1 at center)
     const float cf_mid = std::clamp(1.0f - std::abs(crossfade - 0.5f) * 2.0f, 0.0f, 1.0f);

@@ -5,6 +5,7 @@
 #include <util/platform.h>
 #include "engine/deck_engine.hpp"
 #include "effects/fluid_flow.hpp"
+#include "mixer_fx_shaders.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -21,7 +22,7 @@
 
 extern "C" {
 
-static const char *DECK_COLOR_EFFECT = R"(
+static const char *DECK_COLOR_EFFECT_PREFIX = R"(
 uniform float4x4 ViewProj;
 uniform texture2d image;
 uniform float4 gains;
@@ -29,6 +30,11 @@ uniform float saturation;
 uniform float alpha;
 uniform float wipe_cutoff;
 uniform float is_deck_b;
+uniform float mixer_fx_type;
+uniform float mixer_fx_val;
+uniform float bpm;
+uniform float anim_time;
+uniform float visual_eq_enabled;
 
 sampler_state def_sampler {
     Filter = Linear;
@@ -48,13 +54,12 @@ VertData VSDefault(VertData v)
     v_out.uv  = v.uv;
     return v_out;
 }
+)";
 
+static const char *DECK_COLOR_EFFECT_SUFFIX = R"(
 float4 PSColorize(VertData v) : TARGET
 {
-    float4 col = image.Sample(def_sampler, v.uv);
-    col.rgb *= gains.rgb;
-    float luma = dot(col.rgb, float3(0.2126, 0.7152, 0.0722));
-    col.rgb = lerp(luma.xxx, col.rgb, saturation);
+    float4 col = apply_deck_mixer_fx(image, v.uv, mixer_fx_type, mixer_fx_val, bpm, anim_time, gains, saturation, visual_eq_enabled > 0.5);
     
     float final_a = alpha;
     if (wipe_cutoff >= 0.0) {
@@ -64,7 +69,7 @@ float4 PSColorize(VertData v) : TARGET
             final_a *= smoothstep(wipe_cutoff + 0.005, wipe_cutoff - 0.005, v.uv.x);
         }
     }
-    col.a = saturate(final_a);
+    col.a = saturate(final_a * col.a);
     col.rgb *= col.a;
     return col;
 }
@@ -78,6 +83,17 @@ technique Draw
     }
 }
 )";
+
+static const char *getDeckColorEffectCode()
+{
+    static std::string s_code;
+    if (s_code.empty()) {
+        s_code = DECK_COLOR_EFFECT_PREFIX;
+        s_code += MIXER_FX_HLSL;
+        s_code += DECK_COLOR_EFFECT_SUFFIX;
+    }
+    return s_code.c_str();
+}
 
 // =============================================================================
 // Deck forrás kontextus és szálkezelés (Deck Source Context & Thread Management)
@@ -576,7 +592,7 @@ static void deck_video_render(void *data, gs_effect_t *effect)
         gs_texture_t *tex = gs_texrender_get_texture(context->freeze_tex);
         if (tex) {
             if (!context->color_effect) {
-                context->color_effect = gs_effect_create(DECK_COLOR_EFFECT, "deck_color_effect", nullptr);
+                context->color_effect = gs_effect_create(getDeckColorEffectCode(), "deck_color_effect", nullptr);
             }
             if (context->color_effect) {
                 gs_eparam_t *param = nullptr;
@@ -584,8 +600,10 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                 if ((param = gs_effect_get_param_by_name(context->color_effect, "image")))
                     gs_effect_set_texture(param, tex);
 
+                const bool vis_eq = context->deck ? context->deck->isVisualEqEnabled() : true;
+
                 vec4 gains;
-                if (context->deck->isVisualEqEnabled()) {
+                if (vis_eq && context->deck) {
                     vec4_set(&gains, context->deck->red(), context->deck->green(), context->deck->blue(), 1.0f);
                 } else {
                     vec4_set(&gains, 1.0f, 1.0f, 1.0f, 1.0f);
@@ -593,9 +611,25 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                 if ((param = gs_effect_get_param_by_name(context->color_effect, "gains")))
                     gs_effect_set_vec4(param, &gains);
 
-                const float sat = context->deck->isVisualEqEnabled() ? context->deck->saturation() : 1.0f;
+                const float sat = (vis_eq && context->deck) ? context->deck->saturation() : 1.0f;
                 if ((param = gs_effect_get_param_by_name(context->color_effect, "saturation")))
                     gs_effect_set_float(param, sat);
+
+                const float fx_val = (vis_eq && context->deck) ? context->deck->filterVal() : 0.0f;
+                const float fx_type = context->deck ? static_cast<float>(context->deck->mixerFxType()) : 0.0f;
+                const float bpm_val = context->deck ? static_cast<float>(context->deck->bpm()) : 128.0f;
+                const float anim_time = static_cast<float>(os_gettime_ns() / 1000000ULL) * 0.001f;
+
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "mixer_fx_type")))
+                    gs_effect_set_float(param, fx_type);
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "mixer_fx_val")))
+                    gs_effect_set_float(param, fx_val);
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "bpm")))
+                    gs_effect_set_float(param, bpm_val);
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "anim_time")))
+                    gs_effect_set_float(param, anim_time);
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "visual_eq_enabled")))
+                    gs_effect_set_float(param, vis_eq ? 1.0f : 0.0f);
 
                 const bool is_b = (context->deck_channel == 1 || (context->deck && context->deck->side() == DeckPlayer::DeckSide::B));
 

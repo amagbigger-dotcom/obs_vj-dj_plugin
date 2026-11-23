@@ -963,14 +963,15 @@ void DeckPlayer::updateVisualEqMapping() noexcept
         setRed(low);
         setGreen(mid);
         setBlue(hi);
-        // Szaturáció iránya is megfordul:
-        setSaturation(1.0f - flt);
+        // Basszus vezérelt szaturáció: mélyvágásnál monokróm, basszusnál telített
+        setSaturation(std::clamp(low, 0.0f, 2.0f));
     } else {
         // Normál sorrend: HI = Vörös (Red), MID = Zöld (Green), LOW = Kék (Blue)
         setRed(hi);
         setGreen(mid);
         setBlue(low);
-        setSaturation(1.0f + flt);
+        // Basszus vezérelt szaturáció: mélyvágásnál monokróm, basszusnál telített
+        setSaturation(std::clamp(low, 0.0f, 2.0f));
     }
 }
 

@@ -67,6 +67,7 @@ set(SOURCES
     # Video (OBS Sources & Transcoder)
     src/video/deck_source.cpp
     src/video/mixer_source.cpp
+    src/video/mixer_fx_shaders.hpp
     src/video/video_converter.cpp
     src/video/video_converter.hpp
 
