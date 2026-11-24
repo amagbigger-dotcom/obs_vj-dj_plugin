@@ -121,14 +121,14 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
             KaossFxManager::instance().onEncoderRotate(data2);
             return;
         }
-        // HOLD Button candidates: Note 11 (Tap button with hardware LED), Notes 7..13, 33, 34 or CC 9
-        if (msg_type == MidiMsgType::NOTE_ON && data2 > 0) {
-            if (data1 == 11 || data1 == 7 || data1 == 8 || data1 == 9 || data1 == 10 || data1 == 12 || data1 == 13 || data1 == 33 || data1 == 34) {
-                KaossFxManager::instance().toggleHold();
-                return;
-            }
-        } else if (msg_type == MidiMsgType::CC && data1 == 9 && data2 > 63) {
+        // HOLD Button: Note 11 (Tap button with hardware LED)
+        if (msg_type == MidiMsgType::NOTE_ON && data2 > 0 && data1 == 11) {
             KaossFxManager::instance().toggleHold();
+            return;
+        }
+        // Sampler Pad mode fallback (Notes 74..77):
+        if (msg_type == MidiMsgType::NOTE_ON && data2 > 0 && data1 >= 74 && data1 <= 77) {
+            KaossFxManager::instance().onSamplerPad(data1 - 74);
             return;
         }
     }
@@ -667,13 +667,10 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
         sendIfChanged(status, note, val);
     }
 
-    // Specific Korg Kaoss DJ direct fallback sends to guarantee feedback on all hardware modes:
+    // Specific Korg Kaoss DJ direct feedback for TAP / HOLD button LED (Note 11):
     const uint8_t kaoss_hold_val = KaossFxManager::instance().isHoldActive() ? 127 : 0;
-    for (uint8_t ch_st : {static_cast<uint8_t>(0x96), static_cast<uint8_t>(0x90)}) {
-        for (uint8_t n : {11, 7, 8, 9, 10, 12, 13, 33, 34}) {
-            sendIfChanged(ch_st, n, kaoss_hold_val);
-        }
-    }
+    sendIfChanged(static_cast<uint8_t>(0x96), 11, kaoss_hold_val);
+    sendIfChanged(static_cast<uint8_t>(0x90), 11, kaoss_hold_val);
     // Deck A: Ch 8 (0x97) & Ch 1 (0x90)
     for (uint8_t ch_st : {static_cast<uint8_t>(0x97), static_cast<uint8_t>(0x90)}) {
         sendIfChanged(ch_st, 27, play_a ? 127 : (cue_a && blink_state ? 127 : 0)); // Play

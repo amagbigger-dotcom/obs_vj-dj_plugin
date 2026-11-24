@@ -17,15 +17,6 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
     p.addBinding({MidiMsgType::CC, 7, 13, MidiAction::KAOSS_TOUCHPAD_Y, 0, MidiJogMode::ABSOLUTE, "Kaoss Touchpad Y"});
     p.addBinding({MidiMsgType::NOTE_ON, 7, 32, MidiAction::KAOSS_TOUCHPAD_TOUCH, 0, MidiJogMode::SPREAD_64, "Kaoss Touchpad Touch"});
     p.addBinding({MidiMsgType::CC, 7, 31, MidiAction::KAOSS_ENCODER, 0, MidiJogMode::BIN_OFFSET, "Program/Value Encoder (FX Param)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 7, 7, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 7)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 7, 8, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 8)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 7, 9, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 9)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 7, 10, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 10)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 7, 12, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 12)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 7, 13, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 13)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 7, 33, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 33)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 7, 34, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 34)"});
-    p.addBinding({MidiMsgType::CC, 7, 9, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (CC 9)"});
     p.addBinding({MidiMsgType::NOTE_ON, 7, 11, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold / Tap Button (Note 11)"});
     p.addBinding({MidiMsgType::NOTE_ON, 0, 11, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold / Tap Button (Any Ch Note 11)"});
     // Universal any-channel fallbacks
@@ -33,10 +24,6 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
     p.addBinding({MidiMsgType::CC, 0, 13, MidiAction::KAOSS_TOUCHPAD_Y, 0, MidiJogMode::ABSOLUTE, "Kaoss Touchpad Y (Any Ch)"});
     p.addBinding({MidiMsgType::NOTE_ON, 0, 32, MidiAction::KAOSS_TOUCHPAD_TOUCH, 0, MidiJogMode::SPREAD_64, "Kaoss Touchpad Touch (Any Ch)"});
     p.addBinding({MidiMsgType::CC, 0, 31, MidiAction::KAOSS_ENCODER, 0, MidiJogMode::BIN_OFFSET, "Program/Value Encoder (Any Ch)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 0, 7, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Any Ch Note 7)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 0, 9, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Any Ch Note 9)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 0, 13, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Any Ch Note 13)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 0, 33, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Any Ch Note 33)"});
     p.addBinding({MidiMsgType::CC, 7, 30, MidiAction::BROWSE_SCROLL, 0, MidiJogMode::SPREAD_64, "Browse Rotary Encoder"});
     p.addBinding({MidiMsgType::CC, 7, 29, MidiAction::BROWSE_SCROLL, 0, MidiJogMode::SPREAD_64, "Browse Rotary (Alt CC 29)"});
     p.addBinding({MidiMsgType::NOTE_ON, 7, 14, MidiAction::LOAD_SELECTED, 0, MidiJogMode::SPREAD_64, "Browse Push (Load)"});
@@ -145,9 +132,7 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
     p.addBinding({MidiMsgType::CC, 1, 13, MidiAction::KAOSS_TOUCHPAD_Y, 0, MidiJogMode::ABSOLUTE, "Touchpad Y (Ch 1)"});
     p.addBinding({MidiMsgType::NOTE_ON, 1, 32, MidiAction::KAOSS_TOUCHPAD_TOUCH, 0, MidiJogMode::SPREAD_64, "Touchpad Touch (Ch 1)"});
     p.addBinding({MidiMsgType::CC, 1, 31, MidiAction::KAOSS_ENCODER, 0, MidiJogMode::BIN_OFFSET, "Program/Value Encoder (Ch 1)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 1, 13, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Ch 1 Note 13)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 1, 33, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Ch 1 Note 33)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 1, 9, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Ch 1 Note 9)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 1, 11, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold / Tap Button (Ch 1 Note 11)"});
     p.addBinding({MidiMsgType::CC, 1, 30, MidiAction::BROWSE_SCROLL, 0, MidiJogMode::SPREAD_64, "Browse Rotary (Ch 1 CC 30)"});
     p.addBinding({MidiMsgType::CC, 1, 29, MidiAction::BROWSE_SCROLL, 0, MidiJogMode::SPREAD_64, "Browse Rotary (Ch 1 CC 29)"});
     p.addBinding({MidiMsgType::NOTE_ON, 1, 14, MidiAction::LOAD_SELECTED, 0, MidiJogMode::SPREAD_64, "Browse Push (Ch 1)"});

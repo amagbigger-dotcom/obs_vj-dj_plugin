@@ -53,6 +53,11 @@ void KaossFxManager::applyTouchCoordinates()
     // Row 3 (Lent): Y in [0..31] -> Slot 3
     const int target_slot = 3 - std::clamp(static_cast<int>(last_y_) / 32, 0, 3);
 
+    // If already targeting this deck and slot, avoid reselecting slot and resetting parameter while dragging
+    if (target_deck == active_deck_ && target_slot == active_slot_ && is_effect_engaged_) {
+        return;
+    }
+
     active_deck_ = target_deck;
     active_slot_ = target_slot;
     is_effect_engaged_ = true;
@@ -62,6 +67,32 @@ void KaossFxManager::applyTouchCoordinates()
         dp->selectSlot(active_slot_);
         // Read current deck filter value and sync encoder position:
         // dp->filterVal() is in [-1.0, +1.0]. Map to [0.0, 1.0] where 0.50 is center.
+        current_val_ = std::clamp((dp->filterVal() + 1.0f) * 0.50f, 0.0f, 1.0f);
+    }
+    idle_timer_ms_ = 0.0f;
+}
+
+void KaossFxManager::onSamplerPad(int pad_index)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    // Pad 0 (Note 74): Top-Left -> Deck A, Slot 0
+    // Pad 1 (Note 75): Top-Right -> Deck B, Slot 0
+    // Pad 2 (Note 76): Bottom-Left -> Deck A, Slot 2
+    // Pad 3 (Note 77): Bottom-Right -> Deck B, Slot 2
+    const int target_deck = (pad_index % 2 == 1) ? 2 : 1;
+    const int target_slot = (pad_index < 2) ? 0 : 2;
+
+    if (target_deck == active_deck_ && target_slot == active_slot_ && is_effect_engaged_) {
+        return;
+    }
+
+    active_deck_ = target_deck;
+    active_slot_ = target_slot;
+    is_effect_engaged_ = true;
+
+    DeckPlayer *dp = (active_deck_ == 2) ? vj_deck_b() : vj_deck_a();
+    if (dp) {
+        dp->selectSlot(active_slot_);
         current_val_ = std::clamp((dp->filterVal() + 1.0f) * 0.50f, 0.0f, 1.0f);
     }
     idle_timer_ms_ = 0.0f;

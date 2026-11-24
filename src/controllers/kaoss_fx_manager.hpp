@@ -9,10 +9,11 @@ class KaossFxManager {
 public:
     static KaossFxManager &instance();
 
-    // Touchpad inputs (CC 12, CC 13, Note 32)
+    // Touchpad inputs (CC 12, CC 13, Note 32, Sampler Pads 74..77)
     void onTouch(bool pressed, uint8_t velocity);
     void onTouchX(uint8_t x_val);
     void onTouchY(uint8_t y_val);
+    void onSamplerPad(int pad_index);
 
     // Rotary Encoder input (CC 31)
     void onEncoderRotate(uint8_t data2);

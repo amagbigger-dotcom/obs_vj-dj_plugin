@@ -1,25 +1,33 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #372 (GitHub Run #45295673188 / Run #394)
-* **Aktuális Git Commit:** `76ade54`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 444 864 bájt)
-* **Bináris SHA256:** `B884D22C9890B4CB76CF9BFCE4A57F430A1D41E6B49C61C4B2E6F34287425F9A`
+* **Legutolsó stabil mérföldkő:** Build #373 (Folyamatban)
+* **Aktuális Git Commit:** `Készülőben`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #372 - KÉSZ & TELEPÍTVE. Note 11 (TAP Gomb / Hardveres LED) Dedikált HOLD Vezérlés & Unmapped MIDI Diagnosztika:
-  1. **Note 11 (TAP Gomb & LED) Bekötése:**
-     - A Korg Kaoss DJ-n a fizikai HOLD gomb a belső hardveres DSP-hez van kötve (nem küld MIDI-t a PC felé).
-     - A Touchpad feletti, MIDI-képes és hardveres LED-del ellátott **TAP gomb (Note 11 / Ch 7)** dedikált HOLD gombként került bekötésre.
-     - Kétirányú LED feedback a Note 11-re: bekapcsolt HOLD esetén a gomb világít és a paraméter pozícióban marad; kikapcsoláskor a LED azonnal kialszik és a paraméter késleltetés nélkül visszaugrik neutrális 0-ra.
-  2. **Unmapped MIDI Diagnosztikai Naplózás:**
-     - Minden egyéb Korg Kaoss bejövő üzenet naplózása az OBS logba (`[kaoss_midi_unmapped]`).
+* **Fő cél:** Build #373 - Touchpad Akadozás & Fagyás Megszüntetése HOLD Alatt, Tiszta Note 11 TAP Feedback & Sampler Pad Támogatás:
+  1. **Touchpad Fagyás Gyökérokának Megszüntetése:**
+     - Korábban a `sendFeedback()` aktív HOLD esetén tévesen a Note 34-re és a Touchpad X/Y koordináta regisztereire (Note 12, Note 13) is kiküldte a 127-es értéket.
+     - A Korg Kaoss DJ hardverén a Note 34 a *Touchpad gomb hosszan tartó megnyomása (Long-press)*, ami a hardvert átkapcsolta Sampler Pad üzemmódba, leállítva a CC 12/13 küldést.
+     - A `sendFeedback()` megtisztítva: kizárólag a hivatalos Note 11 (TAP LED) kap visszajelzést (Ch 7 `0x96` és Ch 1 `0x90`).
+  2. **Téves HOLD Kötések Törlése:**
+     - A Note 7, 8, 9, 10, 12, 13, 33, 34 kötések kikerültek a profilból és a fast-path-ból, megszüntetve a visszacsatolási hurkot érintéskor.
+  3. **Touchpad Húzási Stabilitás:**
+     - `applyTouchCoordinates()` korai visszatérést kapott az azonos deck és slot tartományon belüli ujjelmozdulásoknál, így nem választja újra a slotot és nem nullázza a paramétert tekerés közben.
+  4. **Sampler Pad Fallback (Note 74..77):**
+     - A 4 sampler pad dedikáltan bekötve a 4 fő FX és deck váltásra.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #372)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #373)
+* [x] **Korg KAOSS DJ Touchpad Fagyás Megszüntetése & Tiszta Note 11 Feedback (Build #373):**
+  - Note 34 és Note 12/13 kiküldés törölve a visszajelzésből (megszűnt a hardver Sampler módba kényszerítése és a Touchpad busz zavarása).
+  - Kizárólag a hivatalos Note 11 (TAP gomb) kap kétirányú LED vezérlést.
+  - Slot-váltás korai szűrése a Touchpad folytonos húzásánál.
+  - Sampler padok (Notes 74..77) kezelése a 4 sarok-effektre.
 * [x] **Korg KAOSS DJ Note 11 (TAP) HOLD & Hardveres LED Visszajelzés (Build #372):**
   - Note 11 (TAP gomb) dedikálása Kaoss HOLD funkcióra.
   - Kétirányú MIDI LED visszajelzés Note 11-re (Ch 7 és Ch 1).
