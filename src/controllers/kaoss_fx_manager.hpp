@@ -18,11 +18,16 @@ public:
     // Rotary Encoder input (CC 31)
     void onEncoderRotate(uint8_t data2);
 
-    // HOLD button
+    // HOLD button & Deck Resets
     void onHoldButton(bool pressed);
-    void toggleHold();
+    void toggleHold(bool shift_a = false, bool shift_b = false);
     void setHold(bool active);
     bool isHoldActive() const;
+
+    // Deck-specific and global resets
+    void resetDeckEffect(int deck); // 1 = Deck A, 2 = Deck B
+    void killAllEffects();
+    void killActiveEffect();
 
     // Periodic watchdog timer & parameter smoothing (called at 25 Hz / 40 ms)
     void tick(float delta_sec);
@@ -31,9 +36,6 @@ public:
     int activeDeck() const; // 1 = Deck A, 2 = Deck B
     int activeSlot() const; // 0..3
     float currentParamValue() const;
-
-    // Master reset / kill
-    void killActiveEffect();
 
 private:
     KaossFxManager();

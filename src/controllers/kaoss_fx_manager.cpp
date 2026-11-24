@@ -98,16 +98,48 @@ void KaossFxManager::onSamplerPad(int pad_index)
     idle_timer_ms_ = 0.0f;
 }
 
-void KaossFxManager::killActiveEffect()
+void KaossFxManager::resetDeckEffect(int deck)
 {
-    DeckPlayer *dp = (active_deck_ == 2) ? vj_deck_b() : vj_deck_a();
+    std::lock_guard<std::mutex> lock(mutex_);
+    DeckPlayer *dp = (deck == 2) ? vj_deck_b() : vj_deck_a();
     if (dp) {
         dp->setFilterVal(0.0f);
+    }
+    if (active_deck_ == deck) {
+        current_val_ = 0.50f;
+    }
+    // If both decks are now at neutral (0.0), turn HOLD off
+    DeckPlayer *da = vj_deck_a();
+    DeckPlayer *db = vj_deck_b();
+    const bool a_active = da && (std::abs(da->filterVal()) > 0.005f);
+    const bool b_active = db && (std::abs(db->filterVal()) > 0.005f);
+    if (!a_active && !b_active) {
+        is_hold_active_.store(false, std::memory_order_relaxed);
+        is_effect_engaged_ = false;
+    }
+    idle_timer_ms_ = 0.0f;
+}
+
+void KaossFxManager::killAllEffects()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    DeckPlayer *da = vj_deck_a();
+    if (da) {
+        da->setFilterVal(0.0f);
+    }
+    DeckPlayer *db = vj_deck_b();
+    if (db) {
+        db->setFilterVal(0.0f);
     }
     current_val_ = 0.50f;
     is_effect_engaged_ = false;
     is_hold_active_.store(false, std::memory_order_relaxed);
     idle_timer_ms_ = 0.0f;
+}
+
+void KaossFxManager::killActiveEffect()
+{
+    killAllEffects();
 }
 
 void KaossFxManager::onEncoderRotate(uint8_t data2)
@@ -153,15 +185,38 @@ void KaossFxManager::onHoldButton(bool pressed)
     }
 }
 
-void KaossFxManager::toggleHold()
+void KaossFxManager::toggleHold(bool shift_a, bool shift_b)
 {
+    // If Shift A is held: reset Deck A only
+    if (shift_a && !shift_b) {
+        resetDeckEffect(1);
+        return;
+    }
+    // If Shift B is held: reset Deck B only
+    if (shift_b && !shift_a) {
+        resetDeckEffect(2);
+        return;
+    }
+    // If both Shifts are held: reset both decks
+    if (shift_a && shift_b) {
+        killAllEffects();
+        return;
+    }
+
+    // Plain TAP (no shift):
     std::lock_guard<std::mutex> lock(mutex_);
     const bool new_state = !is_hold_active_.load(std::memory_order_relaxed);
     is_hold_active_.store(new_state, std::memory_order_relaxed);
 
-    // If HOLD turned OFF, reset parameter back to neutral
+    // If HOLD turned OFF, reset BOTH decks back to neutral
     if (!new_state) {
-        killActiveEffect();
+        DeckPlayer *da = vj_deck_a();
+        if (da) da->setFilterVal(0.0f);
+        DeckPlayer *db = vj_deck_b();
+        if (db) db->setFilterVal(0.0f);
+        current_val_ = 0.50f;
+        is_effect_engaged_ = false;
+        idle_timer_ms_ = 0.0f;
     }
 }
 
@@ -211,6 +266,20 @@ void KaossFxManager::tick(float delta_sec)
                 dp->setFilterVal(0.0f);
             }
             is_effect_engaged_ = false;
+        }
+
+        // Also decay inactive deck if its filter value is non-zero and HOLD is off
+        DeckPlayer *other_dp = (active_deck_ == 2) ? vj_deck_a() : vj_deck_b();
+        if (other_dp) {
+            const float other_val = other_dp->filterVal();
+            if (std::abs(other_val) > 0.005f) {
+                const float factor = 1.0f - std::exp(-6.0f * delta_sec);
+                float decayed = other_val + (0.0f - other_val) * factor;
+                if (std::abs(decayed) < 0.005f) {
+                    decayed = 0.0f;
+                }
+                other_dp->setFilterVal(decayed);
+            }
         }
     }
 }

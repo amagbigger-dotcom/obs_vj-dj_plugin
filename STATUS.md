@@ -1,29 +1,34 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #373 (GitHub Run #45300272018 / Run #396)
-* **Aktuális Git Commit:** `3b57e11`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 443 840 bájt)
-* **Bináris SHA256:** `9CCC3FD9B3CCE51515C92097CF5D2355FA1A5629BDC024F1523B4F1EBFA4077B`
+* **Legutolsó stabil mérföldkő:** Build #374 (Folyamatban)
+* **Aktuális Git Commit:** `Készülőben`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #373 - Touchpad Akadozás & Fagyás Megszüntetése HOLD Alatt, Tiszta Note 11 TAP Feedback & Sampler Pad Támogatás:
-  1. **Touchpad Fagyás Gyökérokának Megszüntetése:**
-     - Korábban a `sendFeedback()` aktív HOLD esetén tévesen a Note 34-re és a Touchpad X/Y koordináta regisztereire (Note 12, Note 13) is kiküldte a 127-es értéket.
-     - A Korg Kaoss DJ hardverén a Note 34 a *Touchpad gomb hosszan tartó megnyomása (Long-press)*, ami a hardvert átkapcsolta Sampler Pad üzemmódba, leállítva a CC 12/13 küldést.
-     - A `sendFeedback()` megtisztítva: kizárólag a hivatalos Note 11 (TAP LED) kap visszajelzést (Ch 7 `0x96` és Ch 1 `0x90`).
-  2. **Téves HOLD Kötések Törlése:**
-     - A Note 7, 8, 9, 10, 12, 13, 33, 34 kötések kikerültek a profilból és a fast-path-ból, megszüntetve a visszacsatolási hurkot érintéskor.
-  3. **Touchpad Húzási Stabilitás:**
-     - `applyTouchCoordinates()` korai visszatérést kapott az azonos deck és slot tartományon belüli ujjelmozdulásoknál, így nem választja újra a slotot és nem nullázza a paramétert tekerés közben.
-  4. **Sampler Pad Fallback (Note 74..77):**
-     - A 4 sampler pad dedikáltan bekötve a 4 fő FX és deck váltásra.
+* **Fő cél:** Build #374 - Korg Kaoss DJ Deck-oldalankénti Shift + TAP Effekt Visszaállítás & Globális Kétoldali Reset:
+  1. **Shift Gombok MIDI Bekötése & Fast-Path Detektálás:**
+     - A Korg Kaoss DJ Deck A (Note 26 / Ch 8) és Deck B (Note 26 / Ch 9) Shift gombjai teljes értékű MIDI vezérlők.
+     - Fast-path állapotkövetés a `shift_a_` és `shift_b_` atomi változókba a legkisebb késleltetésért.
+  2. **Deck-oldalankénti Effekt Visszaállítás (Shift + TAP):**
+     - Shift A nyomvatartása + TAP gomb: kizárólag a Deck A aktív effektje nullázódik (0.0), a Deck B tekerése változatlanul aktív marad.
+     - Shift B nyomvatartása + TAP gomb: kizárólag a Deck B aktív effektje nullázódik (0.0), a Deck A tekerése változatlanul aktív marad.
+     - Ha mindkét oldal nullázódott, a HOLD gomb állapota és LED-je is automatikusan kikapcsol.
+  3. **Globális Kétoldali Reset (Shift nélküli TAP kinyomás):**
+     - Shift nélküli TAP megnyomáskor a HOLD kikapcsol, és **mindkét oldal (Deck A és Deck B) potmétere azonnal visszaáll alapállapotba (0.0)**.
+  4. **Kikapcsolt HOLD Melletti Inaktív Deck Lecsengés:**
+     - 500 ms tétlenség után a másik decken maradt érték is finoman és biztonságosan lecseng neutrálisra.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #373)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #374)
+* [x] **Korg KAOSS DJ Deck-oldalankénti Shift + TAP Reset & Globális Kétoldali Nullázás (Build #374):**
+  - Shift A + TAP: Csak a Deck A effektjének azonnali visszaállítása.
+  - Shift B + TAP: Csak a Deck B effektjének azonnali visszaállítása.
+  - Sima TAP (HOLD OFF): Mindkét oldal egyidejű azonnali visszaállítása alapállapotba (0.0).
+  - Inaktív deck felügyelet kikapcsolt HOLD esetén (500 ms idle decay).
 * [x] **Korg KAOSS DJ Touchpad Fagyás Megszüntetése & Tiszta Note 11 Feedback (Build #373):**
   - Note 34 és Note 12/13 kiküldés törölve a visszajelzésből (megszűnt a hardver Sampler módba kényszerítése és a Touchpad busz zavarása).
   - Kizárólag a hivatalos Note 11 (TAP gomb) kap kétirányú LED vezérlést.

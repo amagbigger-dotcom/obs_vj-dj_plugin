@@ -105,6 +105,16 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
 
     // 2. Korg Kaoss Middle Section Fast-Path (Guaranteed Touchpad, Encoder & Hold Catch)
     if (profile_.name().contains(QStringLiteral("Kaoss"), Qt::CaseInsensitive)) {
+        // Fast intercept for Shift on Deck A (Ch 8 or Ch 1) and Deck B (Ch 9 or Ch 2)
+        if (data1 == 26) {
+            const bool active = (msg_type == MidiMsgType::NOTE_ON && data2 > 0);
+            if (channel == 8 || channel == 1) {
+                shift_a_.store(active, std::memory_order_relaxed);
+            } else if (channel == 9 || channel == 2) {
+                shift_b_.store(active, std::memory_order_relaxed);
+            }
+            // Do not return: allow normal dispatch to also process Shift for Jog/Nudge/Loop
+        }
         if (msg_type == MidiMsgType::CC && data1 == 12) {
             KaossFxManager::instance().onTouchX(data2);
             return;
@@ -123,7 +133,9 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         }
         // HOLD Button: Note 11 (Tap button with hardware LED)
         if (msg_type == MidiMsgType::NOTE_ON && data2 > 0 && data1 == 11) {
-            KaossFxManager::instance().toggleHold();
+            const bool shift_a = isShiftPressed(1);
+            const bool shift_b = isShiftPressed(2);
+            KaossFxManager::instance().toggleHold(shift_a, shift_b);
             return;
         }
         // Sampler Pad mode fallback (Notes 74..77):
@@ -539,7 +551,9 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
 
     case MidiAction::KAOSS_HOLD:
         if (msg_type == MidiMsgType::NOTE_ON || (msg_type == MidiMsgType::CC && data2 > 63)) {
-            KaossFxManager::instance().toggleHold();
+            const bool shift_a = isShiftPressed(1);
+            const bool shift_b = isShiftPressed(2);
+            KaossFxManager::instance().toggleHold(shift_a, shift_b);
         }
         break;
 
