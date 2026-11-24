@@ -651,9 +651,10 @@ static void deck_update(void *data, obs_data_t *settings)
 
 static void deck_enum_active_sources(void *data, obs_source_enum_proc_t enum_callback, void *param)
 {
-    UNUSED_PARAMETER(data);
-    UNUSED_PARAMETER(enum_callback);
-    UNUSED_PARAMETER(param);
+    auto *context = static_cast<DeckSourceContext *>(data);
+    if (context && context->deck && context->deck->source()) {
+        enum_callback(context->source, context->deck->source(), param);
+    }
 }
 
 static void deck_enum_all_sources(void *data, obs_source_enum_proc_t enum_callback, void *param)

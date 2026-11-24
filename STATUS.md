@@ -1,7 +1,7 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #375 (GitHub Run #45471696355 / Run #402)
-* **Aktuális Git Commit:** `6ccfcac`
+* **Legutolsó stabil mérföldkő:** Build #376 (deck_enum_active_sources helyreállítása & zenei vizuál reaktivitás visszaállítása)
+* **Aktuális Git Commit:** Folyamatban
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 460 736 bájt)
 * **Bináris SHA256:** `C6731522DB13ED20CEA58175F9F8331B978E30F2C7ABA5851A073EF96429F5C7`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
@@ -9,28 +9,27 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #375 - Valódi Steinberg ASIO Host Motor Integráció & WASAPI Békés Együttélés:
-  1. **Valódi Steinberg ASIO 2.3 Host Motor C++-ban:**
-     - `src/audio/asio_defs.hpp`, `src/audio/asio_backend.hpp`, `src/audio/asio_backend.cpp`.
-     - Dinamikus COM betöltés a Windows Registryből (`HKLM\SOFTWARE\ASIO\<driver>`).
-     - SPSC zárolásmentes ringpufferek (8192 minta csatornánként).
-     - Multi-formátum konverter: Int32LSB, Float32LSB, Int24LSB, Int16LSB.
-     - Hardveres vezérlőpult gomb a Beállítások panelen (`asio_panel_btn_`).
-  2. **WASAPI és ASIO Párhuzamos Támogatás (Nem kell elengedni a WASAPI-t):**
-     - A Beállítások (Settings) panel Audio fülén a felhasználó szabadon választhat WASAPI vagy ASIO között.
-     - Ha ASIO van kiválasztva, az ASIO motor átveszi a Master / CUE / Deck A-B kimeneteket, a WASAPI pedig csendesen leáll és nem próbál újracsatlakozni.
-     - Ha WASAPI van kiválasztva, az ASIO azonnal bezár és a WASAPI OUT 3-4 Direct CUE működik tovább érintetlenül.
-  3. **OBS Audio-Lag & Puffer-Duplázódási Védelem:**
-     - `deck_enum_active_sources` kiüresítése a `deck_source.cpp`-ben, megakadályozva, hogy az OBS feleslegesen követeljen és halmozzon fel belső `ffmpeg_source` audio adatot, ami 960 ms pufferméretet és recsegést okozott.
+* **Fő cél:** Build #376 - Belső források időzítésének & zenei vizuál mozgató algoritmusok helyreállítása:
+  1. **Belső forrás ütemezés helyreállítása (`deck_enum_active_sources`):**
+     - A belső `ffmpeg_source` újra átadásra kerül az OBS jelenetfa aktív forráslistájának (`enum_active_sources`).
+     - Az OBS újra küldi az automatikus `video_tick` eseményeket a média dekódernek, így a videó képkockák simán és folyamatosan frissülnek.
+     - A belső forrás időkódja (`obs_source_media_get_time`) újra folyamatosan lépeget, a `currentTimeMs()` nem fagy be.
+  2. **Zenei Vizuál Algoritmusok (Kick Pulse, Beat Pulse, Macro-Tonus) Élesztése:**
+     - A hullámforma spektrális indexelése (`detailed_low_[idx]`) és a live DSP envelope követés (`live_bass_`) újra kap friss időadatot és mintákat.
+     - A procedurális VJ shaderek és a Crossfader FX zenei modulációi újra dinamikusan és ütemre mozognak.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #375)
-* [x] **Steinberg ASIO Host Motor & Audio Lag Védelem (Build #375):**
-  - Valódi ASIO 2.3 driver betöltés, double-buffer feldolgozás, formátum konverzió.
-  - Hardveres vezérlőpult megnyitás (ASIO Control Panel).
-  - Párhuzamos ASIO / WASAPI támogatás a Beállítások ablakban.
-  - Belső `ffmpeg_source` audio lag védelem.
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #376)
+* [x] **Zenei Vizuál Reaktivitás & Belső Forrás Ütemezés Helyreállítása (Build #376):**
+  - `deck_enum_active_sources` visszaállítva a `deck_source.cpp`-ben.
+  - Videó képkockák folyamatos dekódolása és időkód-léptetése garantálva.
+  - Kick transient, spektrális envelope és zenei mozgató algoritmusok felélesztve.
+* [x] **Steinberg ASIO Host Motor & Párhuzamos WASAPI Támogatás (Build #375):**
+  - Valódi ASIO 2.3 driver betöltés COM CLSID alapján registryből.
+  - SPSC lockless ringpufferek, 256 mintás dupla-puffer kezelés.
+  - Hardveres ASIO Vezérlőpult gomb a Beállítások ablakban.
+  - WASAPI Direct CUE (OUT 3-4) és ASIO szabadon választható békés koegzisztenciája.
 * [x] **Korg KAOSS DJ Deck-oldalankénti Shift + TAP Reset & Globális Kétoldali Nullázás (Build #374):**
   - Shift A + TAP: Csak a Deck A effektjének azonnali visszaállítása.
   - Shift B + TAP: Csak a Deck B effektjének azonnali visszaállítása.
