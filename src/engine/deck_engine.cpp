@@ -5,6 +5,7 @@
 #include "engine/engine_buffer.hpp"
 #include "audio/audio_analyzer.hpp"
 #include "audio/wasapi_output.hpp"
+#include "audio/asio_backend.hpp"
 
 #include <obs-module.h>
 #include <obs-frontend-api.h>
@@ -2542,19 +2543,28 @@ void DeckPair::cueWorkerLoop()
             cue_queue_.pop();
         }
 
-        if (!wasapi_out.isRunning()) {
-            static auto last_retry = std::chrono::steady_clock::now();
-            const auto now = std::chrono::steady_clock::now();
-            if (now - last_retry > std::chrono::seconds(2)) {
-                last_retry = now;
-                active_dev = cueDeviceId();
-                wasapi_out.open(active_dev);
+        auto &asio = AsioBackend::instance();
+        if (!asio.isRunning()) {
+            if (!wasapi_out.isRunning()) {
+                static auto last_retry = std::chrono::steady_clock::now();
+                const auto now = std::chrono::steady_clock::now();
+                if (now - last_retry > std::chrono::seconds(2)) {
+                    last_retry = now;
+                    active_dev = cueDeviceId();
+                    wasapi_out.open(active_dev);
+                }
             }
+        } else if (wasapi_out.isRunning()) {
+            wasapi_out.close();
         }
 
         if (pkt.frames > 0 && !pkt.l.empty() && !pkt.r.empty()) {
-            // 1. Közvetlen hardveres WASAPI kimenet a kiválasztott fejhallgató eszközre (pl. OUT 3-4)
-            wasapi_out.writeFrames(pkt.l.data(), pkt.r.data(), pkt.frames);
+            // 1. Közvetlen hardveres kimenet: ASIO vagy WASAPI OUT 3-4
+            if (asio.isRunning()) {
+                asio.writeCueFrames(pkt.l.data(), pkt.r.data(), pkt.frames);
+            } else {
+                wasapi_out.writeFrames(pkt.l.data(), pkt.r.data(), pkt.frames);
+            }
 
             // 2. Szintmérő kimenet az OBS CUE forrás felé (monitoring NONE mellett), hogy az OBS keverőben ugráljon a zöld csík
             obs_source_t *src = nullptr;

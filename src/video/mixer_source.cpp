@@ -27,6 +27,7 @@
 #include "effects/fluid_flow.hpp"
 #include "effects/crossfade_fx_config.hpp"
 #include "mixer_fx_shaders.hpp"
+#include "audio/asio_backend.hpp"
 
 extern "C" {
 
@@ -1031,6 +1032,17 @@ static void *mixer_create(obs_data_t *settings, obs_source_t *source)
             for (size_t i = 0; i < frames_per_tick; ++i) {
                 master_l[i] = std::clamp(buf_a_l[i] * gain_a + buf_b_l[i] * gain_b, -1.2f, 1.2f);
                 master_r[i] = std::clamp(buf_a_r[i] * gain_a + buf_b_r[i] * gain_b, -1.2f, 1.2f);
+            }
+
+            auto &asio = AsioBackend::instance();
+            if (asio.isRunning()) {
+                if (have_a || have_b) {
+                    asio.writeMasterFrames(master_l.data(), master_r.data(), frames_per_tick);
+                    if (asio.isExternalMixer()) {
+                        asio.writeDeckFrames(0, buf_a_l.data(), buf_a_r.data(), frames_per_tick);
+                        asio.writeDeckFrames(1, buf_b_l.data(), buf_b_r.data(), frames_per_tick);
+                    }
+                }
             }
 
             if (have_a || have_b) {

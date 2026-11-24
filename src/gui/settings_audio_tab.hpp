@@ -8,6 +8,7 @@ struct PluginSettingsConfig;
 class QComboBox;
 class QRadioButton;
 class QLabel;
+class QPushButton;
 
 class SettingsAudioTab : public QWidget {
     Q_OBJECT
@@ -30,6 +31,7 @@ private:
     // Audio Driver & Hardware
     QComboBox *audio_driver_combo_ = nullptr;
     QComboBox *asio_device_combo_ = nullptr;
+    QPushButton *asio_panel_btn_ = nullptr;
     QComboBox *wasapi_device_combo_ = nullptr;
     QComboBox *sample_rate_combo_ = nullptr;
     QComboBox *buffer_size_combo_ = nullptr;

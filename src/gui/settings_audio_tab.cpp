@@ -1,5 +1,6 @@
 #include "gui/settings_audio_tab.hpp"
 #include "gui/settings_dialog.hpp"
+#include "audio/asio_backend.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -8,6 +9,7 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QComboBox>
+#include <QPushButton>
 #include <QRadioButton>
 #include <QButtonGroup>
 
@@ -118,9 +120,21 @@ void SettingsAudioTab::setupUi()
     drv_grid->addWidget(audio_driver_combo_, 0, 1, 1, 2);
 
     asio_device_label_ = new QLabel(QStringLiteral("ASIO Eszköz:"), drv_group);
+    auto *asio_dev_hbox = new QHBoxLayout();
     asio_device_combo_ = new QComboBox(drv_group);
+    asio_panel_btn_ = new QPushButton(QStringLiteral("🎛 Vezérlőpult"), drv_group);
+    asio_panel_btn_->setToolTip(QStringLiteral("Hardveres ASIO vezérlőpult megnyitása (Puffer, Késleltetés)"));
+    connect(asio_panel_btn_, &QPushButton::clicked, [this]() {
+        if (!AsioBackend::instance().isRunning()) {
+            const std::string drv = asio_device_combo_->currentText().toStdString();
+            if (!drv.empty()) AsioBackend::instance().open(drv);
+        }
+        AsioBackend::instance().openControlPanel();
+    });
+    asio_dev_hbox->addWidget(asio_device_combo_, 1);
+    asio_dev_hbox->addWidget(asio_panel_btn_, 0);
     drv_grid->addWidget(asio_device_label_, 1, 0);
-    drv_grid->addWidget(asio_device_combo_, 1, 1, 1, 2);
+    drv_grid->addLayout(asio_dev_hbox, 1, 1, 1, 2);
 
     wasapi_device_label_ = new QLabel(QStringLiteral("WASAPI Monitor Eszköz:"), drv_group);
     wasapi_device_combo_ = new QComboBox(drv_group);
@@ -266,6 +280,7 @@ void SettingsAudioTab::onAudioDriverChanged(int index)
     const bool is_asio = (index == 1);
     asio_device_label_->setVisible(is_asio);
     asio_device_combo_->setVisible(is_asio);
+    if (asio_panel_btn_) asio_panel_btn_->setVisible(is_asio);
     wasapi_device_label_->setVisible(!is_asio);
     wasapi_device_combo_->setVisible(!is_asio);
 }

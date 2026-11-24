@@ -38,11 +38,14 @@ set(SOURCES
     src/engine/engine_buffer.hpp
     src/engine/lfo_engine.hpp
 
-    # Audio (WMF Analysis & WASAPI CUE)
+    # Audio (WMF Analysis, WASAPI CUE & Steinberg ASIO)
     src/audio/audio_analyzer.cpp
     src/audio/audio_analyzer.hpp
     src/audio/wasapi_output.cpp
     src/audio/wasapi_output.hpp
+    src/audio/asio_defs.hpp
+    src/audio/asio_backend.cpp
+    src/audio/asio_backend.hpp
 
     # Sources (Audio Decoders)
     src/sources/wmf_decoder.cpp

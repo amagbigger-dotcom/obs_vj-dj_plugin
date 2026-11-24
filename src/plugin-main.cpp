@@ -9,6 +9,7 @@
 #include "gui/lfo_dialog.hpp"
 #include "gui/settings_dialog.hpp"
 #include "controllers/midi_handler.hpp"
+#include "audio/asio_backend.hpp"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs_vj-dj_plugin", "en-US")
@@ -133,6 +134,8 @@ void init_deck_engine()
     g_deck_pair->setVideoScaleMode(SettingsDialog::config().default_scale_mode);
     vdj_set_decks(g_deck_pair);
 
+    SettingsDialog::applyAudioConfig();
+
     vdj_midi_init();
 }
 
@@ -141,6 +144,8 @@ void free_deck_engine()
     if (SettingsDialog::config().auto_save_on_exit) {
         SettingsDialog::saveSettings();
     }
+
+    AsioBackend::instance().close();
 
     vdj_midi_shutdown();
     vdj_set_decks(nullptr);

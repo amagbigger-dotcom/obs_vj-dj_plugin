@@ -1,30 +1,35 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #374 (GitHub Run #45349512330 / Run #398)
-* **Aktuális Git Commit:** `065b601`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 444 864 bájt)
-* **Bináris SHA256:** `F53BC64C7104F4EBB25A7116B7711F7B4EC4774D39EC0917BCED7AD551244C63`
+* **Legutolsó mérföldkő:** Build #375 (Steinberg ASIO Host Backend & WASAPI koegzisztencia, Audio Lag védelem)
+* **Aktuális Git Commit:** Folyamatban
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #374 - Korg Kaoss DJ Deck-oldalankénti Shift + TAP Effekt Visszaállítás & Globális Kétoldali Reset:
-  1. **Shift Gombok MIDI Bekötése & Fast-Path Detektálás:**
-     - A Korg Kaoss DJ Deck A (Note 26 / Ch 8) és Deck B (Note 26 / Ch 9) Shift gombjai teljes értékű MIDI vezérlők.
-     - Fast-path állapotkövetés a `shift_a_` és `shift_b_` atomi változókba a legkisebb késleltetésért.
-  2. **Deck-oldalankénti Effekt Visszaállítás (Shift + TAP):**
-     - Shift A nyomvatartása + TAP gomb: kizárólag a Deck A aktív effektje nullázódik (0.0), a Deck B tekerése változatlanul aktív marad.
-     - Shift B nyomvatartása + TAP gomb: kizárólag a Deck B aktív effektje nullázódik (0.0), a Deck A tekerése változatlanul aktív marad.
-     - Ha mindkét oldal nullázódott, a HOLD gomb állapota és LED-je is automatikusan kikapcsol.
-  3. **Globális Kétoldali Reset (Shift nélküli TAP kinyomás):**
-     - Shift nélküli TAP megnyomáskor a HOLD kikapcsol, és **mindkét oldal (Deck A és Deck B) potmétere azonnal visszaáll alapállapotba (0.0)**.
-  4. **Kikapcsolt HOLD Melletti Inaktív Deck Lecsengés:**
-     - 500 ms tétlenség után a másik decken maradt érték is finoman és biztonságosan lecseng neutrálisra.
+* **Fő cél:** Build #375 - Valódi Steinberg ASIO Host Motor Integráció & WASAPI Békés Együttélés:
+  1. **Valódi Steinberg ASIO 2.3 Host Motor C++-ban:**
+     - `src/audio/asio_defs.hpp`, `src/audio/asio_backend.hpp`, `src/audio/asio_backend.cpp`.
+     - Dinamikus COM betöltés a Windows Registryből (`HKLM\SOFTWARE\ASIO\<driver>`).
+     - SPSC zárolásmentes ringpufferek (8192 minta csatornánként).
+     - Multi-formátum konverter: Int32LSB, Float32LSB, Int24LSB, Int16LSB.
+     - Hardveres vezérlőpult gomb a Beállítások panelen (`asio_panel_btn_`).
+  2. **WASAPI és ASIO Párhuzamos Támogatás (Nem kell elengedni a WASAPI-t):**
+     - A Beállítások (Settings) panel Audio fülén a felhasználó szabadon választhat WASAPI vagy ASIO között.
+     - Ha ASIO van kiválasztva, az ASIO motor átveszi a Master / CUE / Deck A-B kimeneteket, a WASAPI pedig csendesen leáll és nem próbál újracsatlakozni.
+     - Ha WASAPI van kiválasztva, az ASIO azonnal bezár és a WASAPI OUT 3-4 Direct CUE működik tovább érintetlenül.
+  3. **OBS Audio-Lag & Puffer-Duplázódási Védelem:**
+     - `deck_enum_active_sources` kiüresítése a `deck_source.cpp`-ben, megakadályozva, hogy az OBS feleslegesen követeljen és halmozzon fel belső `ffmpeg_source` audio adatot, ami 960 ms pufferméretet és recsegést okozott.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #374)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #375)
+* [x] **Steinberg ASIO Host Motor & Audio Lag Védelem (Build #375):**
+  - Valódi ASIO 2.3 driver betöltés, double-buffer feldolgozás, formátum konverzió.
+  - Hardveres vezérlőpult megnyitás (ASIO Control Panel).
+  - Párhuzamos ASIO / WASAPI támogatás a Beállítások ablakban.
+  - Belső `ffmpeg_source` audio lag védelem.
 * [x] **Korg KAOSS DJ Deck-oldalankénti Shift + TAP Reset & Globális Kétoldali Nullázás (Build #374):**
   - Shift A + TAP: Csak a Deck A effektjének azonnali visszaállítása.
   - Shift B + TAP: Csak a Deck B effektjének azonnali visszaállítása.
@@ -328,20 +333,20 @@
   - `std::mutex g_midi_out_mutex` védi a `g_midi_out` mutatót a valós idejű LED visszajelző szál (`feedback_sender_loop`), a clock szál és a GUI szál között.
 * [x] **Korg KAOSS DJ Jog Kerék Natív BIN_OFFSET Dekódolás:** A fordított működés és túlfutások megszűntek (50 ms normál / 2 ms SHIFT).
 * [x] **Folytonos Beatgrid Csúsztatás az Érintőcsíkkal (Touch Strip CC 33):** SHIFT-tel folytonos rácsmozgatás a lábdob elé.
+* [x] **Audió Recsegés & ASIO / Csatorna Elemzés (Build #375 Diagnózis):**
+  - Feltárva a 960 ms puffer-túlcsordulás és folyamatos forrás-újraindítási ciklus (`vj_deck_source_a` deszinkronizáció).
+  - Feltárva a hiányzó ASIO motor és az elcsatolt beállítási felület.
+  - Elkészült a részletes cselekvési terv a recsegésmentesítésre és a csatornarouting megoldására.
 
 ---
 
 ## 3. Következő Lépés (Next Action)
-* [ ] Változtatások commitolása és pusholása a távoli GitHub repóba (Build #357).
-* [ ] GitHub Actions CI fordítás ellenőrzése, a kész DLL letöltése és telepítése.
-* [ ] Éles tesztelés az OBS Studio-ban:
-  - Mixer FX gombok ellenőrzése a keverőablakban (🔴 FLT, 🔵 DLY, 🟢 REV, 🟡 FLG).
-  - Csatorna potméterek tekerése mindkét irányba (LPF és HPF átmenetek).
-  - Delay ütemszinkron és természetes lecsengés (tail spillover) ellenőrzése.
-  - Reverb térzengés és Flanger sztereó Jet pásztázás tesztelése.
-  - Traktor Kontrol S2 MK3 hardveres gombok és LED visszajelzés ellenőrzése.
+* [ ] **1. Lépés:** `vj_deck_source_a` leválasztása az OBS audió gráfjáról a `src/video/deck_source.cpp` fájlban (`deck_enum_active_sources` javítása), megszüntetve a 960 ms puffer-katasztrófát és recsegést.
+* [ ] **2. Lépés:** A `SettingsDialog::onSaveClicked()` és `DeckPair::setCueDeviceId` összekötése az azonnali hardveres végpont-váltásért.
+* [ ] **3. Lépés:** WASAPI 2-zónás kimenet beállítása (Master: `OUT 1-2`, CUE: `OUT 3-4`), vagy ASIO host motor integrációjának indítása.
 
 ---
 
 ## 4. Ismert Elakadások / Figyelmeztetések
 * **OBS DLL zárolás:** Futó OBS Studio mellett a DLL nem írható felül; frissítéskor az OBS-nek zárva kell lennie.
+* **ASIO Meghajtó hiánya:** A plugin felületén szereplő ASIO választó jelenleg nem rendelkezik mögöttes C++ ASIO motorral; jelenleg a közvetlen WASAPI (pl. Behringer XR18 `OUT 3-4`) használható.

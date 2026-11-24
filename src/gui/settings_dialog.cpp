@@ -9,6 +9,7 @@
 #include "gui/vj_fx_dialog.hpp"
 #include "controllers/midi_handler.hpp"
 #include "engine/deck_engine.hpp"
+#include "audio/asio_backend.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -315,10 +316,47 @@ void SettingsDialog::readUiToConfig()
     if (general_tab_) general_tab_->readConfig(g_config);
 }
 
+void SettingsDialog::applyAudioConfig()
+{
+    if (g_config.audio_driver == QStringLiteral("ASIO") && !g_config.asio_device_name.isEmpty()) {
+        AsioChannelRouting routing;
+        routing.master_l = g_config.master_out_ch_l;
+        routing.master_r = g_config.master_out_ch_r;
+        routing.cue_l = g_config.cue_out_ch_l;
+        routing.cue_r = g_config.cue_out_ch_r;
+        routing.booth_l = g_config.booth_out_ch_l;
+        routing.booth_r = g_config.booth_out_ch_r;
+        routing.deck_a_l = g_config.deck_a_out_ch_l;
+        routing.deck_a_r = g_config.deck_a_out_ch_r;
+        routing.deck_b_l = g_config.deck_b_out_ch_l;
+        routing.deck_b_r = g_config.deck_b_out_ch_r;
+        routing.external_mixer_mode = (g_config.audio_mode == 1);
+
+        AsioBackend::instance().setRouting(routing);
+        const bool ok = AsioBackend::instance().open(
+            g_config.asio_device_name.toStdString(),
+            g_config.sample_rate,
+            g_config.buffer_size);
+        if (!ok) {
+            blog(LOG_WARNING, "[settings] Failed to open ASIO device '%s', falling back to WASAPI",
+                 g_config.asio_device_name.toUtf8().constData());
+        }
+    } else {
+        AsioBackend::instance().close();
+        if (auto *decks = vdj_decks()) {
+            if (!g_config.wasapi_device_id.isEmpty()) {
+                decks->setCueDeviceId(g_config.wasapi_device_id.toStdString());
+            }
+        }
+    }
+}
+
 void SettingsDialog::onSaveClicked()
 {
     readUiToConfig();
     saveSettings();
+
+    applyAudioConfig();
 
     if (auto *decks = vdj_decks()) {
         decks->setVideoScaleMode(g_config.default_scale_mode);

@@ -91,6 +91,7 @@ public:
     static PluginSettingsConfig &config();
     static void loadSettings();
     static void saveSettings();
+    static void applyAudioConfig();
 
 private slots:
     void onSaveClicked();
