@@ -50,7 +50,7 @@ public:
     }
 };
 
-static AsioBackend *g_asio_instance = nullptr;
+static AsioBackend::Impl *g_asio_impl = nullptr;
 
 void asio_buffer_switch_callback(long doubleBufferIndex, ASIOBool directProcess);
 void asio_sample_rate_changed_callback(ASIOSampleRate sRate);
@@ -149,16 +149,16 @@ struct AsioBackend::Impl {
 namespace {
 void asio_buffer_switch_callback(long doubleBufferIndex, ASIOBool)
 {
-    if (g_asio_instance && g_asio_instance->impl_) {
-        g_asio_instance->impl_->processBufferSwitch(doubleBufferIndex);
+    if (g_asio_impl) {
+        g_asio_impl->processBufferSwitch(doubleBufferIndex);
     }
 }
 void asio_sample_rate_changed_callback(ASIOSampleRate) {}
 long asio_message_callback(long, long, void *, double *) { return 0; }
 ASIOTime *asio_buffer_switch_time_info_callback(ASIOTime *, long doubleBufferIndex, ASIOBool)
 {
-    if (g_asio_instance && g_asio_instance->impl_) {
-        g_asio_instance->impl_->processBufferSwitch(doubleBufferIndex);
+    if (g_asio_impl) {
+        g_asio_impl->processBufferSwitch(doubleBufferIndex);
     }
     return nullptr;
 }
@@ -173,14 +173,14 @@ AsioBackend &AsioBackend::instance()
 AsioBackend::AsioBackend()
     : impl_(std::make_unique<Impl>())
 {
-    g_asio_instance = this;
+    g_asio_impl = impl_.get();
 }
 
 AsioBackend::~AsioBackend()
 {
     close();
-    if (g_asio_instance == this)
-        g_asio_instance = nullptr;
+    if (g_asio_impl == impl_.get())
+        g_asio_impl = nullptr;
 }
 
 bool AsioBackend::open(const std::string &driver_name, int sample_rate, int preferred_buffer_size)

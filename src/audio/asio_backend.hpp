@@ -33,6 +33,7 @@ public:
 
     void setRouting(const AsioChannelRouting &routing) noexcept;
     AsioChannelRouting routing() const noexcept;
+    bool isExternalMixer() const noexcept { return routing().external_mixer_mode; }
 
     // Zero-allocation frame feeding for Master and CUE
     void writeMasterFrames(const float *l, const float *r, size_t frames) noexcept;
