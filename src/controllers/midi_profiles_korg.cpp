@@ -26,6 +26,8 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
     p.addBinding({MidiMsgType::NOTE_ON, 7, 33, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 33)"});
     p.addBinding({MidiMsgType::NOTE_ON, 7, 34, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (Note 34)"});
     p.addBinding({MidiMsgType::CC, 7, 9, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold Button (CC 9)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 7, 11, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold / Tap Button (Note 11)"});
+    p.addBinding({MidiMsgType::NOTE_ON, 0, 11, MidiAction::KAOSS_HOLD, 0, MidiJogMode::SPREAD_64, "Kaoss Hold / Tap Button (Any Ch Note 11)"});
     // Universal any-channel fallbacks
     p.addBinding({MidiMsgType::CC, 0, 12, MidiAction::KAOSS_TOUCHPAD_X, 0, MidiJogMode::ABSOLUTE, "Kaoss Touchpad X (Any Ch)"});
     p.addBinding({MidiMsgType::CC, 0, 13, MidiAction::KAOSS_TOUCHPAD_Y, 0, MidiJogMode::ABSOLUTE, "Kaoss Touchpad Y (Any Ch)"});
@@ -38,7 +40,7 @@ MidiControllerProfile MidiControllerProfile::createKorgKaossDJ()
     p.addBinding({MidiMsgType::CC, 7, 30, MidiAction::BROWSE_SCROLL, 0, MidiJogMode::SPREAD_64, "Browse Rotary Encoder"});
     p.addBinding({MidiMsgType::CC, 7, 29, MidiAction::BROWSE_SCROLL, 0, MidiJogMode::SPREAD_64, "Browse Rotary (Alt CC 29)"});
     p.addBinding({MidiMsgType::NOTE_ON, 7, 14, MidiAction::LOAD_SELECTED, 0, MidiJogMode::SPREAD_64, "Browse Push (Load)"});
-    p.addBinding({MidiMsgType::NOTE_ON, 7, 11, MidiAction::SYNC, 0, MidiJogMode::SPREAD_64, "Tap BPM"});
+
 
     // --- Deck A (Ch 8) ---
     p.addBinding({MidiMsgType::NOTE_ON, 8, 27, MidiAction::PLAY_PAUSE, 1, MidiJogMode::SPREAD_64, "Play/Pause"});

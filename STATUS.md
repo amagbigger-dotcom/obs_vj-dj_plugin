@@ -1,7 +1,7 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
 * **Legutolsó stabil mérföldkő:** Build #371 (GitHub Run #45289492121 / Run #392)
-* **Aktuális Git Commit:** `a466a62`
+* **Aktuális Git Commit:** `c2badba`
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 444 864 bájt)
 * **Bináris SHA256:** `31837C23E0F330BDAE5BA69C122E04A49DA89918ABD4C29F7E501E0AF582F3DE`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
@@ -9,23 +9,13 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #371 - KÉSZ & TELEPÍTVE. Korg KAOSS DJ Touchpad Fast-Path, Univerzális Bipoláris FX & Robusztus HOLD Gomb Javítások:
-  1. **Touchpad Dinamikus Zóna & Oldalválasztás (Zéró Race Condition & Drop):**
-     - Fast-Path intercept a `midi_dispatcher.cpp`-ben CC 12 (X) és CC 13 (Y) beérkezésekor közvetlenül a `KaossFxManager`-be továbbít, megkerülve a MIDI csatornaeltéréseket.
-     - Eltávolítva a korai `touch_triggered_lock_` és a hibás kill switch: minden érintés az aktuális koordináták alapján azonnal kijelöli az aktív oldalt (bal = Deck A, jobb = Deck B) és a 4 slot egyikét (Slot 0..3: FLT, DLY, REV, FLG).
-     - Az enkóder belső értéke azonnal szinkronizálódik a kiválasztott slot aktuális filter értékével.
-  2. **Univerzális Kétirányú (Bipoláris) Enkóder Vezérlés Mind a 4 Sloton:**
-     - Korábban a Slot 1..3 unipolárisként [0..1] volt korlátozva, így nem lehetett balra / mélyvágás irányba tekerni őket.
-     - Mostantól **mind a 4 slot teljesen bipoláris** `[-1.0, +1.0]` tartományban dolgozik:
-       - Balra tekerés (0.50 -> 0.00): Low-Pass Filter / mélyhangok / sötét tónus (`[-1.0, 0.0]`).
-       - Jobbra tekerés (0.50 -> 1.00): High-Pass Filter / magashangok / világos tónus (`[0.0, +1.0]`).
-       - Mágneses snap-to-center: `[0.48, 0.52]` között pontosan 0.50-re (0.0 neutrális bypass) pattan.
-  3. **Megbízható HOLD Gomb & 500 ms Watchdog Auto-Reset:**
-     - HOLD gomb detektálás kiterjesztve az összes Kaoss DJ jelölt hangra (Note 7..13, 33, 34 és CC 9).
-     - Kétirányú LED feedback kiküldés Note 7..13, 33, 34-re Ch 7 és Ch 1-en.
-     - Az auto-reset türelmi idő 500 ms-ra növelve a kényelmes tekeréshez.
-     - **HOLD bekapcsolva:** a watchdog teljesen fel van függesztve, a poti szigorúan a beállított pozícióban marad.
-     - **HOLD kikapcsolva:** az érték finom exponenciális lerp simítással tér vissza 0.50 neutrális középállásba.
+* **Fő cél:** Build #372 - Note 11 (TAP Gomb / Hardveres LED) Dedikált HOLD Vezérlés & Unmapped MIDI Diagnosztika:
+  1. **Note 11 (TAP Gomb & LED) Bekötése:**
+     - A Korg Kaoss DJ-n a fizikai HOLD gomb a belső hardveres DSP-hez van kötve (nem küld MIDI-t a PC felé).
+     - A Touchpad feletti, MIDI-képes és hardveres LED-del ellátott **TAP gomb (Note 11 / Ch 7)** dedikált HOLD gombként való bekötése.
+     - Kétirányú LED feedback a Note 11-re: bekapcsolt HOLD esetén a gomb világít és a paraméter pozícióban marad; kikapcsoláskor a LED kialszik és a paraméter azonnal visszaugrik neutrális 0-ra.
+  2. **Unmapped MIDI Diagnosztikai Naplózás:**
+     - Minden egyéb Korg Kaoss bejövő üzenet naplózása az OBS logba (`[kaoss_midi_unmapped]`).
 
 ---
 

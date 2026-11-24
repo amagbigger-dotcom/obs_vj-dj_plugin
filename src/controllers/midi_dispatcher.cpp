@@ -121,9 +121,9 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
             KaossFxManager::instance().onEncoderRotate(data2);
             return;
         }
-        // HOLD Button candidates: Notes 7..13, 33, 34 or CC 9
+        // HOLD Button candidates: Note 11 (Tap button with hardware LED), Notes 7..13, 33, 34 or CC 9
         if (msg_type == MidiMsgType::NOTE_ON && data2 > 0) {
-            if (data1 == 7 || data1 == 8 || data1 == 9 || data1 == 10 || data1 == 12 || data1 == 13 || data1 == 33 || data1 == 34) {
+            if (data1 == 11 || data1 == 7 || data1 == 8 || data1 == 9 || data1 == 10 || data1 == 12 || data1 == 13 || data1 == 33 || data1 == 34) {
                 KaossFxManager::instance().toggleHold();
                 return;
             }
@@ -135,7 +135,12 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
 
     // 3. Normal Dispatch
     const MidiControlBinding *b = profile_.findBinding(msg_type, channel, data1);
-    if (!b) return;
+    if (!b) {
+        if (profile_.name().contains(QStringLiteral("Kaoss"), Qt::CaseInsensitive)) {
+            blog(LOG_INFO, "[kaoss_midi_unmapped] status=0x%02X ch=%d data1=%d data2=%d", status, channel, data1, data2);
+        }
+        return;
+    }
 
     // Pick target DeckPlayer
     DeckPlayer *target_deck = nullptr;
@@ -665,7 +670,7 @@ void MidiDispatcher::sendFeedback(bool force_refresh)
     // Specific Korg Kaoss DJ direct fallback sends to guarantee feedback on all hardware modes:
     const uint8_t kaoss_hold_val = KaossFxManager::instance().isHoldActive() ? 127 : 0;
     for (uint8_t ch_st : {static_cast<uint8_t>(0x96), static_cast<uint8_t>(0x90)}) {
-        for (uint8_t n : {7, 8, 9, 10, 12, 13, 33, 34}) {
+        for (uint8_t n : {11, 7, 8, 9, 10, 12, 13, 33, 34}) {
             sendIfChanged(ch_st, n, kaoss_hold_val);
         }
     }
