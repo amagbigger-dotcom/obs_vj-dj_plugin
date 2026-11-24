@@ -1,8 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó mérföldkő:** Build #375 (Steinberg ASIO Host Backend & WASAPI koegzisztencia, Audio Lag védelem)
-* **Aktuális Git Commit:** Folyamatban
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
+* **Legutolsó stabil mérföldkő:** Build #375 (GitHub Run #45471696355 / Run #402)
+* **Aktuális Git Commit:** `6ccfcac`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 460 736 bájt)
+* **Bináris SHA256:** `C6731522DB13ED20CEA58175F9F8331B978E30F2C7ABA5851A073EF96429F5C7`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
