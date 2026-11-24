@@ -1,25 +1,30 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #371 (GitHub Run #45289492121 / Run #392)
-* **Aktuális Git Commit:** `c2badba`
+* **Legutolsó stabil mérföldkő:** Build #372 (GitHub Run #45295673188 / Run #394)
+* **Aktuális Git Commit:** `76ade54`
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 444 864 bájt)
-* **Bináris SHA256:** `31837C23E0F330BDAE5BA69C122E04A49DA89918ABD4C29F7E501E0AF582F3DE`
+* **Bináris SHA256:** `B884D22C9890B4CB76CF9BFCE4A57F430A1D41E6B49C61C4B2E6F34287425F9A`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #372 - Note 11 (TAP Gomb / Hardveres LED) Dedikált HOLD Vezérlés & Unmapped MIDI Diagnosztika:
+* **Fő cél:** Build #372 - KÉSZ & TELEPÍTVE. Note 11 (TAP Gomb / Hardveres LED) Dedikált HOLD Vezérlés & Unmapped MIDI Diagnosztika:
   1. **Note 11 (TAP Gomb & LED) Bekötése:**
      - A Korg Kaoss DJ-n a fizikai HOLD gomb a belső hardveres DSP-hez van kötve (nem küld MIDI-t a PC felé).
-     - A Touchpad feletti, MIDI-képes és hardveres LED-del ellátott **TAP gomb (Note 11 / Ch 7)** dedikált HOLD gombként való bekötése.
-     - Kétirányú LED feedback a Note 11-re: bekapcsolt HOLD esetén a gomb világít és a paraméter pozícióban marad; kikapcsoláskor a LED kialszik és a paraméter azonnal visszaugrik neutrális 0-ra.
+     - A Touchpad feletti, MIDI-képes és hardveres LED-del ellátott **TAP gomb (Note 11 / Ch 7)** dedikált HOLD gombként került bekötésre.
+     - Kétirányú LED feedback a Note 11-re: bekapcsolt HOLD esetén a gomb világít és a paraméter pozícióban marad; kikapcsoláskor a LED azonnal kialszik és a paraméter késleltetés nélkül visszaugrik neutrális 0-ra.
   2. **Unmapped MIDI Diagnosztikai Naplózás:**
      - Minden egyéb Korg Kaoss bejövő üzenet naplózása az OBS logba (`[kaoss_midi_unmapped]`).
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #371)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #372)
+* [x] **Korg KAOSS DJ Note 11 (TAP) HOLD & Hardveres LED Visszajelzés (Build #372):**
+  - Note 11 (TAP gomb) dedikálása Kaoss HOLD funkcióra.
+  - Kétirányú MIDI LED visszajelzés Note 11-re (Ch 7 és Ch 1).
+  - Unmapped MIDI események naplózása OBS logba.
+  - Telepített bináris: 1 444 864 bájt, SHA256 `B884D22C9890B4CB76CF9BFCE4A57F430A1D41E6B49C61C4B2E6F34287425F9A`.
 * [x] **Korg KAOSS DJ Touchpad Fast-Path, Univerzális Bipoláris FX & HOLD Vezérlés (Build #371):**
   - Közvetlen fast-path intercept CC 12/13/31/32 és Hold gombokra.
   - Mind a 4 slot bipoláris kétirányú vezérlése (LPF/HPF).
