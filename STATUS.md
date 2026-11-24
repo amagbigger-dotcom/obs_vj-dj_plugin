@@ -1,9 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #376 (deck_enum_active_sources helyreállítása & zenei vizuál reaktivitás visszaállítása)
-* **Aktuális Git Commit:** Folyamatban
+* **Legutolsó stabil mérföldkő:** Build #376 (GitHub Run #45485144873 / Run #404)
+* **Aktuális Git Commit:** `24d16cd`
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 460 736 bájt)
-* **Bináris SHA256:** `C6731522DB13ED20CEA58175F9F8331B978E30F2C7ABA5851A073EF96429F5C7`
+* **Bináris SHA256:** `B3AAADDD218DE663DCB20C17F67B7B01893F32EA97D5DF2017B94078013285F2`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
