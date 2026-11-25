@@ -21,15 +21,10 @@ public:
     void write(const float *src, size_t count) noexcept {
         if (!src || count == 0) return;
         const size_t w = write_pos_.load(std::memory_order_relaxed);
-        const size_t r = read_pos_.load(std::memory_order_acquire);
-        const size_t occupied = (w >= r) ? (w - r) : (Capacity - r + w);
-        const size_t free_space = (Capacity > occupied + 1) ? (Capacity - occupied - 1) : 0;
-        const size_t to_write = (count < free_space) ? count : free_space;
-
-        for (size_t i = 0; i < to_write; ++i) {
+        for (size_t i = 0; i < count; ++i) {
             buffer_[(w + i) % Capacity] = src[i];
         }
-        write_pos_.store((w + to_write) % Capacity, std::memory_order_release);
+        write_pos_.store((w + count) % Capacity, std::memory_order_release);
     }
 
     void read(float *dst, size_t count) noexcept {
@@ -80,7 +75,7 @@ struct AsioBackend::Impl {
     std::vector<ASIOBufferInfo> buffer_infos_;
     std::vector<ASIOChannelInfo> channel_infos_;
     std::array<SpscRingBuffer<8192>, 32> channel_rings_{};
-    std::vector<float> temp_render_buf_{};
+    std::array<float, 8192> temp_render_buf_{};
 
     ASIOCallbacks callbacks_{
         &asio_buffer_switch_callback,
@@ -270,7 +265,7 @@ bool AsioBackend::open(const std::string &driver_name, int sample_rate, int pref
     if (min_sz > 0 && actual_buf < min_sz) actual_buf = min_sz;
     if (max_sz > 0 && actual_buf > max_sz) actual_buf = max_sz;
 
-    impl_->temp_render_buf_.assign(static_cast<size_t>(actual_buf), 0.0f);
+    impl_->temp_render_buf_.fill(0.0f);
 
     const long channels_to_alloc = std::min(num_out, 32L);
     impl_->buffer_infos_.resize(channels_to_alloc);

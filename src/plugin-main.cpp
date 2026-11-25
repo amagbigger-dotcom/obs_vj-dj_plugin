@@ -199,18 +199,13 @@ extern "C" {
 
 bool obs_module_load(void)
 {
-    blog(LOG_INFO, "[obs_vj_mixer] Modul források regisztrálása...");
+    blog(LOG_INFO, "[obs_vj_mixer] Modul betöltése indul...");
     vdj_register_deck_source();
     vdj_register_sources();
-    return true;
-}
-
-void obs_module_post_load(void)
-{
-    blog(LOG_INFO, "[obs_vj_mixer] Modul post-load: deck engine és felület inicializálása...");
     init_deck_engine();
     init_deck_ui();
     blog(LOG_INFO, "[obs_vj_mixer] Sikeresen betöltve!");
+    return true;
 }
 
 void obs_module_unload(void)

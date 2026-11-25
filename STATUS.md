@@ -1,7 +1,7 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #379 (GitHub Run #45697605578 / Run #410)
-* **Aktuális Git Commit:** `df5f231`
+* **Legutolsó stabil mérföldkő:** Build #380 (Fejhallgató CUE Visszahallgatás & Potméter/Crossfader Recsegésmentesítés Helyreállítása)
+* **Aktuális Git Állapot:** Javítások alkalmazva, azonnali build indítás
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 465 856 bájt)
 * **Bináris SHA256:** `BAF16B96254F0A8823511B949D5F03734938801F04F53C68654DA8D45A9E383C`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
@@ -9,20 +9,16 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #379 - Forráskód-audit alapján elvégzett memóriabiztonsági, audio és folyamatkezelési megerősítés:
-  1. **ASIO Buffer Overflow & 0 dB Kattanás Mentesség:**
-     - Dinamikusan méretezett `temp_render_buf_` az ASIO driver által jóváhagyott méretre (megszűnt a 2048 feletti pufferméretű crash).
-     - Int32 konverzió skálázása $2^{31}-128$-ra korrigálva (megszűnt a 0 dB csúcsnál jelentkező előjeles túlcsordulás és kattanás).
-     - SPSC ringbuffer túlcsordulás elleni írásvédelem és szálbiztos `std::atomic<bool> is_running_`.
-     - `kAsioResetRequest` és mintavételezési ráta hibaellenőrzés.
-  2. **MIDI Tab Use-After-Free & Mutex Védelem:**
-     - `SettingsMidiTab` destruktorban a singleton callbackek azonnali törlése (megszűnt a dialógus bezárása utáni crash).
-     - Mutex védelem a `setLearnCallback` és `setMonitorCallback` beállítóknál; lock-mentes callback dispatch másolatból.
-     - Csak látható állapotban (`isVisible()`) küld élő activity GUI eseményt (megszűnt az eseményhurok jog-tárcsa általi elárasztása).
-  3. **Deck Video Render Független Időalap:**
-     - `s_last_deck_time_ns` függvény-szintű static változó áthelyezve a `DeckSourceContext` példánytagjai közé.
-     - Deck A és Deck B teljesen független `dt` lépésekkel számolja a VJ shader átmeneteket.
-  4. **Videókonverter Hash-Alapú Névütközés-Védelem & Biztonságos Átmeneti Fájlkezelés:**
+* **Fő cél:** Build #380 - Fejhallgató CUE visszahallgatás és sima potméter/crossfade működés azonnali helyreállítása:
+  1. **Fejhallgató CUE & Master Monitoring Helyreállítása:**
+     - Visszaállítva az `init_deck_engine()` és `init_deck_ui()` futtatása az `obs_module_load()`-ba, így az OBS forráslétrehozásakor a `vdj_decks()` már aktív, és a CUE/Master forrás regisztrációja azonnal megtörténik.
+     - Visszaállítva a `master_device` beállítás és az `obs_set_audio_monitoring_device()`, hogy az OBS pontosan tudja, melyik hangkártyára küldje a monitor hangot.
+     - Visszaállítva a `NONE` -> `MONITOR_AND_OUTPUT` kényszerített stream felépítés és a `need_monitor_wake_` ébresztés.
+  2. **Potméter & Crossfader Recsegésmentesítés:**
+     - Visszaállítva a folytonos, csonkolásmentes ringbuffer írás az `SpscRingBuffer::write`-ban (megszűnt a minták eldobása miatti törés és recsegés).
+     - Megszűnt a deck audio források és a master mixer forrás közötti duplikált audió interferencia.
+  3. **Megtartott audit javítások:**
+     - ASIO buffer túlírás elleni 8192-es puffer, 0 dB clipping fix, MIDI tab use-after-free védelem, független Deck időkód és videókonverter hash védelem változatlanul aktív.
      - Az eredeti fájl teljes útvonalából képzett egyedi 8 karakteres hash a kimeneti fájlnévben (`BaseName_[hash]_vj1080.mp4`).
      - Konvertálás `.tmp.mp4` átmeneti fájlba, azonnali törlés megszakadáskor, és kizárólag sikeres 100%-os lefutás utáni végleges átnevezés.
      - Visszafelé kompatibilitás megtartása a meglévő zenei könyvtárakhoz.

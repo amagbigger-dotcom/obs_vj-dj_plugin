@@ -988,14 +988,18 @@ static void *mixer_create(obs_data_t *settings, obs_source_t *source)
         decks->setMasterSource(source);
     }
 
-    // Alkalmazzuk a mentett beállításokat (átmeneti mód, FX) azonnal az indításkor
+    // Alkalmazzuk a mentett beállításokat (hangkártya kimenet, átmeneti mód) azonnal az indításkor
     if (settings) {
         mixer_update(context, settings);
+    } else {
+        if (obs_audio_monitoring_available()) {
+            obs_set_audio_monitoring_device("Default", "default");
+        }
     }
 
-    if (obs_source_get_monitoring_type(source) != OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT) {
-        obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
-    }
+    // Kényszerített monitorozási típus beállítás (Destroy stale handle & create fresh monitor)
+    obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_NONE);
+    obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
 
     // =========================================================================
     // Mester RAM Audió Szál: Deck A + Deck B valós idejű keverése Crossfaderrel
@@ -1390,6 +1394,15 @@ static void mixer_update(void *data, obs_data_t *settings)
     auto *context = static_cast<MixerSource *>(data);
     if (!settings) return;
 
+    const char *dev = obs_data_get_string(settings, "master_device");
+    if (obs_audio_monitoring_available()) {
+        if (dev && *dev && strcmp(dev, "default") != 0) {
+            obs_set_audio_monitoring_device(dev, dev);
+        } else {
+            obs_set_audio_monitoring_device("Default", "default");
+        }
+    }
+
     DeckPair *decks = vdj_decks();
     if (decks) {
         decks->setTransitionMode(static_cast<int>(obs_data_get_int(settings, "transition")));
@@ -1408,9 +1421,8 @@ static void mixer_update(void *data, obs_data_t *settings)
     }
 
     if (context && context->source) {
-        if (obs_source_get_monitoring_type(context->source) != OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT) {
-            obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
-        }
+        obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_NONE);
+        obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
     }
 }
 
@@ -1458,13 +1470,12 @@ static void mixer_video_tick(void *data, float seconds)
         decks->deckA().updateLoop();
         decks->deckB().updateLoop();
 
-        // Amikor a felhasználó elindítja a lejátszást az OBS indítása után, azonnal ellenőrizzük a monitor kimenetet
+        // Amikor a felhasználó elindítja a lejátszást az OBS indítása után, azonnal felébresztjük a WASAPI kimenetet
         if (context && context->need_monitor_wake_.load(std::memory_order_relaxed)) {
             if ((decks->deckA().isPlaying() || decks->deckB().isPlaying()) && context->source) {
                 context->need_monitor_wake_.store(false, std::memory_order_relaxed);
-                if (obs_source_get_monitoring_type(context->source) != OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT) {
-                    obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
-                }
+                obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_NONE);
+                obs_source_set_monitoring_type(context->source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
             }
         }
     }
