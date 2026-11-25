@@ -1,8 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #381 (Tiszta ASIO CUE & recsegésmentes potméter/crossfade visszaállítás)
-* **Aktuális Git Commit:** Folyamatban (`HEAD`)
-* **Cél bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
+* **Legutolsó stabil mérföldkő:** Build #381 (GitHub Run #45707921972 / Run #414)
+* **Aktuális Git Commit:** `d46006c`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 464 832 bájt)
+* **Bináris SHA256:** `4F2E8604AAA2866610753B7B674BC5DB14CD2D53D3AD4ADD7BF58A0B9C0C9F66`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
