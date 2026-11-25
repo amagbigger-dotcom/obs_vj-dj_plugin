@@ -1,28 +1,33 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #377 (GitHub Run #45569752475 / Run #406)
-* **Aktuális Git Commit:** `1395b43`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 462 784 bájt)
-* **Bináris SHA256:** `A9EFA0FFADAD44E4C33073A91858C6282561B33B5CD5D8BBFCF3F00F9BEC7C8A`
+* **Legutolsó stabil mérföldkő:** Build #378 (GitHub Run #45577611242 / Run #408)
+* **Aktuális Git Commit:** `889423d`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 462 272 bájt)
+* **Bináris SHA256:** `27A555F57A4B764B85B26BAE66132ACB52B6DC6DA08496B6A461BB0B8D7C7C24`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #377 - Alpha-Over Compositing a Hangerő Potméter Alakzat-átvezetéseihez & Ugrásmentes (Zero-Pop) Élő Crossfade FX Váltás:
-  1. **Hangerő Potméter Alakzat-átvezetések Átlátszósága (Alpha-Over Compositing):**
-     - Megszűnt a fekete háttér a kör szűkülésnél (Circle Iris), téglalapnál, vízszintes lamelláknál (Venetian Stripes), és zoom középre effektusnál.
-     - A kivágott maszkolt területeken (`1.0 - a.a`) közvetlenül a másik deck tartalma jelenik meg tiszta videórétegként (`comp_a = a.rgb + b.rgb * saturate(1.0 - a.a)`).
-     - Equal Power normalizációs faktor (`norm_factor`) beépítve: a kivágott rétegek közös területe nem ég ki és nem lesz túlexponált.
-  2. **Ugrásmentes (Zero-Pop) Élő Crossfade FX Váltás:**
-     - Bevezetve az előző effekt dedikált paraméter-uniformjai: `cf_prev_p0..7`.
-     - A `col_prev` képkocka az előző effekt ténylegesen beállított és modulált paramétereivel kerül kiszámításra, nem íródik felül az új effekt értékeivel a váltás pillanatában.
-     - A váltás kezdetekor ($t=0$) a renderelt képkocka 100%-ban megegyezik a kattintás előtti állapottal, majd 500 ms alatt zökkenőmentesen és lágyan úszik át az új effektbe.
+* **Fő cél:** Build #378 - Tiszta Crossfader Dominancia & Fokozatos 16:9 Téglalap Alakzat-átvezetés Helyreállítása:
+  1. **Tiszta Crossfader Dominancia Visszaállítása:**
+     - Eltávolítva a crossfadert felülbíráló mesterséges réteg-összefésülés.
+     - Ha a crossfader teljesen balra (Deck A) van húzva, a Deck B felől semmilyen képi információ nem jelenhet meg; ha a jobb oldalra van húzva, a Deck A felől nem szivároghat be tartalom.
+     - A crossfader pozíciója szigorúan és kizárólagosan szabályozza a két deck arányát a master kimeneten.
+  2. **16:9 Téglalap (Box Iris) Fokozatos Szűkülése:**
+     - Képarány-szorzási hiba korrigálva az UV térben ($d = \max(ap.x, ap.y)$).
+     - Megszűnt a hirtelen beugrás: a téglalap mostantól a teljes képernyő széleitől kiindulva lágyan és fokozatosan szűkül a középpont felé a potméter lehúzásával arányosan.
+  3. **Zero-Pop Élő Crossfade FX Váltás:**
+     - A dedikált `cf_prev_p0..7` uniformok továbbra is garantálják, hogy élő FX váltáskor nem ugrik el a kép, a folyamat az előző effekt pontos pillanatnyi állapotából úszik át az újba.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #377)
-* [x] **Alpha-Over Compositing & Zero-Pop Live Crossfade FX Váltás (Build #377):**
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #378)
+* [x] **Tiszta Crossfader Dominancia & Fokozatos Box Iris (Build #378):**
+  - Crossfader végállás szivárgásmentességének helyreállítása.
+  - 16:9 téglalap hirtelen ugrásának megszüntetése, sima lineáris szűkülés.
+  - Telepített bináris: 1 462 272 bájt, SHA256 `27A555F57A4B764B85B26BAE66132ACB52B6DC6DA08496B6A461BB0B8D7C7C24`.
+* [x] **Zero-Pop Live Crossfade FX Váltás (Build #377):**
   - Hangerő potméter alakzat-kivágások (Iris Circle, Venetian Stripes, Vertical Slices, Zoom Out) valós átlátszósága a másik deck felé.
   - Előző crossfade FX paraméterek megőrzése (`cf_prev_p0..7`), azonnali állapotugrás és torzulás megszüntetése FX váltáskor.
   - Telepített bináris: 1 462 784 bájt, SHA256 `A9EFA0FFADAD44E4C33073A91858C6282561B33B5CD5D8BBFCF3F00F9BEC7C8A`.
