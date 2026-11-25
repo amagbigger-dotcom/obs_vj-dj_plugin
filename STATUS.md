@@ -1,10 +1,10 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #382 (Kész bináris az Asztalon, telepítésre vár)
-* **Aktuális Git Commit:** `d579244`
-* **Desktop Bináris:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll` (1 465 344 bájt, 2026. 11. 25. 23:13)
-* **Desktop SHA256:** `34123EECB295EA2378DE0B69E8074108F1B46FEF31E73521742E5B0448239033`
-* **Program Files Jelenlegi Állapot:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 464 832 bájt, 21:53:46 - UAC miatt nem íródott felül!)
+* **Legutolsó stabil mérföldkő:** Build #382 (GitHub Run #45710850624 / Run #416 - Telepítve és igazoltan működik!)
+* **Aktuális Git Commit:** `dfecf72`
+* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 465 344 bájt, 2026. 11. 25. 22:13:40)
+* **Bináris SHA256:** `34123EECB295EA2378DE0B69E8074108F1B46FEF31E73521742E5B0448239033`
+* **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
