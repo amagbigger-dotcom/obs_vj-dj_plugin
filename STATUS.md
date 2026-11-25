@@ -1,26 +1,31 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #376 (GitHub Run #45485144873 / Run #404)
-* **Aktuális Git Commit:** `24d16cd`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 460 736 bájt)
-* **Bináris SHA256:** `B3AAADDD218DE663DCB20C17F67B7B01893F32EA97D5DF2017B94078013285F2`
+* **Legutolsó stabil mérföldkő:** Build #377 (GitHub Run #45569752475 / Run #406)
+* **Aktuális Git Commit:** `1395b43`
+* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 462 784 bájt)
+* **Bináris SHA256:** `A9EFA0FFADAD44E4C33073A91858C6282561B33B5CD5D8BBFCF3F00F9BEC7C8A`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #376 - Belső források időzítésének & zenei vizuál mozgató algoritmusok helyreállítása:
-  1. **Belső forrás ütemezés helyreállítása (`deck_enum_active_sources`):**
-     - A belső `ffmpeg_source` újra átadásra kerül az OBS jelenetfa aktív forráslistájának (`enum_active_sources`).
-     - Az OBS újra küldi az automatikus `video_tick` eseményeket a média dekódernek, így a videó képkockák simán és folyamatosan frissülnek.
-     - A belső forrás időkódja (`obs_source_media_get_time`) újra folyamatosan lépeget, a `currentTimeMs()` nem fagy be.
-  2. **Zenei Vizuál Algoritmusok (Kick Pulse, Beat Pulse, Macro-Tonus) Élesztése:**
-     - A hullámforma spektrális indexelése (`detailed_low_[idx]`) és a live DSP envelope követés (`live_bass_`) újra kap friss időadatot és mintákat.
-     - A procedurális VJ shaderek és a Crossfader FX zenei modulációi újra dinamikusan és ütemre mozognak.
+* **Fő cél:** Build #377 - Alpha-Over Compositing a Hangerő Potméter Alakzat-átvezetéseihez & Ugrásmentes (Zero-Pop) Élő Crossfade FX Váltás:
+  1. **Hangerő Potméter Alakzat-átvezetések Átlátszósága (Alpha-Over Compositing):**
+     - Megszűnt a fekete háttér a kör szűkülésnél (Circle Iris), téglalapnál, vízszintes lamelláknál (Venetian Stripes), és zoom középre effektusnál.
+     - A kivágott maszkolt területeken (`1.0 - a.a`) közvetlenül a másik deck tartalma jelenik meg tiszta videórétegként (`comp_a = a.rgb + b.rgb * saturate(1.0 - a.a)`).
+     - Equal Power normalizációs faktor (`norm_factor`) beépítve: a kivágott rétegek közös területe nem ég ki és nem lesz túlexponált.
+  2. **Ugrásmentes (Zero-Pop) Élő Crossfade FX Váltás:**
+     - Bevezetve az előző effekt dedikált paraméter-uniformjai: `cf_prev_p0..7`.
+     - A `col_prev` képkocka az előző effekt ténylegesen beállított és modulált paramétereivel kerül kiszámításra, nem íródik felül az új effekt értékeivel a váltás pillanatában.
+     - A váltás kezdetekor ($t=0$) a renderelt képkocka 100%-ban megegyezik a kattintás előtti állapottal, majd 500 ms alatt zökkenőmentesen és lágyan úszik át az új effektbe.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #376)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #377)
+* [x] **Alpha-Over Compositing & Zero-Pop Live Crossfade FX Váltás (Build #377):**
+  - Hangerő potméter alakzat-kivágások (Iris Circle, Venetian Stripes, Vertical Slices, Zoom Out) valós átlátszósága a másik deck felé.
+  - Előző crossfade FX paraméterek megőrzése (`cf_prev_p0..7`), azonnali állapotugrás és torzulás megszüntetése FX váltáskor.
+  - Telepített bináris: 1 462 784 bájt, SHA256 `A9EFA0FFADAD44E4C33073A91858C6282561B33B5CD5D8BBFCF3F00F9BEC7C8A`.
 * [x] **Zenei Vizuál Reaktivitás & Belső Forrás Ütemezés Helyreállítása (Build #376):**
   - `deck_enum_active_sources` visszaállítva a `deck_source.cpp`-ben.
   - Videó képkockák folyamatos dekódolása és időkód-léptetése garantálva.
