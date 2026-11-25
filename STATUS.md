@@ -1,9 +1,9 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #380 (Fejhallgató CUE Visszahallgatás & Potméter/Crossfader Recsegésmentesítés Helyreállítása)
-* **Aktuális Git Állapot:** Javítások alkalmazva, azonnali build indítás
+* **Legutolsó stabil mérföldkő:** Build #380 (GitHub Run #45703493685 / Run #412)
+* **Aktuális Git Commit:** `7bb0c1a`
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 465 856 bájt)
-* **Bináris SHA256:** `BAF16B96254F0A8823511B949D5F03734938801F04F53C68654DA8D45A9E383C`
+* **Bináris SHA256:** `5D4B42D8583EB9602B6391F91A39C62D711F8108C118DD7893D1D0534D138044`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
