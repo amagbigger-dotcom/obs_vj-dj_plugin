@@ -1,25 +1,25 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #382 (GitHub Run #45710850624 / Run #416 - Telepítve és igazoltan működik!)
-* **Aktuális Git Commit:** `dfecf72`
-* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 465 344 bájt, 2026. 11. 25. 22:13:40)
-* **Bináris SHA256:** `34123EECB295EA2378DE0B69E8074108F1B46FEF31E73521742E5B0448239033`
+* **Legutolsó stabil mérföldkő:** Build #383 (GitHub Run #45716155434 / Run #419 - Telepítve és igazoltan működik!)
+* **Aktuális Git Commit:** `781e97f`
+* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 462 784 bájt, 2026. 11. 25. 23:51:30)
+* **Bináris SHA256:** `BAD5E470E543FCA815F7C00F78603B59BFCA8A31F63B94B3094001FB72BD67D8`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #382 - Párhuzamos ASIO + WASAPI Fejhallgató CUE visszahallgatás és Zipper-noise mentes fáderek/crossfade:
-  1. **Párhuzamos CUE Kiszolgálás (ASIO ÉS WASAPI Egyszerre):**
-     - Megszüntetve a `wasapi_out.close()` erőszakos leállítást, ami ASIO futásakor azonnal elnémította a WASAPI-ra (pl. Korg Kaoss DJ, PC fejhallgató kimenet, Realtek) dugott fülest!
-     - A CUE szál mostantól PÁRHUZAMOSAN streameli a fejhallgató mintákat az ASIO Ch 3-4 kimenetre ÉS a kiválasztott WASAPI fejhallgató eszközre is. Bárhová van dugva a füles, azonnal és garantáltan szól.
-  2. **Potméter & Crossfader Recsegésmentesítés (Linear Gain Smoothing):**
-     - Mintánkénti lineáris hangerő-interpoláció bevezetve a `mixer_source.cpp`, `deck_source.cpp` és `DeckPair::mixAndQueueCue` keverési ciklusokba.
-     - Megszűnt a 10ms-os blokkok közötti digitális szintlépcső (zipper noise), a csatornahangerő és crossfader húzásakor a hangzás kristálytiszta és recsegésmentes.
-  3. **Megtartott funkcionális javítások (amelyek nem érintik az audiót/MIDI-t):**
-     - Videókonverter hash alapú egyedi fájlnév-képzés (`BaseName_[hash]_vj1080.mp4`).
-     - Félbeszakadt videókonverzió átmeneti fájlvédelem (`.tmp.mp4`).
-     - Független deck időzítés `deck_source.cpp`-ben.
+* **Fő cél:** Build #383 - Tiszta `BaseName_vj1080.mp4` videókonverter visszaállítása, duplikáció- és hash-mentes könyvtárkezelés:
+  1. **Tiszta fájlnév-képzés (Hash és .tmp nélkül):**
+     - Megszüntetve a `BaseName_[hash]_vj1080.mp4` elnevezést és a `qHash` generálást; a kimeneti fájlnév újra tiszta `BaseName_vj1080.mp4`.
+     - Köztes `.tmp.mp4` fájlírás eltávolítva; közvetlen célfájlba kódolás.
+     - Megszakadt / hibás konverzió esetén a sérült félkész fájl automatikusan törlődik.
+     - Duplikációmentes könyvtár: ha a VJ mappában már létezik `BaseName_vj1080.mp4`, a tracklist azonnal késznek tekinti (`Ready`), nem konvertálja újra feleslegesen.
+  2. **Változatlanul garantált All-Intra időkód formátum:**
+     - Az FFmpeg enkóder paraméterek (`-g 2 -bf 0`, NVENC HQ, 48 kHz AAC) teljes mértékben érintetlenek, biztosítva a zéró késleltetésű, azonnali képkocka-pontos scratch és ugrás funkciót.
+  3. **Build #382 audió & fader javítások teljes megőrzése:**
+     - Párhuzamos ASIO Ch 3-4 + WASAPI CUE fejhallgató kiszolgálás (bármelyik kimenetre dugva a fülest, azonnal és garantáltan szól).
+     - Mintánkénti lineáris hangerő-interpoláció (Linear Gain Smoothing) a csatornahangerő fádereken, potmétereken és crossfaderen (zéró zipper noise / recsegés).
 
 ---
 
