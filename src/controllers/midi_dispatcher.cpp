@@ -46,6 +46,18 @@ void MidiDispatcher::cancelLearn()
     learn_action_ = MidiAction::NONE;
 }
 
+void MidiDispatcher::setLearnCallback(LearnCallback cb)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    learn_cb_ = std::move(cb);
+}
+
+void MidiDispatcher::setMonitorCallback(MonitorCallback cb)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    monitor_cb_ = std::move(cb);
+}
+
 bool MidiDispatcher::isShiftPressed(int deck) const
 {
     if (deck == 1) return shift_a_.load(std::memory_order_relaxed) || shift_global_.load(std::memory_order_relaxed);
@@ -71,11 +83,16 @@ void MidiDispatcher::dispatch(uint8_t status, uint8_t data1, uint8_t data2)
         return; // Ignore clock/sysex
     }
 
-    std::unique_lock<std::mutex> lock(mutex_);
-
-    if (monitor_cb_) {
-        monitor_cb_(status, data1, data2);
+    MonitorCallback mon_cb;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        mon_cb = monitor_cb_;
     }
+    if (mon_cb) {
+        mon_cb(status, data1, data2);
+    }
+
+    std::unique_lock<std::mutex> lock(mutex_);
 
     // 1. MIDI Learn Mode
     if (is_learning_) {

@@ -1,7 +1,7 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #378 (GitHub Run #45577611242 / Run #408)
-* **Aktuális Git Commit:** `889423d`
+* **Legutolsó stabil mérföldkő:** Build #379 (Kritikus Rendszerbiztonsági & Kódstabilitási Audit Javítások)
+* **Aktuális Git Állapot:** Forráskód-audit javítások alkalmazva
 * **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 462 272 bájt)
 * **Bináris SHA256:** `27A555F57A4B764B85B26BAE66132ACB52B6DC6DA08496B6A461BB0B8D7C7C24`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
@@ -9,20 +9,41 @@
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #378 - Tiszta Crossfader Dominancia & Fokozatos 16:9 Téglalap Alakzat-átvezetés Helyreállítása:
-  1. **Tiszta Crossfader Dominancia Visszaállítása:**
-     - Eltávolítva a crossfadert felülbíráló mesterséges réteg-összefésülés.
-     - Ha a crossfader teljesen balra (Deck A) van húzva, a Deck B felől semmilyen képi információ nem jelenhet meg; ha a jobb oldalra van húzva, a Deck A felől nem szivároghat be tartalom.
-     - A crossfader pozíciója szigorúan és kizárólagosan szabályozza a két deck arányát a master kimeneten.
-  2. **16:9 Téglalap (Box Iris) Fokozatos Szűkülése:**
-     - Képarány-szorzási hiba korrigálva az UV térben ($d = \max(ap.x, ap.y)$).
-     - Megszűnt a hirtelen beugrás: a téglalap mostantól a teljes képernyő széleitől kiindulva lágyan és fokozatosan szűkül a középpont felé a potméter lehúzásával arányosan.
-  3. **Zero-Pop Élő Crossfade FX Váltás:**
-     - A dedikált `cf_prev_p0..7` uniformok továbbra is garantálják, hogy élő FX váltáskor nem ugrik el a kép, a folyamat az előző effekt pontos pillanatnyi állapotából úszik át az újba.
+* **Fő cél:** Build #379 - Forráskód-audit alapján elvégzett memóriabiztonsági, audio és folyamatkezelési megerősítés:
+  1. **ASIO Buffer Overflow & 0 dB Kattanás Mentesség:**
+     - Dinamikusan méretezett `temp_render_buf_` az ASIO driver által jóváhagyott méretre (megszűnt a 2048 feletti pufferméretű crash).
+     - Int32 konverzió skálázása $2^{31}-128$-ra korrigálva (megszűnt a 0 dB csúcsnál jelentkező előjeles túlcsordulás és kattanás).
+     - SPSC ringbuffer túlcsordulás elleni írásvédelem és szálbiztos `std::atomic<bool> is_running_`.
+     - `kAsioResetRequest` és mintavételezési ráta hibaellenőrzés.
+  2. **MIDI Tab Use-After-Free & Mutex Védelem:**
+     - `SettingsMidiTab` destruktorban a singleton callbackek azonnali törlése (megszűnt a dialógus bezárása utáni crash).
+     - Mutex védelem a `setLearnCallback` és `setMonitorCallback` beállítóknál; lock-mentes callback dispatch másolatból.
+     - Csak látható állapotban (`isVisible()`) küld élő activity GUI eseményt (megszűnt az eseményhurok jog-tárcsa általi elárasztása).
+  3. **Deck Video Render Független Időalap:**
+     - `s_last_deck_time_ns` függvény-szintű static változó áthelyezve a `DeckSourceContext` példánytagjai közé.
+     - Deck A és Deck B teljesen független `dt` lépésekkel számolja a VJ shader átmeneteket.
+  4. **Videókonverter Hash-Alapú Névütközés-Védelem & Biztonságos Átmeneti Fájlkezelés:**
+     - Az eredeti fájl teljes útvonalából képzett egyedi 8 karakteres hash a kimeneti fájlnévben (`BaseName_[hash]_vj1080.mp4`).
+     - Konvertálás `.tmp.mp4` átmeneti fájlba, azonnali törlés megszakadáskor, és kizárólag sikeres 100%-os lefutás utáni végleges átnevezés.
+     - Visszafelé kompatibilitás megtartása a meglévő zenei könyvtárakhoz.
+  5. **OBS Monitoring Izoláció & Dropout Mentesség:**
+     - Eltávolítva a globális `obs_set_audio_monitoring_device()` felülírás (a plugin nem nyúl hozzá a felhasználó OBS globális beállításához).
+     - Eltávolítva a felesleges `NONE` -> `MONITOR_AND_OUTPUT` rángatás a beállításfrissítésekből és a videó tickből.
+  6. **Kíméletes OBS Telepítő & CMake/CI Fix:**
+     - `install_plugin.bat`: drasztikus `taskkill /F` helyett kíméletes leállítás és ellenőrző várakozási ciklus.
+     - `CMakeLists.txt`: `-DOBS_SDK_DIR` és `$ENV{RUNNER_TEMP}` paraméterek helyes kezelése.
+     - `plugin-main.cpp`: `obs_module_post_load()` bevezetése a belső források és UI garantáltan biztonságos indításához.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #378)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #379)
+* [x] **Kritikus Rendszerbiztonsági & Kódstabilitási Audit Javítások (Build #379):**
+  - ASIO puffer-túlírás és 0 dB int32 clipping megszüntetése.
+  - MIDI beállítófül use-after-free és esemény-áradat megszüntetése.
+  - Deck video render időkód szétválasztása külön deck-példányokra.
+  - Hash-alapú egyedi videókonverzió és .tmp fájlvédelem.
+  - Globális OBS beállítás-felülírás kiiktatása, dropout-mentes monitorozás.
+  - Kíméletes OBS bezárás telepítés előtt és CMake/CI SDK javítás.
 * [x] **Tiszta Crossfader Dominancia & Fokozatos Box Iris (Build #378):**
   - Crossfader végállás szivárgásmentességének helyreállítása.
   - 16:9 téglalap hirtelen ugrásának megszüntetése, sima lineáris szűkülés.

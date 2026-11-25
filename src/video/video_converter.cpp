@@ -52,12 +52,19 @@ QString VideoConverter::findFfmpegBinary()
         }
     }
 
-    // 2. Check OBS plugin config directory (%APPDATA%/obs-studio/plugin_config/obs-vj-mixer/ffmpeg.exe)
+    // 2. Check OBS plugin config directory (%APPDATA%/obs-studio/plugin_config/.../ffmpeg.exe)
     const QString appdata = qEnvironmentVariable("APPDATA");
     if (!appdata.isEmpty()) {
-        const QString candidate1 = QDir(appdata).filePath(QStringLiteral("obs-studio/plugin_config/obs-vj-mixer/ffmpeg.exe"));
-        if (QFileInfo::exists(candidate1)) {
-            return candidate1;
+        const QStringList plugin_subdirs = {
+            QStringLiteral("obs-studio/plugin_config/obs_vj-dj_plugin/ffmpeg.exe"),
+            QStringLiteral("obs-studio/plugin_config/obs_dj-vj_plugin/ffmpeg.exe"),
+            QStringLiteral("obs-studio/plugin_config/obs-vj-mixer/ffmpeg.exe")
+        };
+        for (const auto &sub : plugin_subdirs) {
+            const QString candidate = QDir(appdata).filePath(sub);
+            if (QFileInfo::exists(candidate)) {
+                return candidate;
+            }
         }
     }
 
@@ -136,16 +143,20 @@ bool VideoConverter::convertVideo(const QString &input_file, const QString &outp
     }
 
     const QFileInfo fi(input_file);
-    QString out_name = fi.completeBaseName() + suffix;
+    const QString clean_in = QDir::cleanPath(fi.absoluteFilePath());
+    const uint h = qHash(clean_in);
+    const QString hash_str = QStringLiteral("%1").arg(h, 8, 16, QChar('0'));
+    QString out_name = QStringLiteral("%1_[%2]%3").arg(fi.completeBaseName(), hash_str, suffix);
     QString out_path = QDir(output_dir).filePath(out_name);
 
     if (QFileInfo(out_path).absoluteFilePath() == fi.absoluteFilePath()) {
-        out_name = fi.completeBaseName() + QStringLiteral("_vj_conv.mp4");
+        out_name = QStringLiteral("%1_[%2]_vj_conv.mp4").arg(fi.completeBaseName(), hash_str);
         out_path = QDir(output_dir).filePath(out_name);
     }
 
     current_input_path_ = input_file;
     current_output_path_ = out_path;
+    temp_output_path_ = out_path + QStringLiteral(".tmp.mp4");
     total_duration_sec_ = 0.0;
     is_converting_ = true;
     is_trying_nvenc_ = true;
@@ -174,7 +185,7 @@ bool VideoConverter::convertVideo(const QString &input_file, const QString &outp
     args << QStringLiteral("-c:a") << QStringLiteral("aac");
     args << QStringLiteral("-b:a") << QStringLiteral("320k");
     args << QStringLiteral("-ar") << QStringLiteral("48000");
-    args << out_path;
+    args << temp_output_path_;
 
     startWithArguments(args);
     return true;
@@ -196,7 +207,7 @@ void VideoConverter::startCpuFallback()
     args << QStringLiteral("-c:a") << QStringLiteral("aac");
     args << QStringLiteral("-b:a") << QStringLiteral("320k");
     args << QStringLiteral("-ar") << QStringLiteral("48000");
-    args << current_output_path_;
+    args << (temp_output_path_.isEmpty() ? current_output_path_ : temp_output_path_);
 
     startWithArguments(args);
 }
@@ -226,12 +237,13 @@ void VideoConverter::cancel()
     }
     // SOHA ne töröljünk kész fájlt! Csak akkor töröljük a kimenetet,
     // ha a konvertálás ténylegesen folyamatban volt és félbeszakadt:
-    if (was_active && !current_output_path_.isEmpty() && QFile::exists(current_output_path_)) {
-        blog(LOG_INFO, "[vj_converter] Félbeszakadt konvertálás törlése: %s", current_output_path_.toUtf8().constData());
-        QFile::remove(current_output_path_);
+    if (was_active && !temp_output_path_.isEmpty() && QFile::exists(temp_output_path_)) {
+        blog(LOG_INFO, "[vj_converter] Félbeszakadt konvertálás átmeneti fájl törlése: %s", temp_output_path_.toUtf8().constData());
+        QFile::remove(temp_output_path_);
     }
     current_output_path_.clear();
     current_input_path_.clear();
+    temp_output_path_.clear();
 }
 
 void VideoConverter::checkWatchdog()
@@ -304,14 +316,28 @@ void VideoConverter::onProcessFinished(int exit_code, QProcess::ExitStatus exit_
     is_converting_ = false;
     const bool success = (exit_code == 0 && exit_status == QProcess::NormalExit);
     const QString out_file = current_output_path_;
+    const QString temp_file = temp_output_path_;
 
-    if (!success && !out_file.isEmpty() && QFile::exists(out_file)) {
-        QFile::remove(out_file);
+    if (success) {
+        if (!temp_file.isEmpty() && QFile::exists(temp_file)) {
+            if (QFile::exists(out_file)) {
+                QFile::remove(out_file);
+            }
+            if (!QFile::rename(temp_file, out_file)) {
+                blog(LOG_WARNING, "[vj_converter] Failed to rename temp file %s to %s",
+                     temp_file.toUtf8().constData(), out_file.toUtf8().constData());
+            }
+        }
+    } else {
+        if (!temp_file.isEmpty() && QFile::exists(temp_file)) {
+            QFile::remove(temp_file);
+        }
     }
     // A konvertálás lezárult: azonnal tisztítjuk a kimeneti útvonalat,
     // így az OBS bezárásakor vagy leállásakor a destruktor sosem törölheti a kész fájlt!
     current_output_path_.clear();
     current_input_path_.clear();
+    temp_output_path_.clear();
 
     emit progressChanged(success ? 100 : 0);
     emit conversionFinished(out_file, success, success ? QString() : QStringLiteral("Conversion error (code %1)").arg(exit_code));

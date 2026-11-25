@@ -59,6 +59,29 @@ TracklistDock *vdj_get_tracklist_window()
     return g_tracklist_instance;
 }
 
+namespace {
+QString getConvertedVideoPath(const QString &orig_path, const QString &library_dir)
+{
+    if (orig_path.isEmpty() || library_dir.isEmpty()) return QString();
+    const QFileInfo fi(orig_path);
+    const QString clean_in = QDir::cleanPath(fi.absoluteFilePath());
+    const uint h = qHash(clean_in);
+    const QString hash_str = QStringLiteral("%1").arg(h, 8, 16, QChar('0'));
+
+    // 1. Elsődleges: új egyedi hash-elt név BaseName_[hash]_vj1080.mp4
+    const QString hashed_name = QStringLiteral("%1_[%2]_vj1080.mp4").arg(fi.completeBaseName(), hash_str);
+    const QString hashed_path = QDir(library_dir).filePath(hashed_name);
+    if (QFile::exists(hashed_path)) return hashed_path;
+
+    // 2. Visszafelé kompatibilitás régebbi könyvtárakhoz: BaseName_vj1080.mp4
+    const QString legacy_name = fi.completeBaseName() + QStringLiteral("_vj1080.mp4");
+    const QString legacy_path = QDir(library_dir).filePath(legacy_name);
+    if (QFile::exists(legacy_path)) return legacy_path;
+
+    return hashed_path;
+}
+} // namespace
+
 void vdj_import_and_load(const QString &file_path, int deck_channel)
 {
     if (qApp && QThread::currentThread() != qApp->thread()) {
@@ -541,10 +564,10 @@ void TracklistDock::deleteSelectedTrack()
         if (QFile::exists(conv_cache)) QFile::remove(conv_cache);
 
         // 2. Delete the converted 1080p MP4 file from disk
-        if (item.file_path.endsWith(QStringLiteral("_vj1080.mp4")) && QFile::exists(item.file_path)) {
+        if (item.file_path.contains(QStringLiteral("_vj1080.mp4")) && QFile::exists(item.file_path)) {
             QFile::remove(item.file_path);
         }
-        const QString lib_conv = QDir(library_dir_).filePath(QFileInfo(item.original_path).completeBaseName() + QStringLiteral("_vj1080.mp4"));
+        const QString lib_conv = getConvertedVideoPath(item.original_path, library_dir_);
         if (QFile::exists(lib_conv)) {
             QFile::remove(lib_conv);
         }
@@ -613,9 +636,7 @@ void TracklistDock::relinkTrackFile(int real_track_index)
     } else {
         // Videófájl
         item.original_path = new_file;
-        const QString out_file = QDir(library_dir_).filePath(
-            fi.completeBaseName() + QStringLiteral("_vj1080.mp4")
-        );
+        const QString out_file = getConvertedVideoPath(new_file, library_dir_);
 
         if (QFile::exists(out_file) && QFileInfo(out_file).size() > 1024) {
             // Már létezik a konvertált 1080p fájl a VJ könyvtárban
@@ -831,9 +852,7 @@ void TracklistDock::reconvertTrack(int real_idx)
         }
     }
 
-    const QString out_file = QDir(library_dir_).filePath(
-        QFileInfo(it.original_path).completeBaseName() + QStringLiteral("_vj1080.mp4")
-    );
+    const QString out_file = getConvertedVideoPath(it.original_path, library_dir_);
 
     it.status = QStringLiteral("Várakozik...");
     applyFilterAndPopulate();
@@ -1006,9 +1025,7 @@ void TracklistDock::addFile(const QString &path, int target_deck)
         item.is_converted = true;
         item.status = QStringLiteral("Ready");
     } else {
-        const QString out_file = QDir(library_dir_).filePath(
-            fi.completeBaseName() + QStringLiteral("_vj1080.mp4")
-        );
+        const QString out_file = getConvertedVideoPath(clean_path, library_dir_);
 
         if (QFile::exists(out_file)) {
             item.file_path = out_file;
@@ -1068,9 +1085,7 @@ void TracklistDock::processNextConversion()
 
     auto &item = tracks_[active_conversion_idx_];
     const QString orig = item.original_path;
-    const QString out_path = QDir(library_dir_).filePath(
-        QFileInfo(orig).completeBaseName() + QStringLiteral("_vj1080.mp4")
-    );
+    const QString out_path = getConvertedVideoPath(orig, library_dir_);
 
     if (QFile::exists(out_path)) {
         item.file_path = out_path;
@@ -1999,9 +2014,7 @@ void TracklistDock::loadLibraryJson()
             const QFileInfo fi(item.file_path);
             const QString ext = fi.suffix().toLower();
             if (!isAudioOnlyFile(ext)) {
-                const QString target_conv = QDir(library_dir_).filePath(
-                    fi.completeBaseName() + QStringLiteral("_vj1080.mp4")
-                );
+                const QString target_conv = getConvertedVideoPath(item.original_path.isEmpty() ? item.file_path : item.original_path, library_dir_);
                 if (QFile::exists(target_conv) && QFileInfo(target_conv).size() > 1024) {
                     item.file_path = target_conv;
                     item.is_converted = true;

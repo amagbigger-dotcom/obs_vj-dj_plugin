@@ -39,6 +39,7 @@ struct DeckSourceContext {
     gs_texture_t *dummy_tex = nullptr;
 
     uint64_t next_audio_ts = 0;
+    uint64_t last_deck_time_ns = 0;
 
     std::thread audio_thread;
     std::atomic<bool> audio_thread_running{false};
@@ -347,16 +348,15 @@ static void deck_video_render(void *data, gs_effect_t *effect)
     if (!media)
         return;
 
-    static uint64_t s_last_deck_time_ns = 0;
     const uint64_t now_deck_ns = os_gettime_ns();
-    if (s_last_deck_time_ns > 0) {
-        float dt = static_cast<float>(now_deck_ns - s_last_deck_time_ns) * 1e-9f;
+    if (context->last_deck_time_ns > 0) {
+        float dt = static_cast<float>(now_deck_ns - context->last_deck_time_ns) * 1e-9f;
         if (dt > 0.1f) dt = 0.1f;
         if (dt > 0.0f) {
             context->deck->updateVjShaderTransition(dt);
         }
     }
-    s_last_deck_time_ns = now_deck_ns;
+    context->last_deck_time_ns = now_deck_ns;
 
     if (context->deck->hasFileChanged()) {
         context->has_frozen_frame = false;
