@@ -267,24 +267,24 @@ float get_shape_wipe_mask(float fx_mode, float fx_val, float2 uv)
         return 1.0 - smoothstep(max(cur_r - 0.02, 0.0), cur_r + 0.02, r);
     }
     else if (fx_mode > 4.5 && fx_mode < 5.5) {
-        // Mode 5: 16:9 Téglalap (Box Iris)
+        // Mode 5: 16:9 Téglalap (Box Iris) - fokozatos, arányos szűkülés ugrás nélkül
         float2 ap = abs(p);
-        float d = max(ap.x, ap.y * 1.7777778);
-        float cur_box = (1.0 - fx_val) * 0.52;
+        float d = max(ap.x, ap.y);
+        float cur_box = (1.0 - fx_val) * 0.53;
         return 1.0 - smoothstep(max(cur_box - 0.02, 0.0), cur_box + 0.02, d);
     }
     else if (fx_mode > 5.5 && fx_mode < 6.5) {
         // Mode 6: 1:1 Négyzet (Square Iris)
-        float2 ap = abs(p_ar);
-        float d = max(ap.x, ap.y);
-        float cur_sq = (1.0 - fx_val) * 0.90;
+        float2 ap = abs(p);
+        float d = max(ap.x * 1.7777778, ap.y);
+        float cur_sq = (1.0 - fx_val) * 0.92;
         return 1.0 - smoothstep(max(cur_sq - 0.02, 0.0), cur_sq + 0.02, d);
     }
     else if (fx_mode > 6.5 && fx_mode < 7.5) {
         // Mode 7: Rombusz / Gyémánt (Diamond)
-        float2 ap = abs(p_ar);
-        float d = ap.x + ap.y;
-        float cur_dia = (1.0 - fx_val) * 1.35;
+        float2 ap = abs(p);
+        float d = ap.x * 1.7777778 + ap.y;
+        float cur_dia = (1.0 - fx_val) * 1.42;
         return 1.0 - smoothstep(max(cur_dia - 0.025, 0.0), cur_dia + 0.025, d);
     }
     else if (fx_mode > 7.5 && fx_mode < 8.5) {
@@ -424,12 +424,6 @@ float4 compute_cf_mix(VertData v, float fx_mode,
         }
     }
 
-    // Alpha-Over Rétegezés (Volume Fader Alakzat Áttűnés támogatása fekete hézagok nélkül)
-    float3 comp_a = a.rgb + b.rgb * saturate(1.0 - a.a);
-    float3 comp_b = b.rgb + a.rgb * saturate(1.0 - b.a);
-    float4 eff_a = float4(comp_a, 1.0);
-    float4 eff_b = float4(comp_b, 1.0);
-
     float4 res;
 
     // Mode 6: Luma Dissolve (Fényerő-alapú áttűnés)
@@ -441,19 +435,19 @@ float4 compute_cf_mix(VertData v, float fx_mode,
         float blend = smoothstep(thresh - width, thresh + width, luma_a);
         float glow = saturate(1.0 - abs((luma_a - thresh) / width)) * cf_fx_mid * p1 * cf_param_intensity;
         float3 glow_col = float3(p2, p3, p4);
-        res = lerp(eff_b, eff_a, blend) + float4(glow_col, 0.0) * (glow * smoothstep(0.02, 0.98, blend));
+        res = lerp(b, a, blend) + float4(glow_col, 0.0) * (glow * smoothstep(0.02, 0.98, blend));
     } else {
         // Standard Transition Modes
         if (transition_mode > 2.5) {
             // Hard Cut
-            res = crossfade < 0.5 ? eff_a : eff_b;
+            res = crossfade < 0.5 ? a : b;
         } else if (transition_mode > 0.5 && transition_mode < 1.5) {
             // Horizontal Wipe
-            res = v.uv.x < (1.0 - crossfade) ? eff_a : eff_b;
+            res = v.uv.x < (1.0 - crossfade) ? a : b;
         } else if (transition_mode > 1.5 && transition_mode < 2.5) {
             // Additive / Screen Energy Blend (Kontraszt-megtartó ragyogó fúzió, nincs tejszerű köd)
-            float3 screen_col = 1.0 - (1.0 - eff_a.rgb * (1.0 - crossfade)) * (1.0 - eff_b.rgb * crossfade);
-            float3 add_col = eff_a.rgb * (1.0 - crossfade) + eff_b.rgb * crossfade;
+            float3 screen_col = 1.0 - (1.0 - a.rgb * (1.0 - crossfade)) * (1.0 - b.rgb * crossfade);
+            float3 add_col = a.rgb * (1.0 - crossfade) + b.rgb * crossfade;
             res.rgb = lerp(add_col, screen_col, 0.65);
             res.a = 1.0;
         } else {
@@ -466,13 +460,8 @@ float4 compute_cf_mix(VertData v, float fx_mode,
             float w_a = cos(cf * pi_half);
             float w_b = sin(cf * pi_half);
 
-            float3 eq_blend = eff_a.rgb * w_a + eff_b.rgb * w_b;
-            // Ha valamelyik deck alakzattal maszkolva van, a kivágásban a közös tartalom ne égjen ki:
-            float sum_w = w_a + w_b;
-            float norm_factor = lerp(1.0, 1.0 / max(sum_w, 1.0), saturate((1.0 - a.a) + (1.0 - b.a)));
-            eq_blend *= norm_factor;
-
-            float3 lin_blend = lerp(eff_a.rgb, eff_b.rgb, cf);
+            float3 eq_blend = a.rgb * w_a + b.rgb * w_b;
+            float3 lin_blend = lerp(a.rgb, b.rgb, cf);
             res.rgb = lerp(eq_blend, lin_blend, 0.30); // 70% Equal Power védelem a sötétedés ellen
             res.a = 1.0;
         }
