@@ -207,16 +207,23 @@ static void *deck_create(obs_data_t *settings, obs_source_t *source)
                         decks->queueCueAudio(context->deck_channel, channels, frames_per_tick);
                     }
 
-                    // Vonal szintű hangerő és crossfader
+                    // Vonal szintű hangerő és crossfader (Zipper-noise mentesített simítás)
+                    static float s_last_net_gain = 1.0f;
                     const float ch_gain = context->deck->gain();
                     const float ch_vol = context->deck->volume();
                     const float mix_gain = context->deck->mixGain();
-                    const float net_gain = ch_gain * ch_vol * mix_gain;
+                    const float target_net_gain = ch_gain * ch_vol * mix_gain;
+
+                    const float inv_tick = (frames_per_tick > 0) ? (1.0f / static_cast<float>(frames_per_tick)) : 1.0f;
+                    const float step_gain = (target_net_gain - s_last_net_gain) * inv_tick;
+                    float cur_g = s_last_net_gain;
 
                     for (size_t i = 0; i < frames_per_tick; ++i) {
-                        buf_l[i] = std::clamp(buf_l[i] * net_gain, -1.2f, 1.2f);
-                        buf_r[i] = std::clamp(buf_r[i] * net_gain, -1.2f, 1.2f);
+                        cur_g += step_gain;
+                        buf_l[i] = std::clamp(buf_l[i] * cur_g, -1.2f, 1.2f);
+                        buf_r[i] = std::clamp(buf_r[i] * cur_g, -1.2f, 1.2f);
                     }
+                    s_last_net_gain = target_net_gain;
 
                     const uint64_t cur_time = os_gettime_ns();
                     if (context->next_audio_ts == 0) {

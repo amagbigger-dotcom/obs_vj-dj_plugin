@@ -2405,16 +2405,24 @@ void DeckPair::mixAndQueueCue(const float *a_l, const float *a_r,
     if (!cue_a && !cue_b && hp_mix <= 0.001f)
         return;
 
-    const float gain_a = da->gain();
-    const float vol_a = da->volume();
-    const float mix_gain_a = da->mixGain();
-
-    const float gain_b = db->gain();
-    const float vol_b = db->volume();
-    const float mix_gain_b = db->mixGain();
-
     const float cue_weight = 1.0f - hp_mix;
     const float pgm_weight = hp_mix;
+
+    const float target_cue_a = cue_a ? da->gain() : 0.0f;
+    const float target_cue_b = cue_b ? db->gain() : 0.0f;
+    const float target_pgm_a = da->gain() * da->volume() * da->mixGain();
+    const float target_pgm_b = db->gain() * db->volume() * db->mixGain();
+
+    static float s_cur_cue_a = 0.0f;
+    static float s_cur_cue_b = 0.0f;
+    static float s_cur_pgm_a = 0.0f;
+    static float s_cur_pgm_b = 0.0f;
+
+    const float inv_f = (frames > 0) ? (1.0f / static_cast<float>(frames)) : 1.0f;
+    const float step_cue_a = (target_cue_a - s_cur_cue_a) * inv_f;
+    const float step_cue_b = (target_cue_b - s_cur_cue_b) * inv_f;
+    const float step_pgm_a = (target_pgm_a - s_cur_pgm_a) * inv_f;
+    const float step_pgm_b = (target_pgm_b - s_cur_pgm_b) * inv_f;
 
     CuePacket pkt;
     pkt.l.resize(frames);
@@ -2422,35 +2430,43 @@ void DeckPair::mixAndQueueCue(const float *a_l, const float *a_r,
     pkt.frames = frames;
 
     for (size_t i = 0; i < frames; ++i) {
+        s_cur_cue_a += step_cue_a;
+        s_cur_cue_b += step_cue_b;
+        s_cur_pgm_a += step_pgm_a;
+        s_cur_pgm_b += step_pgm_b;
+
         // 1. CUE (PFL) komponens: PRE-FADER, PRE-CROSSFADER!
-        // Teljesen független a csatornahangerőtől és a crossfadertől, csak a Gain hat rá!
         float cue_l = 0.0f;
         float cue_r = 0.0f;
-        if (cue_a && a_l && a_r) {
-            cue_l += a_l[i] * gain_a;
-            cue_r += a_r[i] * gain_a;
+        if (a_l && a_r) {
+            cue_l += a_l[i] * s_cur_cue_a;
+            cue_r += a_r[i] * s_cur_cue_a;
         }
-        if (cue_b && b_l && b_r) {
-            cue_l += b_l[i] * gain_b;
-            cue_r += b_r[i] * gain_b;
+        if (b_l && b_r) {
+            cue_l += b_l[i] * s_cur_cue_b;
+            cue_r += b_r[i] * s_cur_cue_b;
         }
 
         // 2. PGM (Program / Master) komponens: POST-FADER, POST-CROSSFADER
         float pgm_l = 0.0f;
         float pgm_r = 0.0f;
         if (a_l && a_r) {
-            pgm_l += a_l[i] * (gain_a * vol_a * mix_gain_a);
-            pgm_r += a_r[i] * (gain_a * vol_a * mix_gain_a);
+            pgm_l += a_l[i] * s_cur_pgm_a;
+            pgm_r += a_r[i] * s_cur_pgm_a;
         }
         if (b_l && b_r) {
-            pgm_l += b_l[i] * (gain_b * vol_b * mix_gain_b);
-            pgm_r += b_r[i] * (gain_b * vol_b * mix_gain_b);
+            pgm_l += b_l[i] * s_cur_pgm_b;
+            pgm_r += b_r[i] * s_cur_pgm_b;
         }
 
         // 3. Fülesbe keverés az arány (CUE / PGM) és a fejhallgató hangerő szerint
         pkt.l[i] = std::clamp((cue_l * cue_weight + pgm_l * pgm_weight) * hp_vol, -1.2f, 1.2f);
         pkt.r[i] = std::clamp((cue_r * cue_weight + pgm_r * pgm_weight) * hp_vol, -1.2f, 1.2f);
     }
+    s_cur_cue_a = target_cue_a;
+    s_cur_cue_b = target_cue_b;
+    s_cur_pgm_a = target_pgm_a;
+    s_cur_pgm_b = target_pgm_b;
 
     std::lock_guard<std::mutex> lock(cue_mutex_);
     if (cue_queue_.size() > 15)
@@ -2544,25 +2560,24 @@ void DeckPair::cueWorkerLoop()
         }
 
         auto &asio = AsioBackend::instance();
-        if (!asio.isRunning()) {
-            if (!wasapi_out.isRunning()) {
-                static auto last_retry = std::chrono::steady_clock::now();
-                const auto now = std::chrono::steady_clock::now();
-                if (now - last_retry > std::chrono::seconds(2)) {
-                    last_retry = now;
-                    active_dev = cueDeviceId();
-                    wasapi_out.open(active_dev);
-                }
+        if (!wasapi_out.isRunning()) {
+            static auto last_retry = std::chrono::steady_clock::now();
+            const auto now = std::chrono::steady_clock::now();
+            if (now - last_retry > std::chrono::seconds(1)) {
+                last_retry = now;
+                active_dev = cueDeviceId();
+                wasapi_out.open(active_dev);
             }
-        } else if (wasapi_out.isRunning()) {
-            wasapi_out.close();
         }
 
         if (pkt.frames > 0 && !pkt.l.empty() && !pkt.r.empty()) {
-            // 1. Közvetlen hardveres kimenet: ASIO vagy WASAPI OUT 3-4
+            // 1. Hardveres kimenetek kiszolgálása párhuzamosan:
+            // a) ASIO OUT 3-4 (ha van aktív ASIO illesztőprogram)
             if (asio.isRunning()) {
                 asio.writeCueFrames(pkt.l.data(), pkt.r.data(), pkt.frames);
-            } else {
+            }
+            // b) WASAPI CUE kimenet (ha a füles USB hangkártyára/Kaoss DJ-re/alaplapi kimenetre van kötve)
+            if (wasapi_out.isRunning()) {
                 wasapi_out.writeFrames(pkt.l.data(), pkt.r.data(), pkt.frames);
             }
 

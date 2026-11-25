@@ -1060,14 +1060,26 @@ static void *mixer_create(obs_data_t *settings, obs_source_t *source)
             // Fejhallgató CUE & PGM precíz keverése a két csatorna mintáiból (szinkronizált sztereó)
             dp->mixAndQueueCue(buf_a_l.data(), buf_a_r.data(), buf_b_l.data(), buf_b_r.data(), frames_per_tick);
 
-            // Crossfader, csatornahangerő és Gain súlyozás (Gain & Crossfader weighting)
-            const float gain_a = da.gain() * da.volume() * da.mixGain();
-            const float gain_b = db.gain() * db.volume() * db.mixGain();
+            // Crossfader, csatornahangerő és Gain simított súlyozás (Zipper-noise mentesítés)
+            static float s_last_gain_a = 1.0f;
+            static float s_last_gain_b = 1.0f;
+            const float target_gain_a = da.gain() * da.volume() * da.mixGain();
+            const float target_gain_b = db.gain() * db.volume() * db.mixGain();
+
+            const float inv_tick = (frames_per_tick > 0) ? (1.0f / static_cast<float>(frames_per_tick)) : 1.0f;
+            const float step_a = (target_gain_a - s_last_gain_a) * inv_tick;
+            const float step_b = (target_gain_b - s_last_gain_b) * inv_tick;
+            float cur_gain_a = s_last_gain_a;
+            float cur_gain_b = s_last_gain_b;
 
             for (size_t i = 0; i < frames_per_tick; ++i) {
-                master_l[i] = std::clamp(buf_a_l[i] * gain_a + buf_b_l[i] * gain_b, -1.2f, 1.2f);
-                master_r[i] = std::clamp(buf_a_r[i] * gain_a + buf_b_r[i] * gain_b, -1.2f, 1.2f);
+                cur_gain_a += step_a;
+                cur_gain_b += step_b;
+                master_l[i] = std::clamp(buf_a_l[i] * cur_gain_a + buf_b_l[i] * cur_gain_b, -1.2f, 1.2f);
+                master_r[i] = std::clamp(buf_a_r[i] * cur_gain_a + buf_b_r[i] * cur_gain_b, -1.2f, 1.2f);
             }
+            s_last_gain_a = target_gain_a;
+            s_last_gain_b = target_gain_b;
 
             auto &asio = AsioBackend::instance();
             if (asio.isRunning()) {

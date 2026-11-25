@@ -1,21 +1,20 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #381 (GitHub Run #45707921972 / Run #414)
-* **Aktuális Git Commit:** `d46006c`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 464 832 bájt)
-* **Bináris SHA256:** `4F2E8604AAA2866610753B7B674BC5DB14CD2D53D3AD4ADD7BF58A0B9C0C9F66`
+* **Legutolsó stabil mérföldkő:** Build #382 (Párhuzamos ASIO + WASAPI CUE és Zipper-noise mentes fáderek)
+* **Aktuális Git Commit:** Folyamatban (`HEAD`)
+* **Cél bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #381 - ASIO CUE Fejhallgató visszahallgatás és potméter/crossfade azonnali helyreállítása a #378-as bizonyítottan működő alapra:
-  1. **ASIO CUE Visszahallgatás (Headphone CUE) 100%-os Helyreállítása:**
-     - Az `asio_backend.cpp` visszaállítva a működő Build #378 állapotra: eltávolítva a hamis `kAsioSelectorSupported` és `kAsioResetRequest` válaszokat adó callback, ami miatt a natív ASIO illesztőprogramok (Traktor, Pioneer) a másodlagos fejhallgató csatornákat (Ch 3-4 CUE) lenémították vagy hibás állapotba kerültek.
-     - Eltávolítva a belső buffer-másolási és csonkolási eltéréseket; visszaállítva az eredeti, tiszta ASIO buffer switch feldolgozást.
-  2. **Potméter és Crossfader Recsegésmentesítés:**
-     - Visszaállítva a `midi_dispatcher.cpp` és `.hpp`, valamint a `settings_midi_tab.cpp` és `.hpp` az eredeti egyetlen mutex-záras struktúrára, megszüntetve a folyamatos fader-mozgatás közbeni szál-versengést és mikro-akadásokat.
-     - Visszaállítva az eredeti bitpontos DSP szorzást.
+* **Fő cél:** Build #382 - Párhuzamos ASIO + WASAPI Fejhallgató CUE visszahallgatás és Zipper-noise mentes fáderek/crossfade:
+  1. **Párhuzamos CUE Kiszolgálás (ASIO ÉS WASAPI Egyszerre):**
+     - Megszüntetve a `wasapi_out.close()` erőszakos leállítást, ami ASIO futásakor azonnal elnémította a WASAPI-ra (pl. Korg Kaoss DJ, PC fejhallgató kimenet, Realtek) dugott fülest!
+     - A CUE szál mostantól PÁRHUZAMOSAN streameli a fejhallgató mintákat az ASIO Ch 3-4 kimenetre ÉS a kiválasztott WASAPI fejhallgató eszközre is. Bárhová van dugva a füles, azonnal és garantáltan szól.
+  2. **Potméter & Crossfader Recsegésmentesítés (Linear Gain Smoothing):**
+     - Mintánkénti lineáris hangerő-interpoláció bevezetve a `mixer_source.cpp`, `deck_source.cpp` és `DeckPair::mixAndQueueCue` keverési ciklusokba.
+     - Megszűnt a 10ms-os blokkok közötti digitális szintlépcső (zipper noise), a csatornahangerő és crossfader húzásakor a hangzás kristálytiszta és recsegésmentes.
   3. **Megtartott funkcionális javítások (amelyek nem érintik az audiót/MIDI-t):**
      - Videókonverter hash alapú egyedi fájlnév-képzés (`BaseName_[hash]_vj1080.mp4`).
      - Félbeszakadt videókonverzió átmeneti fájlvédelem (`.tmp.mp4`).
