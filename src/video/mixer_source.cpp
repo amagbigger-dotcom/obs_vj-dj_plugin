@@ -86,6 +86,14 @@ uniform float cf_p4;
 uniform float cf_p5;
 uniform float cf_p6;
 uniform float cf_p7;
+uniform float cf_prev_p0;
+uniform float cf_prev_p1;
+uniform float cf_prev_p2;
+uniform float cf_prev_p3;
+uniform float cf_prev_p4;
+uniform float cf_prev_p5;
+uniform float cf_prev_p6;
+uniform float cf_prev_p7;
 
 sampler_state def_sampler {
     Filter = Linear;
@@ -115,7 +123,8 @@ float4 colorize(float4 color, float4 gains, float saturation)
     return saturate(color);
 }
 
-float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity, float rate)
+float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity, float rate,
+                   float p0, float p1, float p2, float p3, float p4, float p5, float p6, float p7)
 {
     if (mode < 0.5 || mid <= 0.001)
         return uv;
@@ -125,10 +134,10 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
 
     if (mode > 0.5 && mode < 1.5) {
         // Mode 1: Spirális Örvény (Swirl / Vortex)
-        float twist = cf_p0;
-        float radius = max(cf_p1, 0.1);
-        float dir_mult = (cf_p2 >= 0.0) ? 1.0 : -1.0;
-        float zoom = max(cf_p3, 0.1);
+        float twist = p0;
+        float radius = max(p1, 0.1);
+        float dir_mult = (p2 >= 0.0) ? 1.0 : -1.0;
+        float zoom = max(p3, 0.1);
         float2 center = float2(0.5, 0.5);
         float2 p_swirl = (uv - center) / zoom;
         float r_swirl = length(p_swirl);
@@ -141,9 +150,9 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
     }
     else if (mode > 1.5 && mode < 2.5) {
         // Mode 2: Halszem Optika (Fisheye Lens)
-        float distortion = cf_p0;
-        float zoom = max(cf_p1, 0.1);
-        float vignette = cf_p2;
+        float distortion = p0;
+        float zoom = max(p1, 0.1);
+        float vignette = p2;
         float2 center = float2(0.5, 0.5);
         float2 p_fish = (uv - center) / zoom;
         float r_fish2 = dot(p_fish, p_fish);
@@ -152,10 +161,10 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
     }
     else if (mode > 4.5 && mode < 5.5) {
         // Mode 5: Pixelesedés (Pixelate / Mosaic)
-        float max_g = cf_p0;
-        float min_g = cf_p1;
-        float asp = max(cf_p2, 0.1);
-        float border = cf_p3;
+        float max_g = p0;
+        float min_g = p1;
+        float asp = max(p2, 0.1);
+        float border = p3;
         float tiles = lerp(max_g / max(rate, 0.1), min_g / max(rate, 0.1), saturate(mid * intensity));
         float2 blk = float2(tiles, tiles * asp);
         float2 pix_uv = floor(uv * blk) / blk;
@@ -167,12 +176,12 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
     }
     else if (mode > 6.5 && mode < 7.5) {
         // Mode 7: Folyadék Hullámzás (Liquid Ripple Warp)
-        float freq = cf_p0;
-        float spd = cf_p1;
-        float amp_param = cf_p2;
-        float asp_x = max(cf_p3, 0.1);
-        float decay = max(cf_p4, 0.01);
-        float surge = cf_p5;
+        float freq = p0;
+        float spd = p1;
+        float amp_param = p2;
+        float asp_x = max(p3, 0.1);
+        float decay = max(p4, 0.01);
+        float surge = p5;
         float2 ap = p;
         ap.x *= asp_x;
         float ar = length(ap);
@@ -184,14 +193,14 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
     }
     else if (mode > 7.5 && mode < 8.5) {
         // Mode 8: Kaleidoszkóp (Mirror Fold) - N-tükrös tiszta poláris szimmetria belső képeltolással
-        float sides = max(floor(cf_p0 + 0.5), 2.0);
-        float zoom = max(cf_p1, 0.1);
-        float pan_x = cf_p2;
-        float pan_y = cf_p3;
-        float fold_angle = cf_p4;
-        float softness = cf_p5;
-        float contrast = max(cf_p6, 0.1);
-        float blend_p = cf_p7;
+        float sides = max(floor(p0 + 0.5), 2.0);
+        float zoom = max(p1, 0.1);
+        float pan_x = p2;
+        float pan_y = p3;
+        float fold_angle = p4;
+        float softness = p5;
+        float contrast = max(p6, 0.1);
+        float blend_p = p7;
 
         float2 kp = uv - float2(0.5, 0.5);
         kp.x *= 1.7777778; // 16:9 aránykorrekció a tökéletes körszimmetriához
@@ -213,12 +222,12 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
     }
     else if (mode > 8.5 && mode < 9.5) {
         // Mode 9: Harmonikus Pásztázás (Scan Dispersion) - Finom szimmetrikus hullámzó eltolás
-        float bands = max(cf_p0, 2.0);
-        float spd = cf_p1;
-        float shift_amt = cf_p2;
-        float softness = max(cf_p3, 0.05);
-        float asp = max(cf_p5, 0.1);
-        float blend_p = cf_p7;
+        float bands = max(p0, 2.0);
+        float spd = p1;
+        float shift_amt = p2;
+        float softness = max(p3, 0.05);
+        float asp = max(p5, 0.1);
+        float blend_p = p7;
 
         float y_phase = uv.y * bands * rate + anim_time * spd * rate;
         float wave = sin(y_phase);
@@ -232,7 +241,7 @@ float2 apply_cf_fx(float2 uv, float mode, float mid, float is_b, float intensity
     }
     else if (mode > 9.5 && mode < 10.5) {
         // Mode 10: CRT / VHS Scanline (Curvature)
-        float curve = cf_p2;
+        float curve = p2;
         float r2 = dot(p, p);
         return p * (1.0 + r2 * mid * curve * intensity * rate) + float2(0.5, 0.5);
     }
@@ -356,49 +365,52 @@ float4 sample_deck_b(float2 uv)
     return sample_deck_with_vol_fx(image_b, uv, vol_fx_mode_b, vol_fx_val_b);
 }
 
-float4 compute_cf_mix(VertData v, float fx_mode)
+float4 compute_cf_mix(VertData v, float fx_mode,
+                      float p0, float p1, float p2, float p3, float p4, float p5, float p6, float p7)
 {
-    float2 uv_a = apply_cf_fx(v.uv, fx_mode, cf_fx_mid, 0.0, cf_param_intensity, cf_param_rate);
-    float2 uv_b = apply_cf_fx(v.uv, fx_mode, cf_fx_mid, 1.0, cf_param_intensity, cf_param_rate);
+    float2 uv_a = apply_cf_fx(v.uv, fx_mode, cf_fx_mid, 0.0, cf_param_intensity, cf_param_rate,
+                              p0, p1, p2, p3, p4, p5, p6, p7);
+    float2 uv_b = apply_cf_fx(v.uv, fx_mode, cf_fx_mid, 1.0, cf_param_intensity, cf_param_rate,
+                              p0, p1, p2, p3, p4, p5, p6, p7);
 
     float4 a = sample_deck_a(uv_a);
     float4 b = sample_deck_b(uv_b);
 
     // Mode 3: RGB Split (Chromatic Aberration)
     if (fx_mode > 2.5 && fx_mode < 3.5 && cf_fx_mid > 0.005) {
-        float split = cf_fx_mid * cf_p0 * cf_param_intensity;
-        float ang = cf_p1;
+        float split = cf_fx_mid * p0 * cf_param_intensity;
+        float ang = p1;
         float2 dir = float2(cos(ang), sin(ang)) * split;
-        float2 g_off = float2(0.0, cf_p2 * cf_fx_mid * cf_param_intensity);
+        float2 g_off = float2(0.0, p2 * cf_fx_mid * cf_param_intensity);
         float4 a_r = sample_deck_a(uv_a + dir);
         float4 a_g = sample_deck_a(uv_a + g_off);
         float4 a_b = sample_deck_a(uv_a - dir);
         a.r = a_r.r;
-        if (abs(cf_p2) > 0.001) a.g = a_g.g;
+        if (abs(p2) > 0.001) a.g = a_g.g;
         a.b = a_b.b;
-        if (cf_p4 > 1.01) a.rgb = lerp(dot(a.rgb, float3(0.3, 0.59, 0.11)).xxx, a.rgb, cf_p4);
+        if (p4 > 1.01) a.rgb = lerp(dot(a.rgb, float3(0.3, 0.59, 0.11)).xxx, a.rgb, p4);
 
         float4 b_r = sample_deck_b(uv_b - dir);
         float4 b_g = sample_deck_b(uv_b - g_off);
         float4 b_b = sample_deck_b(uv_b + dir);
         b.r = b_r.r;
-        if (abs(cf_p2) > 0.001) b.g = b_g.g;
+        if (abs(p2) > 0.001) b.g = b_g.g;
         b.b = b_b.b;
-        if (cf_p4 > 1.01) b.rgb = lerp(dot(b.rgb, float3(0.3, 0.59, 0.11)).xxx, b.rgb, cf_p4);
+        if (p4 > 1.01) b.rgb = lerp(dot(b.rgb, float3(0.3, 0.59, 0.11)).xxx, b.rgb, p4);
     }
     // Mode 4: Radial Zoom Blur (Suhanó nagyítás)
     else if (fx_mode > 3.5 && fx_mode < 4.5 && cf_fx_mid > 0.005) {
         float2 center = float2(0.5, 0.5);
         float2 to_c_a = center - uv_a;
         float2 to_c_b = center - uv_b;
-        float z_step = cf_fx_mid * cf_p0 * cf_param_intensity;
-        int max_s = clamp((int)cf_p1, 2, 8);
+        float z_step = cf_fx_mid * p0 * cf_param_intensity;
+        int max_s = clamp((int)p1, 2, 8);
         float4 sum_a = a;
         float4 sum_b = b;
         float w_total = 1.0;
         for (int i = 1; i <= 8; ++i) {
             if (i <= max_s) {
-                float w = max(1.0 - (float)i * 0.12 * cf_p2, 0.05);
+                float w = max(1.0 - (float)i * 0.12 * p2, 0.05);
                 sum_a += sample_deck_a(uv_a + to_c_a * ((float)i * z_step)) * w;
                 sum_b += sample_deck_b(uv_b + to_c_b * ((float)i * z_step)) * w;
                 w_total += w;
@@ -406,36 +418,42 @@ float4 compute_cf_mix(VertData v, float fx_mode)
         }
         a = sum_a / w_total;
         b = sum_b / w_total;
-        if (cf_p3 > 0.01) {
-            a.rgb += a.rgb * cf_p3 * cf_fx_mid;
-            b.rgb += b.rgb * cf_p3 * cf_fx_mid;
+        if (p3 > 0.01) {
+            a.rgb += a.rgb * p3 * cf_fx_mid;
+            b.rgb += b.rgb * p3 * cf_fx_mid;
         }
     }
+
+    // Alpha-Over Rétegezés (Volume Fader Alakzat Áttűnés támogatása fekete hézagok nélkül)
+    float3 comp_a = a.rgb + b.rgb * saturate(1.0 - a.a);
+    float3 comp_b = b.rgb + a.rgb * saturate(1.0 - b.a);
+    float4 eff_a = float4(comp_a, 1.0);
+    float4 eff_b = float4(comp_b, 1.0);
 
     float4 res;
 
     // Mode 6: Luma Dissolve (Fényerő-alapú áttűnés)
     if (fx_mode > 5.5 && fx_mode < 6.5) {
         float luma_a = dot(a.rgb, float3(0.2126, 0.7152, 0.0722));
-        if (cf_p5 > 0.5) luma_a = 1.0 - luma_a;
-        float width = max(cf_p0 * cf_param_rate, 0.005);
+        if (p5 > 0.5) luma_a = 1.0 - luma_a;
+        float width = max(p0 * cf_param_rate, 0.005);
         float thresh = lerp(-width, 1.0 + width, crossfade);
         float blend = smoothstep(thresh - width, thresh + width, luma_a);
-        float glow = saturate(1.0 - abs((luma_a - thresh) / width)) * cf_fx_mid * cf_p1 * cf_param_intensity;
-        float3 glow_col = float3(cf_p2, cf_p3, cf_p4);
-        res = lerp(b, a, blend) + float4(glow_col, 0.0) * (glow * smoothstep(0.02, 0.98, blend));
+        float glow = saturate(1.0 - abs((luma_a - thresh) / width)) * cf_fx_mid * p1 * cf_param_intensity;
+        float3 glow_col = float3(p2, p3, p4);
+        res = lerp(eff_b, eff_a, blend) + float4(glow_col, 0.0) * (glow * smoothstep(0.02, 0.98, blend));
     } else {
         // Standard Transition Modes
         if (transition_mode > 2.5) {
             // Hard Cut
-            res = crossfade < 0.5 ? a : b;
+            res = crossfade < 0.5 ? eff_a : eff_b;
         } else if (transition_mode > 0.5 && transition_mode < 1.5) {
             // Horizontal Wipe
-            res = v.uv.x < (1.0 - crossfade) ? a : b;
+            res = v.uv.x < (1.0 - crossfade) ? eff_a : eff_b;
         } else if (transition_mode > 1.5 && transition_mode < 2.5) {
             // Additive / Screen Energy Blend (Kontraszt-megtartó ragyogó fúzió, nincs tejszerű köd)
-            float3 screen_col = 1.0 - (1.0 - a.rgb * (1.0 - crossfade)) * (1.0 - b.rgb * crossfade);
-            float3 add_col = a.rgb * (1.0 - crossfade) + b.rgb * crossfade;
+            float3 screen_col = 1.0 - (1.0 - eff_a.rgb * (1.0 - crossfade)) * (1.0 - eff_b.rgb * crossfade);
+            float3 add_col = eff_a.rgb * (1.0 - crossfade) + eff_b.rgb * crossfade;
             res.rgb = lerp(add_col, screen_col, 0.65);
             res.a = 1.0;
         } else {
@@ -448,8 +466,13 @@ float4 compute_cf_mix(VertData v, float fx_mode)
             float w_a = cos(cf * pi_half);
             float w_b = sin(cf * pi_half);
 
-            float3 eq_blend = a.rgb * w_a + b.rgb * w_b;
-            float3 lin_blend = lerp(a.rgb, b.rgb, cf);
+            float3 eq_blend = eff_a.rgb * w_a + eff_b.rgb * w_b;
+            // Ha valamelyik deck alakzattal maszkolva van, a kivágásban a közös tartalom ne égjen ki:
+            float sum_w = w_a + w_b;
+            float norm_factor = lerp(1.0, 1.0 / max(sum_w, 1.0), saturate((1.0 - a.a) + (1.0 - b.a)));
+            eq_blend *= norm_factor;
+
+            float3 lin_blend = lerp(eff_a.rgb, eff_b.rgb, cf);
             res.rgb = lerp(eq_blend, lin_blend, 0.30); // 70% Equal Power védelem a sötétedés ellen
             res.a = 1.0;
         }
@@ -457,9 +480,9 @@ float4 compute_cf_mix(VertData v, float fx_mode)
 
     // Mode 10: CRT / VHS Scanline (Analóg TV & Csík - Fényerővédelemmel)
     if (fx_mode > 9.5 && fx_mode < 10.5 && cf_fx_mid > 0.01) {
-        float density = cf_p0 * cf_param_rate;
-        float line_int = cf_p1;
-        float flash_int = cf_p3;
+        float density = p0 * cf_param_rate;
+        float line_int = p1;
+        float flash_int = p3;
         float scan = sin(v.uv.y * density * 3.14159);
         // Csökkentsük a vonalak elsötétítő mélységét, hogy a háttér tiszta és látható maradjon:
         res.rgb *= (1.0 - cf_fx_mid * line_int * 0.40 * cf_param_intensity * (scan * 0.5 + 0.5));
@@ -469,27 +492,27 @@ float4 compute_cf_mix(VertData v, float fx_mode)
             float beam = exp(-abs(p_scan.y) * lerp(30.0, 220.0, col_factor)) * col_factor * flash_int;
             res.rgb = lerp(res.rgb, float3(1.3, 1.3, 1.4), beam);
         }
-        if (cf_p4 > 0.01) {
-            float vig = 1.0 - dot(p_scan, p_scan) * cf_p4 * 0.5;
+        if (p4 > 0.01) {
+            float vig = 1.0 - dot(p_scan, p_scan) * p4 * 0.5;
             res.rgb *= saturate(vig);
         }
     }
     // Mode 11: Pop-Art Halftone (Képregény Pontrács - Energiamegőrzéssel)
     else if (fx_mode > 10.5 && fx_mode < 11.5 && cf_fx_mid > 0.01) {
-        float2 grid = frac(v.uv * float2(cf_p0 * cf_param_rate, cf_p1 * cf_param_rate)) - 0.5;
+        float2 grid = frac(v.uv * float2(p0 * cf_param_rate, p1 * cf_param_rate)) - 0.5;
         float dist = length(grid);
         float luma = dot(res.rgb, float3(0.2126, 0.7152, 0.0722));
-        float radius = sqrt(luma) * cf_p2;
-        float dot_mask = smoothstep(radius + cf_p3, radius - cf_p3, dist);
-        float q_steps = max(cf_p4, 1.0);
+        float radius = sqrt(luma) * p2;
+        float dot_mask = smoothstep(radius + p3, radius - p3, dist);
+        float q_steps = max(p4, 1.0);
         float3 pop_color = floor(res.rgb * q_steps + 0.5) / q_steps;
         // Energiamegőrzés: a pontok között a kép 50%-a megmarad, a pontokon pedig ragyog:
-        float3 halftone = lerp(res.rgb * 0.50, pop_color * cf_p5, dot_mask);
+        float3 halftone = lerp(res.rgb * 0.50, pop_color * p5, dot_mask);
         res.rgb = lerp(res.rgb, halftone, saturate(cf_fx_mid * 0.85 * cf_param_intensity));
     }
     // Mode 12: Neon Kontúr (Sobel Edge Glow - Alapvideó megtartással)
     else if (fx_mode > 11.5 && fx_mode < 12.5 && cf_fx_mid > 0.01) {
-        float thick = cf_p0;
+        float thick = p0;
         float2 d = float2(thick / 1920.0, thick / 1080.0);
         float4 a_u = sample_deck_a(uv_a + float2(0, -d.y));
         float4 a_d = sample_deck_a(uv_a + float2(0, d.y));
@@ -503,14 +526,14 @@ float4 compute_cf_mix(VertData v, float fx_mode)
         float4 b_r = sample_deck_b(uv_b + float2(d.x, 0));
         float edge_b = length(b_u.rgb + b_d.rgb + b_l.rgb + b_r.rgb - 4.0 * b.rgb);
 
-        float edge_val_a = smoothstep(cf_p3, cf_p3 + 0.1, edge_a);
-        float edge_val_b = smoothstep(cf_p3, cf_p3 + 0.1, edge_b);
+        float edge_val_a = smoothstep(p3, p3 + 0.1, edge_a);
+        float edge_val_b = smoothstep(p3, p3 + 0.1, edge_b);
 
-        float3 neon_a = float3(0.0, 0.9, 1.0) * edge_val_a * cf_p1 * cf_p2 * cf_param_intensity;
-        float3 neon_b = float3(1.0, 0.1, 0.8) * edge_val_b * cf_p1 * cf_p2 * cf_param_intensity;
+        float3 neon_a = float3(0.0, 0.9, 1.0) * edge_val_a * p1 * p2 * cf_param_intensity;
+        float3 neon_b = float3(1.0, 0.1, 0.8) * edge_val_b * p1 * p2 * cf_param_intensity;
         float3 wireframe = neon_a * (1.0 - crossfade) + neon_b * crossfade;
         // Az alapvideó arányát nem nyomjuk le, legalább 0.70-en tartjuk a jó láthatóságért:
-        float base_weight = max(cf_p4, 0.70);
+        float base_weight = max(p4, 0.70);
         float3 base_comp = res.rgb * base_weight;
         res.rgb = lerp(res.rgb, base_comp + wireframe, saturate(cf_fx_mid * 0.90 * cf_param_intensity));
     }
@@ -526,11 +549,11 @@ float4 compute_cf_mix(VertData v, float fx_mode)
 float4 PS(VertData v) : TARGET
 {
     if (cf_trans_t >= 0.999 || abs(cf_fx_mode - cf_fx_mode_prev) < 0.1) {
-        return compute_cf_mix(v, cf_fx_mode);
+        return compute_cf_mix(v, cf_fx_mode, cf_p0, cf_p1, cf_p2, cf_p3, cf_p4, cf_p5, cf_p6, cf_p7);
     }
     float blend_w = smoothstep(0.0, 1.0, cf_trans_t);
-    float4 col_prev = compute_cf_mix(v, cf_fx_mode_prev);
-    float4 col_curr = compute_cf_mix(v, cf_fx_mode);
+    float4 col_prev = compute_cf_mix(v, cf_fx_mode_prev, cf_prev_p0, cf_prev_p1, cf_prev_p2, cf_prev_p3, cf_prev_p4, cf_prev_p5, cf_prev_p6, cf_prev_p7);
+    float4 col_curr = compute_cf_mix(v, cf_fx_mode, cf_p0, cf_p1, cf_p2, cf_p3, cf_p4, cf_p5, cf_p6, cf_p7);
     return lerp(col_prev, col_curr, blend_w);
 }
 
@@ -904,8 +927,10 @@ static void set_color_params(MixerSource *context,
         gs_effect_set_float(param, cf_smooth);
 
     const int active_fx = std::clamp(cf_fx_mode, 0, 15);
+    const int prev_fx = std::clamp(static_cast<int>(cf_fx_prev + 0.5f), 0, 15);
     const auto &cf_defs = getCrossfadeFxDefinitions();
     const auto &p_defs = (active_fx < static_cast<int>(cf_defs.size())) ? cf_defs[active_fx].params : std::vector<CrossfadeFxParamDef>{};
+    const auto &p_prev_defs = (prev_fx < static_cast<int>(cf_defs.size())) ? cf_defs[prev_fx].params : std::vector<CrossfadeFxParamDef>{};
 
     char p_str[8] = "cf_p0";
     for (int i = 0; i < 8; ++i) {
@@ -925,6 +950,27 @@ static void set_color_params(MixerSource *context,
             eff_p = computeEffectiveParamSimple(p_val, 0.0f, 10.0f, p_depth, p_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
         }
         if ((param = gs_effect_get_param_by_name(context->effect, p_str)))
+            gs_effect_set_float(param, eff_p);
+    }
+
+    char prev_p_str[16] = "cf_prev_p0";
+    for (int i = 0; i < 8; ++i) {
+        prev_p_str[9] = static_cast<char>('0' + i);
+        float p_val = 1.0f;
+        int p_mod = 0;
+        float p_depth = 0.0f;
+        if (decks) {
+            p_val = decks->crossfadeFxParamValue(prev_fx, i);
+            p_mod = decks->crossfadeFxParamMod(prev_fx, i);
+            p_depth = decks->crossfadeFxParamModDepth(prev_fx, i);
+        }
+        float eff_p = p_val;
+        if (i < static_cast<int>(p_prev_defs.size())) {
+            eff_p = computeCrossfadeEffectiveParam(p_prev_defs[i], p_val, p_depth, p_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
+        } else {
+            eff_p = computeEffectiveParamSimple(p_val, 0.0f, 10.0f, p_depth, p_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
+        }
+        if ((param = gs_effect_get_param_by_name(context->effect, prev_p_str)))
             gs_effect_set_float(param, eff_p);
     }
 
