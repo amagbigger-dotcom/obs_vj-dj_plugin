@@ -15,7 +15,7 @@ class SettingsMidiTab : public QWidget {
 
 public:
     explicit SettingsMidiTab(QWidget *parent = nullptr);
-    ~SettingsMidiTab() override;
+    ~SettingsMidiTab() override = default;
 
     void populateDevices();
     void applyConfig(const PluginSettingsConfig &cfg);

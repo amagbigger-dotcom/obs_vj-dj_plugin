@@ -66,7 +66,7 @@ struct AsioBackend::Impl {
     int buffer_size_ = 256;
     long num_inputs_ = 0;
     long num_outputs_ = 0;
-    std::atomic<bool> is_running_{false};
+    bool is_running_ = false;
     bool output_ready_supported_ = false;
 
     AsioChannelRouting routing_{};
@@ -75,7 +75,7 @@ struct AsioBackend::Impl {
     std::vector<ASIOBufferInfo> buffer_infos_;
     std::vector<ASIOChannelInfo> channel_infos_;
     std::array<SpscRingBuffer<8192>, 32> channel_rings_{};
-    std::array<float, 8192> temp_render_buf_{};
+    std::array<float, 2048> temp_render_buf_{};
 
     ASIOCallbacks callbacks_{
         &asio_buffer_switch_callback,
@@ -85,10 +85,9 @@ struct AsioBackend::Impl {
     };
 
     void processBufferSwitch(long doubleBufferIndex) noexcept {
-        if (!is_running_.load(std::memory_order_acquire) || !driver_) return;
+        if (!is_running_ || !driver_) return;
 
-        const size_t frames = std::min(static_cast<size_t>(buffer_size_), temp_render_buf_.size());
-        if (frames == 0) return;
+        const size_t frames = static_cast<size_t>(buffer_size_);
         const size_t ch_count = buffer_infos_.size();
 
         for (size_t i = 0; i < ch_count; ++i) {
@@ -108,7 +107,7 @@ struct AsioBackend::Impl {
             case ASIOSTInt32LSB: {
                 auto *out32 = reinterpret_cast<int32_t *>(dst_buf);
                 for (size_t s = 0; s < frames; ++s) {
-                    out32[s] = static_cast<int32_t>(std::clamp(temp[s], -1.0f, 1.0f) * 2147483520.0f);
+                    out32[s] = static_cast<int32_t>(std::clamp(temp[s], -1.0f, 1.0f) * 2147483647.0f);
                 }
                 break;
             }
@@ -122,7 +121,7 @@ struct AsioBackend::Impl {
             case ASIOSTInt24LSB: {
                 auto *out24 = reinterpret_cast<uint8_t *>(dst_buf);
                 for (size_t s = 0; s < frames; ++s) {
-                    const int32_t val = static_cast<int32_t>(std::clamp(temp[s], -1.0f, 1.0f) * 8388600.0f);
+                    const int32_t val = static_cast<int32_t>(std::clamp(temp[s], -1.0f, 1.0f) * 8388607.0f);
                     out24[s * 3 + 0] = static_cast<uint8_t>(val & 0xFF);
                     out24[s * 3 + 1] = static_cast<uint8_t>((val >> 8) & 0xFF);
                     out24[s * 3 + 2] = static_cast<uint8_t>((val >> 16) & 0xFF);
@@ -137,7 +136,6 @@ struct AsioBackend::Impl {
                 break;
             }
             default:
-                std::memset(dst_buf, 0, frames * sizeof(int32_t));
                 break;
             }
         }
@@ -156,21 +154,7 @@ void asio_buffer_switch_callback(long doubleBufferIndex, ASIOBool)
     }
 }
 void asio_sample_rate_changed_callback(ASIOSampleRate) {}
-long asio_message_callback(long selector, long, void *, double *)
-{
-    switch (selector) {
-    case 1: // kAsioSelectorSupported
-        return 1;
-    case 2: // kAsioEngineVersion
-        return 2;
-    case 3: // kAsioResetRequest
-        blog(LOG_WARNING, "[asio_backend] ASIO driver requested reset (kAsioResetRequest)");
-        return 1;
-    default:
-        break;
-    }
-    return 0;
-}
+long asio_message_callback(long, long, void *, double *) { return 0; }
 ASIOTime *asio_buffer_switch_time_info_callback(ASIOTime *, long doubleBufferIndex, ASIOBool)
 {
     if (g_asio_impl) {
@@ -255,17 +239,13 @@ bool AsioBackend::open(const std::string &driver_name, int sample_rate, int pref
         return false;
     }
 
-    if (driver->setSampleRate(static_cast<ASIOSampleRate>(sample_rate)) != ASE_OK) {
-        blog(LOG_WARNING, "[asio_backend] setSampleRate(%d) returned non-OK for %s", sample_rate, driver_name.c_str());
-    }
+    driver->setSampleRate(static_cast<ASIOSampleRate>(sample_rate));
 
     long min_sz = 0, max_sz = 0, pref_sz = 0, gran = 0;
     driver->getBufferSize(&min_sz, &max_sz, &pref_sz, &gran);
     long actual_buf = (preferred_buffer_size > 0) ? preferred_buffer_size : pref_sz;
     if (min_sz > 0 && actual_buf < min_sz) actual_buf = min_sz;
     if (max_sz > 0 && actual_buf > max_sz) actual_buf = max_sz;
-
-    impl_->temp_render_buf_.fill(0.0f);
 
     const long channels_to_alloc = std::min(num_out, 32L);
     impl_->buffer_infos_.resize(channels_to_alloc);
@@ -306,7 +286,7 @@ bool AsioBackend::open(const std::string &driver_name, int sample_rate, int pref
     impl_->buffer_size_ = static_cast<int>(actual_buf);
     impl_->num_inputs_ = num_in;
     impl_->num_outputs_ = num_out;
-    impl_->is_running_.store(true, std::memory_order_release);
+    impl_->is_running_ = true;
 
     blog(LOG_INFO, "[asio_backend] Successfully started ASIO driver '%s' (%d outputs, %d Hz, %d samples buffer)",
          driver_name.c_str(), static_cast<int>(num_out), sample_rate, static_cast<int>(actual_buf));
@@ -316,7 +296,7 @@ bool AsioBackend::open(const std::string &driver_name, int sample_rate, int pref
 void AsioBackend::close()
 {
     if (!impl_ || !impl_->driver_) return;
-    impl_->is_running_.store(false, std::memory_order_release);
+    impl_->is_running_ = false;
     impl_->driver_->stop();
     impl_->driver_->disposeBuffers();
     impl_->driver_->Release();
@@ -330,7 +310,7 @@ void AsioBackend::close()
 
 bool AsioBackend::isRunning() const noexcept
 {
-    return impl_ && impl_->is_running_.load(std::memory_order_acquire);
+    return impl_ && impl_->is_running_;
 }
 
 std::string AsioBackend::currentDriverName() const
@@ -352,7 +332,7 @@ AsioChannelRouting AsioBackend::routing() const noexcept
 
 void AsioBackend::writeMasterFrames(const float *l, const float *r, size_t frames) noexcept
 {
-    if (!impl_ || !impl_->is_running_.load(std::memory_order_acquire) || frames == 0) return;
+    if (!impl_ || !impl_->is_running_ || frames == 0) return;
     const int ch_l = impl_->routing_.master_l - 1;
     const int ch_r = impl_->routing_.master_r - 1;
     if (ch_l >= 0 && ch_l < 32 && l) impl_->channel_rings_[ch_l].write(l, frames);
@@ -361,7 +341,7 @@ void AsioBackend::writeMasterFrames(const float *l, const float *r, size_t frame
 
 void AsioBackend::writeCueFrames(const float *l, const float *r, size_t frames) noexcept
 {
-    if (!impl_ || !impl_->is_running_.load(std::memory_order_acquire) || frames == 0) return;
+    if (!impl_ || !impl_->is_running_ || frames == 0) return;
     const int ch_l = impl_->routing_.cue_l - 1;
     const int ch_r = impl_->routing_.cue_r - 1;
     if (ch_l >= 0 && ch_l < 32 && l) impl_->channel_rings_[ch_l].write(l, frames);
@@ -370,7 +350,7 @@ void AsioBackend::writeCueFrames(const float *l, const float *r, size_t frames) 
 
 void AsioBackend::writeDeckFrames(int deck_idx, const float *l, const float *r, size_t frames) noexcept
 {
-    if (!impl_ || !impl_->is_running_.load(std::memory_order_acquire) || frames == 0) return;
+    if (!impl_ || !impl_->is_running_ || frames == 0) return;
     int ch_l = (deck_idx == 0) ? (impl_->routing_.deck_a_l - 1) : (impl_->routing_.deck_b_l - 1);
     int ch_r = (deck_idx == 0) ? (impl_->routing_.deck_a_r - 1) : (impl_->routing_.deck_b_r - 1);
     if (ch_l >= 0 && ch_l < 32 && l) impl_->channel_rings_[ch_l].write(l, frames);

@@ -1,34 +1,24 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #380 (GitHub Run #45703493685 / Run #412)
-* **Aktuális Git Commit:** `7bb0c1a`
-* **Legutolsó telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 465 856 bájt)
-* **Bináris SHA256:** `5D4B42D8583EB9602B6391F91A39C62D711F8108C118DD7893D1D0534D138044`
+* **Legutolsó stabil mérföldkő:** Build #381 (Tiszta ASIO CUE & recsegésmentes potméter/crossfade visszaállítás)
+* **Aktuális Git Commit:** Folyamatban (`HEAD`)
+* **Cél bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #380 - Fejhallgató CUE visszahallgatás és sima potméter/crossfade működés azonnali helyreállítása:
-  1. **Fejhallgató CUE & Master Monitoring Helyreállítása:**
-     - Visszaállítva az `init_deck_engine()` és `init_deck_ui()` futtatása az `obs_module_load()`-ba, így az OBS forráslétrehozásakor a `vdj_decks()` már aktív, és a CUE/Master forrás regisztrációja azonnal megtörténik.
-     - Visszaállítva a `master_device` beállítás és az `obs_set_audio_monitoring_device()`, hogy az OBS pontosan tudja, melyik hangkártyára küldje a monitor hangot.
-     - Visszaállítva a `NONE` -> `MONITOR_AND_OUTPUT` kényszerített stream felépítés és a `need_monitor_wake_` ébresztés.
-  2. **Potméter & Crossfader Recsegésmentesítés:**
-     - Visszaállítva a folytonos, csonkolásmentes ringbuffer írás az `SpscRingBuffer::write`-ban (megszűnt a minták eldobása miatti törés és recsegés).
-     - Megszűnt a deck audio források és a master mixer forrás közötti duplikált audió interferencia.
-  3. **Megtartott audit javítások:**
-     - ASIO buffer túlírás elleni 8192-es puffer, 0 dB clipping fix, MIDI tab use-after-free védelem, független Deck időkód és videókonverter hash védelem változatlanul aktív.
-     - Az eredeti fájl teljes útvonalából képzett egyedi 8 karakteres hash a kimeneti fájlnévben (`BaseName_[hash]_vj1080.mp4`).
-     - Konvertálás `.tmp.mp4` átmeneti fájlba, azonnali törlés megszakadáskor, és kizárólag sikeres 100%-os lefutás utáni végleges átnevezés.
-     - Visszafelé kompatibilitás megtartása a meglévő zenei könyvtárakhoz.
-  5. **OBS Monitoring Izoláció & Dropout Mentesség:**
-     - Eltávolítva a globális `obs_set_audio_monitoring_device()` felülírás (a plugin nem nyúl hozzá a felhasználó OBS globális beállításához).
-     - Eltávolítva a felesleges `NONE` -> `MONITOR_AND_OUTPUT` rángatás a beállításfrissítésekből és a videó tickből.
-  6. **Kíméletes OBS Telepítő & CMake/CI Fix:**
-     - `install_plugin.bat`: drasztikus `taskkill /F` helyett kíméletes leállítás és ellenőrző várakozási ciklus.
-     - `CMakeLists.txt`: `-DOBS_SDK_DIR` és `$ENV{RUNNER_TEMP}` paraméterek helyes kezelése.
-     - `plugin-main.cpp`: `obs_module_post_load()` bevezetése a belső források és UI garantáltan biztonságos indításához.
+* **Fő cél:** Build #381 - ASIO CUE Fejhallgató visszahallgatás és potméter/crossfade azonnali helyreállítása a #378-as bizonyítottan működő alapra:
+  1. **ASIO CUE Visszahallgatás (Headphone CUE) 100%-os Helyreállítása:**
+     - Az `asio_backend.cpp` visszaállítva a működő Build #378 állapotra: eltávolítva a hamis `kAsioSelectorSupported` és `kAsioResetRequest` válaszokat adó callback, ami miatt a natív ASIO illesztőprogramok (Traktor, Pioneer) a másodlagos fejhallgató csatornákat (Ch 3-4 CUE) lenémították vagy hibás állapotba kerültek.
+     - Eltávolítva a belső buffer-másolási és csonkolási eltéréseket; visszaállítva az eredeti, tiszta ASIO buffer switch feldolgozást.
+  2. **Potméter és Crossfader Recsegésmentesítés:**
+     - Visszaállítva a `midi_dispatcher.cpp` és `.hpp`, valamint a `settings_midi_tab.cpp` és `.hpp` az eredeti egyetlen mutex-záras struktúrára, megszüntetve a folyamatos fader-mozgatás közbeni szál-versengést és mikro-akadásokat.
+     - Visszaállítva az eredeti bitpontos DSP szorzást.
+  3. **Megtartott funkcionális javítások (amelyek nem érintik az audiót/MIDI-t):**
+     - Videókonverter hash alapú egyedi fájlnév-képzés (`BaseName_[hash]_vj1080.mp4`).
+     - Félbeszakadt videókonverzió átmeneti fájlvédelem (`.tmp.mp4`).
+     - Független deck időzítés `deck_source.cpp`-ben.
 
 ---
 

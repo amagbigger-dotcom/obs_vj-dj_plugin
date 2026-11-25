@@ -41,7 +41,6 @@ SettingsMidiTab::SettingsMidiTab(QWidget *parent)
 
     // Setup live activity monitor callback
     MidiDispatcher::instance().setMonitorCallback([this](uint8_t status, uint8_t d1, uint8_t d2) {
-        if (!isVisible()) return;
         const uint8_t ch = (status & 0x0F) + 1;
         const uint8_t type_nib = status & 0xF0;
         QString type_str = (type_nib == 0xB0) ? "CC" : (type_nib == 0x90 ? "Note" : "Other");
@@ -53,12 +52,6 @@ SettingsMidiTab::SettingsMidiTab(QWidget *parent)
             }
         }, Qt::QueuedConnection);
     });
-}
-
-SettingsMidiTab::~SettingsMidiTab()
-{
-    MidiDispatcher::instance().setMonitorCallback(nullptr);
-    MidiDispatcher::instance().setLearnCallback(nullptr);
 }
 
 void SettingsMidiTab::setupUi()
