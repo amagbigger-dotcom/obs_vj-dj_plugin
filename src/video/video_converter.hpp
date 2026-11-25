@@ -51,7 +51,6 @@ private:
     bool is_trying_nvenc_ = true;
     QString current_input_path_{};
     QString current_output_path_{};
-    QString temp_output_path_{};
     QString current_filter_{};
     double total_duration_sec_ = 0.0;
     qint64 last_activity_ms_ = 0;
