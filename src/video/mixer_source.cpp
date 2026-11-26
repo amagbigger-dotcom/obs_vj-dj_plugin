@@ -78,6 +78,8 @@ uniform float cf_param_rate;
 uniform float anim_time;
 uniform float cf_curve;
 uniform float cf_smooth;
+uniform float bass_energy;
+uniform float audio_amp;
 uniform float cf_p0;
 uniform float cf_p1;
 uniform float cf_p2;
@@ -689,6 +691,12 @@ static bool render_to_texture(MixerSource *context,
             const bool is_b = (deck->side() == DeckPlayer::DeckSide::B);
 
             VjDeckConfig v_cfg = deck->vjConfig();
+            const float react = std::clamp(v_cfg.audio_reactivity, 0.0f, 2.5f);
+            const float eff_bass = std::clamp(bass_val * react, 0.0f, 1.5f);
+            const float eff_mid = std::clamp(mid_val * react, 0.0f, 1.5f);
+            const float eff_high = std::clamp(high_val * react, 0.0f, 1.5f);
+            const float eff_amp = std::clamp(amp_val * react, 0.0f, 1.5f);
+
             const float viz_mode = static_cast<float>(deck->vjShaderIdx());
             const float viz_mode_prev = static_cast<float>(deck->vjShaderIdxPrev());
             const float viz_trans_t = deck->vjShaderTransProgress();
@@ -696,7 +704,7 @@ static bool render_to_texture(MixerSource *context,
 
             const auto &defs = getVjShaderDefinitions();
             float p_vals[8] = {0.0f};
-            const float tone_balance = (high_val + mid_val * 0.5f) / (bass_val + mid_val + high_val + 0.001f);
+            const float tone_balance = (eff_high + eff_mid * 0.5f) / (eff_bass + eff_mid + eff_high + 0.001f);
 
             DeckPair *d_pair = vdj_decks();
             const float lfo1 = d_pair ? d_pair->currentLfo1Value() : 0.0f;
@@ -708,12 +716,12 @@ static bool render_to_texture(MixerSource *context,
                     p_vals[i] = computeEffectiveParam(p_defs[i], v_cfg.params[i].value,
                                                       v_cfg.params[i].mod_depth,
                                                       v_cfg.params[i].mod_mode,
-                                                      bass_val, mid_val, high_val,
+                                                      eff_bass, eff_mid, eff_high,
                                                       macro_tonus, lfo1, lfo2);
                 }
             }
 
-            const float audio_time = time_sec + bass_val * 0.12f;
+            const float audio_time = time_sec + eff_bass * 0.15f;
             gs_eparam_t *p = nullptr;
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_mode")))
                 gs_effect_set_float(p, viz_mode);
@@ -726,18 +734,20 @@ static bool render_to_texture(MixerSource *context,
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bpm")))
                 gs_effect_set_float(p, bpm_val);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "audio_amp")))
-                gs_effect_set_float(p, amp_val);
+                gs_effect_set_float(p, eff_amp);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bass_energy")))
-                gs_effect_set_float(p, bass_val);
+                gs_effect_set_float(p, eff_bass);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "mid_energy")))
-                gs_effect_set_float(p, mid_val);
+                gs_effect_set_float(p, eff_mid);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "high_energy")))
-                gs_effect_set_float(p, high_val);
+                gs_effect_set_float(p, eff_high);
+            if ((p = gs_effect_get_param_by_name(context->fluid_effect, "audio_reactivity")))
+                gs_effect_set_float(p, react);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "is_deck_b")))
                 gs_effect_set_float(p, is_b ? 1.0f : 0.0f);
 
             float theme_r = 0.0f, theme_g = 0.0f, theme_b = 0.0f, theme_act = 0.0f;
-            computeThemeColor(v_cfg, is_b, time_sec, bpm_val, bass_val, macro_tonus,
+            computeThemeColor(v_cfg, is_b, time_sec, bpm_val, eff_bass, macro_tonus,
                               theme_r, theme_g, theme_b, theme_act);
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "custom_theme_color"))) {
                 struct vec4 c_vec;
@@ -815,6 +825,14 @@ static void apply_deck_post_fx(MixerSource *context,
         gs_effect_set_float(param, anim_time);
     if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "visual_eq_enabled")))
         gs_effect_set_float(param, vis_eq ? 1.0f : 0.0f);
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "bass_energy")))
+        gs_effect_set_float(param, deck.currentBassEnergy());
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "mid_energy")))
+        gs_effect_set_float(param, deck.currentMidEnergy());
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "high_energy")))
+        gs_effect_set_float(param, deck.currentHighEnergy());
+    if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "audio_amp")))
+        gs_effect_set_float(param, deck.currentAmplitude());
 
     if ((param = gs_effect_get_param_by_name(context->deck_color_effect, "alpha")))
         gs_effect_set_float(param, 1.0f);
@@ -893,8 +911,8 @@ static void set_color_params(MixerSource *context,
     const float lfo1 = decks ? decks->currentLfo1Value() : 0.0f;
     const float lfo2 = decks ? decks->currentLfo2Value() : 0.0f;
 
-    const float eff_intensity = computeEffectiveParamSimple(raw_intensity, 0.0f, 2.0f, 0.0f, intensity_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
-    const float eff_rate = computeEffectiveParamSimple(raw_rate, 0.1f, 3.0f, 0.0f, rate_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
+    const float eff_intensity = computeEffectiveParamSimple(raw_intensity, 0.0f, 2.0f, (intensity_mod > 0 ? 0.50f : 0.0f), intensity_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
+    const float eff_rate = computeEffectiveParamSimple(raw_rate, 0.1f, 3.0f, (rate_mod > 0 ? 0.50f : 0.0f), rate_mod, bass_energy, mid_energy, high_energy, macro_tonus, lfo1, lfo2);
     const float blend_boost = decks ? decks->crossfadeFxBlendBoost() : 1.0f;
 
     if ((param = gs_effect_get_param_by_name(context->effect, "cf_param_intensity")))
@@ -966,6 +984,12 @@ static void set_color_params(MixerSource *context,
     const float anim_time = static_cast<float>(os_gettime_ns() / 1000000ULL) * 0.001f;
     if ((param = gs_effect_get_param_by_name(context->effect, "anim_time")))
         gs_effect_set_float(param, anim_time);
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "bass_energy")))
+        gs_effect_set_float(param, bass_energy);
+
+    if ((param = gs_effect_get_param_by_name(context->effect, "audio_amp")))
+        gs_effect_set_float(param, (decks ? ((1.0f - crossfade) * decks->deckA().currentAmplitude() + crossfade * decks->deckB().currentAmplitude()) : 0.0f));
 }
 
 static const char *mixer_get_name(void *)

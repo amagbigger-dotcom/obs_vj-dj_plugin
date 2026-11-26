@@ -35,6 +35,9 @@ struct VjDeckConfig {
     // Az éppen aktív shader paraméterei
     std::array<VjParamConfig, 8> params;
 
+    // Globális zenei reaktivitási / beat sensitivity szorzó (0.0 .. 2.0, Alapértelmezett: 1.0 = 100%)
+    float audio_reactivity = 1.0f;
+
     // Egyedi színbeállítások (szabadon módosítható, nem kötelező a deck-színhez rendelni)
     float custom_color_r = -1.0f; // -1.0 = Alapértelmezett Deck szín, 0.0..1.0 = Egyedi szín
     float custom_color_g = -1.0f;
@@ -267,9 +270,79 @@ inline const std::vector<VjShaderDef>& getVjShaderDefinitions_legacy() {
 }
 */
 
+inline void applyDefaultShaderModulations(VjDeckConfig &cfg) {
+    auto set_mod = [&](int s, int p, int mode, float depth) {
+        if (s >= 0 && s < 64 && p >= 0 && p < 8) {
+            cfg.all_shader_params[s][p].mod_mode = mode;
+            cfg.all_shader_params[s][p].mod_depth = depth;
+        }
+    };
+
+    // 0: Fluid Flow 3D (p0: rate, p7: glow)
+    set_mod(0, 0, 1, 0.30f); // Rate -> Bass Pulse +30%
+    set_mod(0, 7, 1, 0.35f); // Glow -> Bass Pulse +35%
+
+    // 1: Truchet Spin 3D (p3: pulse, p4: twist)
+    set_mod(1, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(1, 4, 4, 0.30f); // Twist -> Macro-Tonus +30%
+
+    // 2: Hypno Worm (p1: size, p3: amp1)
+    set_mod(2, 1, 1, 0.35f); // Size -> Bass Pulse +35%
+    set_mod(2, 3, 2, 0.30f); // Amp1 -> Mid Pulse +30%
+
+    // 3: Shape Twist (p2: amplitude, p6: glow)
+    set_mod(3, 2, 1, 0.40f); // Amplitude -> Bass Pulse +40%
+    set_mod(3, 6, 3, 0.30f); // Glow -> High Pulse +30%
+
+    // 4: String Art (p4: pulse, p3: twist)
+    set_mod(4, 4, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(4, 3, 4, 0.30f); // Twist -> Macro-Tonus +30%
+
+    // 5: Dodecahedron 3D (p2: explode, p3: pulse)
+    set_mod(5, 2, 1, 0.45f); // Explode -> Bass Pulse +45%
+    set_mod(5, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
+
+    // 6: Kali Circuits (p5: pulse, p6: glow)
+    set_mod(6, 5, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(6, 6, 1, 0.35f); // Glow -> Bass Pulse +35%
+
+    // 7: Diamond Vision (p4: pulse, p5: specular)
+    set_mod(7, 4, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(7, 5, 3, 0.30f); // Specular -> High Pulse +30%
+
+    // 8: Pupila Eye (p1: pupil, p3: pulse)
+    set_mod(8, 1, 1, 0.60f); // Pupil -> Bass Pulse +60%
+    set_mod(8, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
+
+    // 9: Mandala Scope (p3: pulse, p6: glow)
+    set_mod(9, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(9, 6, 4, 0.35f); // Glow -> Macro-Tonus +35%
+
+    // 10: Searching Light (p3: pulse, p5: glow)
+    set_mod(10, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(10, 5, 1, 0.40f); // Glow -> Bass Pulse +40%
+
+    // 11: Cube Field 3D (p3: pulse, p2: height)
+    set_mod(11, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(11, 2, 1, 0.40f); // Height -> Bass Pulse +40%
+
+    // 12: Electro Bands (p4: pulse, p5: glow)
+    set_mod(12, 4, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(12, 5, 2, 0.35f); // Glow -> Mid Pulse +35%
+
+    // 13: Globular Cluster (p3: pulse, p4: core_r)
+    set_mod(13, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(13, 4, 1, 0.40f); // Core Radius -> Bass Pulse +40%
+
+    // 14: Hex Truch Warp (p2: warp, p3: pulse)
+    set_mod(14, 2, 1, 0.40f); // Warp -> Bass Pulse +40%
+    set_mod(14, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
+}
+
 inline VjDeckConfig getDefaultVjConfig(int shader_idx) {
     VjDeckConfig cfg;
     cfg.shader_idx = std::clamp(shader_idx, 0, 63);
+    cfg.audio_reactivity = 1.0f;
     const auto &defs = getVjShaderDefinitions();
     for (size_t s = 0; s < 64 && s < defs.size(); ++s) {
         const auto &p_defs = defs[s].params;
@@ -285,6 +358,7 @@ inline VjDeckConfig getDefaultVjConfig(int shader_idx) {
             }
         }
     }
+    applyDefaultShaderModulations(cfg);
     cfg.params = cfg.all_shader_params[cfg.shader_idx];
     cfg.custom_color_r = -1.0f;
     cfg.custom_color_g = -1.0f;

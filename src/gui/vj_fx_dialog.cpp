@@ -352,6 +352,42 @@ QWidget *VjFxDialog::createShaderTabWidget()
 
     layout->addLayout(col_row);
 
+    // Audio Reactivity (Beat Sensitivity) Row
+    auto *react_row = new QHBoxLayout();
+    react_row->setSpacing(6);
+
+    auto *react_lbl = new QLabel(QStringLiteral("Beat Érzékenység:"), container);
+    react_lbl->setStyleSheet(QStringLiteral("font-size: 9px; color: #ffaa00; font-weight: bold;"));
+    react_row->addWidget(react_lbl);
+
+    react_slider_ = new DJSlider(Qt::Horizontal, 1000, container);
+    react_slider_->setRange(0, 2000); // 0% .. 200%
+    react_slider_->setValue(1000);
+    react_slider_->setToolTip(QStringLiteral("Zenei Reaktivitás & Lüktetés Érzékenység (0% .. 200%, Duplaklikk: 100%)"));
+    react_slider_->setStyleSheet(QStringLiteral(
+        "QSlider::groove:horizontal { height: 4px; background: #202b3a; border-radius: 2px; } "
+        "QSlider::sub-page:horizontal { background: #d97706; border-radius: 2px; } "
+        "QSlider::handle:horizontal { background: #ffaa00; width: 10px; margin: -3px 0; border-radius: 5px; }"));
+    react_row->addWidget(react_slider_, 1);
+
+    react_val_lbl_ = new QLabel(QStringLiteral("100%"), container);
+    react_val_lbl_->setFixedWidth(40);
+    react_val_lbl_->setAlignment(Qt::AlignCenter);
+    react_val_lbl_->setStyleSheet(QStringLiteral("font-size: 9px; font-weight: bold; color: #ffaa00;"));
+    react_row->addWidget(react_val_lbl_);
+
+    connect(react_slider_, &QSlider::valueChanged, this, [this](int iv) {
+        float r = static_cast<float>(iv) / 1000.0f;
+        if (DeckPlayer *dp = currentDeck()) {
+            dp->setAudioReactivity(r);
+        }
+        if (react_val_lbl_) {
+            react_val_lbl_->setText(QStringLiteral("%1%").arg(static_cast<int>(std::round(r * 100.0f))));
+        }
+    });
+
+    layout->addLayout(react_row);
+
     // Scroll Area for Parameters
     auto *scroll = new QScrollArea(container);
     scroll->setWidgetResizable(true);
@@ -488,6 +524,15 @@ void VjFxDialog::updateColorUi()
 
     const QSignalBlocker blocker(color_mod_combo_);
     color_mod_combo_->setCurrentIndex(std::clamp(cfg.color_mod_mode, 0, 3));
+
+    if (react_slider_) {
+        const QSignalBlocker r_blocker(react_slider_);
+        const float r_val = std::clamp(cfg.audio_reactivity, 0.0f, 2.0f);
+        react_slider_->setValue(static_cast<int>(std::round(r_val * 1000.0f)));
+        if (react_val_lbl_) {
+            react_val_lbl_->setText(QStringLiteral("%1%").arg(static_cast<int>(std::round(r_val * 100.0f))));
+        }
+    }
 }
 
 void VjFxDialog::rebuildParamControls()

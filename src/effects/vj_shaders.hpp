@@ -46,6 +46,7 @@ uniform float audio_amp;            // RMS pillanatnyi hangerő [0.0 .. 1.0]
 uniform float bass_energy;          // Lábdob / Mélyhang transient lüktetés [0.0 .. 1.0]
 uniform float mid_energy;           // Középtartomány energia [0.0 .. 1.0]
 uniform float high_energy;          // Magashang energia [0.0 .. 1.0]
+uniform float audio_reactivity;     // Globális zenei reaktivitási / érzékenységi szorzó [0.0 .. 2.5]
 uniform float is_deck_b;            // 0.0 = Deck A, 1.0 = Deck B
 uniform float4 custom_theme_color;  // rgb = szín, a = felülírási kapcsoló (0.0 = alapértelmezett, 1.0 = egyedi)
 

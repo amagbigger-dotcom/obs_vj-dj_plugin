@@ -23,6 +23,7 @@ static QJsonObject serializeVjConfig(const VjDeckConfig &config)
     vj_obj.insert(QStringLiteral("color_b"), std::round(config.custom_color_b * 1000.0) / 1000.0);
     vj_obj.insert(QStringLiteral("color_mod"), config.color_mod_mode);
     vj_obj.insert(QStringLiteral("rgb_inverted"), config.rgb_inverted);
+    vj_obj.insert(QStringLiteral("audio_reactivity"), std::round(config.audio_reactivity * 1000.0) / 1000.0);
 
     QJsonObject all_s;
     for (int s = 0; s < 64; ++s) {
@@ -60,6 +61,7 @@ static VjDeckConfig deserializeVjConfig(const QJsonObject &vj_obj)
     cfg.custom_color_b = static_cast<float>(vj_obj.value(QStringLiteral("color_b")).toDouble(-1.0));
     cfg.color_mod_mode = vj_obj.value(QStringLiteral("color_mod")).toInt(0);
     cfg.rgb_inverted = vj_obj.value(QStringLiteral("rgb_inverted")).toBool(false);
+    cfg.audio_reactivity = static_cast<float>(vj_obj.value(QStringLiteral("audio_reactivity")).toDouble(1.0));
 
     if (vj_obj.contains(QStringLiteral("all_shaders"))) {
         QJsonObject all_s = vj_obj.value(QStringLiteral("all_shaders")).toObject();

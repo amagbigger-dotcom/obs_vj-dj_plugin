@@ -187,6 +187,8 @@ public:
     int vjShaderTransBeats() const noexcept { return vj_shader_trans_beats_.load(std::memory_order_relaxed); }
     void setVjShaderTransBeats(int beats) noexcept { vj_shader_trans_beats_.store(std::clamp(beats, 0, 16), std::memory_order_relaxed); }
     void setVjCustomColor(float r, float g, float b, int mod_mode) noexcept;
+    void setAudioReactivity(float reactivity) noexcept;
+    float audioReactivity() const noexcept;
     void saveVjConfigToCache();
     void loadVjConfigFromCache();
 

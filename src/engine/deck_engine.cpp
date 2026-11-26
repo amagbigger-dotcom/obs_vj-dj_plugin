@@ -915,6 +915,21 @@ void DeckPlayer::setVjCustomColor(float r, float g, float b, int mod_mode) noexc
     saveVjConfigToCache();
 }
 
+void DeckPlayer::setAudioReactivity(float reactivity) noexcept
+{
+    {
+        std::lock_guard<std::mutex> lock(vj_config_mutex_);
+        vj_config_.audio_reactivity = std::clamp(reactivity, 0.0f, 2.5f);
+    }
+    saveVjConfigToCache();
+}
+
+float DeckPlayer::audioReactivity() const noexcept
+{
+    std::lock_guard<std::mutex> lock(vj_config_mutex_);
+    return vj_config_.audio_reactivity;
+}
+
 void DeckPlayer::saveVjConfigToCache()
 {
     const QString fp = filePath();

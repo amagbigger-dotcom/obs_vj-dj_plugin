@@ -449,6 +449,12 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                     const bool is_b = (context->deck_channel == 1 || (context->deck && context->deck->side() == DeckPlayer::DeckSide::B));
 
                     VjDeckConfig v_cfg = context->deck->vjConfig();
+                    const float react = std::clamp(v_cfg.audio_reactivity, 0.0f, 2.5f);
+                    const float eff_bass = std::clamp(bass_val * react, 0.0f, 1.5f);
+                    const float eff_mid = std::clamp(mid_val * react, 0.0f, 1.5f);
+                    const float eff_high = std::clamp(high_val * react, 0.0f, 1.5f);
+                    const float eff_amp = std::clamp(amp_val * react, 0.0f, 1.5f);
+
                     const float viz_mode = static_cast<float>(context->deck->vjShaderIdx());
                     const float viz_mode_prev = static_cast<float>(context->deck->vjShaderIdxPrev());
                     const float viz_trans_t = context->deck->vjShaderTransProgress();
@@ -456,7 +462,7 @@ static void deck_video_render(void *data, gs_effect_t *effect)
 
                     const auto &defs = getVjShaderDefinitions();
                     float p_vals[8] = {0.0f};
-                    const float tone_balance = (high_val + mid_val * 0.5f) / (bass_val + mid_val + high_val + 0.001f);
+                    const float tone_balance = (eff_high + eff_mid * 0.5f) / (eff_bass + eff_mid + eff_high + 0.001f);
 
                     DeckPair *d_pair = vdj_decks();
                     const float lfo1 = d_pair ? d_pair->currentLfo1Value() : 0.0f;
@@ -468,12 +474,12 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                             p_vals[i] = computeEffectiveParam(p_defs[i], v_cfg.params[i].value,
                                                               v_cfg.params[i].mod_depth,
                                                               v_cfg.params[i].mod_mode,
-                                                              bass_val, mid_val, high_val,
+                                                              eff_bass, eff_mid, eff_high,
                                                               macro_tonus, lfo1, lfo2);
                         }
                     }
 
-                    const float audio_time = time_sec + bass_val * 0.12f;
+                    const float audio_time = time_sec + eff_bass * 0.15f;
                     gs_eparam_t *p = nullptr;
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_mode")))
                         gs_effect_set_float(p, viz_mode);
@@ -486,18 +492,20 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bpm")))
                         gs_effect_set_float(p, bpm_val);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "audio_amp")))
-                        gs_effect_set_float(p, amp_val);
+                        gs_effect_set_float(p, eff_amp);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "bass_energy")))
-                        gs_effect_set_float(p, bass_val);
+                        gs_effect_set_float(p, eff_bass);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "mid_energy")))
-                        gs_effect_set_float(p, mid_val);
+                        gs_effect_set_float(p, eff_mid);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "high_energy")))
-                        gs_effect_set_float(p, high_val);
+                        gs_effect_set_float(p, eff_high);
+                    if ((p = gs_effect_get_param_by_name(context->fluid_effect, "audio_reactivity")))
+                        gs_effect_set_float(p, react);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "is_deck_b")))
                         gs_effect_set_float(p, is_b ? 1.0f : 0.0f);
 
                     float theme_r = 0.0f, theme_g = 0.0f, theme_b = 0.0f, theme_act = 0.0f;
-                    computeThemeColor(v_cfg, is_b, time_sec, bpm_val, bass_val, macro_tonus,
+                    computeThemeColor(v_cfg, is_b, time_sec, bpm_val, eff_bass, macro_tonus,
                                       theme_r, theme_g, theme_b, theme_act);
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "custom_theme_color"))) {
                         struct vec4 c_vec;
@@ -571,6 +579,14 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                     gs_effect_set_float(param, anim_time);
                 if ((param = gs_effect_get_param_by_name(context->color_effect, "visual_eq_enabled")))
                     gs_effect_set_float(param, vis_eq ? 1.0f : 0.0f);
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "bass_energy")))
+                    gs_effect_set_float(param, context->deck ? context->deck->currentBassEnergy() : 0.0f);
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "mid_energy")))
+                    gs_effect_set_float(param, context->deck ? context->deck->currentMidEnergy() : 0.0f);
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "high_energy")))
+                    gs_effect_set_float(param, context->deck ? context->deck->currentHighEnergy() : 0.0f);
+                if ((param = gs_effect_get_param_by_name(context->color_effect, "audio_amp")))
+                    gs_effect_set_float(param, context->deck ? context->deck->currentAmplitude() : 0.0f);
 
                 const bool is_b = (context->deck_channel == 1 || (context->deck && context->deck->side() == DeckPlayer::DeckSide::B));
 

@@ -50,6 +50,8 @@ private:
     QComboBox *trans_combo_ = nullptr;
     QPushButton *color_btn_ = nullptr;
     QComboBox *color_mod_combo_ = nullptr;
+    class DJSlider *react_slider_ = nullptr;
+    QLabel *react_val_lbl_ = nullptr;
     QWidget *params_container_ = nullptr;
     QVBoxLayout *params_layout_ = nullptr;
 
