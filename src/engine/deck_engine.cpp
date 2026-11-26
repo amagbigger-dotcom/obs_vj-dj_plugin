@@ -930,6 +930,23 @@ float DeckPlayer::audioReactivity() const noexcept
     return vj_config_.audio_reactivity;
 }
 
+float DeckPlayer::advanceVjPhase(uint64_t cur_time_ns) noexcept
+{
+    const uint64_t prev = last_vj_time_ns_.exchange(cur_time_ns, std::memory_order_relaxed);
+    if (prev == 0 || cur_time_ns <= prev) {
+        return vj_phase_.load(std::memory_order_relaxed);
+    }
+    const float dt = std::clamp(static_cast<float>(cur_time_ns - prev) * 1e-9f, 0.0f, 0.10f);
+    const double b = bpm();
+    const float tempo_mult = (b > 30.0) ? static_cast<float>(b / 120.0) : 1.0f;
+    const float speed = isPlaying() ? tempo_mult : 0.25f;
+    float cur_p = vj_phase_.load(std::memory_order_relaxed);
+    cur_p += dt * speed;
+    if (cur_p > 100000.0f) cur_p = std::fmod(cur_p, 1000.0f);
+    vj_phase_.store(cur_p, std::memory_order_relaxed);
+    return cur_p;
+}
+
 void DeckPlayer::saveVjConfigToCache()
 {
     const QString fp = filePath();

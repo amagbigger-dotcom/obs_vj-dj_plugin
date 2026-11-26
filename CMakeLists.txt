@@ -78,6 +78,7 @@ set(SOURCES
 
     # Effects (ISF Shaders & Modulation)
     src/effects/vj_config.hpp
+    src/effects/vj_user_defaults.hpp
     src/effects/vj_shaders.hpp
     src/effects/fluid_flow.hpp
     src/effects/crossfade_fx_config.hpp

@@ -21,196 +21,196 @@ const std::vector<VjShaderDef> &getBuiltInShaderDefinitions()
         {
             0, "Fluid Flow 3D", "Organikus 3D Folyadék",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.5f, 0.05f},
-                {"zrate", "Z-Áramlás / Z-Rate", -3.0f, 3.0f, -1.2f, 0.05f},
-                {"depth", "Mélység / Depth", 0.70f, 0.95f, 0.82f, 0.01f},
-                {"blur", "Elmosás / Blur", 0.05f, 0.35f, 0.15f, 0.005f},
-                {"freq", "Frekvencia 1 / Freq 1", 0.005f, 0.10f, 0.025f, 0.002f},
-                {"freq2", "Frekvencia 2 / Freq 2", 0.10f, 1.0f, 0.45f, 0.01f},
-                {"detail", "Részletesség / Detail", 1.0f, 6.0f, 3.0f, 0.5f},
-                {"glow", "Fényerő / Glow", 0.5f, 3.0f, 1.2f, 0.05f}
+                {"scale", "Lépték / Scale", 0.5f, 3.0f, 1.2f, 0.05f},
+                {"viscosity", "Viszkozitás / Viscosity", 0.1f, 2.0f, 0.8f, 0.05f},
+                {"sharpness", "Élesség / Sharpness", 0.0f, 1.0f, 0.65f, 0.02f},
+                {"pulse", "Kick Lüktetés / Pulse", 0.0f, 2.0f, 0.8f, 0.05f},
+                {"layers", "Rétegek / Layers", 2.0f, 8.0f, 5.0f, 1.0f},
+                {"glow", "Fényerő / Glow", 0.2f, 3.0f, 1.2f, 0.05f},
+                {"color_mix", "Színkeverés / Color Mix", 0.0f, 1.0f, 0.5f, 0.02f},
+                {"turbulence", "Örvénylés / Turbulence", 0.1f, 3.0f, 1.0f, 0.05f}
             }
         },
         {
             1, "Truchet Spin 3D", "3D Raymarching Labirintus",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.0f, 0.05f},
-                {"zoom", "Nagyítás / Zoom", 0.5f, 4.0f, 2.0f, 0.05f},
-                {"thickness", "Vastagság / Thickness", 0.01f, 0.20f, 0.05f, 0.005f},
-                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.5f, 0.02f},
+                {"zoom", "Nagyítás / Zoom", 0.5f, 4.0f, 1.8f, 0.05f},
+                {"thickness", "Csővastagság / Thickness", 0.01f, 0.25f, 0.08f, 0.005f},
+                {"pulse", "Basszus Tágulás / Pulse", 0.0f, 2.0f, 0.6f, 0.02f},
                 {"twist", "Csavarás / Twist", 0.0f, 3.14f, 0.5f, 0.05f},
-                {"glow", "Neon Ragyogás / Glow", 0.1f, 3.0f, 1.0f, 0.05f},
-                {"speed_z", "Z-Áramlás / Speed Z", -2.0f, 2.0f, 0.5f, 0.05f},
-                {"roughness", "Érdesség / Roughness", 0.0f, 1.0f, 0.2f, 0.02f}
+                {"roughness", "Érdesség / Roughness", 0.0f, 1.0f, 0.2f, 0.02f},
+                {"glow", "Neon Ragyogás / Glow", 0.2f, 3.0f, 1.1f, 0.05f},
+                {"fog_depth", "Mélységi Köd / Fog Depth", 0.2f, 3.0f, 1.0f, 0.05f},
+                {"symmetry", "Szimmetria / Symmetry", 0.0f, 1.0f, 0.5f, 0.02f}
             }
         },
         {
             2, "Hypno Worm", "24-Lépéses OpArt Alagút",
             {
-                {"rate", "Sebesség / Rate", -5.0f, 5.0f, 1.6f, 0.1f},
-                {"size", "Méret / Size", 1.0f, 15.0f, 8.95f, 0.1f},
-                {"edge", "Élesség / Edge", 3.0f, 30.0f, 23.0f, 0.5f},
-                {"amp1", "Hullám 1 / Amp 1", 0.01f, 0.35f, 0.12f, 0.005f},
-                {"amp2", "Hullám 2 / Amp 2", 0.01f, 0.30f, 0.08f, 0.005f},
-                {"twist", "Alagút Csavarás / Twist", -2.0f, 2.0f, 0.0f, 0.05f},
-                {"rings", "Gyűrű Sűrűség / Rings", 5.0f, 40.0f, 18.0f, 1.0f},
-                {"glow", "Neon Peremfény / Glow", 0.2f, 3.0f, 1.0f, 0.05f}
+                {"size", "Alagút Méret / Size", 1.0f, 15.0f, 8.5f, 0.1f},
+                {"rings", "Gyűrűk Sűrűsége / Rings", 5.0f, 40.0f, 20.0f, 1.0f},
+                {"amp_x", "Vízszintes Hullám / Amp X", 0.01f, 0.40f, 0.15f, 0.005f},
+                {"amp_y", "Függőleges Hullám / Amp Y", 0.01f, 0.35f, 0.10f, 0.005f},
+                {"pulse", "Ütemes Pulzus / Pulse", 0.0f, 2.0f, 0.7f, 0.02f},
+                {"twist", "Örvény Csavarás / Twist", -2.0f, 2.0f, 0.0f, 0.05f},
+                {"edge_contrast", "Élkontraszt / Contrast", 0.5f, 3.0f, 1.5f, 0.05f},
+                {"glow", "Neon Peremfény / Glow", 0.2f, 3.0f, 1.1f, 0.05f}
             }
         },
         {
             3, "Shape Twist", "18-Lépéses Elektro Hullám",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.5f, 0.05f},
                 {"zoom", "Nagyítás / Zoom", 0.2f, 3.0f, 1.0f, 0.05f},
-                {"amplitude", "Amplitúdó / Amp", 0.0f, 80.0f, 25.0f, 1.0f},
-                {"thickness", "Vastagság / Thickness", 0.001f, 0.03f, 0.005f, 0.001f},
-                {"twist", "Csavarás / Twist", 0.0f, 0.1f, 0.025f, 0.002f},
+                {"amplitude", "Hullámmagasság / Amplitude", 0.0f, 35.0f, 18.0f, 0.5f},
+                {"thickness", "Szálvastagság / Thickness", 0.001f, 0.025f, 0.005f, 0.001f},
                 {"freq", "Hullám Frekvencia / Freq", 0.5f, 5.0f, 2.0f, 0.1f},
-                {"glow", "Neon Izzás / Glow", 0.1f, 3.0f, 1.0f, 0.05f},
+                {"twist", "Csavarás / Twist", 0.0f, 0.1f, 0.025f, 0.002f},
+                {"pulse", "Dinamikus Ütés / Pulse", 0.0f, 2.0f, 0.6f, 0.02f},
+                {"glow", "Neon Izzás / Glow", 0.2f, 3.0f, 1.2f, 0.05f},
                 {"decay", "Csillapodás / Decay", 0.1f, 2.0f, 0.8f, 0.05f}
             }
         },
         {
             4, "String Art", "Geometrikus Szálművészet",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.2f, 0.05f},
-                {"zoom", "Nagyítás / Zoom", 0.2f, 3.0f, 1.0f, 0.05f},
-                {"lines", "Vonal Sűrűség / Lines", 4.0f, 32.0f, 12.0f, 1.0f},
-                {"twist", "Csavarás / Twist", -3.14f, 3.14f, 0.5f, 0.05f},
-                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.5f, 0.05f},
-                {"glow", "Neon Fényerő / Glow", 0.2f, 3.0f, 1.0f, 0.05f},
-                {"fade", "Elhalványulás / Fade", 0.1f, 2.0f, 0.9f, 0.05f},
-                {"speed2", "Másodlagos Forgás / Speed 2", -2.0f, 2.0f, 0.3f, 0.05f}
+                {"scale", "Méretarány / Scale", 0.25f, 3.0f, 1.5f, 0.05f},
+                {"lines", "Szálak Száma / Lines", 10.0f, 40.0f, 25.0f, 1.0f},
+                {"inner_r", "Belső Sugár / Inner R", -0.5f, 1.5f, 0.2f, 0.02f},
+                {"outer_r", "Külső Sugár / Outer R", 0.5f, 2.5f, 1.2f, 0.02f},
+                {"thickness", "Húrvastagság / Thickness", 0.0002f, 0.006f, 0.0015f, 0.0001f},
+                {"pulse", "Húr Rezgés / Pulse", 0.0f, 2.0f, 0.6f, 0.02f},
+                {"twist", "Fáziseltolás / Twist", -3.14f, 3.14f, 0.5f, 0.05f},
+                {"glow", "Izzás / Glow", 0.2f, 3.0f, 1.1f, 0.05f}
             }
         },
         {
             5, "Dodecahedron 3D", "Raymarching Kristály",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.0f, 0.05f},
-                {"zoom", "Nagyítás / Zoom", 0.5f, 4.0f, 1.8f, 0.05f},
+                {"zoom", "Kamera Távolság / Zoom", 0.2f, 2.5f, 1.0f, 0.05f},
+                {"facet_cut", "Lapok Mélysége / Facets", 0.1f, 3.0f, 1.0f, 0.05f},
                 {"explode", "Szétnyílás / Explode", 0.0f, 2.0f, 0.2f, 0.02f},
-                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.5f, 0.02f},
-                {"refract", "Fénytörés / Refract", 0.0f, 1.0f, 0.4f, 0.02f},
-                {"glow", "Kristály Izzás / Glow", 0.2f, 3.0f, 1.2f, 0.05f},
-                {"rot_x", "X Forgás / Rot X", -2.0f, 2.0f, 0.4f, 0.05f},
-                {"rot_y", "Y Forgás / Rot Y", -2.0f, 2.0f, 0.6f, 0.05f}
+                {"pulse", "Lábdob Pulzus / Pulse", 0.0f, 2.0f, 0.7f, 0.02f},
+                {"refraction", "Fénytörés / Refract", 0.0f, 1.0f, 0.4f, 0.02f},
+                {"glow", "Élragyogás / Edge Glow", 0.2f, 3.0f, 1.2f, 0.05f},
+                {"rot_tilt", "Dőlésszög / Tilt", -2.0f, 2.0f, 0.5f, 0.05f},
+                {"dispersion", "Színszórás / Dispersion", 0.0f, 1.0f, 0.3f, 0.02f}
             }
         },
         {
             6, "Kali Circuits", "Fraktál Áramkörök",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.0f, 0.05f},
-                {"zoom", "Nagyítás / Zoom", 0.2f, 4.0f, 1.5f, 0.05f},
-                {"iter", "Iteráció / Iter", 4.0f, 18.0f, 11.0f, 1.0f},
-                {"param_a", "Áramkör Ív A / Curve A", 0.1f, 2.0f, 0.75f, 0.02f},
-                {"param_b", "Áramkör Ív B / Curve B", 0.1f, 2.0f, 0.85f, 0.02f},
-                {"pulse", "Zenei Lüktetés / Pulse", 0.0f, 2.0f, 0.5f, 0.02f},
-                {"glow", "Vezeték Izzás / Glow", 0.2f, 3.0f, 1.0f, 0.05f},
-                {"color_shift", "Színtolás / Color Shift", 0.0f, 1.0f, 0.0f, 0.02f}
+                {"zoom", "Fraktál Nagyítás / Zoom", 0.2f, 4.0f, 1.5f, 0.05f},
+                {"complexity", "Részletesség / Complexity", 4.0f, 18.0f, 11.0f, 1.0f},
+                {"trace_width", "Vezeték Vastagság / Width", 0.1f, 2.0f, 0.75f, 0.02f},
+                {"pulse", "Adatcsomag Lüktetés / Pulse", 0.0f, 2.0f, 0.6f, 0.02f},
+                {"branching", "Elágazási Szög / Branching", 0.1f, 2.0f, 0.85f, 0.02f},
+                {"glow", "Kiber Neon Fény / Glow", 0.2f, 3.0f, 1.1f, 0.05f},
+                {"invert", "Sötét / Világos / Invert", 0.0f, 1.0f, 0.0f, 0.02f},
+                {"core_aura", "Központi Chip Aura / Aura", 0.2f, 3.0f, 1.0f, 0.05f}
             }
         },
         {
             7, "Diamond Vision", "36-Lépéses Tórusz Sugárkövetés",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.0f, 0.05f},
-                {"zoom", "Nagyítás / Zoom", 0.5f, 4.0f, 2.2f, 0.05f},
-                {"torus_r", "Tórusz Sugár / Radius", 0.2f, 2.0f, 0.8f, 0.02f},
-                {"twist", "Sodrás / Twist", -3.14f, 3.14f, 1.0f, 0.05f},
-                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.5f, 0.02f},
-                {"specular", "Csillogás / Specular", 0.1f, 3.0f, 1.2f, 0.05f},
-                {"glow", "Neon Aura / Glow", 0.2f, 3.0f, 1.0f, 0.05f},
-                {"density", "Sűrűség / Density", 1.0f, 10.0f, 4.0f, 0.5f}
+                {"zoom", "Nagyítás / Zoom", 0.5f, 4.0f, 2.0f, 0.05f},
+                {"torus_size", "Gyűrűméret / Torus Size", 0.2f, 2.5f, 1.0f, 0.05f},
+                {"thickness", "Gyűrűvastagság / Thickness", 0.05f, 0.8f, 0.25f, 0.01f},
+                {"twist", "Spirális Csavarás / Twist", -3.14f, 3.14f, 0.8f, 0.05f},
+                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.7f, 0.02f},
+                {"specular", "Fémes Csillogás / Specular", 0.1f, 3.0f, 1.2f, 0.05f},
+                {"glow", "Neon Körvonal / Glow", 0.2f, 3.0f, 1.1f, 0.05f},
+                {"hue_shift", "Színárnyalat / Hue Shift", -1.0f, 1.0f, 0.0f, 0.02f}
             }
         },
         {
             8, "Pupila Eye", "Fotorealisztikus Szem & Írisz",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.0f, 0.05f},
-                {"pupil", "Pupilla Tágulás / Pupil", 0.1f, 0.9f, 0.35f, 0.02f},
-                {"fibers", "Írisz Rostok / Fibers", 2.0f, 20.0f, 8.0f, 0.5f},
-                {"pulse", "Lüktetés / Pulse", 0.0f, 2.0f, 0.6f, 0.02f},
-                {"ring", "Peremfény / Ring", 0.1f, 2.0f, 0.8f, 0.05f},
-                {"glow", "Izzás / Glow", 0.2f, 3.0f, 1.0f, 0.05f},
-                {"twist", "Írisz Csavarás / Twist", -2.0f, 2.0f, 0.2f, 0.05f},
-                {"noise", "Zaj Réteg / Noise", 0.0f, 1.0f, 0.3f, 0.02f}
+                {"zoom", "Méret / Zoom", 0.2f, 2.5f, 0.75f, 0.05f},
+                {"pupil_size", "Pupilla Alapméret / Pupil Size", 0.05f, 0.6f, 0.20f, 0.01f},
+                {"pupil_pulse", "Lábdob Tágulás / Pupil Pulse", 0.0f, 2.0f, 1.0f, 0.05f},
+                {"iris_fibers", "Írisz Rostok / Fibers", 2.0f, 20.0f, 8.0f, 0.5f},
+                {"border_width", "Külső Keret / Border Width", 0.05f, 0.5f, 0.18f, 0.01f},
+                {"reflection", "Csillogás / Reflection", 0.1f, 2.5f, 1.2f, 0.05f},
+                {"iris_blend", "Belső Színátmenet / Iris Blend", 0.1f, 2.0f, 0.8f, 0.02f},
+                {"glow", "Izzás / Glow", 0.2f, 3.0f, 1.1f, 0.05f}
             }
         },
         {
             9, "Mandala Scope", "72-Lépéses Fraktál Kaleidoszkóp",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.0f, 0.05f},
-                {"zoom", "Nagyítás / Zoom", 0.2f, 4.0f, 1.2f, 0.05f},
-                {"petals", "Szirmok Száma / Petals", 3.0f, 16.0f, 8.0f, 1.0f},
-                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.5f, 0.02f},
-                {"rot_speed", "Belső Fázis / Phase", -2.0f, 2.0f, 0.0f, 0.05f},
-                {"detail", "Részletesség / Detail", 1.0f, 8.0f, 4.0f, 0.5f},
-                {"glow", "Mandala Izzás / Glow", 0.2f, 3.0f, 1.0f, 0.05f},
-                {"contrast", "Kontraszt / Contrast", 0.5f, 2.5f, 1.2f, 0.05f}
+                {"scale", "Lépték / Scale", 0.5f, 5.0f, 2.2f, 0.1f},
+                {"sides", "Szirmok Száma / Sides", 3.0f, 16.0f, 6.0f, 1.0f},
+                {"iterations", "Fraktál Mélység / Loops", 8.0f, 48.0f, 24.0f, 2.0f},
+                {"pulse", "Zenei Lüktetés / Pulse", 0.0f, 2.0f, 0.6f, 0.05f},
+                {"petal_spread", "Szirmok Tágulása / Spread", 0.0f, 3.0f, 0.8f, 0.05f},
+                {"glow", "Mandala Aura / Glow", 0.2f, 3.0f, 1.1f, 0.05f},
+                {"contrast", "Élkontraszt / Contrast", 0.5f, 2.5f, 1.2f, 0.05f},
+                {"rotation_speed", "Belső Forgás / Rot Speed", -2.0f, 2.0f, 0.3f, 0.05f}
             }
         },
         {
             10, "Searching Light", "Kiber Fényalagút & Sugarak",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.2f, 0.05f},
-                {"tunnel_w", "Alagút Szélesség / Width", 0.2f, 3.0f, 1.0f, 0.05f},
-                {"rays", "Fénysugarak / Rays", 4.0f, 32.0f, 16.0f, 1.0f},
-                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.6f, 0.02f},
-                {"speed_z", "Z-Áramlás / Speed Z", -3.0f, 3.0f, 1.5f, 0.05f},
-                {"glow", "Sugarak Ragyogása / Glow", 0.2f, 3.0f, 1.2f, 0.05f},
-                {"fade", "Mélységi Elmosás / Fade", 0.1f, 2.0f, 0.8f, 0.05f},
-                {"density", "Sugársűrűség / Density", 0.5f, 3.0f, 1.0f, 0.05f}
+                {"tunnel_w", "Alagút Átmérő / Width", 0.2f, 3.0f, 1.0f, 0.05f},
+                {"ray_count", "Fénysugarak Száma / Rays", 2.0f, 16.0f, 6.0f, 1.0f},
+                {"ray_sharpness", "Sugarak Élessége / Sharpness", 0.0005f, 0.015f, 0.003f, 0.0002f},
+                {"pulse", "Fényrobbanás / Pulse", 0.0f, 2.0f, 0.8f, 0.05f},
+                {"glow", "Köd Izzás / Glow", 0.2f, 3.0f, 1.2f, 0.05f},
+                {"twist", "Alagút Csavarás / Twist", -2.0f, 2.0f, 0.5f, 0.05f},
+                {"speed_z", "Áramlási Sebesség / Speed Z", -2.0f, 2.0f, 0.7f, 0.05f},
+                {"depth_fade", "Mélységi Sötétedés / Depth Fade", 0.2f, 3.0f, 1.0f, 0.05f}
             }
         },
         {
             11, "Cube Field 3D", "Végtelen Kockamező Raymarching",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.0f, 0.05f},
-                {"spacing", "Kocka Távolság / Spacing", 0.5f, 3.0f, 1.4f, 0.05f},
-                {"height", "Kocka Magasság / Height", 0.1f, 2.5f, 0.8f, 0.02f},
-                {"pulse", "Zenei Lüktetés / Pulse", 0.0f, 2.0f, 0.5f, 0.02f},
-                {"cam_h", "Kamera Magasság / Cam H", 0.2f, 4.0f, 1.5f, 0.05f},
-                {"glow", "Élvilágítás / Edge Glow", 0.2f, 3.0f, 1.2f, 0.05f},
-                {"speed_z", "Előre Haladás / Speed Z", -3.0f, 3.0f, 1.2f, 0.05f},
-                {"shadows", "Árnyék Kontraszt / Shadows", 0.1f, 1.0f, 0.7f, 0.02f}
+                {"spacing", "Kockák Távolsága / Spacing", 0.5f, 3.0f, 1.2f, 0.05f},
+                {"box_size", "Kockaméret / Box Size", 0.05f, 0.45f, 0.20f, 0.01f},
+                {"height_wave", "Hullámmagasság / Height Wave", 0.0f, 2.0f, 0.5f, 0.02f},
+                {"pulse", "Lábdob Magasság Kiugrás / Pulse", 0.0f, 2.0f, 0.8f, 0.05f},
+                {"edge_glow", "Neon Kockaélek / Edge Glow", 0.2f, 3.0f, 1.2f, 0.05f},
+                {"camera_height", "Kameramagasság / Cam Height", 0.2f, 3.0f, 1.0f, 0.05f},
+                {"fog_distance", "Látótávolság / Fog Dist", 1.0f, 8.0f, 5.0f, 0.1f},
+                {"twist", "Térhajlítás / Twist", -1.0f, 3.14f, 0.5f, 0.05f}
             }
         },
         {
             12, "Electro Bands", "18-Lépéses Kvantum Spektrum",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.0f, 0.05f},
-                {"zoom", "Nagyítás / Zoom", 0.2f, 4.0f, 1.0f, 0.05f},
-                {"bands", "Sávok Száma / Bands", 4.0f, 32.0f, 14.0f, 1.0f},
-                {"thickness", "Vonal Vastagság / Thickness", 0.005f, 0.1f, 0.025f, 0.002f},
-                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.5f, 0.02f},
-                {"glow", "Neon Fényerő / Glow", 0.2f, 3.0f, 1.1f, 0.05f},
-                {"dispersion", "Frekvencia Szórás / Dispersion", 0.1f, 2.0f, 0.8f, 0.05f},
-                {"phase", "Belső Fázis / Phase", -3.14f, 3.14f, 0.0f, 0.05f}
+                {"radius", "Központi Sugár / Radius", 0.005f, 0.10f, 0.025f, 0.002f},
+                {"bands_count", "Sávok Sűrűsége / Bands", 2.0f, 20.0f, 8.0f, 1.0f},
+                {"amplitude", "Hullám Kitérés / Amplitude", 0.0f, 30.0f, 12.0f, 0.5f},
+                {"thickness", "Sávvastagság / Thickness", 0.1f, 8.0f, 1.2f, 0.1f},
+                {"pulse", "Ütemes Lökés / Pulse", 0.0f, 2.0f, 0.7f, 0.02f},
+                {"glow", "Neon Izzás / Glow", 0.2f, 3.0f, 1.2f, 0.05f},
+                {"twist", "Szalagcsavarás / Twist", -2.0f, 2.0f, 0.0f, 0.05f},
+                {"color_split", "RGB Színszórás / Color Split", 0.0f, 1.0f, 0.4f, 0.02f}
             }
         },
         {
             13, "Globular Cluster", "Kvantum Csillagköd Raymarching",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.0f, 0.05f},
-                {"zoom", "Nagyítás / Zoom", 0.2f, 4.0f, 1.5f, 0.05f},
-                {"stars", "Csillag Sűrűség / Density", 10.0f, 100.0f, 45.0f, 2.0f},
-                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.6f, 0.02f},
-                {"core_r", "Mag Sugara / Core Radius", 0.1f, 2.0f, 0.6f, 0.02f},
-                {"glow", "Gázköd Izzás / Nebula Glow", 0.2f, 3.0f, 1.3f, 0.05f},
-                {"rot_speed", "Ködfelhő Forgás / Rot Speed", -2.0f, 2.0f, 0.4f, 0.05f},
-                {"dispersion", "Szín Tágulás / Color Dispersion", 0.0f, 1.0f, 0.3f, 0.02f}
+                {"zoom", "Látómező / Zoom", 0.2f, 3.0f, 1.2f, 0.05f},
+                {"cluster_density", "Gömbök Sűrűsége / Density", 0.5f, 15.0f, 4.5f, 0.2f},
+                {"warp", "Térhajlítás / Warp", 0.5f, 10.0f, 3.0f, 0.2f},
+                {"melt", "Összeolvadás / Melt", 0.2f, 4.0f, 1.5f, 0.05f},
+                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.7f, 0.02f},
+                {"glow", "Kvantum Izzás / Glow", 0.2f, 3.0f, 1.2f, 0.05f},
+                {"core_radius", "Központi Mag / Core Radius", 0.1f, 2.5f, 1.0f, 0.05f},
+                {"contrast", "Élesség / Contrast", 0.2f, 2.5f, 1.0f, 0.05f}
             }
         },
         {
             14, "Hex Truch Warp", "Hexagonális Warp Raymarching",
             {
-                {"rate", "Sebesség / Rate", 0.1f, 3.0f, 1.0f, 0.05f},
-                {"zoom", "Nagyítás / Zoom", 0.2f, 4.0f, 1.6f, 0.05f},
-                {"warp", "Térhajlítás / Warp", 0.0f, 2.0f, 0.7f, 0.02f},
-                {"pulse", "Zenei Pulzus / Pulse", 0.0f, 2.0f, 0.5f, 0.02f},
-                {"thickness", "Hex Fal Vastagság / Thickness", 0.01f, 0.2f, 0.05f, 0.005f},
-                {"glow", "Hex Ragyogás / Glow", 0.2f, 3.0f, 1.0f, 0.05f},
-                {"speed_z", "Z-Áramlás / Speed Z", -2.0f, 2.0f, 0.6f, 0.05f},
-                {"contrast", "Kontraszt / Contrast", 0.5f, 2.5f, 1.2f, 0.05f}
+                {"scale", "Hex Rács Méret / Scale", 0.5f, 5.0f, 2.0f, 0.05f},
+                {"thickness", "Hex Vonalvastagság / Thickness", 0.01f, 0.25f, 0.06f, 0.005f},
+                {"warp", "Térhajlítás / Warp", 0.0f, 2.5f, 0.8f, 0.02f},
+                {"pulse", "Ütemes Vonalrezgés / Pulse", 0.0f, 2.0f, 0.7f, 0.02f},
+                {"dashes", "Szaggatott Vonalak / Dashes", 0.0f, 1.0f, 0.5f, 0.02f},
+                {"arrows", "Nyíl Jelzések / Arrows", 0.0f, 1.0f, 0.5f, 0.02f},
+                {"glow", "Neon Hex Fény / Glow", 0.2f, 3.0f, 1.1f, 0.05f},
+                {"motion_drift", "Áramlási Eltolódás / Drift", 0.0f, 2.0f, 0.5f, 0.02f}
             }
         }
     };

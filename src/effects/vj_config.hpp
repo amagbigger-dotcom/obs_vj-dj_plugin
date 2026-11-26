@@ -64,6 +64,8 @@ struct MasterFxTrackConfig {
     LfoConfig lfo2{};
 };
 
+#include "effects/vj_user_defaults.hpp"
+
 // VJ Shader definíciók lekérdezése (15 beépített + dinamikus felhasználói ISF shaderek)
 const std::vector<VjShaderDef>& getVjShaderDefinitions();
 
@@ -278,65 +280,155 @@ inline void applyDefaultShaderModulations(VjDeckConfig &cfg) {
         }
     };
 
-    // 0: Fluid Flow 3D (p0: rate, p7: glow)
-    set_mod(0, 0, 1, 0.30f); // Rate -> Bass Pulse +30%
-    set_mod(0, 7, 1, 0.35f); // Glow -> Bass Pulse +35%
+    // 0: Fluid Flow 3D (sharpness, flow_speed, depth, viscosity, wave_scale, fluidity, swirl, glow)
+    set_mod(0, 0, 4, 0.35f); // Sharpness -> Macro-Tonus +35%
+    set_mod(0, 1, 1, 0.30f); // Flow Speed -> Bass Pulse +30%
+    set_mod(0, 2, 2, 0.25f); // Depth -> Mid Pulse +25%
+    set_mod(0, 3, 5, 0.30f); // Viscosity -> LFO 1 +30%
+    set_mod(0, 4, 1, 0.35f); // Wave Scale -> Bass Pulse +35%
+    set_mod(0, 5, 6, 0.25f); // Fluidity -> LFO 2 +25%
+    set_mod(0, 6, 5, 0.35f); // Swirl -> LFO 1 +35%
+    set_mod(0, 7, 3, 0.40f); // Glow -> High Pulse +40%
 
-    // 1: Truchet Spin 3D (p3: pulse, p4: twist)
-    set_mod(1, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
-    set_mod(1, 4, 4, 0.30f); // Twist -> Macro-Tonus +30%
+    // 1: Truchet Spin 3D (zoom, thickness, pulse, twist, roughness, glow, fog_depth, symmetry)
+    set_mod(1, 0, 1, 0.35f); // Zoom -> Bass Pulse +35%
+    set_mod(1, 1, 2, 0.30f); // Thickness -> Mid Pulse +30%
+    set_mod(1, 2, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(1, 3, 5, 0.35f); // Twist -> LFO 1 +35%
+    set_mod(1, 4, 3, 0.25f); // Roughness -> High Pulse +25%
+    set_mod(1, 5, 7, 0.40f); // Glow -> Bass + Tonus +40%
+    set_mod(1, 6, 4, 0.30f); // Fog Depth -> Macro-Tonus +30%
+    set_mod(1, 7, 6, 0.20f); // Symmetry -> LFO 2 +20%
 
-    // 2: Hypno Worm (p1: size, p3: amp1)
-    set_mod(2, 1, 1, 0.35f); // Size -> Bass Pulse +35%
-    set_mod(2, 3, 2, 0.30f); // Amp1 -> Mid Pulse +30%
+    // 2: Hypno Worm (size, rings, amp_x, amp_y, pulse, twist, edge_contrast, glow)
+    set_mod(2, 0, 1, 0.40f); // Size -> Bass Pulse +40%
+    set_mod(2, 1, 2, 0.30f); // Rings -> Mid Pulse +30%
+    set_mod(2, 2, 5, 0.35f); // Amp X -> LFO 1 +35%
+    set_mod(2, 3, 6, 0.35f); // Amp Y -> LFO 2 +35%
+    set_mod(2, 4, 1, 0.55f); // Pulse -> Bass Pulse +55%
+    set_mod(2, 5, 4, 0.30f); // Twist -> Macro-Tonus +30%
+    set_mod(2, 6, 3, 0.30f); // Edge Contrast -> High Pulse +30%
+    set_mod(2, 7, 7, 0.40f); // Glow -> Bass + Tonus +40%
 
-    // 3: Shape Twist (p2: amplitude, p6: glow)
-    set_mod(3, 2, 1, 0.40f); // Amplitude -> Bass Pulse +40%
-    set_mod(3, 6, 3, 0.30f); // Glow -> High Pulse +30%
+    // 3: Shape Twist (zoom, amplitude, thickness, freq, twist, pulse, glow, decay)
+    set_mod(3, 0, 1, 0.35f); // Zoom -> Bass Pulse +35%
+    set_mod(3, 1, 1, 0.45f); // Amplitude -> Bass Pulse +45%
+    set_mod(3, 2, 2, 0.30f); // Thickness -> Mid Pulse +30%
+    set_mod(3, 3, 5, 0.25f); // Freq -> LFO 1 +25%
+    set_mod(3, 4, 6, 0.35f); // Twist -> LFO 2 +35%
+    set_mod(3, 5, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(3, 6, 3, 0.35f); // Glow -> High Pulse +35%
+    set_mod(3, 7, 4, 0.30f); // Decay -> Macro-Tonus +30%
 
-    // 4: String Art (p4: pulse, p3: twist)
-    set_mod(4, 4, 1, 0.50f); // Pulse -> Bass Pulse +50%
-    set_mod(4, 3, 4, 0.30f); // Twist -> Macro-Tonus +30%
+    // 4: String Art (scale, lines, inner_r, outer_r, thickness, pulse, twist, glow)
+    set_mod(4, 0, 1, 0.35f); // Scale -> Bass Pulse +35%
+    set_mod(4, 1, 2, 0.30f); // Lines -> Mid Pulse +30%
+    set_mod(4, 2, 5, 0.35f); // Inner R -> LFO 1 +35%
+    set_mod(4, 3, 6, 0.35f); // Outer R -> LFO 2 +35%
+    set_mod(4, 4, 3, 0.25f); // Thickness -> High Pulse +25%
+    set_mod(4, 5, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(4, 6, 4, 0.35f); // Twist -> Macro-Tonus +35%
+    set_mod(4, 7, 7, 0.40f); // Glow -> Bass + Tonus +40%
 
-    // 5: Dodecahedron 3D (p2: explode, p3: pulse)
+    // 5: Dodecahedron 3D (zoom, facet_cut, explode, pulse, refraction, glow, rot_tilt, dispersion)
+    set_mod(5, 0, 1, 0.30f); // Zoom -> Bass Pulse +30%
+    set_mod(5, 1, 2, 0.35f); // Facet Cut -> Mid Pulse +35%
     set_mod(5, 2, 1, 0.45f); // Explode -> Bass Pulse +45%
     set_mod(5, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(5, 4, 3, 0.30f); // Refraction -> High Pulse +30%
+    set_mod(5, 5, 7, 0.40f); // Glow -> Bass + Tonus +40%
+    set_mod(5, 6, 5, 0.35f); // Rot Tilt -> LFO 1 +35%
+    set_mod(5, 7, 4, 0.30f); // Dispersion -> Macro-Tonus +30%
 
-    // 6: Kali Circuits (p5: pulse, p6: glow)
-    set_mod(6, 5, 1, 0.50f); // Pulse -> Bass Pulse +50%
-    set_mod(6, 6, 1, 0.35f); // Glow -> Bass Pulse +35%
+    // 6: Kali Circuits (zoom, complexity, trace_width, pulse, branching, glow, invert, core_aura)
+    set_mod(6, 0, 1, 0.35f); // Zoom -> Bass Pulse +35%
+    set_mod(6, 1, 2, 0.30f); // Complexity -> Mid Pulse +30%
+    set_mod(6, 2, 3, 0.30f); // Trace Width -> High Pulse +30%
+    set_mod(6, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(6, 4, 5, 0.35f); // Branching -> LFO 1 +35%
+    set_mod(6, 5, 7, 0.40f); // Glow -> Bass + Tonus +40%
+    set_mod(6, 6, 4, 0.20f); // Invert -> Macro-Tonus +20%
+    set_mod(6, 7, 1, 0.40f); // Core Aura -> Bass Pulse +40%
 
-    // 7: Diamond Vision (p4: pulse, p5: specular)
+    // 7: Diamond Vision (zoom, torus_size, thickness, twist, pulse, specular, glow, hue_shift)
+    set_mod(7, 0, 1, 0.30f); // Zoom -> Bass Pulse +30%
+    set_mod(7, 1, 2, 0.35f); // Torus Size -> Mid Pulse +35%
+    set_mod(7, 2, 3, 0.25f); // Thickness -> High Pulse +25%
+    set_mod(7, 3, 5, 0.40f); // Twist -> LFO 1 +40%
     set_mod(7, 4, 1, 0.50f); // Pulse -> Bass Pulse +50%
-    set_mod(7, 5, 3, 0.30f); // Specular -> High Pulse +30%
+    set_mod(7, 5, 3, 0.35f); // Specular -> High Pulse +35%
+    set_mod(7, 6, 7, 0.40f); // Glow -> Bass + Tonus +40%
+    set_mod(7, 7, 6, 0.30f); // Hue Shift -> LFO 2 +30%
 
-    // 8: Pupila Eye (p1: pupil, p3: pulse)
-    set_mod(8, 1, 1, 0.60f); // Pupil -> Bass Pulse +60%
-    set_mod(8, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    // 8: Pupila Eye (zoom, pupil_size, pupil_pulse, iris_fibers, border_width, reflection, iris_blend, glow)
+    set_mod(8, 0, 1, 0.30f); // Zoom -> Bass Pulse +30%
+    set_mod(8, 1, 1, 0.50f); // Pupil Size -> Bass Pulse +50%
+    set_mod(8, 2, 1, 0.60f); // Pupil Pulse -> Bass Pulse +60%
+    set_mod(8, 3, 2, 0.35f); // Iris Fibers -> Mid Pulse +35%
+    set_mod(8, 4, 4, 0.30f); // Border Width -> Macro-Tonus +30%
+    set_mod(8, 5, 3, 0.40f); // Reflection -> High Pulse +40%
+    set_mod(8, 6, 5, 0.30f); // Iris Blend -> LFO 1 +30%
+    set_mod(8, 7, 7, 0.35f); // Glow -> Bass + Tonus +35%
 
-    // 9: Mandala Scope (p3: pulse, p6: glow)
+    // 9: Mandala Scope (scale, sides, iterations, pulse, petal_spread, glow, contrast, rotation_speed)
+    set_mod(9, 0, 1, 0.35f); // Scale -> Bass Pulse +35%
+    set_mod(9, 1, 2, 0.25f); // Sides -> Mid Pulse +25%
+    set_mod(9, 2, 4, 0.30f); // Iterations -> Macro-Tonus +30%
     set_mod(9, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
-    set_mod(9, 6, 4, 0.35f); // Glow -> Macro-Tonus +35%
+    set_mod(9, 4, 5, 0.35f); // Petal Spread -> LFO 1 +35%
+    set_mod(9, 5, 7, 0.40f); // Glow -> Bass + Tonus +40%
+    set_mod(9, 6, 3, 0.30f); // Contrast -> High Pulse +30%
+    set_mod(9, 7, 6, 0.30f); // Rotation Speed -> LFO 2 +30%
 
-    // 10: Searching Light (p3: pulse, p5: glow)
-    set_mod(10, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
-    set_mod(10, 5, 1, 0.40f); // Glow -> Bass Pulse +40%
+    // 10: Searching Light (tunnel_w, ray_count, ray_sharpness, pulse, glow, twist, speed_z, depth_fade)
+    set_mod(10, 0, 1, 0.35f); // Tunnel Width -> Bass Pulse +35%
+    set_mod(10, 1, 2, 0.30f); // Ray Count -> Mid Pulse +30%
+    set_mod(10, 2, 3, 0.30f); // Ray Sharpness -> High Pulse +30%
+    set_mod(10, 3, 1, 0.55f); // Pulse -> Bass Pulse +55%
+    set_mod(10, 4, 7, 0.40f); // Glow -> Bass + Tonus +40%
+    set_mod(10, 5, 5, 0.35f); // Twist -> LFO 1 +35%
+    set_mod(10, 6, 4, 0.30f); // Speed Z -> Macro-Tonus +30%
+    set_mod(10, 7, 6, 0.25f); // Depth Fade -> LFO 2 +25%
 
-    // 11: Cube Field 3D (p3: pulse, p2: height)
+    // 11: Cube Field 3D (spacing, box_size, height_wave, pulse, edge_glow, camera_height, fog_distance, twist)
+    set_mod(11, 0, 2, 0.30f); // Spacing -> Mid Pulse +30%
+    set_mod(11, 1, 1, 0.40f); // Box Size -> Bass Pulse +40%
+    set_mod(11, 2, 1, 0.45f); // Height Wave -> Bass Pulse +45%
     set_mod(11, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
-    set_mod(11, 2, 1, 0.40f); // Height -> Bass Pulse +40%
+    set_mod(11, 4, 3, 0.35f); // Edge Glow -> High Pulse +35%
+    set_mod(11, 5, 5, 0.30f); // Camera Height -> LFO 1 +30%
+    set_mod(11, 6, 4, 0.30f); // Fog Distance -> Macro-Tonus +30%
+    set_mod(11, 7, 6, 0.35f); // Twist -> LFO 2 +35%
 
-    // 12: Electro Bands (p4: pulse, p5: glow)
+    // 12: Electro Bands (radius, bands_count, amplitude, thickness, pulse, glow, twist, color_split)
+    set_mod(12, 0, 1, 0.40f); // Radius -> Bass Pulse +40%
+    set_mod(12, 1, 2, 0.30f); // Bands Count -> Mid Pulse +30%
+    set_mod(12, 2, 1, 0.45f); // Amplitude -> Bass Pulse +45%
+    set_mod(12, 3, 3, 0.25f); // Thickness -> High Pulse +25%
     set_mod(12, 4, 1, 0.50f); // Pulse -> Bass Pulse +50%
-    set_mod(12, 5, 2, 0.35f); // Glow -> Mid Pulse +35%
+    set_mod(12, 5, 7, 0.40f); // Glow -> Bass + Tonus +40%
+    set_mod(12, 6, 5, 0.35f); // Twist -> LFO 1 +35%
+    set_mod(12, 7, 6, 0.30f); // Color Split -> LFO 2 +30%
 
-    // 13: Globular Cluster (p3: pulse, p4: core_r)
-    set_mod(13, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
-    set_mod(13, 4, 1, 0.40f); // Core Radius -> Bass Pulse +40%
+    // 13: Globular Cluster (zoom, cluster_density, warp, melt, pulse, glow, core_radius, contrast)
+    set_mod(13, 0, 1, 0.30f); // Zoom -> Bass Pulse +30%
+    set_mod(13, 1, 2, 0.35f); // Cluster Density -> Mid Pulse +35%
+    set_mod(13, 2, 5, 0.35f); // Warp -> LFO 1 +35%
+    set_mod(13, 3, 6, 0.30f); // Melt -> LFO 2 +30%
+    set_mod(13, 4, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(13, 5, 7, 0.40f); // Glow -> Bass + Tonus +40%
+    set_mod(13, 6, 1, 0.45f); // Core Radius -> Bass Pulse +45%
+    set_mod(13, 7, 4, 0.30f); // Contrast -> Macro-Tonus +30%
 
-    // 14: Hex Truch Warp (p2: warp, p3: pulse)
-    set_mod(14, 2, 1, 0.40f); // Warp -> Bass Pulse +40%
+    // 14: Hex Truch Warp (scale, thickness, warp, pulse, dashes, arrows, glow, motion_drift)
+    set_mod(14, 0, 1, 0.35f); // Scale -> Bass Pulse +35%
+    set_mod(14, 1, 2, 0.30f); // Thickness -> Mid Pulse +30%
+    set_mod(14, 2, 5, 0.35f); // Warp -> LFO 1 +35%
     set_mod(14, 3, 1, 0.50f); // Pulse -> Bass Pulse +50%
+    set_mod(14, 4, 3, 0.30f); // Dashes -> High Pulse +30%
+    set_mod(14, 5, 6, 0.25f); // Arrows -> LFO 2 +25%
+    set_mod(14, 6, 7, 0.40f); // Glow -> Bass + Tonus +40%
+    set_mod(14, 7, 4, 0.30f); // Motion Drift -> Macro-Tonus +30%
 }
 
 inline VjDeckConfig getDefaultVjConfig(int shader_idx) {
@@ -359,6 +451,7 @@ inline VjDeckConfig getDefaultVjConfig(int shader_idx) {
         }
     }
     applyDefaultShaderModulations(cfg);
+    loadUserShaderDefaults(cfg.all_shader_params);
     cfg.params = cfg.all_shader_params[cfg.shader_idx];
     cfg.custom_color_r = -1.0f;
     cfg.custom_color_g = -1.0f;

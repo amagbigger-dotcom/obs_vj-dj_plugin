@@ -682,7 +682,8 @@ static bool render_to_texture(MixerSource *context,
     } else if (deck && deck->hasAudioOnlyTrack() && deck->isPlaying() && !deck->isAtEnd()) {
         // Procedurális Audio-Reaktív VJ Shader Suite (audió fájlokhoz vagy üres deckhez)
         if (context && context->fluid_effect && context->dummy_tex) {
-            const float time_sec = static_cast<float>(os_gettime_ns() / 1000000ULL) * 0.001f;
+            const uint64_t cur_ns = os_gettime_ns();
+            const float time_sec = deck ? deck->advanceVjPhase(cur_ns) : (static_cast<float>(cur_ns / 1000000ULL) * 0.001f);
             const float bpm_val = static_cast<float>(deck->bpm());
             const float amp_val = deck->currentAmplitude();
             const float bass_val = deck->currentBassEnergy();
@@ -721,7 +722,7 @@ static bool render_to_texture(MixerSource *context,
                 }
             }
 
-            const float audio_time = time_sec + eff_bass * 0.15f;
+            const float audio_time = time_sec;
             gs_eparam_t *p = nullptr;
             if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_mode")))
                 gs_effect_set_float(p, viz_mode);

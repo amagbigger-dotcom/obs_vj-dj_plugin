@@ -192,6 +192,10 @@ public:
     void saveVjConfigToCache();
     void loadVjConfigFromCache();
 
+    // Folyamatos fázis-integrátor VJ shaderekhez (Zero-Jump Continuous Phase Accumulator)
+    float advanceVjPhase(uint64_t cur_time_ns) noexcept;
+    float currentVjPhase() const noexcept { return vj_phase_.load(std::memory_order_relaxed); }
+
     enum class DeckSide { A, B };
     void setSide(DeckSide side) noexcept { side_.store(side, std::memory_order_relaxed); }
     DeckSide side() const noexcept { return side_.load(std::memory_order_relaxed); }
@@ -326,6 +330,8 @@ private:
     std::atomic<float> vj_shader_trans_progress_{1.0f};
     std::atomic<float> vj_shader_trans_duration_{1.0f};
     std::atomic<int> vj_shader_trans_beats_{2};
+    std::atomic<float> vj_phase_{0.0f};
+    std::atomic<uint64_t> last_vj_time_ns_{0};
 };
 
 using DeckEngine = DeckPlayer;

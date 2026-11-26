@@ -440,7 +440,8 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                     context->dummy_tex = gs_texture_create(1, 1, GS_RGBA, 1, &data_ptr, 0);
                 }
                 if (context->fluid_effect && context->dummy_tex) {
-                    const float time_sec = static_cast<float>(os_gettime_ns() / 1000000ULL) * 0.001f;
+                    const uint64_t cur_ns = os_gettime_ns();
+                    const float time_sec = context->deck ? context->deck->advanceVjPhase(cur_ns) : (static_cast<float>(cur_ns / 1000000ULL) * 0.001f);
                     const float bpm_val = static_cast<float>(context->deck->bpm());
                     const float amp_val = context->deck->currentAmplitude();
                     const float bass_val = context->deck->currentBassEnergy();
@@ -479,7 +480,7 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                         }
                     }
 
-                    const float audio_time = time_sec + eff_bass * 0.15f;
+                    const float audio_time = time_sec;
                     gs_eparam_t *p = nullptr;
                     if ((p = gs_effect_get_param_by_name(context->fluid_effect, "visualizer_mode")))
                         gs_effect_set_float(p, viz_mode);

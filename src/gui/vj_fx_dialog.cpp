@@ -5,6 +5,7 @@
 #include "gui/isf_converter_dialog.hpp"
 #include "engine/deck_engine.hpp"
 #include "effects/vj_config.hpp"
+#include "effects/vj_user_defaults.hpp"
 #include "widget/dj_slider.hpp"
 
 #include <obs-frontend-api.h>
@@ -23,6 +24,7 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QTabWidget>
+#include <QMessageBox>
 #include <algorithm>
 
 namespace {
@@ -405,6 +407,85 @@ QWidget *VjFxDialog::createShaderTabWidget()
     scroll->setWidget(params_container_);
 
     layout->addWidget(scroll, 1);
+
+    // User Defaults Action Bar
+    auto *action_bar = new QHBoxLayout();
+    action_bar->setContentsMargins(0, 4, 0, 0);
+    action_bar->setSpacing(8);
+
+    auto *save_def_btn = new QPushButton(QStringLiteral("💾 Alapbeállítás Mentése"), container);
+    save_def_btn->setFixedHeight(24);
+    save_def_btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #104868, stop:1 #0088cc); "
+        "border: 1px solid #00b4d8; color: #ffffff; font-weight: bold; font-size: 9px; border-radius: 3px; padding: 2px 10px; } "
+        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #14608c, stop:1 #00aaff); border-color: #00d2ff; }"
+    ));
+    save_def_btn->setToolTip(QStringLiteral("Elmenti ennek a shadernek az aktuális paramétereit (érték, moduláció, mélység) alapértelmezettként minden új trackhez"));
+    action_bar->addWidget(save_def_btn, 1);
+
+    auto *reset_def_btn = new QPushButton(QStringLiteral("↺ Gyári Visszaállítás"), container);
+    reset_def_btn->setFixedHeight(24);
+    reset_def_btn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #1c232f; border: 1px solid #334460; color: #a0b0c8; font-weight: bold; font-size: 9px; border-radius: 3px; padding: 2px 10px; } "
+        "QPushButton:hover { background: #253346; color: #ffffff; border-color: #ffaa00; }"
+    ));
+    reset_def_btn->setToolTip(QStringLiteral("Visszaállítja ezt a shadert a gyárilag programozott zenei alapértelmezésekre"));
+    action_bar->addWidget(reset_def_btn, 1);
+
+    connect(save_def_btn, &QPushButton::clicked, this, [this]() {
+        DeckPlayer *dp = currentDeck();
+        if (!dp) return;
+        const VjDeckConfig &cfg = dp->vjConfig();
+        const auto &defs = getVjShaderDefinitions();
+        if (cfg.shader_idx < 0 || cfg.shader_idx >= static_cast<int>(defs.size())) return;
+        const QString shader_name = QString::fromUtf8(defs[cfg.shader_idx].name);
+
+        const auto res = QMessageBox::question(
+            this,
+            QStringLiteral("Alapbeállítás Mentése"),
+            QStringLiteral("Biztosan elmented a(z) \"%1\" shader jelenlegi beállításait új alapértelmezettként minden új trackhez?")
+                .arg(shader_name),
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::Yes);
+
+        if (res == QMessageBox::Yes) {
+            saveUserShaderDefault(cfg.shader_idx, cfg.params);
+            QMessageBox::information(this, QStringLiteral("Sikeres mentés"),
+                QStringLiteral("A(z) \"%1\" új alapértelmezése elmentve!").arg(shader_name));
+        }
+    });
+
+    connect(reset_def_btn, &QPushButton::clicked, this, [this]() {
+        DeckPlayer *dp = currentDeck();
+        if (!dp) return;
+        const VjDeckConfig &cfg = dp->vjConfig();
+        const auto &defs = getVjShaderDefinitions();
+        if (cfg.shader_idx < 0 || cfg.shader_idx >= static_cast<int>(defs.size())) return;
+        const QString shader_name = QString::fromUtf8(defs[cfg.shader_idx].name);
+
+        const auto res = QMessageBox::question(
+            this,
+            QStringLiteral("Gyári Visszaállítás"),
+            QStringLiteral("Biztosan visszaállítod a(z) \"%1\" shadert a gyári zenei alapértelmezésekre?")
+                .arg(shader_name),
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::No);
+
+        if (res == QMessageBox::Yes) {
+            resetUserShaderDefault(cfg.shader_idx);
+            VjDeckConfig factory_cfg = getDefaultVjConfig(cfg.shader_idx);
+            for (int p = 0; p < 8; ++p) {
+                dp->setVjParamValue(p, factory_cfg.all_shader_params[cfg.shader_idx][p].value);
+                dp->setVjParamMod(p, factory_cfg.all_shader_params[cfg.shader_idx][p].mod_mode);
+                dp->setVjParamModDepth(p, factory_cfg.all_shader_params[cfg.shader_idx][p].mod_depth);
+            }
+            rebuildParamControls();
+            QMessageBox::information(this, QStringLiteral("Gyári visszaállítás"),
+                QStringLiteral("A(z) \"%1\" sikeresen visszaállítva a gyári alapértékekre!").arg(shader_name));
+        }
+    });
+
+    layout->addLayout(action_bar);
 
     return container;
 }
