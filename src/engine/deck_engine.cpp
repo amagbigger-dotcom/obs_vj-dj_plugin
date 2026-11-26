@@ -930,7 +930,7 @@ float DeckPlayer::audioReactivity() const noexcept
     return vj_config_.audio_reactivity;
 }
 
-float DeckPlayer::advanceVjPhase(uint64_t cur_time_ns) noexcept
+float DeckPlayer::advanceVjPhase(uint64_t cur_time_ns) const noexcept
 {
     const uint64_t prev = last_vj_time_ns_.exchange(cur_time_ns, std::memory_order_relaxed);
     if (prev == 0 || cur_time_ns <= prev) {
