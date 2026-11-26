@@ -1,31 +1,32 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #384 (GitHub Run #45867209383 / Run #421 - Telepítve és igazoltan működik!)
-* **Aktuális Git Commit:** `0e3c7c1`
-* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 472 000 bájt, 2026. 11. 26. 18:27)
-* **Bináris SHA256:** `FF5F5A792ED63FAF4A87816FE1618C67CF53CCB46358771374620348E24A193A`
+* **Legutolsó stabil mérföldkő:** Build #385 (GitHub Run #45869848421 / Run #423 - Telepítve és igazoltan működik!)
+* **Aktuális Git Commit:** `810f376`
+* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 470 976 bájt, 2026. 11. 26. 18:45)
+* **Bináris SHA256:** `490237E7031D992A116EB6C3DE33CB483711060F7A40213E8EF60A87163C71D0`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #384 - Zenei Reaktivitás (Beat Sensitivity) Vezérlés, Zenei Alapértelmezések és 9 Mixer FX Élő Audió Bekötése:
-  1. **Állítható Master "Beat Érzékenység" (Audio Reactivity):**
-     - Új csúszka a VJ FX ablakban (0% .. 200%, alapértelmezett 100%).
-     - Szabályozza az összes procedurális shader dob- és dinamika-érzékenységét (`eff_bass`, `eff_mid`, `eff_high`, `eff_amp`).
-     - Valós idejű szálbiztos atomi átadás és perzisztens `.vdj.json` mentés/betöltés (`audio_reactivity`).
-  2. **Zenei Alapértelmezések mind a 15 procedurális VJ shaderhez:**
-     - Az eddig csendes `mod_mode = 0` (OFF) helyett mind a 15 beépített shader kulcsparaméterei (méret, pulzus, fénylés, robbanás, pupilla, stb.) automatikusan dinamikus zenei modulációt kaptak (Bass Pulse +40..60%, Mid Pulse +35%, Macro-Tonus +30..35%).
-  3. **9 Traktor Mixer FX Élő Audió Bekötése (Visual EQ 100% érintetlenül hagyásával):**
-     - Az összes Traktor Mixer FX (Filter, Delay, Reverb, Flanger, Beatmasher, Turntable, Ramp Delay, Mulholland Drive, Transpose) megkapja az élő zenei spektrumot (`bass_energy`, `mid_energy`, `high_energy`, `audio_amp`).
-     - A Beatmasher szaggatása és ugrása, a Delay és Reverb tágulása a lábdobokra és ütemekre lüktet falióra-idő helyett.
-     - A Visual EQ korrekciós lánc (RGB erősítések, szaturáció, csatorna potméterek) szigorúan érintetlen maradt a felhasználói direktíva szerint.
-  4. **Master Crossfade FX Moduláció Javítása:**
-     - A korábban 0.0f-ra kódolt `mod_depth` hiba elhárítva, az intenzitás és ráta modulációk azonnal reagálnak az aktív módokra.
+* **Fő cél:** Build #385 - Deck Color Effect Shader Szintaxis Javítása, Zenei Reaktivitás & Teljes Képi Lánc Helyreállítása:
+  1. **Kritikus HLSL Szintaxis Hiba Megszüntetése:**
+     - A `mixer_fx_shaders.hpp`-ben a `fx_flanger` után lévő 16 soros duplikált kódblokk törölve.
+     - A `deck_color_effect` fordítása (204. sor `Expected 'numeric value'`, 498. sor `Unexpected EOF`) ezzel 100%-ban helyreállt.
+     - Helyreállt a teljes képi renderelő lánc: az audió fájlok procedurális shader megjelenítése, a hangerő csúszka alakzat-kivágásai (Volume FX) és a Master Crossfade FX átmenetek.
+  2. **Build #384 funkciók élesedése (Mostantól teljes gőzzel működik):**
+     - Állítható Master "Beat Érzékenység" (0%..200%, alapértelmezett 100%) a VJ FX ablakban.
+     - Mind a 15 procedurális VJ shaderhez aktív zenei alapértelmezések (Bass/Mid Pulse).
+     - 9 Traktor Mixer FX (Beatmasher, Delay, Reverb, Flanger stb.) élő audió spektrumra kapcsolva.
+     - Visual EQ lánc (RGB erősítések, szaturáció) szigorúan érintetlen.
+     - Master Crossfade FX intenzitás és ráta moduláció működik.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #383)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #384)
+* [x] **Zenei Reaktivitás (Beat Sensitivity) & 9 Mixer FX Élő Audió Bekötése (Build #384):**
+  - Master Beat Érzékenység csúszka, zenei shader alapértelmezések, Crossfade FX mod mélység.
+  - Telepített bináris: 1 472 000 bájt, SHA256 `FF5F5A792ED63FAF4A87816FE1618C67CF53CCB46358771374620348E24A193A`.
 * [x] **Tiszta BaseName_vj1080.mp4 Videókonverter & Duplikációmentes Könyvtár (Build #383):**
   - Megszüntetve a `BaseName_[hash]_vj1080.mp4` elnevezés és a `qHash` generálás.
   - Köztes `.tmp.mp4` fájlírás eltávolítva; közvetlen célfájlba kódolás.
