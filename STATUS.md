@@ -1,32 +1,38 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #385 (GitHub Run #45869848421 / Run #423 - Telepítve és igazoltan működik!)
-* **Aktuális Git Commit:** `810f376`
-* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 470 976 bájt, 2026. 11. 26. 18:45)
-* **Bináris SHA256:** `490237E7031D992A116EB6C3DE33CB483711060F7A40213E8EF60A87163C71D0`
+* **Legutolsó stabil mérföldkő:** Build #386 (GitHub Run #45887231401 / Run #426 - Telepítve és igazoltan működik!)
+* **Aktuális Git Commit:** `cec1435`
+* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 487 360 bájt, 2026. 11. 26. 20:59)
+* **Bináris SHA256:** `EB2CC96D7CB34AE2B624A6AC783C65C17C82C53056840C8F2D45BA1F7E9AD495`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #385 - Deck Color Effect Shader Szintaxis Javítása, Zenei Reaktivitás & Teljes Képi Lánc Helyreállítása:
-  1. **Kritikus HLSL Szintaxis Hiba Megszüntetése:**
-     - A `mixer_fx_shaders.hpp`-ben a `fx_flanger` után lévő 16 soros duplikált kódblokk törölve.
-     - A `deck_color_effect` fordítása (204. sor `Expected 'numeric value'`, 498. sor `Unexpected EOF`) ezzel 100%-ban helyreállt.
-     - Helyreállt a teljes képi renderelő lánc: az audió fájlok procedurális shader megjelenítése, a hangerő csúszka alakzat-kivágásai (Volume FX) és a Master Crossfade FX átmenetek.
-  2. **Build #384 funkciók élesedése (Mostantól teljes gőzzel működik):**
-     - Állítható Master "Beat Érzékenység" (0%..200%, alapértelmezett 100%) a VJ FX ablakban.
-     - Mind a 15 procedurális VJ shaderhez aktív zenei alapértelmezések (Bass/Mid Pulse).
-     - 9 Traktor Mixer FX (Beatmasher, Delay, Reverb, Flanger stb.) élő audió spektrumra kapcsolva.
-     - Visual EQ lánc (RGB erősítések, szaturáció) szigorúan érintetlen.
-     - Master Crossfade FX intenzitás és ráta moduláció működik.
+* **Fő cél:** Build #386 - Ugrásmentes Folytonos VJ Fázis Akkumulátor, 15 Újra-architekturált Shader & Perzisztens Felhasználói Alapértelmezések:
+  1. **Ugrásmentes Fázis-integrátor ($C^0$ Continuous Phase Accumulator):**
+     - Megszüntetve a sebesség/lüktetés változtatásakor fellépő durva fázistörés és képi ugrálás.
+     - A deck motorban bevezetve a `mutable std::atomic<float> vj_phase_` és `last_vj_time_ns_`, amely szigorúan idődifferenciálból ($dt \cdot rate$) integrálja az animációs időt, így a sebesség modulálásakor a kép lágyan gyorsul/lassul képugrás nélkül.
+  2. **15 Procedurális VJ Shader Teljes Áttervezése & Tisztítása:**
+     - **Shader 0 (Fluid Flow):** Felesleges halott változók (`freq1`, `freq2`) eltávolítva; állítható élesség (`sharpness`), tejfehér homályosság megszüntetve.
+     - **Shader 1–14 (Truchet, Hypno Worm, Shape Twist, String Art, Dodecahedron, Kali Circuits, Diamond Vision, Pupila Eye, Mandala Scope, Searching Light, Cube Field 3D, Electro Bands, Globular Cluster, Hex Truch Warp):** Minden shaderben közvetlen, látványos formaalkotó skálár paraméterek kikötve a kaotikus koordináta-ugrások helyett.
+  3. **Intelligens Zenei Alapértelmezések Mind a 15 Shader Mind a 8 Paraméterére:**
+     - Minden shader minden csúszkájához zeneileg harmonikus vezérlő hozzárendelve (Bass Pulse, Mid Pulse, High Pulse, Macro-Tonus, BPM-szinkron LFO 1/2).
+  4. **Perzisztens Felhasználói Alapbeállítások Mentése & Gyári Visszaállítás:**
+     - A VJ FX dialógusban megjelent a `[💾 Alapbeállítás Mentése]` és `[↺ Gyári Visszaállítás]` gomb `QMessageBox::question` megerősítő ablakkal.
+     - A beállítások az `%APPDATA%/obs-studio/plugin_config/obs_vj_dj_plugin/vj_user_defaults.json` fájlban tárolódnak shaderenként.
+  5. **Visual EQ Védelem:**
+     - A fizikai/virtuális EQ potméterek és szaturáció szigorúan és 100%-ban érintetlenek maradtak, nulla automata zenei pulzussal.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #384)
-* [x] **Zenei Reaktivitás (Beat Sensitivity) & 9 Mixer FX Élő Audió Bekötése (Build #384):**
-  - Master Beat Érzékenység csúszka, zenei shader alapértelmezések, Crossfade FX mod mélység.
-  - Telepített bináris: 1 472 000 bájt, SHA256 `FF5F5A792ED63FAF4A87816FE1618C67CF53CCB46358771374620348E24A193A`.
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #386)
+* [x] **Ugrásmentes VJ Fázis, 15 Tisztított Shader & Felhasználói Alapértelmezések (Build #386):**
+  - Continuous Phase Accumulator, 15 shader HLSL refaktor, 8-paraméteres zenei default modulációk, `vj_user_defaults.json` perzisztencia.
+  - Telepített bináris: 1 487 360 bájt, SHA256 `EB2CC96D7CB34AE2B624A6AC783C65C17C82C53056840C8F2D45BA1F7E9AD495`.
+* [x] **Deck Color Effect Shader Szintaxis Javítása & Teljes Képi Lánc Helyreállítása (Build #385):**
+  - Duplikált HLSL blokk törölve a `mixer_fx_shaders.hpp`-ből; visualizer, volume fx és crossfade fx működés helyreállítva.
+  - Telepített bináris: 1 470 976 bájt, SHA256 `490237E7031D992A116EB6C3DE33CB483711060F7A40213E8EF60A87163C71D0`.
 * [x] **Tiszta BaseName_vj1080.mp4 Videókonverter & Duplikációmentes Könyvtár (Build #383):**
   - Megszüntetve a `BaseName_[hash]_vj1080.mp4` elnevezés és a `qHash` generálás.
   - Köztes `.tmp.mp4` fájlírás eltávolítva; közvetlen célfájlba kódolás.
