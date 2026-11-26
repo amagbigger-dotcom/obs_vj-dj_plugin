@@ -1,36 +1,35 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #383 (GitHub Run #45716155434 / Run #419 - Telepítve és igazoltan működik!)
-* **Aktuális Git Commit:** `781e97f`
-* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 462 784 bájt, 2026. 11. 25. 23:51:30)
-* **Bináris SHA256:** `BAD5E470E543FCA815F7C00F78603B59BFCA8A31F63B94B3094001FB72BD67D8`
+* **Legutolsó stabil mérföldkő:** Build #384 (GitHub Run #45867209383 / Run #421 - Telepítve és igazoltan működik!)
+* **Aktuális Git Commit:** `0e3c7c1`
+* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 472 000 bájt, 2026. 11. 26. 18:27)
+* **Bináris SHA256:** `FF5F5A792ED63FAF4A87816FE1618C67CF53CCB46358771374620348E24A193A`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #383 - Tiszta `BaseName_vj1080.mp4` videókonverter visszaállítása, duplikáció- és hash-mentes könyvtárkezelés:
-  1. **Tiszta fájlnév-képzés (Hash és .tmp nélkül):**
-     - Megszüntetve a `BaseName_[hash]_vj1080.mp4` elnevezést és a `qHash` generálást; a kimeneti fájlnév újra tiszta `BaseName_vj1080.mp4`.
-     - Köztes `.tmp.mp4` fájlírás eltávolítva; közvetlen célfájlba kódolás.
-     - Megszakadt / hibás konverzió esetén a sérült félkész fájl automatikusan törlődik.
-     - Duplikációmentes könyvtár: ha a VJ mappában már létezik `BaseName_vj1080.mp4`, a tracklist azonnal késznek tekinti (`Ready`), nem konvertálja újra feleslegesen.
-  2. **Változatlanul garantált All-Intra időkód formátum:**
-     - Az FFmpeg enkóder paraméterek (`-g 2 -bf 0`, NVENC HQ, 48 kHz AAC) teljes mértékben érintetlenek, biztosítva a zéró késleltetésű, azonnali képkocka-pontos scratch és ugrás funkciót.
-  3. **Build #382 audió & fader javítások teljes megőrzése:**
-     - Párhuzamos ASIO Ch 3-4 + WASAPI CUE fejhallgató kiszolgálás (bármelyik kimenetre dugva a fülest, azonnal és garantáltan szól).
-     - Mintánkénti lineáris hangerő-interpoláció (Linear Gain Smoothing) a csatornahangerő fádereken, potmétereken és crossfaderen (zéró zipper noise / recsegés).
+* **Fő cél:** Build #384 - Zenei Reaktivitás (Beat Sensitivity) Vezérlés, Zenei Alapértelmezések és 9 Mixer FX Élő Audió Bekötése:
+  1. **Állítható Master "Beat Érzékenység" (Audio Reactivity):**
+     - Új csúszka a VJ FX ablakban (0% .. 200%, alapértelmezett 100%).
+     - Szabályozza az összes procedurális shader dob- és dinamika-érzékenységét (`eff_bass`, `eff_mid`, `eff_high`, `eff_amp`).
+     - Valós idejű szálbiztos atomi átadás és perzisztens `.vdj.json` mentés/betöltés (`audio_reactivity`).
+  2. **Zenei Alapértelmezések mind a 15 procedurális VJ shaderhez:**
+     - Az eddig csendes `mod_mode = 0` (OFF) helyett mind a 15 beépített shader kulcsparaméterei (méret, pulzus, fénylés, robbanás, pupilla, stb.) automatikusan dinamikus zenei modulációt kaptak (Bass Pulse +40..60%, Mid Pulse +35%, Macro-Tonus +30..35%).
+  3. **9 Traktor Mixer FX Élő Audió Bekötése (Visual EQ 100% érintetlenül hagyásával):**
+     - Az összes Traktor Mixer FX (Filter, Delay, Reverb, Flanger, Beatmasher, Turntable, Ramp Delay, Mulholland Drive, Transpose) megkapja az élő zenei spektrumot (`bass_energy`, `mid_energy`, `high_energy`, `audio_amp`).
+     - A Beatmasher szaggatása és ugrása, a Delay és Reverb tágulása a lábdobokra és ütemekre lüktet falióra-idő helyett.
+     - A Visual EQ korrekciós lánc (RGB erősítések, szaturáció, csatorna potméterek) szigorúan érintetlen maradt a felhasználói direktíva szerint.
+  4. **Master Crossfade FX Moduláció Javítása:**
+     - A korábban 0.0f-ra kódolt `mod_depth` hiba elhárítva, az intenzitás és ráta modulációk azonnal reagálnak az aktív módokra.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #379)
-* [x] **Kritikus Rendszerbiztonsági & Kódstabilitási Audit Javítások (Build #379):**
-  - ASIO puffer-túlírás és 0 dB int32 clipping megszüntetése.
-  - MIDI beállítófül use-after-free és esemény-áradat megszüntetése.
-  - Deck video render időkód szétválasztása külön deck-példányokra.
-  - Hash-alapú egyedi videókonverzió és .tmp fájlvédelem.
-  - Globális OBS beállítás-felülírás kiiktatása, dropout-mentes monitorozás.
-  - Kíméletes OBS bezárás telepítés előtt és CMake/CI SDK javítás.
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #383)
+* [x] **Tiszta BaseName_vj1080.mp4 Videókonverter & Duplikációmentes Könyvtár (Build #383):**
+  - Megszüntetve a `BaseName_[hash]_vj1080.mp4` elnevezés és a `qHash` generálás.
+  - Köztes `.tmp.mp4` fájlírás eltávolítva; közvetlen célfájlba kódolás.
+  - Telepített bináris: 1 462 784 bájt, SHA256 `BAD5E470E543FCA815F7C00F78603B59BFCA8A31F63B94B3094001FB72BD67D8`.
 * [x] **Tiszta Crossfader Dominancia & Fokozatos Box Iris (Build #378):**
   - Crossfader végállás szivárgásmentességének helyreállítása.
   - 16:9 téglalap hirtelen ugrásának megszüntetése, sima lineáris szűkülés.
