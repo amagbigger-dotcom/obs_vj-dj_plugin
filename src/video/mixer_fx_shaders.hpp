@@ -176,22 +176,6 @@ float4 fx_flanger(float2 uv, float v, float amt, float anim_time, float bass)
         return saturate(float4(res, a));
     }
 }
-    float r = image.Sample(def_sampler, center_uv + float2( split, 0.0)).r;
-    float g = image.Sample(def_sampler, center_uv).g;
-    float b = image.Sample(def_sampler, center_uv - float2( split, 0.0)).b;
-    float a = image.Sample(def_sampler, center_uv).a;
-
-    if (v < 0.0) {
-        // Mély folyékony hullámzás (Deep Liquid Sub-Wave) sötétebb tónussal
-        float3 res = float3(r, g, b) * (1.0 - amt * 0.25);
-        return saturate(float4(res, a));
-    } else {
-        // Sugárhajtómű-szerű fémes interferencia (Jet sweep sheen) + kifehéredő csillogás
-        float sweep = sin(anim_time * 4.5 + uv.x * 3.14159) * 0.5 + 0.5;
-        float3 res = float3(r, g, b) + float3(0.20, 0.28, 0.35) * (sweep * amt * 0.65);
-        return saturate(float4(res, a));
-    }
-}
 )";
 
 static const char *MIXER_FX_HLSL_PART2 = R"(
