@@ -421,7 +421,7 @@ float4 apply_deck_mixer_fx(float2 uv, float fx_type, float fx_val, float bpm, fl
         }
     }
 
-    // Színkorrekció és Visual EQ (Basszus vezérelt szaturáció + 3-sávos gain)
+    // Színkorrekció és Visual EQ (Filter szaturáció + 3-sávos RGB gain)
     if (vis_eq) {
         col.rgb *= gains.rgb;
         float eq_luma = dot(col.rgb, float3(0.2126, 0.7152, 0.0722));

@@ -998,7 +998,7 @@ void DeckPlayer::updateVisualEqMapping() noexcept
     } else {
         flt_sat_factor = 1.0f + flt * 0.65f;
     }
-    const float final_sat = std::clamp(low * flt_sat_factor, 0.0f, 2.0f);
+    const float final_sat = std::clamp(flt_sat_factor, 0.0f, 2.0f);
 
     if (inv) {
         // Megfordított sorrend: HI = Kék (Blue), MID = Zöld (Green), LOW = Vörös (Red)
