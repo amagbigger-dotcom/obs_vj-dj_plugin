@@ -680,7 +680,7 @@ float4 render_diamond_vision(float2 uv) {
     for (int i = 0; i < 36; ++i) {
         if (d < 0.001) break;
         d = map_dv(p_ray, r_eff, th_eff, twist, time2);
-        p_ray += d * rd;
+        p_ray += max(d, 0.005) * rd;
         md = min(md, d);
         it += 1.0;
     }
@@ -905,7 +905,11 @@ float4 render_searching_light(float2 uv)
         float angle = atan2(p.y, p.x);
         float ray_mod = sin(angle * ray_count + z);
         float2 uv_mod = uv + p / max(0.0001, l) * (cos(z) + 0.7) * (ray_mod + 0.7);
-        c[i] = ray_sharpness / max(0.0001, length(abs(glsl_mod2(uv_mod, tunnel_w) - tunnel_w * 0.5)));
+        float val_i = ray_sharpness / max(0.0001, length(abs(glsl_mod2(uv_mod, tunnel_w) - tunnel_w * 0.5)));
+        if (i == 0) c.x = val_i;
+        else if (i == 1) c.y = val_i;
+        else if (i == 2) c.z = val_i;
+        else c.w = val_i;
     }
 
     float3 theme = get_base_theme_color();
@@ -1007,7 +1011,7 @@ float4 render_cube_field(float2 uv)
             hit = true;
             break;
         }
-        t += dist.y * 0.5;
+        t += max(dist.y * 0.5, 0.01);
         iter++;
     }
 
@@ -1119,7 +1123,7 @@ float4 render_globular_cluster(float2 uv)
     for (int i = 0; i < 64; ++i) {
         if (h < 0.0005 || t > tmax) break;
         h = map_gc(r0 + t * rd, m_time, warp_val, warp_val * 0.75, warp_val * 0.5, melt, 0.5, 4.0, 5.5);
-        t += h;
+        t += max(h, 0.01);
     }
 
     float f = 0.0;
@@ -1308,14 +1312,13 @@ float4 sample_visualizer_mode(float mode, float2 uv)
 
 float4 PSVisualizer(VertData v) : TARGET
 {
-    if (visualizer_trans_t >= 0.999) {
-        return sample_visualizer_mode(visualizer_mode, v.uv);
-    } else {
+    float4 col_curr = sample_visualizer_mode(visualizer_mode, v.uv);
+    [branch]
+    if (visualizer_trans_t < 0.999) {
         float4 col_prev = sample_visualizer_mode(visualizer_mode_prev, v.uv);
-        float4 col_curr = sample_visualizer_mode(visualizer_mode, v.uv);
-        float t = smoothstep(0.0, 1.0, visualizer_trans_t);
-        return lerp(col_prev, col_curr, t);
+        return lerp(col_prev, col_curr, smoothstep(0.0, 1.0, visualizer_trans_t));
     }
+    return col_curr;
 }
 
 technique Draw

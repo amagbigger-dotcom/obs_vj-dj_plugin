@@ -35,6 +35,7 @@ struct DeckSourceContext {
     gs_effect_t *color_effect = nullptr;
     bool color_effect_failed = false;
     gs_effect_t *fluid_effect = nullptr;
+    bool fluid_effect_failed = false;
     uint32_t loaded_vj_effect_version = 0;
     gs_texture_t *dummy_tex = nullptr;
 
@@ -423,13 +424,15 @@ static void deck_video_render(void *data, gs_effect_t *effect)
                 if (context->fluid_effect && context->loaded_vj_effect_version != cur_vj_ver) {
                     gs_effect_destroy(context->fluid_effect);
                     context->fluid_effect = nullptr;
+                    context->fluid_effect_failed = false;
                 }
-                if (!context->fluid_effect) {
+                if (!context->fluid_effect && !context->fluid_effect_failed) {
                     char *err = nullptr;
                     context->fluid_effect = gs_effect_create(FLUID_FLOW_EFFECT, "fluid_flow_effect", &err);
                     if (!context->fluid_effect) {
                         blog(LOG_ERROR, "[vj_deck] Failed to compile FLUID_FLOW_EFFECT: %s", err ? err : "unknown");
                         bfree(err);
+                        context->fluid_effect_failed = true;
                     } else {
                         context->loaded_vj_effect_version = cur_vj_ver;
                     }
