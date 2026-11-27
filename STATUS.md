@@ -1,24 +1,30 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #388 (GitHub Run #45979598195 / Run #430 - Telepítve és igazoltan működik!)
-* **Aktuális Git Commit:** `0324ba5`
-* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 487 360 bájt, 2026. 11. 27. 11:13)
-* **Bináris SHA256:** `CDB5035025F578EC1BF18CA560EA3A9076D65677788198319E3A9A1C1EB5D358`
+* **Legutolsó stabil mérföldkő:** Build #389 (GitHub Run #46043542142 / Run #432 - Telepítve és igazoltan működik!)
+* **Aktuális Git Commit:** `e4ae0d6`
+* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 487 360 bájt, 2026. 11. 27. 18:43)
+* **Bináris SHA256:** `2CA99DFB98858F9777087C208D7E5E2DEFF218207C6C90EBC7166D5D334F0634`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #388 - Low EQ és Szaturáció Teljes Szétválasztása & Tiszta Kék Színkivonás:
-  1. **Low EQ és Szaturáció Csatolásának Megszüntetése:**
-     - A korábbi kísérleti `final_sat = std::clamp(low * flt_sat_factor, 0.0f, 2.0f)` szorzás megszüntetve a `DeckPlayer::updateVisualEqMapping()` függvényben.
-     - A mély potméter lehúzásakor mostantól **kizárólag a Kék (Blue) csatorna** vonódik ki a képből (vagy megfordított módban a Vörös), a kép szaturációja nem esik le 0-ra, és a többi szín (Piros, Zöld) 100%-ban élénk és telített marad.
-  2. **Szaturáció Dedikálása a Filter (FLT) Potméterhez:**
-     - A szaturációt mostantól közvetlenül és tisztán a Filter potméter vezérli (`flt_sat_factor`), a 3 EQ potméter (HI, MID, LOW) pedig szigorúan és kizárólag a 3 színcsatorna (Vörös, Zöld, Kék) szorzóit szabályozza.
+* **Fő cél:** 1. Fluid Flow 3D Tisztítása & Beégetett Audio Reaktivitás Megszüntetése (Build #389):
+  1. **Beégetett Háttér-Audio Villogás Eltávolítása:**
+     - A shader HLSL-jéből törölve a hardkódolt `kick_eff` szorzás és a közvetlen `high_energy * 0.35` színvillogtatás.
+     - Amikor minden csúszka alaphelyzetben van (`mod_mode = 0` / Kézi, `depth = 0`), a shader **100%-ban statikus és nyugodt**, a Beat érzékenység potméter semmit nem csinál a háttérben.
+  2. **8. Paraméter Cseréje:**
+     - A kaotikus koordináta-ugrálást okozó `turbulence` (Örvénylés) helyett bevezetve az **`edge_rim` (Peremfény / Edge Rim)**.
+     - Tiszta neon körvonalat rajzol a folyadék peremére, ami magas/közép modulációra gyönyörűen és ugrásmentesen szikrázik.
+  3. **4. Paraméter Átalakítása:**
+     - `pulse` helyett **`density` (Folyadék Tömeg / Density)**, ami Bass Pulse-ra lélegezteti a folyadéktestet.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #388)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #389)
+* [x] **1. Fluid Flow 3D Tisztítása & Beégetett Audio Reaktivitás Megszüntetése (Build #389):**
+  - Törölve a közvetlen `kick_eff` és `high_energy` villogtatás; 8. paraméter lecserélve `edge_rim`-re (neon peremfény); 4. paraméter átalakítva `density`-re.
+  - Telepített bináris: 1 487 360 bájt, SHA256 `2CA99DFB98858F9777087C208D7E5E2DEFF218207C6C90EBC7166D5D334F0634`.
 * [x] **Low EQ és Szaturáció Csatolásmentesítése & Tiszta Kék Színkivonás (Build #388):**
   - `low` szorzó eltávolítva a `final_sat`-ból; a Low EQ potméter tekerése kizárólag a kék komponenst módosítja monokróm/negatív szaturációs torzulás nélkül.
   - Telepített bináris: 1 487 360 bájt, SHA256 `CDB5035025F578EC1BF18CA560EA3A9076D65677788198319E3A9A1C1EB5D358`.
