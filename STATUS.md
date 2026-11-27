@@ -1,32 +1,35 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #386 (GitHub Run #45887231401 / Run #426 - Telepítve és igazoltan működik!)
-* **Aktuális Git Commit:** `cec1435`
-* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 487 360 bájt, 2026. 11. 26. 20:59)
-* **Bináris SHA256:** `EB2CC96D7CB34AE2B624A6AC783C65C17C82C53056840C8F2D45BA1F7E9AD495`
+* **Legutolsó stabil mérföldkő:** Build #387 (GitHub Run #45965821944 / Run #428 - Telepítve és igazoltan működik!)
+* **Aktuális Git Commit:** `d41913d`
+* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 487 360 bájt, 2026. 11. 27. 09:30)
+* **Bináris SHA256:** `BC4FA730820AFD6A763751DF1158D3A55E440F6114CD146ECEED7C9AC42681D7`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #386 - Ugrásmentes Folytonos VJ Fázis Akkumulátor, 15 Újra-architekturált Shader & Perzisztens Felhasználói Alapértelmezések:
-  1. **Ugrásmentes Fázis-integrátor ($C^0$ Continuous Phase Accumulator):**
-     - Megszüntetve a sebesség/lüktetés változtatásakor fellépő durva fázistörés és képi ugrálás.
-     - A deck motorban bevezetve a `mutable std::atomic<float> vj_phase_` és `last_vj_time_ns_`, amely szigorúan idődifferenciálból ($dt \cdot rate$) integrálja az animációs időt, így a sebesség modulálásakor a kép lágyan gyorsul/lassul képugrás nélkül.
-  2. **15 Procedurális VJ Shader Teljes Áttervezése & Tisztítása:**
-     - **Shader 0 (Fluid Flow):** Felesleges halott változók (`freq1`, `freq2`) eltávolítva; állítható élesség (`sharpness`), tejfehér homályosság megszüntetve.
-     - **Shader 1–14 (Truchet, Hypno Worm, Shape Twist, String Art, Dodecahedron, Kali Circuits, Diamond Vision, Pupila Eye, Mandala Scope, Searching Light, Cube Field 3D, Electro Bands, Globular Cluster, Hex Truch Warp):** Minden shaderben közvetlen, látványos formaalkotó skálár paraméterek kikötve a kaotikus koordináta-ugrások helyett.
-  3. **Intelligens Zenei Alapértelmezések Mind a 15 Shader Mind a 8 Paraméterére:**
-     - Minden shader minden csúszkájához zeneileg harmonikus vezérlő hozzárendelve (Bass Pulse, Mid Pulse, High Pulse, Macro-Tonus, BPM-szinkron LFO 1/2).
-  4. **Perzisztens Felhasználói Alapbeállítások Mentése & Gyári Visszaállítás:**
-     - A VJ FX dialógusban megjelent a `[💾 Alapbeállítás Mentése]` és `[↺ Gyári Visszaállítás]` gomb `QMessageBox::question` megerősítő ablakkal.
-     - A beállítások az `%APPDATA%/obs-studio/plugin_config/obs_vj_dj_plugin/vj_user_defaults.json` fájlban tárolódnak shaderenként.
-  5. **Visual EQ Védelem:**
-     - A fizikai/virtuális EQ potméterek és szaturáció szigorúan és 100%-ban érintetlenek maradtak, nulla automata zenei pulzussal.
+* **Fő cél:** Build #387 - OBS Fehér Képernyős Fagyás Megszüntetése, Lusta VJ Shader Betöltés, PSVisualizer Inlining Optimalizálás & Raymarching Biztonság:
+  1. **Indulási Fehér Képernyő / Nem Válaszol Fagyás Elhárítása:**
+     - A `mixer_source.cpp` `ensure_resources()` függvényéből eltávolítva a több ezer soros `FLUID_FLOW_EFFECT` induláskori szinkron fordítása, amely a jelenetváltáskor 13–15 másodpercre blokkolta az OBS grafikai szálát és a Windows felületet.
+     - A shader mostantól szigorúan lusta betöltéssel (lazy loading), kizárólag akkor fordul le a `render_to_texture` ágon, amikor a deck valóban hangfájlt játszik le.
+  2. **60 FPS Újrafordítási Ciklus Védelem (`fluid_effect_failed`):**
+     - Mind a `MixerSource`, mind a `DeckSourceContext` kapott atomi fail-safe védelmet: fordítási hiba vagy inicializálási probléma esetén azonnal zárolja az újrapróbálkozást, megelőzve az OBS másodpercenként 60-szoros újrafordítási fagyását.
+  3. **`PSVisualizer` Inlining & Fordítási Idő Felezése:**
+     - A korábbi duplikált `sample_visualizer_mode()` hívások (`if (visualizer_trans_t >= 0.999) return ... else return lerp(..., ...)`) megszüntetve; a 24 shader így nem inlinelődik 3-szor (72 komplex alrendszer) a megashaderbe, hanem `[branch]` vezérelt ágon fut.
+  4. **Shader 10 (`render_searching_light`) Dinamikus Vektor Indexelés Javítása:**
+     - Megszüntetve a D3DCompiler által tiltott `c[i] = ...` dinamikus balérték (l-value) indexelés `float4` vektoron, ami regiszter-szétesést és kényszerített unroll hurkot okozott.
+  5. **Raymarching Pozitív Lépés Garancia (Shader 7, 11, 13):**
+     - Biztosítva a minimális előrelépés (`max(d, 0.005)`, `max(dist.y * 0.5, 0.01)`, `max(h, 0.01)`), így a sugárkövetés nem tud megakadni nulla vagy negatív távolság esetén.
+  6. **Visual EQ Védelem:**
+     - A vizuális EQ és szaturáció logika 100%-ban érintetlen maradt.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #386)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #387)
+* [x] **OBS Fehér Képernyős Fagyás Megszüntetése, Lusta Betöltés & Shader Tisztítás (Build #387):**
+  - Mixer indulási blokkolás elhárítva, `fluid_effect_failed` fail-safe védelem, `PSVisualizer` inlining csökkentve, Shader 10 indexelés javítva, raymarching lépésvédelem.
+  - Telepített bináris: 1 487 360 bájt, SHA256 `BC4FA730820AFD6A763751DF1158D3A55E440F6114CD146ECEED7C9AC42681D7`.
 * [x] **Ugrásmentes VJ Fázis, 15 Tisztított Shader & Felhasználói Alapértelmezések (Build #386):**
   - Continuous Phase Accumulator, 15 shader HLSL refaktor, 8-paraméteres zenei default modulációk, `vj_user_defaults.json` perzisztencia.
   - Telepített bináris: 1 487 360 bájt, SHA256 `EB2CC96D7CB34AE2B624A6AC783C65C17C82C53056840C8F2D45BA1F7E9AD495`.
