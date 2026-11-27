@@ -116,7 +116,7 @@ Ha egy deckbe nem videófájlt, hanem tiszta audiófájlt (`.mp3`, `.wav`) tölt
 
 | Index | Név | Kategória | Kifordított Paraméterek |
 | :---: | :--- | :--- | :--- |
-| **0** | **Fluid Flow 3D** | Organikus 3D Folyadék | `rate` (sebesség), `zrate` (Z-áramlás), `depth` (mélység), `blur` (elmosás), `freq`, `freq2` |
+| **1 (0)** | **Fluid Flow 3D** | Organikus 3D Folyadék | `scale` (lépték), `viscosity` (viszkozitás), `sharpness` (élesség), `density` (folyadéktömeg), `layers` (rétegek), `glow` (fényerő), `color_mix` (színkeverés), `edge_rim` (neon peremfény) |
 | **1** | **Truchet Spin 3D** | 3D Raymarch Labirintus | `rate`, `zoom`, `thickness` (vastagság), `pulse` (pulzus) |
 | **2** | **Hypno Worm** | 24-Lépéses OpArt Alagút | `rate`, `size`, `edge` (élesség), `amp1`, `amp2` |
 | **3** | **Shape Twist** | 18-Lépéses Elektro Hullám | `rate`, `zoom`, `amplitude`, `thickness`, `twist` |
