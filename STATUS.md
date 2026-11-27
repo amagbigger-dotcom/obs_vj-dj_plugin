@@ -1,32 +1,27 @@
 # AKTUÁLIS FEJLESZTÉSI STÁTUSZ & SPRINT (STATUS)
 
-* **Legutolsó stabil mérföldkő:** Build #387 (GitHub Run #45965821944 / Run #428 - Telepítve és igazoltan működik!)
-* **Aktuális Git Commit:** `d41913d`
-* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 487 360 bájt, 2026. 11. 27. 09:30)
-* **Bináris SHA256:** `BC4FA730820AFD6A763751DF1158D3A55E440F6114CD146ECEED7C9AC42681D7`
+* **Legutolsó stabil mérföldkő:** Build #388 (GitHub Run #45979598195 / Run #430 - Telepítve és igazoltan működik!)
+* **Aktuális Git Commit:** `0324ba5`
+* **Telepített bináris:** `C:\Program Files\obs-studio\obs-plugins\64bit\obs_dj-vj_plugin.dll` (1 487 360 bájt, 2026. 11. 27. 11:13)
+* **Bináris SHA256:** `CDB5035025F578EC1BF18CA560EA3A9076D65677788198319E3A9A1C1EB5D358`
 * **Kész bináris másolat:** `C:\Users\B166ER\Desktop\obs_dj-vj_plugin.dll`
 
 ---
 
 ## 1. Jelenlegi Fókusz / Sprint
-* **Fő cél:** Build #387 - OBS Fehér Képernyős Fagyás Megszüntetése, Lusta VJ Shader Betöltés, PSVisualizer Inlining Optimalizálás & Raymarching Biztonság:
-  1. **Indulási Fehér Képernyő / Nem Válaszol Fagyás Elhárítása:**
-     - A `mixer_source.cpp` `ensure_resources()` függvényéből eltávolítva a több ezer soros `FLUID_FLOW_EFFECT` induláskori szinkron fordítása, amely a jelenetváltáskor 13–15 másodpercre blokkolta az OBS grafikai szálát és a Windows felületet.
-     - A shader mostantól szigorúan lusta betöltéssel (lazy loading), kizárólag akkor fordul le a `render_to_texture` ágon, amikor a deck valóban hangfájlt játszik le.
-  2. **60 FPS Újrafordítási Ciklus Védelem (`fluid_effect_failed`):**
-     - Mind a `MixerSource`, mind a `DeckSourceContext` kapott atomi fail-safe védelmet: fordítási hiba vagy inicializálási probléma esetén azonnal zárolja az újrapróbálkozást, megelőzve az OBS másodpercenként 60-szoros újrafordítási fagyását.
-  3. **`PSVisualizer` Inlining & Fordítási Idő Felezése:**
-     - A korábbi duplikált `sample_visualizer_mode()` hívások (`if (visualizer_trans_t >= 0.999) return ... else return lerp(..., ...)`) megszüntetve; a 24 shader így nem inlinelődik 3-szor (72 komplex alrendszer) a megashaderbe, hanem `[branch]` vezérelt ágon fut.
-  4. **Shader 10 (`render_searching_light`) Dinamikus Vektor Indexelés Javítása:**
-     - Megszüntetve a D3DCompiler által tiltott `c[i] = ...` dinamikus balérték (l-value) indexelés `float4` vektoron, ami regiszter-szétesést és kényszerített unroll hurkot okozott.
-  5. **Raymarching Pozitív Lépés Garancia (Shader 7, 11, 13):**
-     - Biztosítva a minimális előrelépés (`max(d, 0.005)`, `max(dist.y * 0.5, 0.01)`, `max(h, 0.01)`), így a sugárkövetés nem tud megakadni nulla vagy negatív távolság esetén.
-  6. **Visual EQ Védelem:**
-     - A vizuális EQ és szaturáció logika 100%-ban érintetlen maradt.
+* **Fő cél:** Build #388 - Low EQ és Szaturáció Teljes Szétválasztása & Tiszta Kék Színkivonás:
+  1. **Low EQ és Szaturáció Csatolásának Megszüntetése:**
+     - A korábbi kísérleti `final_sat = std::clamp(low * flt_sat_factor, 0.0f, 2.0f)` szorzás megszüntetve a `DeckPlayer::updateVisualEqMapping()` függvényben.
+     - A mély potméter lehúzásakor mostantól **kizárólag a Kék (Blue) csatorna** vonódik ki a képből (vagy megfordított módban a Vörös), a kép szaturációja nem esik le 0-ra, és a többi szín (Piros, Zöld) 100%-ban élénk és telített marad.
+  2. **Szaturáció Dedikálása a Filter (FLT) Potméterhez:**
+     - A szaturációt mostantól közvetlenül és tisztán a Filter potméter vezérli (`flt_sat_factor`), a 3 EQ potméter (HI, MID, LOW) pedig szigorúan és kizárólag a 3 színcsatorna (Vörös, Zöld, Kék) szorzóit szabályozza.
 
 ---
 
-## 2. Legutóbb Elkészült Funkciók (Build #313 – #387)
+## 2. Legutóbb Elkészült Funkciók (Build #313 – #388)
+* [x] **Low EQ és Szaturáció Csatolásmentesítése & Tiszta Kék Színkivonás (Build #388):**
+  - `low` szorzó eltávolítva a `final_sat`-ból; a Low EQ potméter tekerése kizárólag a kék komponenst módosítja monokróm/negatív szaturációs torzulás nélkül.
+  - Telepített bináris: 1 487 360 bájt, SHA256 `CDB5035025F578EC1BF18CA560EA3A9076D65677788198319E3A9A1C1EB5D358`.
 * [x] **OBS Fehér Képernyős Fagyás Megszüntetése, Lusta Betöltés & Shader Tisztítás (Build #387):**
   - Mixer indulási blokkolás elhárítva, `fluid_effect_failed` fail-safe védelem, `PSVisualizer` inlining csökkentve, Shader 10 indexelés javítva, raymarching lépésvédelem.
   - Telepített bináris: 1 487 360 bájt, SHA256 `BC4FA730820AFD6A763751DF1158D3A55E440F6114CD146ECEED7C9AC42681D7`.
