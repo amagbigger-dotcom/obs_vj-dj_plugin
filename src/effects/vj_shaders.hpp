@@ -242,11 +242,11 @@ float4 render_fluid_flow(float2 uv)
     float scale = max(p0, 0.2);
     float viscosity = max(p1, 0.05);
     float sharpness = saturate(p2);
-    float pulse = p3;
+    float density = max(p3, 0.1);
     float layers = clamp(p4, 2.0, 8.0);
     float glow = max(p5, 0.1);
     float color_mix = saturate(p6);
-    float turbulence = max(p7, 0.1);
+    float edge_rim = max(p7, 0.0);
 
     float2 p = uv - float2(0.5, 0.5);
     p.x *= 1.77777;
@@ -257,26 +257,30 @@ float4 render_fluid_flow(float2 uv)
 
     float T = anim_time * 0.8;
     float dist = 0.0;
+    float total_rim = 0.0;
 
-    float edge_low = lerp(0.02, 0.25, sharpness);
-    float edge_high = lerp(0.40, edge_low + 0.03, sharpness);
-
-    float kick_eff = (1.0 + bass_energy * 0.65 * pulse);
+    float edge_low = lerp(0.02, 0.30, sharpness) * (1.0 / density);
+    float edge_high = lerp(0.40, edge_low + 0.04, sharpness);
 
     for (float i = 1.0; i <= layers; i += 1.0) {
-        float3 flow_pos = pos * (i * viscosity) + float3(sin(T * 0.7 + i), T * 0.5, cos(T * 0.7 + i * 0.5)) * (turbulence * 0.25);
+        float3 flow_pos = pos * (i * viscosity) + float3(sin(T * 0.7 + i), T * 0.5, cos(T * 0.7 + i * 0.5)) * 0.25;
         float flow = abs(snoise_fluid(flow_pos));
-        flow = smoothstep(edge_low, edge_high, flow);
-        dist = max(dist, flow * (1.0 - (i * (0.85 / layers))));
+
+        float body = smoothstep(edge_low, edge_high, flow);
+        dist = max(dist, body * (1.0 - (i * (0.80 / layers))));
+
+        float rim = smoothstep(edge_low - 0.03, edge_low, flow) * (1.0 - smoothstep(edge_low, edge_low + 0.05, flow));
+        total_rim = max(total_rim, rim * (1.0 - (i * 0.1)));
     }
 
     float3 th_base = get_base_theme_color();
     float3 c_gold = float3(1.0, 0.85, 0.5);
-    float3 c_fluid = lerp(th_base, c_gold, color_mix) * glow * kick_eff;
+    float3 c_fluid = lerp(th_base, c_gold, color_mix) * glow;
 
     float3 c_bg = float3(0.005, 0.005, 0.01);
     float3 col = lerp(c_bg, c_fluid, dist);
-    col += th_base * (high_energy * 0.35 * dist);
+
+    col += (th_base * 1.5 + float3(0.2, 0.2, 0.2)) * (total_rim * edge_rim);
     return float4(saturate(col), 1.0);
 }
 )";

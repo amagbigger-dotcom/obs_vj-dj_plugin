@@ -280,15 +280,15 @@ inline void applyDefaultShaderModulations(VjDeckConfig &cfg) {
         }
     };
 
-    // 0: Fluid Flow 3D (sharpness, flow_speed, depth, viscosity, wave_scale, fluidity, swirl, glow)
-    set_mod(0, 0, 4, 0.35f); // Sharpness -> Macro-Tonus +35%
-    set_mod(0, 1, 1, 0.30f); // Flow Speed -> Bass Pulse +30%
-    set_mod(0, 2, 2, 0.25f); // Depth -> Mid Pulse +25%
-    set_mod(0, 3, 5, 0.30f); // Viscosity -> LFO 1 +30%
-    set_mod(0, 4, 1, 0.35f); // Wave Scale -> Bass Pulse +35%
-    set_mod(0, 5, 6, 0.25f); // Fluidity -> LFO 2 +25%
-    set_mod(0, 6, 5, 0.35f); // Swirl -> LFO 1 +35%
-    set_mod(0, 7, 3, 0.40f); // Glow -> High Pulse +40%
+    // 0: Fluid Flow 3D (scale, viscosity, sharpness, density, layers, glow, color_mix, edge_rim)
+    set_mod(0, 0, 0, 0.0f);  // Scale -> Kézi
+    set_mod(0, 1, 0, 0.0f);  // Viscosity -> Kézi
+    set_mod(0, 2, 0, 0.0f);  // Sharpness -> Kézi
+    set_mod(0, 3, 1, 0.40f); // Density -> Bass Pulse +40%
+    set_mod(0, 4, 0, 0.0f);  // Layers -> Kézi
+    set_mod(0, 5, 4, 0.30f); // Glow -> Macro-Tonus +30%
+    set_mod(0, 6, 6, 0.25f); // Color Mix -> LFO 2 +25%
+    set_mod(0, 7, 3, 0.45f); // Edge Rim -> High Pulse +45%
 
     // 1: Truchet Spin 3D (zoom, thickness, pulse, twist, roughness, glow, fog_depth, symmetry)
     set_mod(1, 0, 1, 0.35f); // Zoom -> Bass Pulse +35%

@@ -24,11 +24,11 @@ const std::vector<VjShaderDef> &getBuiltInShaderDefinitions()
                 {"scale", "Lépték / Scale", 0.5f, 3.0f, 1.2f, 0.05f},
                 {"viscosity", "Viszkozitás / Viscosity", 0.1f, 2.0f, 0.8f, 0.05f},
                 {"sharpness", "Élesség / Sharpness", 0.0f, 1.0f, 0.65f, 0.02f},
-                {"pulse", "Kick Lüktetés / Pulse", 0.0f, 2.0f, 0.8f, 0.05f},
+                {"density", "Folyadék Tömeg / Density", 0.2f, 2.0f, 1.0f, 0.05f},
                 {"layers", "Rétegek / Layers", 2.0f, 8.0f, 5.0f, 1.0f},
                 {"glow", "Fényerő / Glow", 0.2f, 3.0f, 1.2f, 0.05f},
                 {"color_mix", "Színkeverés / Color Mix", 0.0f, 1.0f, 0.5f, 0.02f},
-                {"turbulence", "Örvénylés / Turbulence", 0.1f, 3.0f, 1.0f, 0.05f}
+                {"edge_rim", "Peremfény / Edge Rim", 0.0f, 2.0f, 0.8f, 0.05f}
             }
         },
         {
